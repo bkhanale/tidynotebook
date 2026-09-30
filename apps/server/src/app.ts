@@ -16,7 +16,11 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ReaderRefusalCause } from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
 import { findChannel, findOperation } from '@notesapp/api-contract';
-import type { ServerConfig } from './config.ts';
+import {
+  loadLegalTexts,
+  type LegalTexts,
+  type ServerConfig,
+} from './config.ts';
 import type { ServiceLifecycle } from './lifecycle.ts';
 import { createHandlers } from './routes/handlers.ts';
 import {
@@ -41,7 +45,11 @@ import { createIdentityAdapter } from './auth/actor.ts';
 import { createPublicationHasher } from './auth/publication-secrets.ts';
 import { createSetupHandlers } from './auth/setup.ts';
 import { passwordMatches, sessionAllowedBy } from './auth/registration.ts';
-import { createMailTransport, type MailTransport } from './auth/mail.ts';
+import {
+  budgetedTransport,
+  createMailTransport,
+  type MailTransport,
+} from './auth/mail.ts';
 import {
   createDocumentService,
   openAttachmentStore,
@@ -124,8 +132,12 @@ import { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
 import { createNoticeGateway } from './notices/gateway.ts';
 import { registerWebSocket } from './plugins/websocket.ts';
 
-/** How many messages of a sign-up one address takes in an hour (record 0114). */
-const signUpMailsPerHour = 3;
+/**
+ * How many messages one address takes in an hour from a person with no
+ * session: a sign-up, a repeated sign-up and a password reset (records 0114
+ * and 0141).
+ */
+const strangerMailsPerHour = 3;
 
 /**
  * The address of one request, as a problem body repeats it.
@@ -201,6 +213,13 @@ export type AppOptions = {
    * its own so that it reads every message without a mail server.
    */
   readonly mail?: MailTransport | null;
+  /**
+   * The Markdown text of each legal document that this server serves. `main.ts`
+   * reads it before the start, so a refusal names its file. A caller that
+   * passes nothing gets the files of the configuration read here (record
+   * 0140).
+   */
+  readonly legalTexts?: LegalTexts;
   /**
    * The bounds of the notice gateway. A test passes shorter times, and a
    * deployment takes `defaultNoticeBounds` (record 0129).
@@ -651,12 +670,27 @@ async function composeApp(
   // not mounted. The one registration path of `auth/registration.ts` calls
   // it. The session hook asks the account store before every new session, so
   // only an enabled account gets one (record 0111).
+  const attempts = databaseAttemptCounter(coordination);
+  // Every message that a person with no session can cause goes through this
+  // one transport, so each counts against the budget of its address. The count
+  // is shared by every server process (records 0121 and 0141).
+  const strangerMail = budgetedTransport(
+    mail,
+    async (address) =>
+      (
+        await attempts.count(
+          `stranger-mail:${address}`,
+          60 * 60 * 1000,
+          Date.now(),
+        )
+      ).current <= strangerMailsPerHour,
+  );
   const authPool = createAuthPool(config);
   opened.push(() => authPool.end());
   const auth = createAuth(
     config,
     {
-      mail,
+      mail: strangerMail,
       allowSignUp: true,
       sessionAllowed: sessionAllowedBy(identity),
       log: (record) => sink.write?.(record),
@@ -665,7 +699,6 @@ async function composeApp(
     authPool,
   );
   opened.push(() => auth.close());
-  const attempts = databaseAttemptCounter(coordination);
   // The notice gateway of this process (record 0129). Its log sink is filled
   // once the instance exists, as the sinks above are.
   const noticeLog: { logger?: ReturnType<typeof createServerLogger> } = {};
@@ -716,6 +749,10 @@ async function composeApp(
           ? {}
           : { lifecycle: options.lifecycle }),
         noticeProtocols: () => gateway.offered(),
+        legal: {
+          texts: options?.legalTexts ?? (await loadLegalTexts(config)),
+          stylesheets: publishedStylesheets,
+        },
       }),
       ...createSetupHandlers({
         auth: auth.auth,
@@ -724,7 +761,7 @@ async function composeApp(
         servedOrigins: config.servedOrigins,
         accountLimitBytes: config.accounts.limitBytes,
         open: {
-          mail,
+          mail: strangerMail,
           origin: config.origin,
           pendingHours: config.accounts.pendingHours,
           tokens: createVerificationTokens(config.authSecret),
@@ -736,16 +773,6 @@ async function composeApp(
           useChallenge: (digest, expiresAt) =>
             identity.useChallenge(digest, expiresAt),
           breached: auth.breached,
-          // Three messages to one address in an hour, whoever asked for them
-          // (record 0114). The count is shared by every server process.
-          mayMail: async (email) =>
-            (
-              await attempts.count(
-                `signup-mail:${email}`,
-                60 * 60 * 1000,
-                Date.now(),
-              )
-            ).current <= signUpMailsPerHour,
           clock: () => new Date(),
         },
       }),

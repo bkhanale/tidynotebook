@@ -58,7 +58,12 @@ export async function inviteAccount(input: {
     await identity.close();
   }
   if (mail !== null)
-    await mailInvitation(mail, { email, link: issued.link, lifetimeHours });
+    await mailInvitation(mail, {
+      origin: input.config.origin,
+      email,
+      link: issued.link,
+      lifetimeHours,
+    });
   return {
     email,
     link: mail === null ? issued.link : null,

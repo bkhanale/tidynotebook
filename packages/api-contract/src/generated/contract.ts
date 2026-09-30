@@ -28,6 +28,7 @@ export type OperationId =
   | 'getFile'
   | 'getHealth'
   | 'getInstallation'
+  | 'getLegalDocument'
   | 'getMutationReceipt'
   | 'getPublishedAttachment'
   | 'getPublishedPage'
@@ -5616,6 +5617,97 @@ export const operations: readonly OperationEntry[] = [
     "noContent": []
   },
   {
+    "id": "getLegalDocument",
+    "method": "get",
+    "path": "/legal/{document}",
+    "protocol": null,
+    "security": [],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "document",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "document": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy"
+            ]
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared1"
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "text/html",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "string",
+          "description": "One legal document of the installation, as one HTML document. The server builds it from the Markdown file of the operator with the one sanitized renderer, and it holds no script.",
+          "maxLength": 8388608
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
     "id": "getMutationReceipt",
     "method": "get",
     "path": "/api/workspaces/{workspaceId}/mutations/{mutationId}",
@@ -6473,6 +6565,7 @@ export const operations: readonly OperationEntry[] = [
           "required": [
             "initialized",
             "openRegistration",
+            "passwordReset",
             "legalDocuments"
           ],
           "properties": {
@@ -6484,6 +6577,11 @@ export const operations: readonly OperationEntry[] = [
               "type": "boolean",
               "readOnly": true,
               "description": "Whether a person can ask for an account without an invitation (record 0114)."
+            },
+            "passwordReset": {
+              "type": "boolean",
+              "readOnly": true,
+              "description": "Whether a person can reset a forgotten password by mail (record 0141). It is false when the installation has no mail transport."
             },
             "legalDocuments": {
               "oneOf": [
@@ -9376,6 +9474,14 @@ export const operations: readonly OperationEntry[] = [
             "description": "The display name of the new account.",
             "minLength": 1,
             "maxLength": 256
+          },
+          "consent": {
+            "allOf": [
+              {
+                "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ConsentInput"
+              }
+            ],
+            "description": "The versions of the terms and of the privacy notice that the person accepted. It is required when the installation names both documents (record 0120)."
           }
         }
       },
@@ -9412,6 +9518,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 409,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -9840,11 +9954,6 @@ export const operations: readonly OperationEntry[] = [
             "format": "email",
             "minLength": 3,
             "maxLength": 320
-          },
-          "redirectTo": {
-            "type": "string",
-            "description": "Address that the reset link opens.",
-            "maxLength": 2048
           }
         }
       },

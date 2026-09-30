@@ -1,8 +1,11 @@
 # TLS front of one NotesApp installation.
 #
 # The `tls` profile of `docker-compose.yml` starts this file. Caddy answers the
-# domain in NOTESAPP_DOMAIN, gets the certificate on its own, and sends every
-# request to the application container.
+# domain in NOTESAPP_DOMAIN and the domain of published pages in
+# NOTESAPP_PUBLISHED_DOMAIN, gets a certificate for each on its own, and sends
+# every request to the application container. The application decides what
+# each host serves: the published host serves published pages and nothing
+# else.
 #
 # `reverse_proxy` keeps the original Host header and adds X-Forwarded-For,
 # X-Forwarded-Proto and X-Forwarded-Host. The application answers the host name
@@ -18,7 +21,7 @@
 	admin off
 }
 
-{$NOTESAPP_DOMAIN} {
+{$NOTESAPP_DOMAIN}, {$NOTESAPP_PUBLISHED_DOMAIN} {
 	encode zstd gzip
 
 	# The container port of the application service. The published port of the

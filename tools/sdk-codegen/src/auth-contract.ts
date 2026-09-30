@@ -14,9 +14,11 @@
  * check, and its route is served by the Better Auth handler through the exact
  * path list of that adapter instead of by a contract handler.
  *
- * Two Better Auth endpoints are deliberately absent: the provider callback and
- * the password reset link are browser navigation that answers with a redirect,
- * not calls that a generated client makes.
+ * The provider callback of Better Auth is deliberately absent: it is browser
+ * navigation that answers with a redirect, not a call that a generated client
+ * makes. The reset link of a message opens the reset page of the application
+ * with the token in the fragment (record 0141), so the reset route of the
+ * library that answers a link with a redirect is not mounted.
  *
  * Better Auth answers a failure with its own JSON body. The protocol adapter
  * rewrites that body into RFC 9457 problem details, so the fragment below
@@ -287,11 +289,6 @@ export function authContractSchemas(): Json {
           minLength: 3,
           maxLength: 320,
         },
-        redirectTo: {
-          type: 'string',
-          description: 'Address that the reset link opens.',
-          maxLength: 2048,
-        },
       },
     },
     AuthPasswordReset: {
@@ -383,8 +380,10 @@ export function authContractPaths(): Json {
         summary: 'Ask for a password reset message.',
         description:
           'Sends a reset link to the address when a mail transport is ' +
-          'configured. A deployment without one uses the operator recovery ' +
-          'command instead. The answer never says whether the address exists.',
+          'configured. The link opens the reset page of the application. A ' +
+          'deployment without one uses the operator recovery command ' +
+          'instead. The answer never says whether the address exists, and ' +
+          'the messages to one address count against its mail budget.',
         requestBody: body('The address that asks for a reset message.', {
           $ref: '#/components/schemas/AuthPasswordResetRequest',
         }),

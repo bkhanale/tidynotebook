@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,10 +17,12 @@ import test from 'node:test';
 import {
   acceptLegalDocuments,
   configureClient,
+  createInvitation,
   createOwner,
   getAccount,
   getSetupStatus,
   getSignUpChallenge,
+  registerAccount,
   signInWithPassword,
   signUpAccount,
   updateInstallation,
@@ -56,7 +58,7 @@ const database = await createDisposableDatabase();
 const storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-legal-test-'));
 
 /** The environment of a server that names one version of the terms. */
-function environment(termsVersion: string): Record<string, string> {
+function environment(termsVersion: string): Record<string, string | undefined> {
   return {
     NOTESAPP_ORIGIN: 'http://127.0.0.1',
     NOTESAPP_PUBLISHED_ORIGIN: 'http://pages.test',
@@ -220,6 +222,119 @@ await test('a sign-up needs consent, and the new account keeps it', async () => 
   assert.deepEqual(await storedConsent(account.data?.accountId ?? ''), [
     { terms_version: 't1', privacy_version: 'p1' },
   ]);
+});
+
+await test('an invited person accepts the documents, and the account keeps it', async () => {
+  const email = `invited-${randomUUID()}@notes.invalid`;
+  const invited = await createInvitation({ headers: owner, body: { email } });
+  assert.equal(invited.error, undefined, JSON.stringify(invited.error));
+  const link = sent
+    .filter((message) => message.to === email)
+    .flatMap((message) => message.text.split('\n'))
+    .find((line) => line.startsWith('http://127.0.0.1/invitation#'));
+  const invitation = new URL(link ?? 'http://x/').hash.slice(1);
+  const password = 'invited-password-12345';
+  // An acceptance with no consent makes nothing, and the invitation stays
+  // open for the next attempt.
+  const refused = await registerAccount({
+    headers: origin,
+    body: { invitation, password },
+  });
+  assert.equal(responseOf(refused.response).status, 409);
+  assert.equal(memberOf(refused.error, 'code'), 'consent_required');
+  const stale = await registerAccount({
+    headers: origin,
+    body: {
+      invitation,
+      password,
+      consent: { termsVersion: 't0', privacyVersion: 'p1' },
+    },
+  });
+  assert.equal(memberOf(stale.error, 'code'), 'consent_required');
+  const registered = await registerAccount({
+    headers: origin,
+    body: {
+      invitation,
+      password,
+      consent: { termsVersion: 't1', privacyVersion: 'p1' },
+    },
+  });
+  assert.equal(responseOf(registered.response).status, 201);
+  const headers = {
+    ...origin,
+    cookie: cookieHeader(
+      responseOf(registered.response).headers.getSetCookie(),
+    ),
+  };
+  const account = await getAccount({ headers });
+  // The new account opens at once, with no second consent step.
+  assert.equal(account.data?.consentRequired, false);
+  assert.deepEqual(await storedConsent(account.data?.accountId ?? ''), [
+    { terms_version: 't1', privacy_version: 'p1' },
+  ]);
+});
+
+await test('the server serves a document from its file, and only that one', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-legal-files-'));
+  const terms = join(directory, 'terms.md');
+  await writeFile(
+    terms,
+    '# Terms of service\n\nRun by **Example Ltd**.\n\n<script>alert(1)</script>\n',
+  );
+  const config = loadServerConfig({
+    ...environment('t1'),
+    NOTESAPP_TERMS_URL: undefined,
+    NOTESAPP_TERMS_FILE: terms,
+  });
+  const served = await createApp(config, { mail });
+  try {
+    assert.deepEqual(config.legalDocuments?.terms, {
+      url: 'http://127.0.0.1/legal/terms',
+      version: 't1',
+    });
+    const page = await served.inject({
+      method: 'GET',
+      url: '/legal/terms',
+      headers: { host: '127.0.0.1' },
+    });
+    assert.equal(page.statusCode, 200);
+    assert.match(String(page.headers['content-type']), /^text\/html/);
+    assert.match(
+      String(page.headers['content-security-policy']),
+      /script-src 'none'/,
+    );
+    assert.equal(page.headers['cache-control'], 'private, no-cache');
+    assert.match(page.body, /<title>Terms<\/title>/);
+    assert.match(page.body, /<h1[^>]*>Terms of service<\/h1>/);
+    assert.match(page.body, /<strong>Example Ltd<\/strong>/);
+    // The one sanitized renderer drops raw HTML, so no script reaches it.
+    assert.equal(page.body.includes('<script'), false);
+    assert.match(page.body, /href="\/legal\/privacy">Privacy notice<\/a>/);
+    // The privacy notice lives at an external address, so this server holds
+    // no page for it.
+    const other = await served.inject({
+      method: 'GET',
+      url: '/legal/privacy',
+      headers: { host: '127.0.0.1' },
+    });
+    assert.equal(other.statusCode, 404);
+    const unknown = await served.inject({
+      method: 'GET',
+      url: '/legal/cookies',
+      headers: { host: '127.0.0.1' },
+    });
+    assert.equal(unknown.statusCode, 400);
+    // The published origin serves published pages and nothing else.
+    const published = await served.inject({
+      method: 'GET',
+      url: '/legal/terms',
+      headers: { host: 'pages.test' },
+    });
+    assert.notEqual(published.statusCode, 200);
+  } finally {
+    await served.close();
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 await test('a raised version asks for consent again before the application opens', async () => {

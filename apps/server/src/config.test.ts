@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   ConfigError,
+  loadLegalTexts,
   loadServerConfig,
+  maxLegalDocumentBytes,
   mebibyte,
   optionalVariables,
+  templateBlanks,
 } from './config.ts';
 
 const valid: Record<string, string> = {
@@ -384,17 +389,33 @@ await test('a configuration error never repeats a rejected value', () => {
 await test('every optional setting reaches the container of the Compose file', async () => {
   // The Compose file passes a closed list of variables to the application.
   // A setting that the server reads and the list leaves out does nothing in a
-  // container, whatever the operator writes in .env. The mail transport is
-  // the one exception: its URL is a secret, so an operator override adds it
-  // with the sender, as the self-hosting guide states.
-  const compose = await readFile(
-    new URL('../../../docker-compose.yml', import.meta.url),
-    'utf8',
-  );
-  const byOverride = ['NOTESAPP_SMTP_URL', 'NOTESAPP_MAIL_FROM'];
+  // container, whatever the operator writes in .env. Two groups come from an
+  // override file that ships beside it: the mail transport, whose URL is a
+  // secret, and the files of the legal documents, which need a mounted
+  // directory.
+  const read = (path: string): Promise<string> =>
+    readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
+  const compose = await read('docker-compose.yml');
+  const byOverride: Readonly<Record<string, string>> = {
+    NOTESAPP_SMTP_URL: 'docker/compose.mail.yaml',
+    NOTESAPP_MAIL_FROM: 'docker/compose.mail.yaml',
+    NOTESAPP_TERMS_FILE: 'docker/compose.legal.yaml',
+    NOTESAPP_PRIVACY_FILE: 'docker/compose.legal.yaml',
+  };
   for (const name of optionalVariables) {
-    if (byOverride.includes(name)) continue;
-    assert.match(compose, new RegExp(`^ +${name}:`, 'm'), name);
+    const override = byOverride[name];
+    if (override === undefined) {
+      assert.match(compose, new RegExp(`^ +${name}:`, 'm'), name);
+      continue;
+    }
+    assert.doesNotMatch(compose, new RegExp(`^ +${name}(_FILE)?:`, 'm'), name);
+    // The mail URL arrives as a protected file, the others as themselves.
+    const variable = name === 'NOTESAPP_SMTP_URL' ? `${name}_FILE` : name;
+    assert.match(
+      await read(override),
+      new RegExp(`^ +${variable}:`, 'm'),
+      variable,
+    );
   }
 });
 
@@ -420,7 +441,7 @@ await test('the legal documents come all four or not at all', () => {
           NOTESAPP_TERMS_VERSION: '1',
         }),
       ),
-    /all four, or none of them/,
+    /each with an address or a file and a version, or name none of them/,
   );
   assert.throws(
     () =>
@@ -434,4 +455,117 @@ await test('the legal documents come all four or not at all', () => {
       ),
     /NOTESAPP_TERMS_URL: name a full http or https address/,
   );
+});
+
+await test('a legal document comes from an address or a file, never both', () => {
+  const served = loadServerConfig(
+    environment({
+      NOTESAPP_TERMS_FILE: '/etc/notesapp/legal/terms.md',
+      NOTESAPP_TERMS_VERSION: '2026-10-01',
+      NOTESAPP_PRIVACY_URL: 'https://example.test/privacy',
+      NOTESAPP_PRIVACY_VERSION: '3',
+    }),
+  );
+  // A document that a file holds takes the address of its page on the
+  // canonical origin, so every screen links it as any other document.
+  assert.deepEqual(served.legalDocuments, {
+    terms: { url: 'http://127.0.0.1/legal/terms', version: '2026-10-01' },
+    privacy: { url: 'https://example.test/privacy', version: '3' },
+  });
+  assert.deepEqual(served.legalFiles, {
+    terms: '/etc/notesapp/legal/terms.md',
+    privacy: null,
+  });
+  assert.deepEqual(loadServerConfig(environment({})).legalFiles, {
+    terms: null,
+    privacy: null,
+  });
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_TERMS_URL: 'https://example.test/terms',
+          NOTESAPP_TERMS_FILE: '/etc/notesapp/legal/terms.md',
+          NOTESAPP_TERMS_VERSION: '1',
+          NOTESAPP_PRIVACY_FILE: '/etc/notesapp/legal/privacy.md',
+          NOTESAPP_PRIVACY_VERSION: '1',
+        }),
+      ),
+    /NOTESAPP_TERMS_FILE: name the document by NOTESAPP_TERMS_URL or by NOTESAPP_TERMS_FILE, not both/,
+  );
+  // A file with no version names nothing that a person can accept.
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_TERMS_FILE: '/etc/notesapp/legal/terms.md',
+          NOTESAPP_PRIVACY_FILE: '/etc/notesapp/legal/privacy.md',
+          NOTESAPP_PRIVACY_VERSION: '1',
+        }),
+      ),
+    /NOTESAPP_TERMS_VERSION: name the terms and the privacy notice/,
+  );
+  // A relative path depends on the directory that the server starts in.
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_TERMS_FILE: 'legal/terms.md',
+          NOTESAPP_TERMS_VERSION: '1',
+          NOTESAPP_PRIVACY_FILE: '/etc/notesapp/legal/privacy.md',
+          NOTESAPP_PRIVACY_VERSION: '1',
+        }),
+      ),
+    ConfigError,
+  );
+});
+
+await test('a blank of the template is a word in double braces', () => {
+  assert.deepEqual(
+    templateBlanks(
+      'Run by {{operator name}}. Write to {{contact address}} or {{operator name}}.',
+    ),
+    ['{{operator name}}', '{{contact address}}'],
+  );
+  assert.deepEqual(templateBlanks('Run by Example Ltd. {not a blank}'), []);
+});
+
+await test('a legal file is read once, and an unfinished one stops the start', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-legal-config-'));
+  try {
+    const terms = join(directory, 'terms.md');
+    const privacy = join(directory, 'privacy.md');
+    await writeFile(terms, '# Terms\n\nRun by Example Ltd.\n');
+    await writeFile(privacy, '# Privacy notice\n\nWrite to {{contact address}}.\n');
+    assert.deepEqual(
+      await loadLegalTexts({ legalFiles: { terms, privacy: null } }),
+      { terms: '# Terms\n\nRun by Example Ltd.\n', privacy: null },
+    );
+    await assert.rejects(
+      loadLegalTexts({ legalFiles: { terms, privacy } }),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.issues.length === 1 &&
+        error.issues[0] ===
+          'NOTESAPP_PRIVACY_FILE: fill each blank of the template first. The file still holds {{contact address}}.',
+    );
+    await writeFile(privacy, '  \n');
+    await assert.rejects(
+      loadLegalTexts({ legalFiles: { terms, privacy } }),
+      /NOTESAPP_PRIVACY_FILE: the file is empty/,
+    );
+    await writeFile(privacy, 'a'.repeat(maxLegalDocumentBytes + 1));
+    await assert.rejects(
+      loadLegalTexts({ legalFiles: { terms, privacy } }),
+      /NOTESAPP_PRIVACY_FILE: the file is larger than 256 KiB/,
+    );
+    await assert.rejects(
+      loadLegalTexts({
+        legalFiles: { terms: join(directory, 'missing.md'), privacy: null },
+      }),
+      /NOTESAPP_TERMS_FILE: the file cannot be read/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

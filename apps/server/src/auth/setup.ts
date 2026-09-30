@@ -11,8 +11,8 @@
  * origin rule itself.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { WorkspaceStore } from '@notesapp/core';
-import { readInvitation } from '@notesapp/core';
+import type { ConsentVersions, WorkspaceStore } from '@notesapp/core';
+import { consentMatches, readInvitation, verifyActor } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { DomainProblemError, ForbiddenError } from '../plugins/problem.ts';
@@ -37,6 +37,17 @@ function text(value: unknown, key: string): string {
   if (typeof member !== 'string' || member === '')
     throw new Error(`notesapp: validated input has no ${key}.`);
   return member;
+}
+
+/** The consent of a validated body, or `null` when it carries none. */
+function consentOf(body: unknown): ConsentVersions | null {
+  const consent = readProperty(body, 'consent');
+  return consent === undefined
+    ? null
+    : {
+        termsVersion: text(consent, 'termsVersion'),
+        privacyVersion: text(consent, 'privacyVersion'),
+      };
 }
 
 /** The one refusal of an invitation, whatever its cause. */
@@ -87,6 +98,9 @@ export function createSetupHandlers(
       body: {
         initialized: await identity.hasAccount(),
         openRegistration: await openRegistration(identity),
+        // A reset link goes by mail, so a reset needs a transport (record
+        // 0141).
+        passwordReset: dependencies.open.mail !== null,
         legalDocuments: dependencies.open.documents,
       },
     }),
@@ -157,6 +171,15 @@ export function createSetupHandlers(
       // makes nothing.
       const address = await readInvitation(identity, digest);
       if (!address.ok) throw invitationRefused();
+      // An invited person accepts the current terms and privacy notice when
+      // the installation names them, as a sign-up does (record 0120).
+      const documents = dependencies.open.documents;
+      const consent = consentOf(request.body);
+      if (documents !== null && !consentMatches(documents, consent))
+        throw new DomainProblemError({
+          code: 'consent_required',
+          fileIds: [],
+        });
       const name = readProperty(request.body, 'name');
       const made = await registerIdentity(auth, identity, {
         email: address.value,
@@ -170,6 +193,9 @@ export function createSetupHandlers(
           throw new DomainProblemError(made.error);
         throw invitationRefused();
       }
+      const actor = verifyActor(made.value.accountId, []);
+      if (documents !== null && consent !== null && actor.ok)
+        await identity.account(actor.value, (tx) => tx.recordConsent(consent));
       await welcome(made.value.accountId);
       const cookies = await startSession(auth, made.value.email, password);
       if (cookies.length === 0)
@@ -199,7 +225,6 @@ export function createSetupHandlers(
       requireWriteOrigin(servedOrigins, request);
       const name = readProperty(request.body, 'name');
       const proof = readProperty(request.body, 'proof');
-      const consent = readProperty(request.body, 'consent');
       const taken = await signUpOpen(open, {
         email: text(request.body, 'email'),
         password: text(request.body, 'password'),
@@ -208,13 +233,7 @@ export function createSetupHandlers(
           challenge: text(proof, 'challenge'),
           solution: text(proof, 'solution'),
         },
-        consent:
-          consent === undefined
-            ? null
-            : {
-                termsVersion: text(consent, 'termsVersion'),
-                privacyVersion: text(consent, 'privacyVersion'),
-              },
+        consent: consentOf(request.body),
       });
       if (!taken.ok) throw new DomainProblemError(taken.error);
       return {

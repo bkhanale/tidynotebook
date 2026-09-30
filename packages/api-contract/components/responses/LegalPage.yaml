@@ -1,0 +1,14 @@
+description: The legal document, as one HTML document.
+headers:
+  cache-control:
+    description: >-
+      States that the browser checks the page again each time and that no
+      shared cache stores it. The document changes only when the server
+      starts again.
+    schema:
+      type: string
+      maxLength: 256
+content:
+  text/html:
+    schema:
+      $ref: '../schemas/LegalPageDocument.yaml'

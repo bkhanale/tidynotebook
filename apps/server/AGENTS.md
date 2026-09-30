@@ -18,15 +18,18 @@ authentication routes on one origin, and it holds no domain rule.
   reader path of a published link and its report (0119), `published-document.ts`
   writes its one document (0031, 0047), and `publications.ts` holds the owner
   operations. `sync-notices.ts` serves the upgrade address of the notice
-  stream and checks its origin (0128, 0129).
+  stream and checks its origin (0128, 0129). `legal.ts` serves the terms and
+  the privacy notice that the operator writes, and `legal-document.ts` writes
+  their page with the classes of the published page (0140).
 - `src/notices/` holds the notice gateway of the process and its bounds (0129).
   `src/plugins/websocket.ts` is the one file that imports a WebSocket library,
   and the gateway reads its `StreamSocket` only.
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start
   and of the stop and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a
-  published link, the seal of a reported address (`report-seal.ts`, 0123), mail,
-  setup, invitations, and `registration.ts`, the one path that makes an account
+  published link, the seal of a reported address (`report-seal.ts`, 0123), mail
+  and its budget for each address (`mail.ts`), the words of every message
+  (`messages.ts`, 0141), setup, invitations, and `registration.ts`, the one path that makes an account
   (0108). `open-registration.ts` holds the sign-up and the proof of an address
   of open registration, `verification.ts` the token of its link (0114), and
   `proof-of-work.ts` the challenges of a sign-up (0115). `src/jobs/` holds background work, `src/cli/` the operator
@@ -69,6 +72,8 @@ request that no generated operation can express uses `app.inject()`.
 - No rejected body, token, or password in a log line, which is why the whole reader
   path of a published link is redacted. A rejection names the request id and the reason.
 - No handwritten HTTP transport. `better-auth.ts` is the one listed protocol file.
+- No message text outside `src/auth/messages.ts`, and no message that a person
+  with no session can cause outside the budgeted transport of `mail.ts` (0141).
 - No actor helper in `src/routes/published.ts`, no script, no second stylesheet, no
   uncached HTML, and no application shell under `/published/` (0031, 0047).
 

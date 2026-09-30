@@ -25,9 +25,11 @@
  * accepted (record 0120). The link carries them, and the account stores them
  * when the link makes it.
  *
- * **One message budget for each address.** A message counts against a limit
- * of the target address, so a sign-up cannot flood the mailbox of another
- * person. Over the limit the sign-up still answers the same and sends nothing.
+ * **One message budget for each address.** The transport of this module is
+ * the budgeted transport of `mail.ts`, so a message counts against a limit of
+ * the target address and a sign-up cannot flood the mailbox of another
+ * person. Over the limit the sign-up still answers the same and sends nothing
+ * (record 0141).
  */
 import { randomUUID } from 'node:crypto';
 import type {
@@ -49,7 +51,8 @@ import {
   registerAccount,
 } from '@notesapp/core';
 import type { NotesappAuth } from './better-auth.ts';
-import type { MailTransport } from './mail.ts';
+import type { MailMessage, MailTransport } from './mail.ts';
+import { signUpAttemptMessage, verificationMessage } from './messages.ts';
 import type { RegistrationIdentity } from './registration.ts';
 import type { VerificationTokens } from './verification.ts';
 import type { ProofAttempt, SignUpChallenges } from './proof-of-work.ts';
@@ -64,7 +67,11 @@ export type OpenRegistrationDependencies = {
   readonly accounts: WorkspaceAdminStore;
   /** The legal documents of the installation, or `null` (record 0120). */
   readonly documents: LegalDocuments | null;
-  /** The mail transport. The open policy needs one (record 0114). */
+  /**
+   * The mail transport. The open policy needs one (record 0114). The
+   * composition gives the budgeted transport of `mail.ts`, so a sign-up cannot
+   * flood the mailbox of another person (record 0141).
+   */
   readonly mail: MailTransport | null;
   /** The application origin, which every link of a message names. */
   readonly origin: string;
@@ -73,8 +80,6 @@ export type OpenRegistrationDependencies = {
   readonly tokens: VerificationTokens;
   /** Whether the breach service lists a new password (record 0116). */
   readonly breached: (password: string) => Promise<boolean>;
-  /** Whether one more message may go to an address now. */
-  readonly mayMail: (email: string) => Promise<boolean>;
   /** The challenges of the proof of work (record 0115). */
   readonly challenges: SignUpChallenges;
   /** Marks one challenge used, and answers whether this was the first use. */
@@ -99,50 +104,12 @@ export function verificationLink(origin: string, token: string): string {
   return `${origin}/verify#${token}`;
 }
 
-/** The message that carries a verification link. */
-function verificationMessage(
-  to: string,
-  link: string,
-  hours: number,
-): { to: string; subject: string; text: string } {
-  return {
-    to,
-    subject: 'Finish your notesapp account',
-    text: [
-      'Open this link to prove your address and finish your account.',
-      link,
-      `The link works for ${String(hours)} ${hours === 1 ? 'hour' : 'hours'}.`,
-      'Ignore this message if you did not ask for an account. Nothing is',
-      'made without the link.',
-    ].join('\n'),
-  };
-}
-
-/** The message to the owner of an address that already signs in. */
-function attemptMessage(
-  to: string,
-  origin: string,
-): { to: string; subject: string; text: string } {
-  return {
-    to,
-    subject: 'A new notesapp account was asked for with your address',
-    text: [
-      'Somebody asked for a new account with this address. The address',
-      'already has an account, so nothing changed.',
-      `Sign in here: ${origin}/login`,
-      'If you do not know your password, select Forgot password there.',
-      'Ignore this message if you asked for the account yourself.',
-    ].join('\n'),
-  };
-}
-
-/** Sends one message when the budget of its address allows it. */
+/** Sends one message, when the installation has a transport. */
 async function send(
   dependencies: OpenRegistrationDependencies,
-  message: { to: string; subject: string; text: string },
+  message: MailMessage,
 ): Promise<void> {
   if (dependencies.mail === null) return;
-  if (!(await dependencies.mayMail(message.to))) return;
   await dependencies.mail.send(message);
 }
 
@@ -180,7 +147,10 @@ export async function signUpOpen(
   if (action === 'notify') {
     // The same work as a new sign-up: one hash of the password, one message.
     await context.password.hash(input.password);
-    await send(dependencies, attemptMessage(email, dependencies.origin));
+    await send(
+      dependencies,
+      signUpAttemptMessage({ to: email, origin: dependencies.origin }),
+    );
     return ok(undefined);
   }
   if (action === 'replace' && existing !== null)
@@ -208,11 +178,12 @@ export async function signUpOpen(
   );
   await send(
     dependencies,
-    verificationMessage(
-      email,
-      verificationLink(dependencies.origin, token),
-      dependencies.pendingHours,
-    ),
+    verificationMessage({
+      to: email,
+      origin: dependencies.origin,
+      link: verificationLink(dependencies.origin, token),
+      lifetimeHours: dependencies.pendingHours,
+    }),
   );
   return ok(undefined);
 }

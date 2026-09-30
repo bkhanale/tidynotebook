@@ -146,6 +146,34 @@ export const publishedDocumentHeaders: readonly HeaderPair[] = [
 ];
 
 /**
+ * Headers of the page of a legal document (record 0140).
+ *
+ * The page is a server-built document with no script and no form, so its
+ * content policy permits the built stylesheet, its fonts and the pictures of
+ * this origin, and nothing else. A legal document changes only when the
+ * server starts again, so the browser may keep it and checks again each time.
+ * No shared cache keeps it, as no HTML answer of this server is kept by one.
+ */
+export const legalDocumentHeaders: readonly HeaderPair[] = [
+  [
+    'content-security-policy',
+    [
+      "default-src 'none'",
+      "script-src 'none'",
+      "style-src 'self'",
+      "img-src 'self'",
+      "font-src 'self'",
+      "connect-src 'none'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+  ],
+  ['cache-control', 'private, no-cache'],
+];
+
+/**
  * Content policy of the installed application worker script.
  *
  * A browser enforces the content policy of the service worker script response

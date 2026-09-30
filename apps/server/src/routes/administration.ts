@@ -194,6 +194,7 @@ export function createAdministrationHandlers(
       );
       if (dependencies.mail !== null)
         await mailInvitation(dependencies.mail, {
+          origin: dependencies.origin,
           email,
           link: issued.link,
           lifetimeHours: dependencies.invitationLifetimeHours,

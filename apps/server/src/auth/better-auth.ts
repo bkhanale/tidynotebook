@@ -56,6 +56,7 @@ import type { ProblemCode } from '../plugins/problem.ts';
 import { createProblem, problemMediaType } from '../plugins/problem.ts';
 import type { ProtocolAdapter, ProtocolResult } from '../plugins/register.ts';
 import type { MailTransport } from './mail.ts';
+import { passwordChangedMessage, passwordResetMessage } from './messages.ts';
 import { applicationOrigins } from '../served-origins.ts';
 
 /** Base path of every Better Auth route. */
@@ -86,9 +87,10 @@ export const authRoutes: readonly {
   { method: 'POST', path: `${authBasePath}/update-user` },
   { method: 'GET', path: `${authBasePath}/get-session` },
   { method: 'POST', path: `${authBasePath}/request-password-reset` },
+  // The reset link of a message opens the reset page of the application with
+  // the token in the fragment, and that page sends it here (record 0141). The
+  // library route that answers a link with a redirect is not mounted.
   { method: 'POST', path: `${authBasePath}/reset-password` },
-  // Browser navigation. The reset link opens here before the application.
-  { method: 'GET', path: `${authBasePath}/reset-password/:token` },
   { method: 'GET', path: `${authBasePath}/error` },
 ];
 
@@ -100,7 +102,12 @@ export type AuthLogRecord = {
 
 /** What the auth instance needs besides the validated configuration. */
 export type AuthOptions = {
-  /** Sends the password recovery message, or `null` when none is configured. */
+  /**
+   * Sends the reset message and the notice after a reset, or `null` when no
+   * transport is configured. The composition gives the budgeted transport of
+   * `mail.ts`, because a person with no session asks for a reset (record
+   * 0141).
+   */
   readonly mail: MailTransport | null;
   /**
    * Whether an identity user may start a session (record 0111).
@@ -140,6 +147,23 @@ const newPasswordPaths = new Set([
   '/reset-password',
   '/change-password',
 ]);
+
+/** The code of the refusal of a session for a disabled or removed account. */
+const accountUnavailableCode = 'ACCOUNT_UNAVAILABLE';
+
+/** How long the link of a password reset works, in hours (record 0141). */
+export const resetLifetimeHours = 1;
+
+/**
+ * The path of the page that takes a new password. The router of the web
+ * application serves the same path.
+ */
+export const resetPasswordPath = '/reset-password';
+
+/** The link of one password reset, with the token in the fragment. */
+export function resetPasswordLink(origin: string, token: string): string {
+  return `${origin}${resetPasswordPath}#${token}`;
+}
 
 /** The code of the refusal of a breached password, as the library answers. */
 export const breachedPasswordCode = 'PASSWORD_BREACHED';
@@ -286,24 +310,37 @@ function buildAuth(
       // account, and an open sign-up proves it through its link.
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
-      resetPasswordTokenExpiresIn: 60 * 60,
+      resetPasswordTokenExpiresIn: resetLifetimeHours * 60 * 60,
       ...(mail === null
         ? {}
         : {
+            // The link opens the reset page of the application with the token
+            // in the fragment, so no server log and no `Referer` header holds
+            // it. The address that the library builds is not used.
             sendResetPassword: async (data: {
               user: { email: string };
-              url: string;
+              token: string;
             }): Promise<void> => {
-              await mail.send({
-                to: data.user.email,
-                subject: 'Reset your notesapp password',
-                text: [
-                  'Open this link to choose a new password.',
-                  data.url,
-                  'The link expires in one hour. Ignore this message if you',
-                  'did not ask for a new password.',
-                ].join('\n'),
-              });
+              await mail.send(
+                passwordResetMessage({
+                  to: data.user.email,
+                  origin: config.origin,
+                  link: resetPasswordLink(config.origin, data.token),
+                  lifetimeHours: resetLifetimeHours,
+                }),
+              );
+            },
+            // The owner of the address learns that the password changed, and
+            // the library ends every session of the account.
+            onPasswordReset: async (data: {
+              user: { email: string };
+            }): Promise<void> => {
+              await mail.send(
+                passwordChangedMessage({
+                  to: data.user.email,
+                  origin: config.origin,
+                }),
+              );
             },
           }),
     },
@@ -329,7 +366,7 @@ function buildAuth(
             if (!(await options.sessionAllowed(session.userId)))
               throw APIError.from('FORBIDDEN', {
                 message: 'This account cannot sign in.',
-                code: 'ACCOUNT_UNAVAILABLE',
+                code: accountUnavailableCode,
               });
           },
         },
@@ -535,6 +572,11 @@ export function authProblemCode(
   // The one refusal of the library whose cause the person can act on: the new
   // password is in a list of leaked passwords (record 0116).
   if (libraryCode === breachedPasswordCode) return 'password_breached';
+  // Two refusals of a sign-in that come after the password matched, so the
+  // person who reads them already holds the password. Each one names what the
+  // person can do: open the link of the sign-up, or ask an administrator.
+  if (libraryCode === 'EMAIL_NOT_VERIFIED') return 'address_unverified';
+  if (libraryCode === accountUnavailableCode) return 'account_unavailable';
   if (status === 401) return 'unauthenticated';
   if (status === 403) return 'forbidden';
   if (status === 404) return 'not_found';

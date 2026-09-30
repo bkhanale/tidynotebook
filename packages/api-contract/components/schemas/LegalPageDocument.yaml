@@ -1,0 +1,6 @@
+type: string
+description: >-
+  One legal document of the installation, as one HTML document. The server
+  builds it from the Markdown file of the operator with the one sanitized
+  renderer, and it holds no script.
+maxLength: 8388608

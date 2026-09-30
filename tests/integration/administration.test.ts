@@ -348,7 +348,13 @@ await test('a disabled member loses the session and cannot sign in until enabled
   assert.equal(disabled.data?.state, 'disabled');
   const after = await getAccount({ headers: joined.headers });
   assert.equal(responseOf(after.response).status, 401);
-  assert.equal(await signIn(joined.email, joined.password), '');
+  const refused = await signInWithPassword({
+    headers: origin,
+    body: { email: joined.email, password: joined.password },
+  });
+  // The refusal names the cause, so the person asks an administrator.
+  assert.equal(responseOf(refused.response).status, 403);
+  assert.equal(problemOf(refused.error)['code'], 'account_unavailable');
   const enabled = await updateAccount({
     headers: admin,
     path: { accountId: joined.accountId },

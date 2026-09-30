@@ -40,6 +40,7 @@ import { createDailyNoteHandlers } from './daily-notes.ts';
 import { secretDigest } from '../auth/publication-secrets.ts';
 import { createPublicationHandlers } from './publications.ts';
 import { createPublishedHandlers } from './published.ts';
+import { createLegalHandlers, type LegalDependencies } from './legal.ts';
 import { createAddressSeal } from '../auth/report-seal.ts';
 import { publishedOrigin } from '../served-origins.ts';
 
@@ -138,6 +139,12 @@ export type HandlerDependencies = {
    * (record 0129). A server without a notice gateway offers none.
    */
   readonly noticeProtocols?: () => readonly string[];
+  /**
+   * The legal documents that this server serves (record 0140). A test that
+   * checks the service operations leaves it out, and each page answers not
+   * found.
+   */
+  readonly legal?: LegalDependencies;
 };
 
 /**
@@ -229,6 +236,7 @@ export function createHandlers(
             recordRefusal: published.recordRefusal,
           },
     ),
+    ...createLegalHandlers(dependencies.legal),
     ...createServiceHandlers(probes, lifecycle),
   };
 }

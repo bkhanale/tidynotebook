@@ -20,3 +20,10 @@ properties:
     description: The display name of the new account.
     minLength: 1
     maxLength: 256
+  consent:
+    allOf:
+      - $ref: './ConsentInput.yaml'
+    description: >-
+      The versions of the terms and of the privacy notice that the person
+      accepted. It is required when the installation names both documents
+      (record 0120).

@@ -43,6 +43,10 @@ tags:
     description: >-
       The reader path of a published link. No operation of this tag names a
       security scheme, so no identity hook runs for one.
+  - name: legal
+    description: >-
+      The terms and the privacy notice that the operator of the installation
+      writes. A person reads them with no account.
   - name: auth
     description: >-
       Authentication protocol endpoints. Better Auth implements them; the
@@ -158,6 +162,8 @@ paths:
     $ref: './paths/api_workspaces_workspaceId_publications_publicationId.yaml'
   /api/workspaces/{workspaceId}/daily-note-settings:
     $ref: './paths/api_workspaces_workspaceId_daily-note-settings.yaml'
+  /legal/{document}:
+    $ref: './paths/legal_document.yaml'
   /published/{token}:
     $ref: './paths/published_token.yaml'
   /published/{token}/unlock:
@@ -231,6 +237,8 @@ components:
       $ref: './components/parameters/SessionId.yaml'
     ReportId:
       $ref: './components/parameters/ReportId.yaml'
+    LegalDocumentName:
+      $ref: './components/parameters/LegalDocumentName.yaml'
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
@@ -387,6 +395,8 @@ components:
       $ref: './components/responses/PublishedLinkUnavailable.yaml'
     PublishedPage:
       $ref: './components/responses/PublishedPage.yaml'
+    LegalPage:
+      $ref: './components/responses/LegalPage.yaml'
     AccountList:
       $ref: './components/responses/AccountList.yaml'
     AccountSummary:
@@ -636,6 +646,8 @@ components:
       $ref: './components/schemas/PublishedRefusal.yaml'
     PublishedDocument:
       $ref: './components/schemas/PublishedDocument.yaml'
+    LegalPageDocument:
+      $ref: './components/schemas/LegalPageDocument.yaml'
     InstallationRole:
       $ref: './components/schemas/InstallationRole.yaml'
     AccountState:

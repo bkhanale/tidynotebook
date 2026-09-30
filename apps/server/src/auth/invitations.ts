@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import type { NewInvitation } from '@notesapp/core';
 import { invitationExpiry } from '@notesapp/core';
 import type { MailTransport } from './mail.ts';
+import { invitationMessage } from './messages.ts';
 import { newPublishedSecret, secretDigest } from './publication-secrets.ts';
 
 /**
@@ -55,20 +56,18 @@ export function issueInvitation(input: {
 export async function mailInvitation(
   mail: MailTransport,
   input: {
+    readonly origin: string;
     readonly email: string;
     readonly link: string;
     readonly lifetimeHours: number;
   },
 ): Promise<void> {
-  await mail.send({
-    to: input.email,
-    subject: 'Your invitation to Notesapp',
-    text: [
-      'You have an invitation to make a Notesapp account.',
-      'Open this link and choose a password.',
-      input.link,
-      `The link expires in ${String(input.lifetimeHours)} hours.`,
-      'Ignore this message if you do not want an account.',
-    ].join('\n'),
-  });
+  await mail.send(
+    invitationMessage({
+      to: input.email,
+      origin: input.origin,
+      link: input.link,
+      lifetimeHours: input.lifetimeHours,
+    }),
+  );
 }

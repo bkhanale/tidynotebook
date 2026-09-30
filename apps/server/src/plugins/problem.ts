@@ -62,7 +62,9 @@ export type ProblemCode =
   | 'registration_closed'
   | 'verification_invalid'
   | 'proof_invalid'
-  | 'consent_required';
+  | 'consent_required'
+  | 'address_unverified'
+  | 'account_unavailable';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -128,6 +130,8 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   verification_invalid: 'This verification link is not valid.',
   proof_invalid: 'The proof of work of this sign-up does not count.',
   consent_required: 'The current legal documents need consent.',
+  address_unverified: 'The address of this account is not proved yet.',
+  account_unavailable: 'This account cannot sign in.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',

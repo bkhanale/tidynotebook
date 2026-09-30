@@ -1,0 +1,20 @@
+# Compose override that serves the terms and the privacy notice from files.
+#
+# A public installation names both documents before it opens registration.
+# This file mounts the directory that holds them and names each file, and the
+# application serves them at /legal/terms and /legal/privacy. Name this file
+# after the main one:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker/compose.legal.yaml
+#
+# Copy `docker/legal/terms.md` and `docker/legal/privacy.md` to
+# NOTESAPP_LEGAL_DIR, fill each blank in double braces, and set both versions
+# in `.env`. The application refuses to start while a blank is left. See
+# docs/guide/self-hosting.md.
+services:
+  app:
+    environment:
+      NOTESAPP_TERMS_FILE: /etc/notesapp/legal/terms.md
+      NOTESAPP_PRIVACY_FILE: /etc/notesapp/legal/privacy.md
+    volumes:
+      - ${NOTESAPP_LEGAL_DIR:?Set NOTESAPP_LEGAL_DIR in .env. It names the host directory that holds terms.md and privacy.md.}:/etc/notesapp/legal:ro

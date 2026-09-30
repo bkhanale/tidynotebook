@@ -149,7 +149,8 @@ const listHeading = 'Notes';
 const listLinkWords = 'All notes';
 
 /** The layout of the one column that every state of the page uses. */
-const pageClasses = 'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
+export const pageClasses =
+  'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
 
 /**
  * The typography of the note body.
@@ -164,7 +165,7 @@ const pageClasses = 'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
  * same as the editor of `packages/editor`: the same heading tightening, the
  * same quote bar, and a divider that a person can see on every palette.
  */
-const noteBodyClasses = [
+export const noteBodyClasses = [
   'text-note',
   '[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-note-h1 [&_h1]:font-note-heading [&_h1]:tracking-display [&_h1]:text-strong',
   '[&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:text-note-h2 [&_h2]:font-note-heading [&_h2]:tracking-heading [&_h2]:text-strong',
@@ -217,7 +218,7 @@ const pageHeadingClasses =
   'mb-6 text-3xl font-semibold tracking-display text-strong';
 
 /** The classes of one link that this server writes. */
-const linkClasses = 'text-accent underline';
+export const linkClasses = 'text-accent underline';
 
 /** The classes of the list of a folder link. */
 const listClasses = 'my-4 flex flex-col gap-2';
@@ -235,7 +236,7 @@ const reasonGroupClasses = 'm-0 flex flex-col gap-2 border-0 p-0';
 const reasonClasses = 'flex items-center gap-2 text-ui text-ink';
 
 /** The classes of the foot of a page, which holds the report link. */
-const footClasses = 'mt-12 text-control text-muted';
+export const footClasses = 'mt-12 text-control text-muted';
 
 /**
  * The classes of the one button of this page, and of its one field.
@@ -262,7 +263,7 @@ export const publishedFieldClasses =
   'w-full min-h-11 rounded-md border bg-app px-3 text-ui text-strong outline-none focus-visible:ring-2 focus-visible:ring-focus/25 md:min-h-8 border-edge-line focus-visible:border-focus';
 
 /** The classes of the document frame, which the shell document also writes. */
-const bodyClasses =
+export const bodyClasses =
   'm-0 bg-app font-sans text-ui leading-relaxed text-ink antialiased';
 
 /** Every class name that this document writes, for the stylesheet test. */

@@ -249,7 +249,13 @@ await test('a pending account cannot sign in, and its link makes the account', a
     responseOf((await signUp(email, password)).response).status,
     202,
   );
-  assert.equal(await signsIn(email, password), false);
+  const pending = await signInWithPassword({
+    headers: origin,
+    body: { email, password },
+  });
+  // The refusal names what the person can do: open the link of the message.
+  assert.equal(responseOf(pending.response).status, 403);
+  assert.equal(problemCode(pending.error), 'address_unverified');
   const verified = await verifyAddress({
     headers: origin,
     body: { token: lastToken(email) },

@@ -100,8 +100,12 @@ services:
       NOTESAPP_INVITATION_LIFETIME_HOURS: ${NOTESAPP_INVITATION_LIFETIME_HOURS:-}
       NOTESAPP_PENDING_ACCOUNT_HOURS: ${NOTESAPP_PENDING_ACCOUNT_HOURS:-}
       NOTESAPP_SIGNUP_DIFFICULTY: ${NOTESAPP_SIGNUP_DIFFICULTY:-}
-      # The terms and the privacy notice of a public installation. Name all
-      # four or none. A raised version asks every account for consent again.
+      # The mail transport is a secret, so `docker/compose.mail.yaml` adds it
+      # with its sender.
+      # The terms and the privacy notice of a public installation. Name both
+      # or neither, each by an address or by a file, with its version.
+      # `docker/compose.legal.yaml` mounts the files. A raised version asks
+      # every account for consent again.
       NOTESAPP_TERMS_URL: ${NOTESAPP_TERMS_URL:-}
       NOTESAPP_TERMS_VERSION: ${NOTESAPP_TERMS_VERSION:-}
       NOTESAPP_PRIVACY_URL: ${NOTESAPP_PRIVACY_URL:-}
@@ -165,6 +169,10 @@ services:
       # no value the proxy answers `localhost` with a certificate that it makes
       # itself, which serves a local check and nothing else.
       NOTESAPP_DOMAIN: ${NOTESAPP_DOMAIN:-localhost}
+      # The domain of NOTESAPP_PUBLISHED_ORIGIN, which a public installation
+      # needs before it opens registration. With no value the proxy answers
+      # `pages.localhost`, which serves a local check and nothing else.
+      NOTESAPP_PUBLISHED_DOMAIN: ${NOTESAPP_PUBLISHED_DOMAIN:-pages.localhost}
     volumes:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
       # The certificate and its private key live here. Put this directory on

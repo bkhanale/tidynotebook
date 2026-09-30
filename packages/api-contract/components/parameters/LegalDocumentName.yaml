@@ -1,0 +1,11 @@
+name: document
+in: path
+required: true
+style: simple
+explode: false
+description: Which legal document to read, the terms or the privacy notice.
+schema:
+  type: string
+  enum:
+    - terms
+    - privacy

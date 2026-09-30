@@ -4,11 +4,18 @@
  * The HTTP boundary is generated from `@notesapp/api-contract`. Nothing here
  * declares a route, a request shape, or a response shape by hand.
  */
-export type { LogLevel, MailConfig, ServerConfig } from './config.ts';
+export type {
+  LegalTexts,
+  LogLevel,
+  MailConfig,
+  ServerConfig,
+} from './config.ts';
 export {
   ConfigError,
+  loadLegalTexts,
   loadProtectedEnvironment,
   loadServerConfig,
+  templateBlanks,
 } from './config.ts';
 export type {
   Drain,

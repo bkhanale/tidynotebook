@@ -21,6 +21,7 @@ import {
   minProofDifficulty,
 } from '@notesapp/core';
 import type { LegalDocuments } from '@notesapp/core';
+import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import { readServedOrigins, type ServedOrigin } from './served-origins.ts';
 import { readTrustedProxies } from './trusted-proxies.ts';
@@ -188,10 +189,17 @@ export type ServerConfig = {
   readonly breachCheck: boolean;
   /**
    * The terms and the privacy notice of the installation, or `null` for
-   * none (record 0120). The operator names the address and the version of
-   * both, or of neither.
+   * none (record 0120). The operator names both, or neither. A document
+   * that a file holds has the address of its page on the canonical origin
+   * (record 0140).
    */
   readonly legalDocuments: LegalDocuments | null;
+  /**
+   * The Markdown file of each legal document that this server serves, or
+   * `null` for a document at an external address (record 0140).
+   * `loadLegalTexts` reads them.
+   */
+  readonly legalFiles: LegalFiles;
   /**
    * The stop of this process.
    *
@@ -262,8 +270,10 @@ export const optionalVariables = [
   'NOTESAPP_PENDING_ACCOUNT_HOURS',
   'NOTESAPP_SIGNUP_DIFFICULTY',
   'NOTESAPP_TERMS_URL',
+  'NOTESAPP_TERMS_FILE',
   'NOTESAPP_TERMS_VERSION',
   'NOTESAPP_PRIVACY_URL',
+  'NOTESAPP_PRIVACY_FILE',
   'NOTESAPP_PRIVACY_VERSION',
   'NOTESAPP_BREACH_CHECK',
 ] as const;
@@ -447,11 +457,13 @@ const configSchema: SchemaObject = {
     NOTESAPP_PENDING_ACCOUNT_HOURS: positiveInteger,
     NOTESAPP_SIGNUP_DIFFICULTY: positiveInteger,
     NOTESAPP_TERMS_URL: { type: 'string', maxLength: 2048 },
+    NOTESAPP_TERMS_FILE: { type: 'string', pattern: '^/', maxLength: 1024 },
     NOTESAPP_TERMS_VERSION: {
       type: 'string',
       maxLength: maxLegalVersionLength,
     },
     NOTESAPP_PRIVACY_URL: { type: 'string', maxLength: 2048 },
+    NOTESAPP_PRIVACY_FILE: { type: 'string', pattern: '^/', maxLength: 1024 },
     NOTESAPP_PRIVACY_VERSION: {
       type: 'string',
       maxLength: maxLegalVersionLength,
@@ -595,16 +607,10 @@ export function loadServerConfig(
     shutdown,
     accounts: readAccounts(raw),
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
-    legalDocuments: readLegalDocuments(raw),
+    ...readLegalDocuments(raw, canonical),
   };
 }
 
-/**
- * The account settings of the configuration, with their bounds.
- *
- * The largest limit is the largest integer that a JSON answer carries without
- * loss, and the longest invitation lasts one year.
- */
 /** The address of one document: a full http or https URL, or `null`. */
 function documentUrl(value: string): string | null {
   try {
@@ -617,41 +623,156 @@ function documentUrl(value: string): string | null {
   }
 }
 
+/** The two legal documents, by the name that their page takes. */
+export const legalDocumentNames = ['terms', 'privacy'] as const;
+
+/** One legal document, by the name that its page takes. */
+export type LegalDocumentName = (typeof legalDocumentNames)[number];
+
+/** The Markdown file of each served legal document, or `null`. */
+export type LegalFiles = Readonly<Record<LegalDocumentName, string | null>>;
+
+/** The path of the page of one served legal document (record 0140). */
+export function legalDocumentPath(name: LegalDocumentName): string {
+  return `/legal/${name}`;
+}
+
+/** The three variables of one legal document. */
+const legalVariables = {
+  terms: {
+    url: 'NOTESAPP_TERMS_URL',
+    file: 'NOTESAPP_TERMS_FILE',
+    version: 'NOTESAPP_TERMS_VERSION',
+  },
+  privacy: {
+    url: 'NOTESAPP_PRIVACY_URL',
+    file: 'NOTESAPP_PRIVACY_FILE',
+    version: 'NOTESAPP_PRIVACY_VERSION',
+  },
+} as const;
+
 /**
- * The legal documents of the installation (record 0120).
+ * The legal documents of the installation (records 0120 and 0140).
  *
- * The four values come together or not at all, so no installation asks for
- * consent to a document with no address or no version.
+ * Each document comes with its version and exactly one source: an external
+ * address, or a Markdown file that this server serves on the canonical
+ * origin. The two documents come together or not at all, so no installation
+ * asks for consent to one document alone, to a document with no address, or
+ * to a document with no version.
  */
-function readLegalDocuments(raw: RawConfig): LegalDocuments | null {
-  const values = [
-    raw.NOTESAPP_TERMS_URL,
-    raw.NOTESAPP_TERMS_VERSION,
-    raw.NOTESAPP_PRIVACY_URL,
-    raw.NOTESAPP_PRIVACY_VERSION,
-  ];
-  if (values.every((value) => value === undefined)) return null;
+function readLegalDocuments(
+  raw: RawConfig,
+  canonical: string,
+): Pick<ServerConfig, 'legalDocuments' | 'legalFiles'> {
+  const named = legalDocumentNames.flatMap((name) =>
+    Object.values(legalVariables[name]).filter(
+      (variable) => raw[variable] !== undefined,
+    ),
+  );
+  if (named.length === 0)
+    return {
+      legalDocuments: null,
+      legalFiles: { terms: null, privacy: null },
+    };
   const issues: string[] = [];
-  if (values.some((value) => value === undefined))
-    issues.push(
-      'NOTESAPP_TERMS_URL: name the address and the version of the terms and of the privacy notice, all four, or none of them.',
-    );
-  const termsUrl = documentUrl(raw.NOTESAPP_TERMS_URL ?? '');
-  const privacyUrl = documentUrl(raw.NOTESAPP_PRIVACY_URL ?? '');
-  if (raw.NOTESAPP_TERMS_URL !== undefined && termsUrl === null)
-    issues.push('NOTESAPP_TERMS_URL: name a full http or https address.');
-  if (raw.NOTESAPP_PRIVACY_URL !== undefined && privacyUrl === null)
-    issues.push('NOTESAPP_PRIVACY_URL: name a full http or https address.');
-  if (issues.length > 0) throw new ConfigError(issues);
+  const read = (name: LegalDocumentName) => {
+    const variables = legalVariables[name];
+    const address = raw[variables.url];
+    const file = raw[variables.file];
+    const version = raw[variables.version];
+    if (address !== undefined && file !== undefined)
+      issues.push(
+        `${variables.file}: name the document by ${variables.url} or by ${variables.file}, not both.`,
+      );
+    if ((address === undefined && file === undefined) || version === undefined)
+      issues.push(
+        `${variables.version}: name the terms and the privacy notice, each with an address or a file and a version, or name none of them.`,
+      );
+    const url =
+      address === undefined
+        ? `${canonical}${legalDocumentPath(name)}`
+        : documentUrl(address);
+    if (url === null)
+      issues.push(`${variables.url}: name a full http or https address.`);
+    return {
+      document: { url: url ?? '', version: version ?? '' },
+      file: address === undefined ? (file ?? null) : null,
+    };
+  };
+  const terms = read('terms');
+  const privacy = read('privacy');
+  if (issues.length > 0) throw new ConfigError([...new Set(issues)]);
   return {
-    terms: { url: termsUrl ?? '', version: raw.NOTESAPP_TERMS_VERSION ?? '' },
-    privacy: {
-      url: privacyUrl ?? '',
-      version: raw.NOTESAPP_PRIVACY_VERSION ?? '',
-    },
+    legalDocuments: { terms: terms.document, privacy: privacy.document },
+    legalFiles: { terms: terms.file, privacy: privacy.file },
   };
 }
 
+/** The Markdown text of each served legal document, or `null`. */
+export type LegalTexts = Readonly<Record<LegalDocumentName, string | null>>;
+
+/** The largest legal document that this server reads. */
+export const maxLegalDocumentBytes = 256 * 1024;
+
+/** A blank of a template: a word or words in double braces. */
+const templateBlank = /\{\{[^{}\n]*\}\}/g;
+
+/** The distinct blanks of a template that a text still holds. */
+export function templateBlanks(text: string): readonly string[] {
+  return [...new Set(text.match(templateBlank) ?? [])];
+}
+
+/**
+ * Reads the Markdown file of each served legal document (record 0140).
+ *
+ * A file that cannot be read, an empty file, a file past the bound and a file
+ * that still holds a blank of the template all stop startup, so a person never
+ * reads a document that the operator did not finish.
+ */
+export async function loadLegalTexts(
+  config: Pick<ServerConfig, 'legalFiles'>,
+): Promise<LegalTexts> {
+  const issues: string[] = [];
+  const read = async (name: LegalDocumentName): Promise<string | null> => {
+    const path = config.legalFiles[name];
+    if (path === null) return null;
+    const variable = legalVariables[name].file;
+    let text: string;
+    try {
+      text = await readFile(path, 'utf8');
+    } catch {
+      issues.push(`${variable}: the file cannot be read.`);
+      return null;
+    }
+    if (Buffer.byteLength(text, 'utf8') > maxLegalDocumentBytes) {
+      issues.push(
+        `${variable}: the file is larger than ${String(maxLegalDocumentBytes / 1024)} KiB.`,
+      );
+      return null;
+    }
+    if (text.trim() === '') {
+      issues.push(`${variable}: the file is empty.`);
+      return null;
+    }
+    const blanks = templateBlanks(text);
+    if (blanks.length > 0)
+      issues.push(
+        `${variable}: fill each blank of the template first. The file still holds ${blanks.join(', ')}.`,
+      );
+    return text;
+  };
+  const terms = await read('terms');
+  const privacy = await read('privacy');
+  if (issues.length > 0) throw new ConfigError(issues);
+  return { terms, privacy };
+}
+
+/**
+ * The account settings of the configuration, with their bounds.
+ *
+ * The largest limit is the largest integer that a JSON answer carries without
+ * loss, and the longest invitation lasts one year.
+ */
 function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
   const limitBytes =
     raw.NOTESAPP_ACCOUNT_LIMIT_BYTES === undefined

@@ -5,7 +5,10 @@ post:
     Makes an account for the address that the invitation binds, with the
     given password, and starts its session. A used, revoked, or expired
     invitation makes nothing, and the answer does not say which of the three
-    applied. Two requests with one invitation make one account.
+    applied. Two requests with one invitation make one account. When the
+    installation names its terms and its privacy notice, the request names
+    the versions that the person accepted, and a missing or an older version
+    makes nothing (record 0120).
   tags:
     - auth
   security: []
@@ -18,6 +21,8 @@ post:
       $ref: '../components/responses/BadRequest.yaml'
     '403':
       $ref: '../components/responses/InvitationUnavailable.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
     '413':
       $ref: '../components/responses/PayloadTooLarge.yaml'
     '415':

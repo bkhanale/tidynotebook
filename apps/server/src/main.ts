@@ -10,6 +10,7 @@ import process from 'node:process';
 import { createApp } from './app.ts';
 import {
   ConfigError,
+  loadLegalTexts,
   loadProtectedEnvironment,
   loadServerConfig,
 } from './config.ts';
@@ -81,8 +82,12 @@ function reportStart(
 /** Starts the HTTP server and gives the stop signals to the drain. */
 export async function main(): Promise<void> {
   let config;
+  let legalTexts;
   try {
     config = loadServerConfig(await loadProtectedEnvironment(process.env));
+    // The legal documents are part of the configuration: a file that cannot
+    // be read, or a template with a blank left, stops the start here.
+    legalTexts = await loadLegalTexts(config);
   } catch (error) {
     // A configuration error already states one line for each value it
     // refused, in the words of this server. Anything else is the message of a
@@ -106,7 +111,7 @@ export async function main(): Promise<void> {
 
   let app;
   try {
-    app = await createApp(config, { lifecycle });
+    app = await createApp(config, { lifecycle, legalTexts });
   } catch {
     // The failure here is a database that refuses a connection, a storage
     // directory that cannot be written, or a mail transport that will not
