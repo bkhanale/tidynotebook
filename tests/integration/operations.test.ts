@@ -163,29 +163,51 @@ await test('a database that no pool can reach reports degraded', async () => {
  * that the pool already holds, so a probe that opened one of its own would be
  * refused and would report a degraded database.
  */
+/** How long the readiness connection test waits for one ended backend to exit. */
+const backendExitBoundMs = 5000;
+
 await test('a readiness probe opens no database connection of its own', async () => {
   const database = await createDisposableDatabase();
   // The administration session runs on the server database, so it takes none
   // of the connections that this test counts.
   const admin = await openSession(testServerUrl());
+  // A row with no user name is a background worker of the server, such as an
+  // autovacuum worker. It is not a connection of the store, so only the
+  // sessions of a role count here, as in the teardown of a database.
   const openCount = async (): Promise<number> => {
     const rows = await admin.query<{ count: string }>(
-      'select count(*)::text as count from pg_stat_activity where datname = $1',
+      'select count(*)::text as count from pg_stat_activity where datname = $1 and usename is not null',
       [database.name],
     );
     return Number(rows[0]?.count ?? '0');
   };
   // The migration step may leave a connection behind, and it would widen the
-  // limit below and hide the defect.
-  await admin.query(
-    'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1',
-    [database.name],
+  // limit below and hide the defect. The call without a timeout returns
+  // before the backend exits, so the count below could still see it. With a
+  // timeout, each call waits until its backend is gone.
+  const ended = await admin.query<{ ended: boolean }>(
+    'select pg_terminate_backend(pid, $2) as ended from pg_stat_activity where datname = $1 and usename is not null',
+    [database.name, backendExitBoundMs],
   );
+  assert.ok(
+    ended.every((row) => row.ended),
+    `a backend did not exit in ${String(backendExitBoundMs)} ms`,
+  );
+  assert.equal(await openCount(), 0, 'no session of the database remains');
   const store = openWorkspaceStore(
     database.runtimeUrl,
     createDocumentService(),
     { poolSize: 1 },
   );
+  const limit = async (value: number): Promise<void> => {
+    const statement = await admin.query<{ text: string }>(
+      'select format($1, $2::text, $3::int) as text',
+      ['alter database %I connection limit %s', database.name, value],
+    );
+    const text = statement[0]?.text;
+    assert.ok(text !== undefined);
+    await admin.query(text);
+  };
   try {
     const probes = databaseProbes(() => store.probeDatabase());
     // The first read opens the one pooled connection of this store.
@@ -195,13 +217,7 @@ await test('a readiness probe opens no database connection of its own', async ()
       1,
       'the read borrows the one pooled connection and opens no other',
     );
-    const statement = await admin.query<{ text: string }>(
-      'select format($1, $2::text) as text',
-      ['alter database %I connection limit 1', database.name],
-    );
-    const text = statement[0]?.text;
-    assert.ok(text !== undefined);
-    await admin.query(text);
+    await limit(1);
 
     // Every later read must reuse that connection, because the database now
     // refuses a second one.
@@ -212,6 +228,9 @@ await test('a readiness probe opens no database connection of its own', async ()
       assert.equal(checkNamed(report.checks, 'migration').status, 'ok');
     }
   } finally {
+    // A failed check must not leave the limit behind, so the teardown can
+    // always reach the database.
+    await limit(-1);
     await admin.close();
     await store.close();
     await database.destroy();
