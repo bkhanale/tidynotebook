@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,7 +41,6 @@ import {
   createDocumentService,
   createTestDatabase,
   dropTestDatabase,
-  migrationsFolder,
   openIdentityStore,
   runMigrations,
   runtimeRole,
@@ -54,6 +53,10 @@ import {
   openSession,
   testServerUrl,
 } from './support/database.ts';
+import {
+  migrationsBefore,
+  writeIssuerAccount,
+} from './support/earlier-schema.ts';
 
 function responseOf(response: Response | undefined): Response {
   if (response === undefined)
@@ -400,32 +403,19 @@ await test('the open policy needs every part it names', async () => {
 await test('an upgraded installation still signs in its existing accounts', async () => {
   // Stop before this migration, and make an account the way the release
   // before it did: a sign-up that never proved its address.
-  const earlier = await mkdtemp(join(tmpdir(), 'notesapp-migrations-'));
+  const earlier = await migrationsBefore('0016_pending_accounts');
   const serverUrl = testServerUrl();
   const name = `notesapp_test_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
   const migrationUrl = await createTestDatabase(serverUrl, name);
   const root = await mkdtemp(join(tmpdir(), 'notesapp-upgrade-'));
   try {
-    await cp(migrationsFolder(), earlier, { recursive: true });
-    const journalPath = join(earlier, 'meta', '_journal.json');
-    const journal: unknown = JSON.parse(await readFile(journalPath, 'utf8'));
-    const entries = readEntries(journal);
-    const upTo = entries.findIndex(
-      (entry) => entry === '0016_pending_accounts',
-    );
-    assert.ok(upTo > 0, 'the journal names migration 0016');
-    await writeFile(
-      journalPath,
-      JSON.stringify(withEntries(journal, upTo)),
-      'utf8',
-    );
     const run = {
       documents: createDocumentService(),
       databaseUrl: migrationUrl,
       runtimePassword: testRuntimePassword,
       authPassword: testAuthPassword,
     };
-    await runMigrations({ ...run, migrationsFolder: earlier });
+    await runMigrations({ ...run, migrationsFolder: earlier.folder });
     const upgraded = loadServerConfig(
       environment(
         withCredentials(migrationUrl, runtimeRole, testRuntimePassword),
@@ -440,14 +430,17 @@ await test('an upgraded installation still signs in its existing accounts', asyn
       sessionAllowed: async (id) =>
         (await identity.sessionAccount(id)) !== null,
     });
+    const owner = await openSession(migrationUrl);
     try {
       const email = 'kept@notes.invalid';
       const password = 'kept-password-1234567';
-      const made: unknown = await auth.auth.api.signUpEmail({
-        body: { email, name: email, password },
+      // The library of this release no longer writes the issuer that this
+      // schema needs, so the row is written as the release before it did.
+      const userId = await writeIssuerAccount(owner, {
+        email,
+        passwordHash: await (await auth.auth.$context).password.hash(password),
+        emailVerified: false,
       });
-      const userId = memberOf(memberOf(made, 'user'), 'id');
-      assert.ok(typeof userId === 'string');
       const account = await identity.register({
         authUserId: userId,
         ground: { kind: 'first-run' },
@@ -469,42 +462,16 @@ await test('an upgraded installation still signs in its existing accounts', asyn
       await runMigrations(run);
       assert.equal(await signIn(), 200);
     } finally {
+      await owner.close();
       await auth.close();
       await identity.close();
     }
   } finally {
     await dropTestDatabase(serverUrl, name);
-    await rm(earlier, { recursive: true, force: true });
+    await earlier.remove();
     await rm(root, { recursive: true, force: true });
   }
 });
-
-/** The tags of the journal entries, in order. */
-function readEntries(journal: unknown): string[] {
-  if (journal === null || typeof journal !== 'object') return [];
-  const entries: unknown = Object.fromEntries(Object.entries(journal))[
-    'entries'
-  ];
-  if (!Array.isArray(entries)) return [];
-  return entries.map((entry: unknown) => {
-    if (entry === null || typeof entry !== 'object') return '';
-    const tag: unknown = Object.fromEntries(Object.entries(entry))['tag'];
-    return typeof tag === 'string' ? tag : '';
-  });
-}
-
-/** The journal with its first `count` entries only. */
-function withEntries(journal: unknown, count: number): unknown {
-  if (journal === null || typeof journal !== 'object') return journal;
-  const record: Record<string, unknown> = Object.fromEntries(
-    Object.entries(journal),
-  );
-  const entries = record['entries'];
-  return {
-    ...record,
-    entries: Array.isArray(entries) ? entries.slice(0, count) : [],
-  };
-}
 
 await app.close();
 await database.destroy();

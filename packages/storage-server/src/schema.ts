@@ -1055,10 +1055,9 @@ export const authSession = pgTable(
 /**
  * One credential or one external identity of a Better Auth user.
  *
- * An external identity is keyed by `issuer` and `account_id`, which are the
- * OpenID Connect issuer and subject. Two identities of different issuers are
- * therefore never the same account, and a matching address alone never joins
- * them.
+ * An identity is keyed by `provider_id` and `account_id`, which is the key
+ * that Better Auth writes (record 0135). A matching address alone never joins
+ * two identities.
  */
 export const authAccount = pgTable(
   'auth_account',
@@ -1067,7 +1066,6 @@ export const authAccount = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => authUser.id, { onDelete: 'cascade' }),
-    issuer: text('issuer').notNull(),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
     accessToken: text('access_token'),
@@ -1090,11 +1088,7 @@ export const authAccount = pgTable(
   },
   (table) => [
     index('auth_account_user_idx').on(table.userId),
-    unique('auth_account_key').on(
-      table.issuer,
-      table.providerId,
-      table.accountId,
-    ),
+    unique('auth_account_key').on(table.providerId, table.accountId),
   ],
 );
 

@@ -148,6 +148,13 @@
       "when": 1790644188021,
       "tag": "0020_notices_always_on",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790793678935,
+      "tag": "0021_auth_account_provider_key",
+      "breakpoints": true
     }
   ]
 }

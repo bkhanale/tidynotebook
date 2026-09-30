@@ -343,8 +343,8 @@ function buildAuth(
     },
     account: {
       accountLinking: {
-        // Two identities are never joined because their addresses match. A
-        // provider identity is keyed by issuer and subject only.
+        // Two identities are never joined because their addresses match. An
+        // identity is keyed by its provider and its account only (0135).
         enabled: false,
         disableImplicitLinking: true,
         allowDifferentEmails: false,
