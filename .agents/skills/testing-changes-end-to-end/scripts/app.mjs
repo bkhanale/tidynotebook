@@ -89,14 +89,49 @@ function isAlive(pid) {
   }
 }
 
-/** @returns {AppState | null} */
+/**
+ * The application that `start` recorded, or `null` when it recorded none.
+ *
+ * @returns {AppState | null}
+ */
 function readState() {
   if (!existsSync(stateFile)) return null;
+  /** @type {unknown} */
   const value = JSON.parse(readFileSync(stateFile, 'utf8'));
-  return value !== null && typeof value === 'object' ? value : null;
+  if (value === null || typeof value !== 'object') return null;
+  /** @param {string} key @returns {string} */
+  const text = (key) => {
+    /** @type {unknown} */
+    const field = Reflect.get(value, key);
+    if (typeof field !== 'string')
+      throw new Error(`${stateFile} lacks ${key}.`);
+    return field;
+  };
+  /** @param {string} key @returns {number} */
+  const count = (key) => {
+    /** @type {unknown} */
+    const field = Reflect.get(value, key);
+    if (typeof field !== 'number')
+      throw new Error(`${stateFile} lacks ${key}.`);
+    return field;
+  };
+  return {
+    origin: text('origin'),
+    email: text('email'),
+    password: text('password'),
+    port: count('port'),
+    pid: count('pid'),
+    log: text('log'),
+    commit: text('commit'),
+    changedFiles: count('changedFiles'),
+  };
 }
 
-/** A port that nothing listens on now, chosen by the operating system. */
+/**
+ * A port that nothing listens on now, chosen by the operating system.
+ *
+ * @returns {Promise<number>}
+ */
 function freePort() {
   return new Promise((done, fail) => {
     const server = createServer();
@@ -115,7 +150,10 @@ function lineValue(text, label) {
   return line === undefined ? null : line.slice(label.length).trim();
 }
 
-/** @param {number | null} requestedPort @returns {Promise<AppState>} */
+/**
+ * @param {number | null} requestedPort
+ * @returns {Promise<AppState & { reused?: true }>}
+ */
 async function start(requestedPort) {
   const running = readState();
   if (running !== null && isAlive(running.pid))

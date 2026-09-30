@@ -1,0 +1,3 @@
+# .claude/skills holds links to .agents/skills, which the lint reads under
+# its own name. Through a link the type-aware lint finds no type program.
+.claude/

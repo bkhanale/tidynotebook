@@ -92,12 +92,14 @@ export function keepWrittenCharacter(
       if (editors.size < 2) continue;
       removed.push(...offsets.filter((offset) => offset !== kept));
     }
+    // A save that changes no slot keeps the bytes that it was given.
+    if (removed.length === 0)
+      return { ok: true, value: { document: after, text: text.toJSON() } };
     // From the end of the text, so every offset still names its character.
     removed.sort((one, other) => other - one);
-    if (removed.length > 0)
-      doc.transact(() => {
-        for (const offset of removed) text.delete(offset, 1);
-      });
+    doc.transact(() => {
+      for (const offset of removed) text.delete(offset, 1);
+    });
     const next = Y.encodeStateAsUpdate(doc);
     if (next.byteLength > bounds.maxDocumentBytes)
       return { ok: false, refusal: 'too-large' };

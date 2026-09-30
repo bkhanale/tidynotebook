@@ -22,7 +22,6 @@ import {
   editingTransaction,
   isTaskToggle,
   linkSpanAt,
-  taskToggleEvent,
   toggleTaskSpec,
   type EditorNavigation,
   type LinkTarget,
@@ -184,13 +183,7 @@ export function createEditor(
       run: (view): boolean => {
         const spec = toggleTaskSpec(view.state);
         if (spec === null) return false;
-        // The toggle keeps its own event, so the screen saves it at once.
-        view.dispatch(
-          view.state.update({
-            ...editingTransaction(spec),
-            userEvent: taskToggleEvent,
-          }),
-        );
+        view.dispatch(view.state.update(editingTransaction(spec)));
         return true;
       },
     },

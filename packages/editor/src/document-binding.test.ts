@@ -159,3 +159,19 @@ await test('a note opened over its own document states no start work', () => {
   assert.equal(note.startWork, null);
   note.release();
 });
+
+await test('the work of a note brings a store that missed a write up to the view', () => {
+  // A local write that fails leaves the store without that change, and the
+  // later writes build on it. The whole live document merges into the store
+  // and holds every change of the view again.
+  const stored = startDocument('- [ ] task\n');
+  const note = openBoundNote(stored, '- [ ] task\n');
+  const written = replaceDocumentText(stored, '- [x] task\nmore\n');
+  if (!written.ok) throw new Error(written.refusal);
+  note.join(written.value.document);
+  const merged = applyDocumentUpdate(stored, note.work());
+  assert.ok(merged.ok);
+  assert.equal(readDocumentText(merged.value.document), note.text());
+  assert.equal(note.text(), '- [x] task\nmore\n');
+  note.release();
+});

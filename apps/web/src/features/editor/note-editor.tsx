@@ -292,6 +292,11 @@ function NoteEditorBody({
   // checkpoint freezes the stored document (record 0133), so it waits for
   // them, and the version holds every change that the screen shows.
   const localWorkWrittenRef = useRef<Promise<void>>(Promise.resolve());
+  // True after a local write failed. The later writes of the view build on
+  // the one that failed, so the store refuses them too, and a checkpoint
+  // would freeze a document without that work. The next checkpoint writes
+  // the whole live document first, which merges in every missing change.
+  const localWorkLostRef = useRef(false);
   const sequenceRef = useRef(initialSequence);
   // The live document of this note, built once for this working copy. The
   // editor binds to it, so the text on the screen and the text of the note
@@ -629,9 +634,25 @@ function NoteEditorBody({
     const run = (async (): Promise<boolean> => {
       await startWrittenRef.current;
       await localWorkWrittenRef.current;
+      const current = live.current;
+      if (localWorkLostRef.current) {
+        try {
+          await current.store.mergeNoteWork(
+            current.accountId,
+            current.workspaceId,
+            current.fileId,
+            sessionRef.current.work(),
+          );
+          localWorkLostRef.current = false;
+        } catch (failure: unknown) {
+          setStorageError(
+            isLocalStorageError(failure) ? failure.kind : 'aborted',
+          );
+          return false;
+        }
+      }
       const saved = await saveDraftNow.current();
       if (!saved) return false;
-      const current = live.current;
       try {
         // The document holds every change of this editor already, and the
         // buffer can lag remote work that the store took first. The version
@@ -906,8 +927,9 @@ function NoteEditorBody({
         .then(
           () => undefined,
           () => {
-            // A failed local write is reported by the draft write that
-            // follows it, so this path says nothing a second time.
+            // The next checkpoint writes the whole document again and
+            // reports the failure when that write fails too.
+            localWorkLostRef.current = true;
           },
         );
       localWorkWrittenRef.current = Promise.all([

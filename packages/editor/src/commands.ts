@@ -29,7 +29,13 @@ import type { SyntaxNode } from '@lezer/common';
  * covers every command and no command decides for itself.
  */
 export function editingTransaction(spec: TransactionSpec): TransactionSpec {
-  return { ...spec, userEvent: 'input.format', scrollIntoView: true };
+  // A command that names its own event, such as a toggle of a task box,
+  // keeps it, so the screen can tell that command apart.
+  return {
+    ...spec,
+    userEvent: spec.userEvent ?? 'input.format',
+    scrollIntoView: true,
+  };
 }
 
 /**

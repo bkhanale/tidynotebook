@@ -166,13 +166,18 @@ export async function freezeDocument(
   key: DocumentKey,
   text: string,
   noteExists: boolean,
-): Promise<{ readonly row: DocumentRow; readonly save: DocumentSave } | null> {
+): Promise<{
+  readonly row: DocumentRow | null;
+  readonly save: DocumentSave;
+} | null> {
   const current = await readDocumentRow(tables, key);
   // A new note that holds no document yet starts an empty one, as the first
   // write of its editor does. A note that the server holds is refused.
   const row = current ?? { ...documentOrStart(null, '', noteExists), ...key };
   if (readDocumentText(row.bytes) !== text) return null;
-  return { row, save: saveOfDocument(row) };
+  // A stored row is frozen as it is, so the checkpoint writes it only when
+  // this call started it.
+  return { row: current === null ? row : null, save: saveOfDocument(row) };
 }
 
 /**

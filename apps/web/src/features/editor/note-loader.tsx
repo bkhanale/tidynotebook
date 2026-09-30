@@ -206,20 +206,27 @@ export function NoteEditorLoader({
       // and from the read otherwise. A device that started a document of its
       // own here would hold characters that the server never saw, and joining
       // the two would show the note twice (records 0081, 0084).
-      const cachedDocument =
+      // The kept read gives the text and the document from one moment, as the
+      // cached open does, so work that the feed wrote after the server answer
+      // never becomes a difference that the open writes back (record 0133).
+      const kept =
         store === null
           ? null
-          : await store.readNoteDocument(accountId, workspaceId, fileId);
+          : await store
+              .readCachedNote(accountId, workspaceId, fileId)
+              .catch(() => null);
       if (cancelled) return;
       const servedDocument = head?.document ?? null;
+      const paired =
+        kept !== null && !kept.deleted && kept.document !== null ? kept : null;
       setStatus({
         kind: 'ready',
         path: result.data.path,
-        text: result.data.head?.text ?? '',
+        text: paired?.text ?? result.data.head?.text ?? '',
         headRevisionId: result.data.headRevisionId,
         sequence: 0,
         document:
-          cachedDocument?.bytes ??
+          paired?.document?.bytes ??
           (servedDocument === null ? null : bytesOfBase64(servedDocument)),
       });
     }

@@ -164,6 +164,13 @@ export type BoundNote = {
   /** The text of the note now, which is the text of the view. */
   text(): string;
   /**
+   * The whole live document as work, which merges into any copy of it.
+   *
+   * The screen writes it after a local write failed, so the store holds
+   * every change of this view again before a save freezes the store.
+   */
+  work(): Uint8Array;
+  /**
    * Joins the document that this device stores into the open note.
    *
    * The screen calls this when the store reports a change. Only the work the
@@ -203,6 +210,7 @@ export function openBoundNote(
         : encodeDocumentDelta(opened, documentStateVector(bytes)),
     extension: binding.extension,
     text: () => session.text(),
+    work: () => session.encode(),
     join(document: Uint8Array): void {
       binding.applyRemote(encodeDocumentDelta(document, session.stateVector()));
     },

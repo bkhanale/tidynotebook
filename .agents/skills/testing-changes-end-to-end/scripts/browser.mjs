@@ -43,8 +43,12 @@ function run(command, args) {
 
 function installedVersion() {
   if (!existsSync(installed)) return null;
+  /** @type {unknown} */
   const value = JSON.parse(readFileSync(installed, 'utf8'));
-  return typeof value?.version === 'string' ? value.version : null;
+  if (value === null || typeof value !== 'object') return null;
+  /** @type {unknown} */
+  const version = Reflect.get(value, 'version');
+  return typeof version === 'string' ? version : null;
 }
 
 try {

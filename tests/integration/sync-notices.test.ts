@@ -147,14 +147,13 @@ async function hintsOf(action: () => Promise<void>): Promise<string[]> {
   const start = hints.length;
   await action();
   const marker = `s:marker-${randomUUID()}`;
-  // A hint that a lost listener missed never arrives, so the wait ends with
-  // a failure that names it instead of holding the whole suite open.
-  let bound: ReturnType<typeof setTimeout> | undefined;
-  const arrived = new Promise<void>((done, fail) => {
-    hintWaiters.push({ match: (index) => hints[index] === marker, done });
-    bound = setTimeout(() => {
-      fail(new Error(`The marker hint did not arrive in ${waitBoundMs} ms.`));
-    }, waitBoundMs);
+  const waiter = {
+    match: (index: number) => hints[index] === marker,
+    done: () => {},
+  };
+  const arrived = new Promise<void>((done) => {
+    waiter.done = done;
+    hintWaiters.push(waiter);
   });
   const session = await openSession(database.migrationUrl);
   try {
@@ -162,10 +161,24 @@ async function hintsOf(action: () => Promise<void>): Promise<string[]> {
   } finally {
     await session.close();
   }
+  // A hint that a lost listener missed never arrives, so the wait ends with
+  // a failure that names it instead of holding the whole suite open.
+  let bound: ReturnType<typeof setTimeout> | undefined;
   try {
-    await arrived;
+    await Promise.race([
+      arrived,
+      new Promise<never>((_, fail) => {
+        bound = setTimeout(() => {
+          fail(
+            new Error(`The marker hint did not arrive in ${waitBoundMs} ms.`),
+          );
+        }, waitBoundMs);
+      }),
+    ]);
   } finally {
     clearTimeout(bound);
+    const left = hintWaiters.indexOf(waiter);
+    if (left !== -1) hintWaiters.splice(left, 1);
   }
   return hints.slice(start, hints.indexOf(marker, start));
 }

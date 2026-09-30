@@ -114,7 +114,8 @@ await test('a toggle of a task box states that it is one', () => {
 
   const selected = toggleTaskSpec(state);
   assert.ok(selected !== null);
-  const keyed = state.update(selected);
+  // The key runs the toggle through the one editing wrapper, which keeps it.
+  const keyed = state.update(editingTransaction(selected));
   assert.equal(keyed.state.doc.toString(), '- [x] one\n- [x] two\n');
   assert.equal(isTaskToggle(keyed), true);
 

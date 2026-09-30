@@ -8,11 +8,39 @@
  *
  * This file imports nothing from Playwright. It takes the browser, the
  * context or the page that the drive script made, so it runs with the one
- * Playwright of `.local-app/`.
+ * Playwright of `.local-app/`. The repository holds no Playwright (record
+ * 0066), so the types below name only the part of it that this file uses.
  */
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/**
+ * @typedef {{ status(): number, url(): string, ok(): boolean, json(): Promise<unknown>, request(): { method(): string } }} Answer
+ * @typedef {{ fill(text: string): Promise<void>, click(): Promise<void>, waitFor(): Promise<void>, first(): Locator }} Locator
+ * @typedef {{
+ *   goto(url: string): Promise<unknown>,
+ *   url(): string,
+ *   locator(selector: string): Locator,
+ *   getByRole(role: string, options: { name: string }): Locator,
+ *   getByText(text: string): Locator,
+ *   waitForURL(url: RegExp): Promise<void>,
+ *   waitForLoadState(state: 'networkidle'): Promise<void>,
+ *   evaluate(expression: string): Promise<unknown>,
+ *   screenshot(options: { path: string }): Promise<unknown>,
+ *   on(event: 'pageerror', listener: (error: Error) => void): unknown,
+ *   request: { get(url: string): Promise<Answer> },
+ * }} Page
+ * @typedef {{
+ *   newPage(): Promise<Page>,
+ *   close(): Promise<void>,
+ *   on(event: 'response', listener: (answer: Answer) => void): unknown,
+ * }} Context
+ * @typedef {{ width: number, height: number }} Viewport
+ * @typedef {{ newContext(options: { viewport: Viewport, colorScheme: 'light' | 'dark' }): Promise<Context> }} Browser
+ * @typedef {{ origin: string, email: string, password: string }} App
+ * @typedef {{ context: Context, page: Page, problems: string[] }} Device
+ */
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -22,11 +50,26 @@ const laptop = { width: 1280, height: 800 };
 /**
  * The application of this worktree, as `app.mjs start` wrote it.
  *
- * @returns {Promise<{ origin: string, email: string, password: string, port: number }>}
+ * @returns {Promise<App>}
  */
 export async function readApp() {
-  const text = await readFile(join(root, '.local-app', 'app.json'), 'utf8');
-  return JSON.parse(text);
+  const file = join(root, '.local-app', 'app.json');
+  /** @type {unknown} */
+  const value = JSON.parse(await readFile(file, 'utf8'));
+  if (value === null || typeof value !== 'object')
+    throw new Error(`${file} holds no application. Run app.mjs start.`);
+  /** @param {string} key @returns {string} */
+  const text = (key) => {
+    /** @type {unknown} */
+    const field = Reflect.get(value, key);
+    if (typeof field !== 'string') throw new Error(`${file} lacks ${key}.`);
+    return field;
+  };
+  return {
+    origin: text('origin'),
+    email: text('email'),
+    password: text('password'),
+  };
 }
 
 /**
@@ -37,9 +80,10 @@ export async function readApp() {
  * failed requests it meets are collected in `problems`, apart from the one
  * answer 401 of the session check before the sign-in.
  *
- * @param {import('playwright').Browser} browser
- * @param {{ origin: string, email: string, password: string }} app
- * @param {{ colorScheme?: 'light' | 'dark', viewport?: { width: number, height: number } }} [options]
+ * @param {Browser} browser
+ * @param {App} app
+ * @param {{ colorScheme?: 'light' | 'dark', viewport?: Viewport | undefined }} [options]
+ * @returns {Promise<Device>}
  */
 export async function openDevice(browser, app, options = {}) {
   const context = await browser.newContext({
@@ -48,20 +92,16 @@ export async function openDevice(browser, app, options = {}) {
   });
   /** @type {string[]} */
   const problems = [];
-  context.on('response', (response) => {
-    const status = response.status();
-    if (
-      status >= 400 &&
-      !(status === 401 && response.url().endsWith('/api/account'))
-    )
-      problems.push(
-        `${status} ${response.request().method()} ${response.url()}`,
-      );
+  context.on('response', (answer) => {
+    const status = answer.status();
+    const signInCheck = status === 401 && answer.url().endsWith('/api/account');
+    if (status >= 400 && !signInCheck)
+      problems.push(`${status} ${answer.request().method()} ${answer.url()}`);
   });
   const page = await context.newPage();
-  page.on('pageerror', (error) =>
-    problems.push(`page error: ${error.message}`),
-  );
+  page.on('pageerror', (error) => {
+    problems.push(`page error: ${error.message}`);
+  });
   await page.goto(app.origin);
   await page.locator('input[type=email]').fill(app.email);
   await page.locator('input[type=password]').fill(app.password);
@@ -81,23 +121,34 @@ export async function openDevice(browser, app, options = {}) {
  * The read goes through the session of the device of that page. The answer
  * is `null` while the server does not hold the note.
  *
- * @param {import('playwright').Page} page
+ * @param {Page} page
  * @returns {Promise<string | null>}
  */
 export async function readNoteText(page) {
   const match = /\/w\/([^/]+)\/notes\/([^/?#]+)/.exec(page.url());
   if (match === null) throw new Error(`${page.url()} shows no note.`);
   const origin = new URL(page.url()).origin;
-  const response = await page.request.get(
-    `${origin}/api/workspaces/${match[1]}/files/${match[2]}`,
+  const answer = await page.request.get(
+    `${origin}/api/workspaces/${match[1] ?? ''}/files/${match[2] ?? ''}`,
   );
   // A note that the device just made is not on the server until its first
   // save arrives, so the server holds no text of it yet.
-  if (response.status() === 404) return null;
-  if (!response.ok())
-    throw new Error(`The note read answered ${response.status()}.`);
-  const body = await response.json();
-  return typeof body?.head?.text === 'string' ? body.head.text : null;
+  if (answer.status() === 404) return null;
+  if (!answer.ok())
+    throw new Error(`The note read answered ${answer.status()}.`);
+  /** @type {unknown} */
+  const body = await answer.json();
+  /** @type {unknown} */
+  const head =
+    body !== null && typeof body === 'object'
+      ? Reflect.get(body, 'head')
+      : null;
+  /** @type {unknown} */
+  const text =
+    head !== null && typeof head === 'object'
+      ? Reflect.get(head, 'text')
+      : null;
+  return typeof text === 'string' ? text : null;
 }
 
 // Sync between devices takes well under a second on one machine. Fifteen
@@ -128,8 +179,9 @@ export async function until(check, what, timeoutMs = untilTimeoutMs) {
 /**
  * Opens another tab of one device, which shares its session and storage.
  *
- * @param {{ context: import('playwright').BrowserContext, page: import('playwright').Page }} device
+ * @param {Device} device
  * @param {string} [url] The address to open, by default the address of the first tab.
+ * @returns {Promise<Page>}
  */
 export async function openTab(device, url) {
   const page = await device.context.newPage();
@@ -144,17 +196,18 @@ export async function openTab(device, url) {
  * tab never happens by itself. This sets `document.visibilityState` and
  * sends `visibilitychange`, which is what the application listens for.
  *
- * @param {import('playwright').Page} page
+ * @param {Page} page
  * @param {'hidden' | 'visible'} state
  */
 export async function setVisibility(page, state) {
-  await page.evaluate((next) => {
+  // The expression runs in the page, so it is text: this file has no DOM.
+  await page.evaluate(`(() => {
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
-      get: () => next,
+      get: () => ${JSON.stringify(state)},
     });
     document.dispatchEvent(new Event('visibilitychange'));
-  }, state);
+  })()`);
 }
 
 /**
@@ -164,13 +217,14 @@ export async function setVisibility(page, state) {
  * scheme while it is open paints a moment of the old palette. The files are
  * `<file>-light.png` and `<file>-dark.png`, and the answer names them.
  *
- * @param {import('playwright').Browser} browser
- * @param {{ origin: string, email: string, password: string }} app
+ * @param {Browser} browser
+ * @param {App} app
  * @param {string} url
  * @param {string} file A path without its extension.
- * @param {{ viewport?: { width: number, height: number }, ready?: string }} [options]
+ * @param {{ viewport?: Viewport, ready?: string }} [options]
  *   `ready` is a text that the screen shows once it is complete. The
  *   screenshot waits for it, and without it only for the network.
+ * @returns {Promise<string[]>}
  */
 export async function screenshotBoth(browser, app, url, file, options = {}) {
   /** @type {string[]} */
