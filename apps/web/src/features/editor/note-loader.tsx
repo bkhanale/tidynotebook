@@ -6,6 +6,12 @@
  * store answers first, and the generated `getFile` operation answers for a
  * note this device has not received yet.
  *
+ * A note that this device holds opens in the commit that leaves the last one.
+ * The router makes each navigation a transition, and the loader suspends on
+ * the open read of the device (`device-note.ts`), so React keeps the screen a
+ * person left until the next note is ready. The header, the tree and the note
+ * then change together, and no placeholder shows between two notes.
+ *
  * The screen follows the store. A restore brings a deleted note back, and a
  * version of another device replaces the note an idle editor holds (record
  * 0073). Both make the loader read the note again and mount the editor on what
@@ -13,6 +19,7 @@
  * remounted, so no text of this device can be lost to a read.
  */
 import {
+  use,
   useCallback,
   useEffect,
   useRef,
@@ -28,13 +35,34 @@ import { problemMessage } from '../../app.tsx';
 import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 import {
+  isSameNote,
+  noteHoldMs,
   noteLoadStatusFor,
-  opensFromDevice,
   type NoteLoadIdentity,
   type NoteLoadState,
   type NoteLoadStatus,
 } from '../../lib/note-load-state.ts';
+import { createDeviceOpens, readDeviceNote } from './device-note.ts';
 import { NoteEditor, recordTiming } from './note-editor.tsx';
+
+/**
+ * The open reads of the note screen.
+ *
+ * They live outside the screen, because React asks a suspended screen for
+ * the same read again and that screen keeps no state until it commits.
+ */
+const deviceOpens = createDeviceOpens<LocalStore>(
+  async (store, identity) => {
+    const startedAt = performance.now();
+    const status = await readDeviceNote(store, identity);
+    if (status !== null) recordTiming('notesapp.cached-note-open', startedAt);
+    return status;
+  },
+  () =>
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, noteHoldMs);
+    }),
+);
 
 /** The bytes of one base64 value that the contract states. */
 function bytesOfBase64(value: string): Uint8Array {
@@ -74,7 +102,14 @@ export function NoteEditorLoader({
     identity,
     status: { kind: 'loading' },
   }));
-  const status = noteLoadStatusFor(loadState, identity);
+  // A render of a note that the loader does not hold yet waits for the device.
+  // A note that this device holds then renders with its content, and the
+  // router keeps the last note on the screen until it does.
+  const opened =
+    store === null || isSameNote(loadState.identity, identity)
+      ? null
+      : use(deviceOpens.open(store, identity).held);
+  const status = noteLoadStatusFor(loadState, identity, opened);
   const setStatus = useCallback(
     (next: NoteLoadStatus): void => {
       setLoadState({
@@ -108,59 +143,22 @@ export function NoteEditorLoader({
   useEffect(() => {
     let cancelled = false;
     async function load(): Promise<void> {
-      if (quietReload.current) quietReload.current = false;
-      else setStatus({ kind: 'loading' });
+      const quiet = quietReload.current;
+      quietReload.current = false;
+      const opening = { accountId, workspaceId, fileId };
+      // The first render of this note started the read of the device and
+      // waited for it, so that read answers here when the store has not
+      // changed the note since. A note on the screen never goes back to the
+      // loading state: a read that follows it is quiet.
+      const started = store === null ? null : deviceOpens.peek(store, opening);
+      if (!quiet && statusKind.current !== 'ready')
+        setStatus({ kind: 'loading' });
       if (store !== null) {
-        try {
-          const startedAt = performance.now();
-          const cached = await store.readCachedNote(
-            accountId,
-            workspaceId,
-            fileId,
-          );
-          if (cancelled) return;
-          if (cached !== null) {
-            recordTiming('notesapp.cached-note-open', startedAt);
-            if (cached.deleted) {
-              setStatus({ kind: 'deleted', path: cached.path });
-              return;
-            }
-            // The editor binds to the document of the note, so the loader
-            // reads it beside the text (record 0081).
-            const document = await store.readNoteDocument(
-              accountId,
-              workspaceId,
-              fileId,
-            );
-            const held = await store.readFileSaveSnapshot(
-              accountId,
-              workspaceId,
-              fileId,
-            );
-            if (cancelled) return;
-            // A note that the server holds, and whose document this device
-            // does not hold yet, opens from the server read below.
-            if (
-              opensFromDevice(
-                document?.bytes ?? null,
-                held.acceptedHeadRevisionId,
-              )
-            ) {
-              setStatus({
-                kind: 'ready',
-                path: cached.path,
-                text: cached.text,
-                headRevisionId: cached.baseRevisionId,
-                workingCopyId: cached.workingCopyId,
-                sequence: cached.sequence,
-                document: document?.bytes ?? null,
-              });
-              return;
-            }
-          }
-        } catch {
-          // A server read can still show content. A later local write failure
-          // keeps the in-memory buffer visible and closes unsafe reload.
+        const device = await (started?.read ?? readDeviceNote(store, opening));
+        if (cancelled) return;
+        if (device !== null) {
+          setStatus(device);
+          return;
         }
       }
       const result = await getFile({
@@ -230,6 +228,20 @@ export function NoteEditorLoader({
       cancelled = true;
     };
   }, [store, accountId, workspaceId, fileId, reloadToken, setStatus]);
+
+  // Once the loader holds the state of this note, no render asks the device
+  // again, so the open reads are done. A read that a navigation started and
+  // left goes when the screen does. A later open reads the device afresh.
+  const holdsNote = isSameNote(loadState.identity, identity);
+  useEffect(() => {
+    if (store !== null && holdsNote) deviceOpens.forget(store);
+  }, [store, holdsNote, accountId, workspaceId, fileId]);
+  useEffect(() => {
+    if (store === null) return;
+    return () => {
+      deviceOpens.forget(store);
+    };
+  }, [store]);
 
   // A restore can reach this device while the note screen shows it as deleted.
   // The loader then reads the note again. The open editor keeps its instance,

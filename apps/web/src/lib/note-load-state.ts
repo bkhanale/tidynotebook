@@ -33,7 +33,7 @@ export type NoteLoadState = {
 };
 
 /** Whether two loader identities name the same note in the same scope. */
-function isSameNote(
+export function isSameNote(
   first: NoteLoadIdentity,
   second: NoteLoadIdentity,
 ): boolean {
@@ -44,13 +44,42 @@ function isSameNote(
   );
 }
 
-/** Gives a loader result only to the note that owns it. */
+/**
+ * What the open read of this device answered for a note.
+ *
+ * A status is a note that the device can show. `server` is a note that only
+ * the server read can open, and `slow` is a read that outlasted the hold.
+ */
+export type DeviceOpen = NoteLoadStatus | 'server' | 'slow';
+
+/**
+ * How long a navigation holds the screen a person left while the next note
+ * is read from this device.
+ *
+ * A read of the device ends well inside it, so the next note replaces the
+ * last one with no placeholder between them. A read that lasts longer shows
+ * the placeholder, so a click never waits without an answer. The value is
+ * the common bound below which a wait needs no indicator.
+ */
+export const noteHoldMs = 300;
+
+/**
+ * Gives a loader result only to the note that owns it.
+ *
+ * The first render of a note has no loader result yet. It shows what the open
+ * read of this device answered, so a note that this device holds opens with
+ * its content and never as loading. A note that only the server can open, or
+ * a read that outlasted the hold, shows the loading state.
+ */
 export function noteLoadStatusFor(
   state: NoteLoadState,
   identity: NoteLoadIdentity,
+  opened: DeviceOpen | null,
 ): NoteLoadStatus {
   if (isSameNote(state.identity, identity)) return state.status;
-  return { kind: 'loading' };
+  if (opened === null || opened === 'server' || opened === 'slow')
+    return { kind: 'loading' };
+  return opened;
 }
 
 /**

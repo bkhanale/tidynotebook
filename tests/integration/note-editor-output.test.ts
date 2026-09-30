@@ -74,6 +74,52 @@ await test('the built loader rejects state from another note', async () => {
       workspaceId: 'workspace-one',
       fileId: 'new-note',
     },
+    null,
   );
   assert.deepEqual(status, { kind: 'loading' });
+});
+
+await test('the built note screen opens a held note in one commit', async () => {
+  // Switching notes showed the loading state, an editor with no text, and the
+  // name twice in the header. The built loader suspends on the one open read
+  // of the device, the built editor creates its view before paint, and the
+  // built header claims the name before paint.
+  const [loader, editor, header, state] = await Promise.all([
+    readFile(
+      resolve(root, 'apps/web/dist/features/editor/note-loader.js'),
+      'utf8',
+    ),
+    readFile(
+      resolve(root, 'apps/web/dist/features/editor/note-editor.js'),
+      'utf8',
+    ),
+    readFile(resolve(root, 'apps/web/dist/shell/header-slot.js'), 'utf8'),
+    import('../../apps/web/dist/lib/note-load-state.js'),
+  ]);
+  assert.match(loader, /use\(deviceOpens\.open\(store, identity\)\.held\)/);
+  assert.match(loader, /deviceOpens\.forget\(store\)/);
+  assert.match(
+    editor,
+    /useLayoutEffect\(\(\) => \{\s*const container = containerRef\.current;/,
+  );
+  assert.match(
+    header,
+    /useLayoutEffect\(\(\) => claimLeaf\(\), \[claimLeaf\]\)/,
+  );
+  const held = {
+    kind: 'ready' as const,
+    path: 'Next note.md',
+    text: 'next text',
+    headRevisionId: 'next-revision',
+    sequence: 0,
+  };
+  const status = state.noteLoadStatusFor(
+    {
+      identity: { accountId: 'a', workspaceId: 'w', fileId: 'last-note' },
+      status: { kind: 'deleted', path: 'Last note.md' },
+    },
+    { accountId: 'a', workspaceId: 'w', fileId: 'next-note' },
+    held,
+  );
+  assert.equal(status, held);
 });

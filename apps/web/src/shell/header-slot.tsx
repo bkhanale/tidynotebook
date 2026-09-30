@@ -35,7 +35,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from 'react';
@@ -166,8 +166,12 @@ export function HeaderActions({
 /**
  * The last part of the breadcrumb, written by the route itself.
  *
- * The claim runs as an effect, so the frame knows the part is taken for as
- * long as this is mounted and draws its own word again the moment it goes.
+ * The claim runs as a layout effect, so the frame knows the part is taken for
+ * as long as this is mounted and draws its own word again the moment it goes.
+ * A layout effect runs before the browser paints, so the frame hides its word
+ * in the same frame that the part of the route appears. A passive effect ran
+ * after that paint, and the header showed the name of the note twice for one
+ * frame each time a note opened.
  */
 export function HeaderLeaf({
   children,
@@ -175,7 +179,7 @@ export function HeaderLeaf({
   readonly children: ReactNode;
 }): ReactNode {
   const { leafHost, claimLeaf } = useHeaderSlot();
-  useEffect(() => claimLeaf(), [claimLeaf]);
+  useLayoutEffect(() => claimLeaf(), [claimLeaf]);
   if (leafHost === null) return null;
   return createPortal(children, leafHost);
 }

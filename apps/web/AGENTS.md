@@ -95,6 +95,7 @@ on each rule below.
 | `src/lib/breadcrumb.ts`                       | Where a person is, as parts       |
 | `src/features/editor/note-editor.tsx`         | The editor host and editor view   |
 | `src/features/editor/note-loader.tsx`         | The read that opens one note      |
+| `src/features/editor/device-note.ts`          | The open read a navigation awaits |
 | `src/features/editor/note-header-actions.tsx` | The actions of the note route     |
 | `src/lib/format-toolbar.ts`                   | The formatting tools and rows     |
 | `src/features/daily-notes/daily-notes.tsx`    | The one way to open a date (0099) |

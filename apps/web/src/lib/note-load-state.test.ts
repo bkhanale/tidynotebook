@@ -4,6 +4,7 @@ import {
   noteLoadStatusFor,
   opensFromDevice,
   type NoteLoadState,
+  type NoteLoadStatus,
 } from './note-load-state.ts';
 
 const current = {
@@ -30,7 +31,9 @@ await test('a new note cannot use the path of the note before it', () => {
     },
   };
 
-  assert.deepEqual(noteLoadStatusFor(previous, current), { kind: 'loading' });
+  assert.deepEqual(noteLoadStatusFor(previous, current, null), {
+    kind: 'loading',
+  });
 });
 
 await test('loader state belongs to its account and workspace too', () => {
@@ -43,7 +46,9 @@ await test('loader state belongs to its account and workspace too', () => {
     status: { kind: 'deleted', path: 'Old folder/Old note.md' },
   };
 
-  assert.deepEqual(noteLoadStatusFor(previous, current), { kind: 'loading' });
+  assert.deepEqual(noteLoadStatusFor(previous, current, null), {
+    kind: 'loading',
+  });
 });
 
 await test('the current note can use its completed loader state', () => {
@@ -58,7 +63,64 @@ await test('the current note can use its completed loader state', () => {
     },
   };
 
-  assert.equal(noteLoadStatusFor(ready, current), ready.status);
+  assert.equal(noteLoadStatusFor(ready, current, null), ready.status);
+});
+
+await test('a note that this device holds opens with its content', () => {
+  // Switching notes showed the loading state for two or three frames,
+  // although the device held the next note. The first render of a note now
+  // shows what the read of the device answered, so the next note replaces the
+  // last one with no placeholder between them.
+  const previous: NoteLoadState = {
+    identity: { ...current, fileId: 'last-note' },
+    status: {
+      kind: 'ready',
+      path: 'Last note.md',
+      text: 'last text',
+      headRevisionId: 'last-revision',
+      sequence: 2,
+    },
+  };
+  const held: NoteLoadStatus = {
+    kind: 'ready',
+    path: 'Next note.md',
+    text: 'next text',
+    headRevisionId: 'next-revision',
+    sequence: 0,
+    document: new Uint8Array([1]),
+  };
+
+  assert.equal(noteLoadStatusFor(previous, current, held), held);
+  const deleted: NoteLoadStatus = { kind: 'deleted', path: 'Next note.md' };
+  assert.equal(noteLoadStatusFor(previous, current, deleted), deleted);
+});
+
+await test('a note the device cannot open yet shows the loading state', () => {
+  const previous: NoteLoadState = {
+    identity: { ...current, fileId: 'last-note' },
+    status: { kind: 'deleted', path: 'Last note.md' },
+  };
+
+  // Only the server read can open it, or the read of the device outlasted
+  // the hold. Neither is an empty note (decision 0038).
+  assert.deepEqual(noteLoadStatusFor(previous, current, 'server'), {
+    kind: 'loading',
+  });
+  assert.deepEqual(noteLoadStatusFor(previous, current, 'slow'), {
+    kind: 'loading',
+  });
+});
+
+await test('a loader result wins over the read that opened the note', () => {
+  // After the open, a restore or a version of another device changes what the
+  // loader holds. The screen follows the loader, not the first read.
+  const loaded: NoteLoadState = {
+    identity: current,
+    status: { kind: 'purged' },
+  };
+  const opened: NoteLoadStatus = { kind: 'deleted', path: 'Next note.md' };
+
+  assert.equal(noteLoadStatusFor(loaded, current, opened), loaded.status);
 });
 
 await test('a note of the server opens from the device only with its document', () => {

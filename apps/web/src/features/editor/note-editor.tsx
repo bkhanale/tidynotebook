@@ -15,6 +15,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -262,6 +263,9 @@ function NoteEditorBody({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  // The resolvers the view holds, so the view is reconfigured only when they
+  // change and never with the ones it was created with.
+  const viewRichRef = useRef<RichWidgetResolvers | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const versionTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
@@ -736,13 +740,18 @@ function NoteEditorBody({
 
   useEffect(() => {
     const view = viewRef.current;
-    if (view !== null) setEditorRich(view, richResolvers);
+    if (view === null || viewRichRef.current === richResolvers) return;
+    viewRichRef.current = richResolvers;
+    setEditorRich(view, richResolvers);
   }, [richResolvers]);
 
   // One editor instance per working copy. This effect never reruns for text,
   // path, or theme changes: those travel through transactions, the store, or
-  // the compartments below.
-  useEffect(() => {
+  // the compartments below. It is a layout effect, so the view holds the text
+  // of the note before the browser paints the note screen. A passive effect
+  // ran after that paint, and each open of a note showed one frame with the
+  // tools and no text.
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
     const bound = sessionRef.current;
@@ -803,9 +812,11 @@ function NoteEditorBody({
       },
     );
     viewRef.current = view;
+    viewRichRef.current = richResolvers;
     activeNote.current.register(view);
     return () => {
       viewRef.current = null;
+      viewRichRef.current = null;
       activeNote.current.register(null);
       view.destroy();
     };
