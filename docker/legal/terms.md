@@ -4,7 +4,7 @@
 
 Version {{version}}, in effect from {{effective date}}.
 
-These terms are the agreement between you and {{operator name}}, {{postal address}}, for the use of NotesApp at {{service address}}. Read them with the [privacy notice](/legal/privacy). When you make an account, you accept both.
+These terms are the agreement between you and {{operator name}}, {{postal address}}, for the use of NotesApp at {{service address}}. Read them with the privacy notice, which the foot of this page links. When you make an account, you accept both.
 
 ## Your account
 
