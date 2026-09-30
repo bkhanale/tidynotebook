@@ -524,16 +524,33 @@ const maxBatchFiles = 1000;
  * Only `pending` entries combine: a `sending` entry already froze its
  * identity and must be retried alone. Entries after the first gap stay for
  * the next pass, so one poisoned entry cannot pin the whole queue.
+ *
+ * The revisions of one file in one changeset must form one chain, each naming
+ * the one before it (`packages/core/src/files/graph.ts`). Two open tabs of one
+ * note are two working copies with a chain each, so the run ends before an
+ * entry that would start a second chain for a file. The server refused such a
+ * run as a whole, and each save of it then waited for a retry alone.
  */
-function takeBatchable(entries: readonly QueueEntry[]): QueueEntry[] {
+export function takeBatchable(entries: readonly QueueEntry[]): QueueEntry[] {
   const batch: QueueEntry[] = [];
   let files = new Set<string>();
+  /** The last revision of each file in the run. */
+  let tips = new Map<string, string>();
   for (const entry of entries) {
     if (entry.state !== 'pending' || batch.length >= maxBatchEntries) break;
     const next = new Set(files);
-    for (const revision of entry.input.revisions) next.add(revision.fileId);
-    if (next.size > maxBatchFiles) break;
+    const nextTips = new Map(tips);
+    let continues = true;
+    for (const revision of entry.input.revisions) {
+      next.add(revision.fileId);
+      const tip = nextTips.get(revision.fileId);
+      if (tip !== undefined && !revision.parents.includes(tip))
+        continues = false;
+      nextTips.set(revision.fileId, revision.id);
+    }
+    if (next.size > maxBatchFiles || !continues) break;
     files = next;
+    tips = nextTips;
     batch.push(entry);
   }
   return batch;

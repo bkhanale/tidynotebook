@@ -653,6 +653,7 @@ function queuedEntry(
   text: string,
   expectedHead: string | null,
   mutationId: string,
+  parents: readonly string[] = [],
 ): QueueEntry {
   const input: ChangesetInput = {
     workspaceId,
@@ -663,7 +664,7 @@ function queuedEntry(
       {
         id: revisionId,
         fileId,
-        parents: [],
+        parents,
         path: `notes/${fileId}.md`,
         deleted: false,
         content: {
@@ -891,8 +892,11 @@ await test('the digest freezes on first send and the retry repeats the body', as
 await test('two offline edits of one file commit as one atomic changeset', async () => {
   const store = new FakeStore();
   store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  // The second checkpoint of a working copy names the first as its parent.
   store.enqueue(
-    queuedEntry('file-a', 'rev-b', '# A edited\n', null, 'mutation-2'),
+    queuedEntry('file-a', 'rev-b', '# A edited\n', null, 'mutation-2', [
+      'rev-a',
+    ]),
   );
   const notices: SyncNotice[] = [];
   const delays: number[] = [];
