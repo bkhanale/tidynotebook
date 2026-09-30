@@ -182,66 +182,39 @@ export function drawnPrefixAt(
  *
  * A touch is a tap until the browser cancels its pointer, which it does when
  * the touch becomes a scroll or a long press of its own, so no distance or
- * time is guessed here. The task box takes its own events, so a tap on the box
- * never reaches this handler.
+ * time is guessed here.
+ *
+ * `place` names the document position of one tap on `element`, or null for a
+ * tap this listener leaves to the browser. The returned function stops it.
  */
-class MarkerTap {
+function followTaps(
+  view: EditorView,
+  element: HTMLElement,
+  place: (event: TouchEvent, touch: Touch) => number | null,
+): () => void {
   /** The touch pointer that can still end as a tap, or null. */
-  private tap: number | null = null;
-  private readonly onPointerDown: (event: PointerEvent) => void;
-  private readonly onPointerCancel: (event: PointerEvent) => void;
-  private readonly onTouchEnd: (event: TouchEvent) => void;
-  private readonly view: EditorView;
-
-  constructor(view: EditorView) {
-    this.view = view;
-    this.onPointerDown = (event): void => {
-      this.tap =
-        event.pointerType === 'touch' && event.isPrimary
-          ? event.pointerId
-          : null;
-    };
-    this.onPointerCancel = (event): void => {
-      if (event.pointerId === this.tap) this.tap = null;
-    };
-    this.onTouchEnd = (event): void => {
-      this.touchEnd(event);
-    };
-    // The whole editor listens, and not only its text: a tap in the margin
-    // to the left of a bullet is outside the text, and the browser still
-    // puts the caret of that tap at the start of the line.
-    view.dom.addEventListener('pointerdown', this.onPointerDown);
-    view.dom.addEventListener('pointercancel', this.onPointerCancel);
-    view.dom.addEventListener('touchend', this.onTouchEnd, { passive: false });
-  }
-
-  destroy(): void {
-    this.view.dom.removeEventListener('pointerdown', this.onPointerDown);
-    this.view.dom.removeEventListener('pointercancel', this.onPointerCancel);
-    this.view.dom.removeEventListener('touchend', this.onTouchEnd);
-  }
-
-  private touchEnd(event: TouchEvent): void {
-    const view = this.view;
-    const tapped = this.tap !== null;
-    this.tap = null;
+  let tap: number | null = null;
+  const onPointerDown = (event: PointerEvent): void => {
+    tap =
+      event.pointerType === 'touch' && event.isPrimary ? event.pointerId : null;
+  };
+  const onPointerCancel = (event: PointerEvent): void => {
+    if (event.pointerId === tap) tap = null;
+  };
+  const onTouchEnd = (event: TouchEvent): void => {
+    const tapped = tap !== null;
+    tap = null;
     const touch = event.changedTouches[0];
     if (
       !tapped ||
       !event.cancelable ||
+      event.defaultPrevented ||
       event.touches.length > 0 ||
       event.changedTouches.length !== 1 ||
       touch === undefined
     )
       return;
-    // Only a tap on the text or on the margin of the scroller is a tap on a
-    // line. A control that stands in the scroller, and the task box, which
-    // owns its own events, keep their taps.
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (!view.contentDOM.contains(target) && target !== view.scrollDOM) return;
-    if (target.closest(`.${taskBoxClassName}`) !== null) return;
-    const pos = view.posAtCoords({ x: touch.clientX, y: touch.clientY });
+    const pos = place(event, touch);
     if (pos === null) return;
     const marker = drawnPrefixAt(view.state, pos);
     if (marker === null) return;
@@ -251,10 +224,60 @@ class MarkerTap {
       userEvent: 'select.pointer',
     });
     view.focus();
-  }
+  };
+  element.addEventListener('pointerdown', onPointerDown);
+  element.addEventListener('pointercancel', onPointerCancel);
+  element.addEventListener('touchend', onTouchEnd, { passive: false });
+  return (): void => {
+    element.removeEventListener('pointerdown', onPointerDown);
+    element.removeEventListener('pointercancel', onPointerCancel);
+    element.removeEventListener('touchend', onTouchEnd);
+  };
 }
 
-const markerTap = ViewPlugin.fromClass(MarkerTap);
+/**
+ * The taps on the editor itself.
+ *
+ * The whole editor listens, and not only its text: a tap in the margin of the
+ * scroller to the left of a bullet is outside the text, and the browser still
+ * puts the caret of that tap at the start of the line. A control that stands
+ * in the scroller, and the task box, which owns its own events, keep their
+ * taps.
+ */
+const markerTap = ViewPlugin.define((view) => ({
+  destroy: followTaps(view, view.dom, (event, touch) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return null;
+    if (!view.contentDOM.contains(target) && target !== view.scrollDOM)
+      return null;
+    if (target.closest(`.${taskBoxClassName}`) !== null) return null;
+    return view.posAtCoords({ x: touch.clientX, y: touch.clientY });
+  }),
+}));
+
+/**
+ * Takes the taps on the page margin to the left of the editor (record 0132).
+ *
+ * The page that holds the editor keeps a margin between the edge of the
+ * screen and the text, and that margin is outside the editor, so a tap on it
+ * never reached `markerTap`. The browser still placed its own caret at the
+ * start of the nearest line, left of a task box. The page names its margin
+ * here, and a tap on the margin itself, beside a line of the editor, counts
+ * as a tap at the start of that line. A tap on anything that stands in the
+ * margin keeps its own meaning. The returned function stops it.
+ */
+export function takeMarginTaps(
+  view: EditorView,
+  margin: HTMLElement,
+): () => void {
+  return followTaps(view, margin, (event, touch) => {
+    if (event.target !== margin) return null;
+    const box = view.scrollDOM.getBoundingClientRect();
+    if (touch.clientX >= box.left) return null;
+    if (touch.clientY < box.top || touch.clientY > box.bottom) return null;
+    return view.posAtCoords({ x: box.left, y: touch.clientY }, false);
+  });
+}
 
 /** Holds each caret that a person moves out of a drawn marker. */
 function markerCaretFilter(
@@ -295,15 +318,11 @@ export function stayAtTextStart(target: {
   readonly state: EditorState;
 }): boolean {
   const state = target.state;
-  return state.selection.ranges.every((range) => {
-    if (!range.empty) return false;
-    const marker = listMarkerOnLine(state, range.head);
-    return (
-      marker !== null &&
-      drawnAtEveryCaret(marker) &&
-      range.head === marker.contentFrom
-    );
-  });
+  return state.selection.ranges.every(
+    (range) =>
+      range.empty &&
+      drawnPrefixAt(state, range.head)?.contentFrom === range.head,
+  );
 }
 
 /** The caret rule of the drawn list markers (record 0132). */

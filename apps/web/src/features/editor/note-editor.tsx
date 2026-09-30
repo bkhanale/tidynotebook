@@ -44,6 +44,7 @@ import {
   setEditorSpellCheck,
   setEditorTheme,
   setNoteLinkSource,
+  takeMarginTaps,
   type EditorView,
   type LinkTarget,
   type DiagramHandle,
@@ -261,6 +262,9 @@ function NoteEditorBody({
   const spellCheckRef = useRef(spellCheck);
   spellCheckRef.current = spellCheck;
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // The page margin beside the text. A tap on it beside a task box is a tap
+  // at the start of that line, so the editor takes it (record 0132).
+  const marginRef = useRef<HTMLDivElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   // The resolvers the view holds, so the view is reconfigured only when they
@@ -814,7 +818,11 @@ function NoteEditorBody({
     viewRef.current = view;
     viewRichRef.current = richResolvers;
     activeNote.current.register(view);
+    const margin = marginRef.current;
+    const stopMarginTaps =
+      margin === null ? null : takeMarginTaps(view, margin);
     return () => {
+      stopMarginTaps?.();
       viewRef.current = null;
       viewRichRef.current = null;
       activeNote.current.register(null);
@@ -1369,7 +1377,10 @@ function NoteEditorBody({
         onPublish={onPublish}
         onDelete={deleteNoteAndLeave}
       />
-      <div className={`flex min-h-0 flex-1 flex-col ${pageGutter}`}>
+      <div
+        ref={marginRef}
+        className={`flex min-h-0 flex-1 flex-col ${pageGutter}`}
+      >
         {/*
           The name field is in the frame header, which is one row of 44 px and
           holds no second line, so the reason a name cannot be kept stands

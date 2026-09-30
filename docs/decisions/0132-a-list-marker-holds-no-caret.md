@@ -35,6 +35,10 @@ The box toggled on `touchstart`, so a scroll that started on a box ticked it.
   its own caret there: the editor cancels the tap and puts the caret on the
   text. A touch that the browser cancels, a scroll or a long press, stays the
   browser's.
+- The page margin beside the editor is outside it, so the note page passes
+  that element to `takeMarginTaps` of `@notesapp/editor`. A tap on the margin
+  beside a drawn marker counts as a tap at the start of that line. The layout
+  of the page does not change.
 - The box owns its events. It toggles on `click`, which the platform fires for
   a tap, a pointer click and Space, and never for a scroll. A press on the box
   moves neither the caret nor the focus. Its hit area is 24 px.
