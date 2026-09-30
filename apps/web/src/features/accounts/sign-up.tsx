@@ -30,7 +30,8 @@ import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { solveChallenge } from '../../lib/proof-of-work.ts';
 import { consentTo } from '../../lib/legal.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
-import { AuthFrame, LegalLinks, useLegalDocuments } from './accounts.tsx';
+import { AuthFrame } from './accounts.tsx';
+import { LegalLinks, useLegalDocuments } from './legal-links.tsx';
 
 /** The one sentence of a verification link that opens nothing. */
 const invalidLink =

@@ -32,7 +32,8 @@ import { invitationTokenOf } from '../../lib/accounts.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { consentTo } from '../../lib/legal.ts';
-import { AuthFrame, LegalLinks } from './accounts.tsx';
+import { AuthFrame } from './accounts.tsx';
+import { LegalLinks } from './legal-links.tsx';
 
 /** The one sentence of an invitation that opens nothing. */
 const invalidInvitation = 'This invitation is not valid. Ask for a new one.';
