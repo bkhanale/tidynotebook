@@ -47,14 +47,14 @@ We do not sell your data. We do not show advertisements. The application loads n
 
 - Your account and your notes stay until you remove them. A note in Trash stays until you delete it.
 - A sign-up that nobody finishes goes after {{pending sign-up hours}} hours.
-- The data of a device goes when the device signs out, or when its session ends.
+- The record of a device goes when the device signs out. It stops working when its session ends.
 - An attempt count goes after its time window, which is one hour at most.
 - When you remove your account, your notes, your devices and your settings go at once. Only an identifier and the time of the removal stay, so that the history of a shared note stays correct. Backups keep a copy for {{backup retention}} at most.
-- Server logs hold no note text, no password and no network address. We keep them for {{log retention}}.
+- The logs of NotesApp hold no note text, no password and no network address. We keep them for {{log retention}}.
 
 ## Cookies and storage on your device
 
-NotesApp sets one cookie, which keeps you signed in. It is necessary for the service, so we do not ask for your consent to it. Your browser also keeps a copy of your notes, so that you can read and write them offline. Sign out to remove that copy from a device.
+NotesApp sets one cookie, which keeps you signed in. It is necessary for the service, so we do not ask for your consent to it. Your browser also keeps a copy of your notes on the device, so that you can read and write them offline. That copy stays on the device and goes nowhere else.
 
 ## Your rights
 
