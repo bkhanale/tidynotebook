@@ -201,9 +201,9 @@ import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   breadcrumbKey,
   breadcrumbParts,
-  breadcrumbParentOf,
   framePageOf,
   leafOf,
+  parentPartOf,
   type BreadcrumbPart,
   type PageTitles,
 } from '../lib/breadcrumb.ts';
@@ -590,9 +590,14 @@ function Breadcrumb({
         {parts.map((part, index) =>
           part.to === null ? (
             <li
-              className="flex min-w-0 flex-1 items-center"
+              className="flex min-w-0 flex-1 items-center gap-1"
               key={breadcrumbKey(part, index)}
             >
+              {index === 0 ? null : (
+                <span className="text-muted max-md:hidden" aria-hidden="true">
+                  /
+                </span>
+              )}
               {leafFilled ? null : (
                 <span className="truncate font-medium text-strong">
                   {part.label}
@@ -601,10 +606,18 @@ function Breadcrumb({
               <HeaderLeafSlot className="flex min-w-0 flex-1 items-center empty:hidden" />
             </li>
           ) : (
+            // A separator stands between two parts and never after the
+            // last one, which a page that is not the note ends on
+            // (record 0139).
             <li
               className="flex shrink-0 items-center gap-1 max-md:hidden"
               key={breadcrumbKey(part, index)}
             >
+              {index === 0 ? null : (
+                <span className="text-muted" aria-hidden="true">
+                  /
+                </span>
+              )}
               <Link
                 className={`max-w-32 truncate rounded-md text-muted no-underline hover:text-strong ${transitionSurface} ${focusOutline}`}
                 to={part.to}
@@ -614,9 +627,6 @@ function Breadcrumb({
               >
                 {part.label}
               </Link>
-              <span className="text-muted" aria-hidden="true">
-                /
-              </span>
             </li>
           ),
         )}
@@ -1526,23 +1536,20 @@ function ShellFrame({
     [allWorkspaces, workspaceId],
   );
 
-  // The name of the page or the note that the route shows, which is the last
-  // part of the breadcrumb. The route table names the page, and every other
-  // part comes from the workspace and from the path of the open note.
+  // The breadcrumb names the way to the page, and the heading of the page
+  // names the page (record 0139). The route table names the page, the open
+  // note gives its name and its folders, and the page above is a part of its
+  // own when the workspace part does not already name it.
   const noteName =
     openNotePath === null ? null : displayNoteName(baseNameOf(openNotePath));
   const framePage = framePageOf(matches.map((match) => match.handle));
-  const routeName = leafOf(framePage, noteName, pageTitles);
-  // A page that belongs to another page names it before its own name, so
-  // Accounts reads as a part of Settings (record 0138).
-  const crumbParent = breadcrumbParentOf(framePage);
-  const routeParent =
-    crumbParent === null
-      ? null
-      : {
-          label: pageTitles[crumbParent],
-          to: `/w/${workspaceId}/${crumbParent}`,
-        };
+  const routeName = leafOf(framePage, noteName);
+  const routeParent = parentPartOf(framePage, {
+    workspaceId,
+    fileId: typeof params.fileId === 'string' ? params.fileId : null,
+    noteName,
+    titles: pageTitles,
+  });
 
   // The avatar shows the first letter of the person, so the accessible name
   // holds the whole name: a control whose visible text is one letter has to

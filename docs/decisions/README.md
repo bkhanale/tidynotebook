@@ -30,146 +30,147 @@ and needs no record.
 
 ## Index
 
-| Record                                                                             | Decision                                                                        |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [0001](0001-one-markdown-grammar.md)                                               | One Markdown grammar                                                            |
-| [0002](0002-widgets-only-where-text-cannot-express.md)                             | Widgets only where text cannot express the result                               |
-| [0003](0003-read-mode-uses-the-shared-renderer.md)                                 | Read mode is the second consumer of the renderer                                |
-| [0004](0004-standard-links-between-notes.md)                                       | Standard links between notes, no wiki syntax in v0.1                            |
-| [0005](0005-workspace-is-an-implicit-container.md)                                 | Workspace becomes an implicit container (superseded)                            |
-| [0006](0006-trash-replaces-purge.md)                                               | Trash replaces the purge screen                                                 |
-| [0007](0007-keep-the-save-model.md)                                                | Keep the save model and close its gaps                                          |
-| [0008](0008-remove-the-remote-integration-surface.md)                              | Remove the remote integration surface for v0.1                                  |
-| [0009](0009-export-first-import-later.md)                                          | Export first, import later                                                      |
-| [0010](0010-one-command-palette.md)                                                | One command palette                                                             |
-| [0011](0011-contract-emit-and-one-migration.md)                                    | Shared contract definitions and one initial migration                           |
-| [0012](0012-package-layout-stays-for-v0-1.md)                                      | The package layout stays for v0.1                                               |
-| [0013](0013-delivery-and-headers-belong-to-the-app.md)                             | Delivery and headers belong to the application                                  |
-| [0014](0014-browser-tests-are-the-interface-gate.md)                               | Browser tests are the interface gate                                            |
-| [0015](0015-the-note-surface-is-the-design.md)                                     | The note surface is the design                                                  |
-| [0016](0016-themes-are-data-in-one-registry.md)                                    | A theme is data in one registry                                                 |
-| [0017](0017-save-feedback-on-the-save-button.md)                                   | Save feedback lives on the Save button                                          |
-| [0018](0018-directory-structure-by-layer.md)                                       | The directory structure follows ports and adapters                              |
-| [0019](0019-contract-validation-and-shared-types.md)                               | One contract, generated types, and no type assertions                           |
-| [0020](0020-central-logging-through-one-module.md)                                 | Central logging through one module                                              |
-| [0021](0021-portable-markdown-at-rest.md)                                          | Portable Markdown at rest                                                       |
-| [0022](0022-autosave-and-automatic-versions.md)                                    | Autosave and automatic versions                                                 |
-| [0023](0023-one-auto-expiring-trash.md)                                            | One auto-expiring Trash                                                         |
-| [0024](0024-remove-conflict-and-recovery-surfaces.md)                              | Remove the conflict and recovery surfaces                                       |
-| [0025](0025-the-live-preview-is-the-one-note-surface.md)                           | The live preview is the one note surface                                        |
-| [0026](0026-slim-the-save-and-delete-surfaces.md)                                  | Slim the save and delete surfaces, do not remove them                           |
-| [0027](0027-track-work-on-the-github-board.md)                                     | Track work on the GitHub board                                                  |
-| [0028](0028-command-palette-uses-p.md)                                             | The command palette uses P                                                      |
-| [0029](0029-selected-folder-is-the-create-parent.md)                               | The selected folder is the create parent                                        |
-| [0030](0030-published-links-are-hashed-tokens-over-a-scope.md)                     | A published link is a hashed token over a read-only scope                       |
-| [0031](0031-the-reader-path-is-a-closed-read-only-boundary.md)                     | The reader path is a closed read-only boundary                                  |
-| [0032](0032-whole-file-actions-are-store-operations.md)                            | A move and a deletion are each one store operation                              |
-| [0033](0033-a-task-box-is-a-control-not-a-marker.md)                               | A task box is a control, not a marker                                           |
-| [0034](0034-the-open-note-selects-its-folder.md)                                   | The open note selects its folder                                                |
-| [0035](0035-the-sidebar-width-belongs-to-the-person.md)                            | The sidebar width belongs to the person                                         |
-| [0036](0036-the-browser-gate-runs-in-parallel-workers.md)                          | The browser gate runs in parallel workers                                       |
-| [0037](0037-backlinks-are-derived-on-the-device.md)                                | Backlinks are derived on the device and merged                                  |
-| [0038](0038-an-empty-state-is-not-a-failed-read.md)                                | An empty state is not a failed read                                             |
-| [0039](0039-one-list-of-served-origins.md)                                         | One list of served origins                                                      |
-| [0040](0040-a-probe-address-is-a-contract-operation.md)                            | A probe address is a contract operation                                         |
-| [0041](0041-readiness-reads-the-served-pool.md)                                    | Readiness reads the pool that the deployment serves from                        |
-| [0042](0042-the-listening-socket-is-not-the-public-origin.md)                      | The listening socket is not the public origin                                   |
-| [0043](0043-one-decider-of-the-client-address.md)                                  | One decider of the client address                                               |
-| [0044](0044-the-worker-stays-out-of-the-first-load.md)                             | The worker stays out of the first load                                          |
-| [0045](0045-the-build-names-the-precache.md)                                       | The build names the precache and its cache                                      |
-| [0046](0046-the-reader-carries-its-credentials-in-the-address.md)                  | The reader carries its credentials in the address                               |
-| [0047](0047-the-published-page-always-answers-a-page.md)                           | The published page always answers a page                                        |
-| [0048](0048-publish-is-a-command-and-the-links-are-a-list.md)                      | Publish is a command and the links are one workspace list                       |
-| [0049](0049-a-workspace-is-an-explicit-container.md)                               | A workspace is an explicit container that a person chooses                      |
-| [0050](0050-every-workspace-with-queued-work-keeps-syncing.md)                     | Every workspace with queued work keeps syncing                                  |
-| [0051](0051-an-account-always-keeps-one-workspace.md)                              | An account always keeps one workspace                                           |
-| [0052](0052-three-planes-and-one-elevation-scale.md)                               | Three planes and one elevation scale                                            |
-| [0053](0053-the-divider-is-derived-from-the-palette.md)                            | The divider is derived from the palette                                         |
-| [0054](0054-motion-is-a-named-scale-in-one-module.md)                              | Motion is a named scale in one module                                           |
-| [0055](0055-the-note-is-one-centred-column.md)                                     | The note is one centred column                                                  |
-| [0056](0056-the-default-theme-has-no-opinion.md)                                   | The default theme has no opinion                                                |
-| [0057](0057-a-control-fill-states-its-hover-in-the-palette.md)                     | A control fill states its hover in the palette                                  |
-| [0058](0058-an-overlay-is-placed-on-the-screen.md)                                 | An overlay is placed on the screen                                              |
-| [0059](0059-a-guide-caps-its-rules.md)                                             | A directory guide caps its rules and not its index                              |
-| [0060](0060-the-published-page-takes-every-style.md)                               | The published page takes every emitted style                                    |
-| [0061](0061-the-application-is-set-in-one-vendored-family.md)                      | The application is set in one vendored family                                   |
-| [0062](0062-the-default-action-is-ink-and-the-blue-carries-meaning.md)             | The default action is ink and the blue carries meaning                          |
-| [0063](0063-the-resting-edge-of-a-control-is-the-divider.md)                       | The resting edge of a control is the divider                                    |
-| [0064](0064-the-frame-header-is-the-context-of-the-route.md)                       | The frame header is the context of the route                                    |
-| [0065](0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md)                  | One recipe for a control and one grid for an icon                               |
-| [0066](0066-the-browser-suite-is-retired.md)                                       | The browser suite is retired                                                    |
-| [0067](0067-an-external-picture-loads-by-itself.md)                                | An external picture loads by itself                                             |
-| [0068](0068-a-soft-line-break-joins-its-paragraph.md)                              | A soft line break joins its paragraph in the preview (superseded by 0107)       |
-| [0069](0069-the-note-name-is-the-last-part-of-the-breadcrumb.md)                   | The note name is the last part of the breadcrumb                                |
-| [0070](0070-shift-and-enter-writes-a-hard-break.md)                                | Shift and Enter writes a hard break (superseded by 0107)                        |
-| [0071](0071-the-page-states-its-appearance-to-the-browser.md)                      | The page states its appearance to the browser                                   |
-| [0072](0072-the-scrollbar-takes-the-edge-of-the-palette.md)                        | The scrollbar takes the edge of the palette                                     |
-| [0073](0073-a-save-names-the-revision-it-descends-from.md)                         | A save names the revision it descends from                                      |
-| [0074](0074-the-build-names-every-cached-asset.md)                                 | The build names every asset that a browser may pin                              |
-| [0075](0075-a-link-opens-on-a-plain-click.md)                                      | A link opens on a plain click                                                   |
-| [0076](0076-the-text-of-a-note-is-a-crdt-document.md)                              | The text of a note is a CRDT document inside its revisions (superseded by 0081) |
-| [0077](0077-yjs-behind-one-package.md)                                             | Yjs behind one package (superseded by 0082)                                     |
-| [0078](0078-one-rule-for-each-conflict-that-is-not-text.md)                        | One rule for each conflict that is not text (superseded by 0083)                |
-| [0079](0079-review-is-the-one-surface-of-a-merge.md)                               | Review is the one surface of a merge (superseded by 0087)                       |
-| [0080](0080-a-document-starts-once.md)                                             | A document starts once (superseded by 0084)                                     |
-| [0081](0081-accepted-text-and-observed-state-belong-to-one-document.md)            | Accepted text and observed state belong to one document                         |
-| [0082](0082-yjs-has-a-byte-api-and-a-private-editor-bridge.md)                     | Yjs has a byte API and a private editor bridge                                  |
-| [0083](0083-metadata-conflicts-preserve-unseen-text-work.md)                       | Metadata conflicts preserve unseen text work                                    |
-| [0084](0084-compaction-keeps-identities-and-recovery-keeps-original-work.md)       | Compaction keeps identities and recovery keeps original work                    |
-| [0085](0085-local-document-writes-merge-and-receipts-do-not-advance-reads.md)      | Local document writes merge and receipts do not advance reads                   |
-| [0086](0086-protocol-upgrades-precede-the-breaking-sync-format.md)                 | Protocol upgrades precede the breaking sync format                              |
-| [0087](0087-review-keeps-the-checkpoint-that-caused-it.md)                         | Review keeps the checkpoint that caused it                                      |
-| [0088](0088-an-earlier-browser-store-upgrades-through-placement.md)                | An earlier browser store upgrades through placement                             |
-| [0089](0089-an-ordered-item-shows-its-place-and-keeps-its-number.md)               | An ordered item shows its place and keeps its number                            |
-| [0090](0090-every-connection-pool-comes-from-one-factory.md)                       | Every connection pool comes from one factory                                    |
-| [0091](0091-every-signed-in-page-opens-in-the-workspace-frame.md)                  | Every signed in page opens in the workspace frame                               |
-| [0092](0092-an-ordered-marker-keeps-its-preview-while-editing.md)                  | An ordered marker keeps its preview while editing                               |
-| [0093](0093-the-tree-actions-are-one-row-of-icons.md)                              | The tree actions are one row of icons                                           |
-| [0094](0094-the-note-has-one-row-of-formatting-tools.md)                           | The note has one row of formatting tools                                        |
-| [0095](0095-a-table-is-a-grid-over-its-text.md)                                    | A table is a grid over its text                                                 |
-| [0096](0096-an-edit-keeps-the-structure-of-a-table.md)                             | An edit keeps the structure of a table                                          |
-| [0097](0097-a-row-and-a-column-carry-a-menu.md)                                    | A row and a column carry a menu, and a paste fills cells                        |
-| [0098](0098-a-handle-moves-its-row-or-column.md)                                   | A handle stands outside the table and moves its row or column                   |
-| [0099](0099-a-daily-note-is-a-dated-note-and-its-settings-belong-to-the-member.md) | A daily note is a dated note and its settings belong to the member              |
-| [0100](0100-the-calendar-is-a-section-of-the-sidebar.md)                           | The calendar is a section of the sidebar                                        |
-| [0101](0101-a-daily-note-takes-its-path-from-a-folder-and-a-name-format.md)        | A daily note takes its path from a folder and a name format                     |
-| [0102](0102-a-template-fills-its-placeholders-once.md)                             | A template fills its placeholders once                                          |
-| [0103](0103-the-browser-checks-the-spelling-of-a-note.md)                          | The browser checks the spelling of a note                                       |
-| [0104](0104-a-new-note-is-a-version-when-it-is-made.md)                            | A new note is a version when it is made                                         |
-| [0105](0105-the-sidebar-shows-one-view-at-a-time.md)                               | The sidebar shows one view at a time                                            |
-| [0106](0106-a-handle-moves-a-list-item.md)                                         | A handle moves a list item                                                      |
-| [0107](0107-a-new-line-is-a-line-break.md)                                         | A new line is a line break                                                      |
-| [0108](0108-an-account-comes-in-through-one-registration-path.md)                  | An account comes in through one registration path                               |
-| [0109](0109-the-installation-role-grants-no-workspace-access.md)                   | The installation role grants no workspace access                                |
-| [0110](0110-an-installation-keeps-one-enabled-administrator.md)                    | An installation keeps one enabled administrator                                 |
-| [0111](0111-a-removed-account-leaves-a-tombstone.md)                               | A removed account leaves a tombstone                                            |
-| [0112](0112-the-owner-account-holds-the-storage-quota.md)                          | The owner account holds the storage quota                                       |
-| [0113](0113-a-browser-serves-the-account-of-its-session.md)                        | A browser serves the account of its session                                     |
-| [0114](0114-open-registration-verifies-the-address-before-the-first-session.md)    | Open registration verifies the address before the first session                 |
-| [0115](0115-a-sign-up-pays-a-proof-of-work-that-this-server-issues.md)             | A sign-up pays a proof of work that this server issues                          |
-| [0116](0116-one-password-policy-follows-nist-800-63b-revision-4.md)                | One password policy follows NIST SP 800-63B revision 4                          |
-| [0117](0117-a-person-manages-their-own-sessions.md)                                | A person manages their own sessions                                             |
-| [0118](0118-a-published-page-of-a-public-installation-has-its-own-origin.md)       | A published page of a public installation has its own origin                    |
-| [0119](0119-a-report-reaches-an-administrator-who-can-take-a-link-down.md)         | A report reaches an administrator who can take a link down                      |
-| [0120](0120-an-account-records-the-legal-documents-it-accepted.md)                 | An account records the legal documents it accepted                              |
-| [0121](0121-every-limit-and-every-job-holds-across-server-processes.md)            | Every limit and every job holds across server processes                         |
-| [0122](0122-a-session-is-revoked-by-its-identifier.md)                             | A session is revoked by its identifier                                          |
-| [0123](0123-a-report-seals-the-address-of-its-link.md)                             | A report seals the address of its link                                          |
-| [0124](0124-websockets-wake-the-durable-sync-engine.md)                            | WebSockets wake the durable sync engine                                         |
-| [0125](0125-postgresql-notifies-the-sync-gateways.md)                              | PostgreSQL notifies the sync gateways                                           |
-| [0126](0126-websocket-messages-use-the-generated-contract.md)                      | WebSocket messages use the generated contract                                   |
-| [0127](0127-a-sync-page-holds-whole-commits.md)                                    | A sync page holds whole commits                                                 |
-| [0128](0128-the-server-validates-every-notice-frame.md)                            | The server validates every notice frame                                         |
-| [0129](0129-the-notice-gateway-and-its-bounds.md)                                  | The notice gateway and its bounds                                               |
-| [0130](0130-one-notice-coordinator-per-account-tab.md)                             | One notice coordinator per account in the lease tab                             |
-| [0131](0131-the-notice-stream-always-runs.md)                                      | The notice stream always runs                                                   |
-| [0132](0132-a-list-marker-holds-no-caret.md)                                       | A list marker holds no caret                                                    |
-| [0133](0133-an-open-note-saves-the-text-of-its-document.md)                        | An open note saves the text of its document                                     |
-| [0134](0134-a-task-box-keeps-one-state-through-a-merge.md)                         | A task box keeps one state through a merge                                      |
-| [0135](0135-an-identity-is-keyed-by-its-provider-and-its-account.md)               | An identity is keyed by its provider and its account                            |
-| [0136](0136-the-initial-javascript-budget-follows-the-inequality-gap.md)           | The initial JavaScript budget follows the inequality gap                        |
-| [0137](0137-every-page-shares-the-note-column-and-its-side-region.md)              | Every page shares the note column and its side region                           |
-| [0138](0138-a-page-names-the-page-above-it-and-accounts-belong-to-settings.md)     | A page names the page above it, and Accounts belong to Settings                 |
+| Record                                                                                | Decision                                                                        |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [0001](0001-one-markdown-grammar.md)                                                  | One Markdown grammar                                                            |
+| [0002](0002-widgets-only-where-text-cannot-express.md)                                | Widgets only where text cannot express the result                               |
+| [0003](0003-read-mode-uses-the-shared-renderer.md)                                    | Read mode is the second consumer of the renderer                                |
+| [0004](0004-standard-links-between-notes.md)                                          | Standard links between notes, no wiki syntax in v0.1                            |
+| [0005](0005-workspace-is-an-implicit-container.md)                                    | Workspace becomes an implicit container (superseded)                            |
+| [0006](0006-trash-replaces-purge.md)                                                  | Trash replaces the purge screen                                                 |
+| [0007](0007-keep-the-save-model.md)                                                   | Keep the save model and close its gaps                                          |
+| [0008](0008-remove-the-remote-integration-surface.md)                                 | Remove the remote integration surface for v0.1                                  |
+| [0009](0009-export-first-import-later.md)                                             | Export first, import later                                                      |
+| [0010](0010-one-command-palette.md)                                                   | One command palette                                                             |
+| [0011](0011-contract-emit-and-one-migration.md)                                       | Shared contract definitions and one initial migration                           |
+| [0012](0012-package-layout-stays-for-v0-1.md)                                         | The package layout stays for v0.1                                               |
+| [0013](0013-delivery-and-headers-belong-to-the-app.md)                                | Delivery and headers belong to the application                                  |
+| [0014](0014-browser-tests-are-the-interface-gate.md)                                  | Browser tests are the interface gate                                            |
+| [0015](0015-the-note-surface-is-the-design.md)                                        | The note surface is the design                                                  |
+| [0016](0016-themes-are-data-in-one-registry.md)                                       | A theme is data in one registry                                                 |
+| [0017](0017-save-feedback-on-the-save-button.md)                                      | Save feedback lives on the Save button                                          |
+| [0018](0018-directory-structure-by-layer.md)                                          | The directory structure follows ports and adapters                              |
+| [0019](0019-contract-validation-and-shared-types.md)                                  | One contract, generated types, and no type assertions                           |
+| [0020](0020-central-logging-through-one-module.md)                                    | Central logging through one module                                              |
+| [0021](0021-portable-markdown-at-rest.md)                                             | Portable Markdown at rest                                                       |
+| [0022](0022-autosave-and-automatic-versions.md)                                       | Autosave and automatic versions                                                 |
+| [0023](0023-one-auto-expiring-trash.md)                                               | One auto-expiring Trash                                                         |
+| [0024](0024-remove-conflict-and-recovery-surfaces.md)                                 | Remove the conflict and recovery surfaces                                       |
+| [0025](0025-the-live-preview-is-the-one-note-surface.md)                              | The live preview is the one note surface                                        |
+| [0026](0026-slim-the-save-and-delete-surfaces.md)                                     | Slim the save and delete surfaces, do not remove them                           |
+| [0027](0027-track-work-on-the-github-board.md)                                        | Track work on the GitHub board                                                  |
+| [0028](0028-command-palette-uses-p.md)                                                | The command palette uses P                                                      |
+| [0029](0029-selected-folder-is-the-create-parent.md)                                  | The selected folder is the create parent                                        |
+| [0030](0030-published-links-are-hashed-tokens-over-a-scope.md)                        | A published link is a hashed token over a read-only scope                       |
+| [0031](0031-the-reader-path-is-a-closed-read-only-boundary.md)                        | The reader path is a closed read-only boundary                                  |
+| [0032](0032-whole-file-actions-are-store-operations.md)                               | A move and a deletion are each one store operation                              |
+| [0033](0033-a-task-box-is-a-control-not-a-marker.md)                                  | A task box is a control, not a marker                                           |
+| [0034](0034-the-open-note-selects-its-folder.md)                                      | The open note selects its folder                                                |
+| [0035](0035-the-sidebar-width-belongs-to-the-person.md)                               | The sidebar width belongs to the person                                         |
+| [0036](0036-the-browser-gate-runs-in-parallel-workers.md)                             | The browser gate runs in parallel workers                                       |
+| [0037](0037-backlinks-are-derived-on-the-device.md)                                   | Backlinks are derived on the device and merged                                  |
+| [0038](0038-an-empty-state-is-not-a-failed-read.md)                                   | An empty state is not a failed read                                             |
+| [0039](0039-one-list-of-served-origins.md)                                            | One list of served origins                                                      |
+| [0040](0040-a-probe-address-is-a-contract-operation.md)                               | A probe address is a contract operation                                         |
+| [0041](0041-readiness-reads-the-served-pool.md)                                       | Readiness reads the pool that the deployment serves from                        |
+| [0042](0042-the-listening-socket-is-not-the-public-origin.md)                         | The listening socket is not the public origin                                   |
+| [0043](0043-one-decider-of-the-client-address.md)                                     | One decider of the client address                                               |
+| [0044](0044-the-worker-stays-out-of-the-first-load.md)                                | The worker stays out of the first load                                          |
+| [0045](0045-the-build-names-the-precache.md)                                          | The build names the precache and its cache                                      |
+| [0046](0046-the-reader-carries-its-credentials-in-the-address.md)                     | The reader carries its credentials in the address                               |
+| [0047](0047-the-published-page-always-answers-a-page.md)                              | The published page always answers a page                                        |
+| [0048](0048-publish-is-a-command-and-the-links-are-a-list.md)                         | Publish is a command and the links are one workspace list                       |
+| [0049](0049-a-workspace-is-an-explicit-container.md)                                  | A workspace is an explicit container that a person chooses                      |
+| [0050](0050-every-workspace-with-queued-work-keeps-syncing.md)                        | Every workspace with queued work keeps syncing                                  |
+| [0051](0051-an-account-always-keeps-one-workspace.md)                                 | An account always keeps one workspace                                           |
+| [0052](0052-three-planes-and-one-elevation-scale.md)                                  | Three planes and one elevation scale                                            |
+| [0053](0053-the-divider-is-derived-from-the-palette.md)                               | The divider is derived from the palette                                         |
+| [0054](0054-motion-is-a-named-scale-in-one-module.md)                                 | Motion is a named scale in one module                                           |
+| [0055](0055-the-note-is-one-centred-column.md)                                        | The note is one centred column                                                  |
+| [0056](0056-the-default-theme-has-no-opinion.md)                                      | The default theme has no opinion                                                |
+| [0057](0057-a-control-fill-states-its-hover-in-the-palette.md)                        | A control fill states its hover in the palette                                  |
+| [0058](0058-an-overlay-is-placed-on-the-screen.md)                                    | An overlay is placed on the screen                                              |
+| [0059](0059-a-guide-caps-its-rules.md)                                                | A directory guide caps its rules and not its index                              |
+| [0060](0060-the-published-page-takes-every-style.md)                                  | The published page takes every emitted style                                    |
+| [0061](0061-the-application-is-set-in-one-vendored-family.md)                         | The application is set in one vendored family                                   |
+| [0062](0062-the-default-action-is-ink-and-the-blue-carries-meaning.md)                | The default action is ink and the blue carries meaning                          |
+| [0063](0063-the-resting-edge-of-a-control-is-the-divider.md)                          | The resting edge of a control is the divider                                    |
+| [0064](0064-the-frame-header-is-the-context-of-the-route.md)                          | The frame header is the context of the route                                    |
+| [0065](0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md)                     | One recipe for a control and one grid for an icon                               |
+| [0066](0066-the-browser-suite-is-retired.md)                                          | The browser suite is retired                                                    |
+| [0067](0067-an-external-picture-loads-by-itself.md)                                   | An external picture loads by itself                                             |
+| [0068](0068-a-soft-line-break-joins-its-paragraph.md)                                 | A soft line break joins its paragraph in the preview (superseded by 0107)       |
+| [0069](0069-the-note-name-is-the-last-part-of-the-breadcrumb.md)                      | The note name is the last part of the breadcrumb                                |
+| [0070](0070-shift-and-enter-writes-a-hard-break.md)                                   | Shift and Enter writes a hard break (superseded by 0107)                        |
+| [0071](0071-the-page-states-its-appearance-to-the-browser.md)                         | The page states its appearance to the browser                                   |
+| [0072](0072-the-scrollbar-takes-the-edge-of-the-palette.md)                           | The scrollbar takes the edge of the palette                                     |
+| [0073](0073-a-save-names-the-revision-it-descends-from.md)                            | A save names the revision it descends from                                      |
+| [0074](0074-the-build-names-every-cached-asset.md)                                    | The build names every asset that a browser may pin                              |
+| [0075](0075-a-link-opens-on-a-plain-click.md)                                         | A link opens on a plain click                                                   |
+| [0076](0076-the-text-of-a-note-is-a-crdt-document.md)                                 | The text of a note is a CRDT document inside its revisions (superseded by 0081) |
+| [0077](0077-yjs-behind-one-package.md)                                                | Yjs behind one package (superseded by 0082)                                     |
+| [0078](0078-one-rule-for-each-conflict-that-is-not-text.md)                           | One rule for each conflict that is not text (superseded by 0083)                |
+| [0079](0079-review-is-the-one-surface-of-a-merge.md)                                  | Review is the one surface of a merge (superseded by 0087)                       |
+| [0080](0080-a-document-starts-once.md)                                                | A document starts once (superseded by 0084)                                     |
+| [0081](0081-accepted-text-and-observed-state-belong-to-one-document.md)               | Accepted text and observed state belong to one document                         |
+| [0082](0082-yjs-has-a-byte-api-and-a-private-editor-bridge.md)                        | Yjs has a byte API and a private editor bridge                                  |
+| [0083](0083-metadata-conflicts-preserve-unseen-text-work.md)                          | Metadata conflicts preserve unseen text work                                    |
+| [0084](0084-compaction-keeps-identities-and-recovery-keeps-original-work.md)          | Compaction keeps identities and recovery keeps original work                    |
+| [0085](0085-local-document-writes-merge-and-receipts-do-not-advance-reads.md)         | Local document writes merge and receipts do not advance reads                   |
+| [0086](0086-protocol-upgrades-precede-the-breaking-sync-format.md)                    | Protocol upgrades precede the breaking sync format                              |
+| [0087](0087-review-keeps-the-checkpoint-that-caused-it.md)                            | Review keeps the checkpoint that caused it                                      |
+| [0088](0088-an-earlier-browser-store-upgrades-through-placement.md)                   | An earlier browser store upgrades through placement                             |
+| [0089](0089-an-ordered-item-shows-its-place-and-keeps-its-number.md)                  | An ordered item shows its place and keeps its number                            |
+| [0090](0090-every-connection-pool-comes-from-one-factory.md)                          | Every connection pool comes from one factory                                    |
+| [0091](0091-every-signed-in-page-opens-in-the-workspace-frame.md)                     | Every signed in page opens in the workspace frame                               |
+| [0092](0092-an-ordered-marker-keeps-its-preview-while-editing.md)                     | An ordered marker keeps its preview while editing                               |
+| [0093](0093-the-tree-actions-are-one-row-of-icons.md)                                 | The tree actions are one row of icons                                           |
+| [0094](0094-the-note-has-one-row-of-formatting-tools.md)                              | The note has one row of formatting tools                                        |
+| [0095](0095-a-table-is-a-grid-over-its-text.md)                                       | A table is a grid over its text                                                 |
+| [0096](0096-an-edit-keeps-the-structure-of-a-table.md)                                | An edit keeps the structure of a table                                          |
+| [0097](0097-a-row-and-a-column-carry-a-menu.md)                                       | A row and a column carry a menu, and a paste fills cells                        |
+| [0098](0098-a-handle-moves-its-row-or-column.md)                                      | A handle stands outside the table and moves its row or column                   |
+| [0099](0099-a-daily-note-is-a-dated-note-and-its-settings-belong-to-the-member.md)    | A daily note is a dated note and its settings belong to the member              |
+| [0100](0100-the-calendar-is-a-section-of-the-sidebar.md)                              | The calendar is a section of the sidebar                                        |
+| [0101](0101-a-daily-note-takes-its-path-from-a-folder-and-a-name-format.md)           | A daily note takes its path from a folder and a name format                     |
+| [0102](0102-a-template-fills-its-placeholders-once.md)                                | A template fills its placeholders once                                          |
+| [0103](0103-the-browser-checks-the-spelling-of-a-note.md)                             | The browser checks the spelling of a note                                       |
+| [0104](0104-a-new-note-is-a-version-when-it-is-made.md)                               | A new note is a version when it is made                                         |
+| [0105](0105-the-sidebar-shows-one-view-at-a-time.md)                                  | The sidebar shows one view at a time                                            |
+| [0106](0106-a-handle-moves-a-list-item.md)                                            | A handle moves a list item                                                      |
+| [0107](0107-a-new-line-is-a-line-break.md)                                            | A new line is a line break                                                      |
+| [0108](0108-an-account-comes-in-through-one-registration-path.md)                     | An account comes in through one registration path                               |
+| [0109](0109-the-installation-role-grants-no-workspace-access.md)                      | The installation role grants no workspace access                                |
+| [0110](0110-an-installation-keeps-one-enabled-administrator.md)                       | An installation keeps one enabled administrator                                 |
+| [0111](0111-a-removed-account-leaves-a-tombstone.md)                                  | A removed account leaves a tombstone                                            |
+| [0112](0112-the-owner-account-holds-the-storage-quota.md)                             | The owner account holds the storage quota                                       |
+| [0113](0113-a-browser-serves-the-account-of-its-session.md)                           | A browser serves the account of its session                                     |
+| [0114](0114-open-registration-verifies-the-address-before-the-first-session.md)       | Open registration verifies the address before the first session                 |
+| [0115](0115-a-sign-up-pays-a-proof-of-work-that-this-server-issues.md)                | A sign-up pays a proof of work that this server issues                          |
+| [0116](0116-one-password-policy-follows-nist-800-63b-revision-4.md)                   | One password policy follows NIST SP 800-63B revision 4                          |
+| [0117](0117-a-person-manages-their-own-sessions.md)                                   | A person manages their own sessions                                             |
+| [0118](0118-a-published-page-of-a-public-installation-has-its-own-origin.md)          | A published page of a public installation has its own origin                    |
+| [0119](0119-a-report-reaches-an-administrator-who-can-take-a-link-down.md)            | A report reaches an administrator who can take a link down                      |
+| [0120](0120-an-account-records-the-legal-documents-it-accepted.md)                    | An account records the legal documents it accepted                              |
+| [0121](0121-every-limit-and-every-job-holds-across-server-processes.md)               | Every limit and every job holds across server processes                         |
+| [0122](0122-a-session-is-revoked-by-its-identifier.md)                                | A session is revoked by its identifier                                          |
+| [0123](0123-a-report-seals-the-address-of-its-link.md)                                | A report seals the address of its link                                          |
+| [0124](0124-websockets-wake-the-durable-sync-engine.md)                               | WebSockets wake the durable sync engine                                         |
+| [0125](0125-postgresql-notifies-the-sync-gateways.md)                                 | PostgreSQL notifies the sync gateways                                           |
+| [0126](0126-websocket-messages-use-the-generated-contract.md)                         | WebSocket messages use the generated contract                                   |
+| [0127](0127-a-sync-page-holds-whole-commits.md)                                       | A sync page holds whole commits                                                 |
+| [0128](0128-the-server-validates-every-notice-frame.md)                               | The server validates every notice frame                                         |
+| [0129](0129-the-notice-gateway-and-its-bounds.md)                                     | The notice gateway and its bounds                                               |
+| [0130](0130-one-notice-coordinator-per-account-tab.md)                                | One notice coordinator per account in the lease tab                             |
+| [0131](0131-the-notice-stream-always-runs.md)                                         | The notice stream always runs                                                   |
+| [0132](0132-a-list-marker-holds-no-caret.md)                                          | A list marker holds no caret                                                    |
+| [0133](0133-an-open-note-saves-the-text-of-its-document.md)                           | An open note saves the text of its document                                     |
+| [0134](0134-a-task-box-keeps-one-state-through-a-merge.md)                            | A task box keeps one state through a merge                                      |
+| [0135](0135-an-identity-is-keyed-by-its-provider-and-its-account.md)                  | An identity is keyed by its provider and its account                            |
+| [0136](0136-the-initial-javascript-budget-follows-the-inequality-gap.md)              | The initial JavaScript budget follows the inequality gap                        |
+| [0137](0137-every-page-shares-the-note-column-and-its-side-region.md)                 | Every page shares the note column and its side region                           |
+| [0138](0138-a-page-names-the-page-above-it-and-accounts-belong-to-settings.md)        | A page names the page above it, and Accounts belong to Settings                 |
+| [0139](0139-the-breadcrumb-names-the-way-to-a-page-and-the-heading-names-the-page.md) | The breadcrumb names the way to a page, and the heading names the page          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -540,3 +541,7 @@ Record 0138 gives every page but All notes and the note one back control,
 a caret before its title to the page above it, lines a list up with the page
 column, and moves Accounts from the sidebar into Settings, because the owner
 asked for one rule on 2026-09-30. It refines records 0064, 0091 and 0137.
+
+Record 0139 takes the name of a page out of the breadcrumb, because the
+heading below it said the same word. The breadcrumb names the way to the
+page, and the note keeps its name there. It refines records 0064, 0091 and 0138.

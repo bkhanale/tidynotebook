@@ -3,12 +3,13 @@ import test from 'node:test';
 import {
   backTarget,
   breadcrumbKey,
-  breadcrumbParentOf,
   breadcrumbParts,
   framePageOf,
   framePages,
   leafOf,
   pageParents,
+  parentPartOf,
+  type ParentContext,
   type BreadcrumbPart,
   type BreadcrumbRoute,
   type PageTitles,
@@ -164,6 +165,17 @@ const titles: PageTitles = {
   'not-found': 'Page not found',
 };
 
+/** What `parentPartOf` reads, with the parts a test wants to change. */
+function context(over: Partial<ParentContext> = {}): ParentContext {
+  return {
+    workspaceId: 'w1',
+    fileId: null,
+    noteName: 'Roadmap',
+    titles,
+    ...over,
+  };
+}
+
 await test('the deepest route that names a page decides the page', () => {
   // The frame route names no page. Its child does, and it is the last match.
   assert.equal(framePageOf([undefined, { page: 'settings' }]), 'settings');
@@ -192,42 +204,64 @@ await test('a handle that names no page of the frame is no page', () => {
   assert.equal(framePageOf([]), null);
 });
 
-await test('settings yields the workspace and Settings', () => {
-  const leaf = leafOf('settings', null, titles);
-  assert.deepEqual(breadcrumbParts(route({ leaf })), [
-    { label: 'Personal', to: '/w/w1', folder: '' },
-    { label: 'Settings', to: null, folder: null },
-  ]);
+await test('a page that is not the note has no last part', () => {
+  // Record 0139. The heading of the page names it, so the breadcrumb does not
+  // say the same word one line above it.
+  for (const page of framePages)
+    if (page !== 'note') assert.equal(leafOf(page, 'Roadmap'), '', page);
+  assert.equal(leafOf(null, null), '');
 });
 
-await test('an address the frame does not know reads Page not found', () => {
-  assert.equal(leafOf('not-found', null, titles), 'Page not found');
+await test('the note is the last part of its own breadcrumb', () => {
+  assert.equal(leafOf('note', 'Roadmap'), 'Roadmap');
+  assert.equal(leafOf('note', null), 'Note');
 });
 
-await test('a page that names no note takes its word from the titles', () => {
-  assert.equal(leafOf('notes', null, titles), 'All notes');
-  assert.equal(leafOf('trash', 'Roadmap', titles), 'Trash');
-});
-
-await test('the note pages take the name of the open note', () => {
-  assert.equal(leafOf('note', 'Roadmap', titles), 'Roadmap');
-  assert.equal(leafOf('history', 'Roadmap', titles), 'History of Roadmap');
-  assert.equal(leafOf('review', 'Roadmap', titles), 'Review of Roadmap');
-});
-
-await test('a note page before the name arrives still names the page', () => {
-  assert.equal(leafOf('note', null, titles), 'Note');
-  assert.equal(leafOf('history', null, titles), 'History of this note');
-  assert.equal(leafOf('review', null, titles), 'Review of this note');
-});
-
-await test('a route that names no page yields no last part', () => {
-  // Better the workspace alone than a word that names some other page.
-  const leaf = leafOf(null, null, titles);
-  assert.equal(leaf, '');
-  assert.deepEqual(breadcrumbParts(route({ leaf })), [
+await test('Settings yields the workspace alone', () => {
+  const leaf = leafOf('settings', null);
+  const parent = parentPartOf('settings', context());
+  assert.deepEqual(breadcrumbParts(route({ leaf, parent })), [
     { label: 'Personal', to: '/w/w1', folder: '' },
   ]);
+});
+
+await test('History and Review go back to their note in one part', () => {
+  for (const page of ['history', 'review'] as const) {
+    const parent = parentPartOf(page, context({ fileId: 'f1' }));
+    assert.deepEqual(parent, { label: 'Roadmap', to: '/w/w1/notes/f1' });
+    assert.deepEqual(
+      breadcrumbParts(
+        route({
+          notePath: 'Work/Roadmap.md',
+          leaf: leafOf(page, 'Roadmap'),
+          parent,
+        }),
+      ),
+      [
+        { label: 'Personal', to: '/w/w1', folder: '' },
+        { label: 'Work', to: '/w/w1', folder: 'Work' },
+        { label: 'Roadmap', to: '/w/w1/notes/f1', folder: null },
+      ],
+    );
+  }
+});
+
+await test('a page under a note with no note in its address adds no part', () => {
+  assert.equal(parentPartOf('history', context()), null);
+});
+
+await test('a page under the note list adds no part of its own', () => {
+  for (const page of [
+    'notes',
+    'note',
+    'trash',
+    'published',
+    'attention',
+    'settings',
+    'not-found',
+  ] as const)
+    assert.equal(parentPartOf(page, context({ fileId: 'f1' })), null, page);
+  assert.equal(parentPartOf(null, context()), null);
 });
 
 await test('every page but All notes names the page above it', () => {
@@ -269,20 +303,13 @@ await test('a page under a note with no note goes back to the note list', () => 
 });
 
 await test('Accounts reads as a part of Settings in the breadcrumb', () => {
-  assert.equal(breadcrumbParentOf('accounts'), 'settings');
-  for (const page of framePages)
-    if (page !== 'accounts') assert.equal(breadcrumbParentOf(page), null, page);
+  const parent = parentPartOf('accounts', context());
+  assert.deepEqual(parent, { label: 'Settings', to: '/w/w1/settings' });
   assert.deepEqual(
-    breadcrumbParts(
-      route({
-        leaf: 'Accounts',
-        parent: { label: 'Settings', to: '/w/w1/settings' },
-      }),
-    ),
+    breadcrumbParts(route({ leaf: leafOf('accounts', null), parent })),
     [
       { label: 'Personal', to: '/w/w1', folder: '' },
       { label: 'Settings', to: '/w/w1/settings', folder: null },
-      { label: 'Accounts', to: null, folder: null },
     ],
   );
 });

@@ -15,8 +15,9 @@
  * deepest one (record 0091). The frame does not match the address a second
  * time, so an address it does not know cannot read as another page.
  *
- * Every part but the last is a link, because the last part is where the
- * person already is. A folder part goes to the note list of the workspace and
+ * Every part is a link to a place above the page, and the heading of the
+ * page names where the person is (record 0139). The note is the one page
+ * with a last part that is not a link: its name, because it has no heading. A folder part goes to the note list of the workspace and
  * selects that folder, which is what the folder row of the tree does, so the
  * two surfaces agree on what pressing a folder means.
  */
@@ -80,29 +81,18 @@ export function framePageOf(handles: readonly unknown[]): FramePage | null {
 }
 
 /**
- * The word of the last part of the breadcrumb.
+ * The word of the last part of the breadcrumb, which only the note has.
  *
- * A note page takes the name of the open note, which can be missing for one
- * render while the list fills. A page with no name answers no word, and
- * `breadcrumbParts` then draws no last part.
+ * Every other page names itself in its heading, so the breadcrumb names the
+ * way to it and not the page again (record 0139). The note has no heading:
+ * its name is the last part (record 0069), and the name can be missing for
+ * one render while the list fills.
  */
 export function leafOf(
   page: FramePage | null,
   noteName: string | null,
-  titles: PageTitles,
 ): string {
-  switch (page) {
-    case null:
-      return '';
-    case 'note':
-      return noteName ?? 'Note';
-    case 'history':
-      return `History of ${noteName ?? 'this note'}`;
-    case 'review':
-      return `Review of ${noteName ?? 'this note'}`;
-    default:
-      return titles[page];
-  }
+  return page === 'note' ? (noteName ?? 'Note') : '';
 }
 
 /**
@@ -155,26 +145,45 @@ export function backTarget(
   }
 }
 
+/** What the breadcrumb needs to name the page above a page. */
+export type ParentContext = {
+  readonly workspaceId: string;
+  readonly fileId: string | null;
+  /** The name of the open note, or `null` while the list fills. */
+  readonly noteName: string | null;
+  readonly titles: PageTitles;
+};
+
 /**
- * The page above a page that the breadcrumb names as a part of its own.
+ * The page above a page, as a part of the breadcrumb (record 0139).
  *
- * The note list is the workspace part and a note page names its note, so a
- * parent that is either of them adds no part.
+ * The note list is the workspace part, which every breadcrumb has, so a page
+ * under it adds no part. History and Review go back to their note, and
+ * Accounts to Settings. A page with no note in its address adds no part.
  */
-export function breadcrumbParentOf(
+export function parentPartOf(
   page: FramePage | null,
-): Exclude<FramePage, NotePage | 'notes' | 'not-found'> | null {
+  context: ParentContext,
+): { readonly label: string; readonly to: string } | null {
   const parent = page === null ? null : pageParents[page];
+  const home = workspaceHome(context.workspaceId);
   switch (parent) {
     case null:
     case 'notes':
+      return null;
     case 'note':
     case 'history':
     case 'review':
+      return context.fileId === null
+        ? null
+        : {
+            label: context.noteName ?? 'Note',
+            to: `${home}/notes/${context.fileId}`,
+          };
     case 'not-found':
       return null;
     default:
-      return parent;
+      return { label: context.titles[parent], to: `${home}/${parent}` };
   }
 }
 
@@ -196,7 +205,7 @@ export type BreadcrumbRoute = {
   readonly notePath: string | null;
   /** The name of the note or the page, which is the last part. */
   readonly leaf: string;
-  /** The page above the page, from `breadcrumbParentOf`, as a link. */
+  /** The page above the page, from `parentPartOf`, as a link. */
   readonly parent?: { readonly label: string; readonly to: string } | null;
 };
 
