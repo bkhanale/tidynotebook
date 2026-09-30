@@ -782,6 +782,35 @@ await test('the end of the listeners of this test leaves another database alone'
   await offered(two.baseUrl);
 });
 
+await test('a listener that closes before its connection opens still ends', async () => {
+  // The defect this covers: a close while the pool was still opening the
+  // connection released nothing, the connection then arrived and was kept, and
+  // the end of the pool waited for it for ever. A server that stopped right
+  // after it started never stopped.
+  const other = await createDisposableDatabase();
+  try {
+    const listener = openSyncListener(other.runtimeUrl, {
+      onHint: () => {},
+      onLost: () => {},
+      onListening: () => {},
+    });
+    let timer: NodeJS.Timeout | undefined;
+    const ended = await Promise.race([
+      listener.close().then(() => true),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => {
+          resolve(false);
+        }, waitBoundMs);
+      }),
+    ]);
+    clearTimeout(timer);
+    assert.equal(ended, true);
+    assert.equal(listener.listening(), false);
+  } finally {
+    await other.destroy();
+  }
+});
+
 await test('a short listener gap ends with reconcile', async () => {
   const stream = await openStream(one.baseUrl, owner);
   stream.send({

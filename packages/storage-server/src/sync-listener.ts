@@ -126,6 +126,13 @@ export function openSyncListener(
       schedule();
       return;
     }
+    // A close that ran while the pool opened this connection found no client
+    // to release, and the end of the pool waits for every client. So the
+    // connection goes back here, or the close never completes.
+    if (closed) {
+      next.release(true);
+      return;
+    }
     client = next;
     next.on('notification', onNotification);
     next.on('error', () => {
