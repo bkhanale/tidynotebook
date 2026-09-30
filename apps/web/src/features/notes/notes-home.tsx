@@ -11,6 +11,9 @@
  * the product, so a note of this list, a note of the tree and a row of a menu
  * are one size, one radius and one focus treatment (decision 0065).
  *
+ * The page has the note measure, as every page does, and lists its groups in
+ * the side region (decision 0137).
+ *
  * The layout frame lives in `shell.tsx`; this file owns the note list screen
  * only.
  */
@@ -33,6 +36,10 @@ import { useNow } from '../../shell/now.ts';
 import { useFiles } from '../../shell/files.tsx';
 import { useCreateNote } from './new-note.tsx';
 import { groupNotesByRecency } from '../../lib/note-groups.ts';
+import {
+  noteGroupHeadingId,
+  noteGroupSections,
+} from '../../lib/page-sections.ts';
 import { noteRowMeta } from '../../lib/note-row.ts';
 import { showNewNoteInHeader } from '../../lib/notes-home-action.ts';
 
@@ -60,7 +67,11 @@ export function NotesHomeView(): ReactNode {
   const total = files.notes.length;
 
   return (
-    <Page width="wide">
+    <Page
+      sections={
+        files.loading || total === 0 ? undefined : noteGroupSections(groups)
+      }
+    >
       <PageHeader
         title="All notes"
         description={`${String(total)} ${total === 1 ? 'note' : 'notes'}`}
@@ -99,8 +110,14 @@ export function NotesHomeView(): ReactNode {
       ) : (
         <div>
           {groups.map((group) => (
-            <section key={group.label} aria-labelledby={`group-${group.label}`}>
-              <h2 className={groupLabelClassName} id={`group-${group.label}`}>
+            <section
+              key={group.label}
+              aria-labelledby={noteGroupHeadingId(group.label)}
+            >
+              <h2
+                className={groupLabelClassName}
+                id={noteGroupHeadingId(group.label)}
+              >
                 {group.label}
               </h2>
               <ul className="m-0 list-none p-0">

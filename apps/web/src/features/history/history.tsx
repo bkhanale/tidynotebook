@@ -134,7 +134,7 @@ export function HistoryView(): ReactNode {
   const accountId = session.account?.accountId ?? null;
   if (accountId === null)
     return (
-      <Page width="wide">
+      <Page>
         <PageHeader title="History" />
         <LoadingState shape="list" rows={5} label="The history is loading." />
       </Page>
@@ -159,7 +159,7 @@ function HistoryNotice({
   readonly description: string;
 }): ReactNode {
   return (
-    <Page width="wide">
+    <Page>
       <PageHeader title="History" />
       <EmptyState
         icon={<HistoryIcon size={20} />}
@@ -466,7 +466,7 @@ function HistoryDetail({
 
   if (head.status === 'loading')
     return (
-      <Page width="wide">
+      <Page>
         <PageHeader title="History" />
         <LoadingState
           shape="list"
@@ -503,7 +503,7 @@ function HistoryDetail({
   const name = displayNoteName(head.path);
   const restorable = head.headRevisionId !== null;
   return (
-    <Page width="wide">
+    <Page>
       <PageHeader
         title={`History of ${name}`}
         description="Restore brings a version back as the newest one. Nothing is lost, and the text on this device stays as it is."

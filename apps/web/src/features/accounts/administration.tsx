@@ -59,6 +59,10 @@ import {
 import { problemMessage, useSession } from '../../app.tsx';
 import { problemCode } from '../../lib/problem-text.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import {
+  administrationSections,
+  type AdministrationSectionKey,
+} from '../../lib/page-sections.ts';
 import { useNow } from '../../shell/now.ts';
 import {
   accountActionLabel,
@@ -257,7 +261,9 @@ function AccountsPage(): ReactNode {
   };
 
   return (
-    <Page>
+    <Page
+      sections={state.kind === 'ready' ? administrationSections : undefined}
+    >
       <PageHeader
         title={accountsTitle}
         description={accountsDescription}
@@ -291,254 +297,237 @@ function AccountsPage(): ReactNode {
             </Button>
           </Notice>
         ) : (
-          <>
-            <section aria-labelledby="registration-heading">
-              <h2
-                className="mb-1 px-2 text-control font-medium text-muted"
-                id="registration-heading"
-              >
-                Who can make an account
-              </h2>
-              <div className="flex flex-wrap items-center gap-cluster px-2">
-                <p className="m-0 flex-1 text-ui text-strong">
-                  {registrationPolicyText(
-                    state.installation.registrationPolicy,
+          <AdministrationSections
+            bodies={{
+              registration: (
+                <>
+                  <div className="flex flex-wrap items-center gap-cluster px-2">
+                    <p className="m-0 flex-1 text-ui text-strong">
+                      {registrationPolicyText(
+                        state.installation.registrationPolicy,
+                      )}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => {
+                        changePolicy(
+                          state.installation.registrationPolicy === 'open'
+                            ? 'invitation'
+                            : 'open',
+                        );
+                      }}
+                    >
+                      {state.installation.registrationPolicy === 'open'
+                        ? 'Require an invitation'
+                        : 'Let anybody sign up'}
+                    </Button>
+                  </div>
+                </>
+              ),
+              reports: (
+                <>
+                  {state.reports.length === 0 ? (
+                    <p className="m-0 px-2 text-control text-muted">
+                      No report waits. A reader reports a published page from
+                      the link at its foot.
+                    </p>
+                  ) : (
+                    <ul className="m-0 list-none p-0">
+                      {state.reports.map((report) => {
+                        const reason = reportReasonWord(report.reason);
+                        return (
+                          <ListRow key={report.reportId} className="flex-wrap">
+                            <span
+                              className="inline-flex shrink-0 items-center text-muted"
+                              aria-hidden="true"
+                            >
+                              <LinkIcon />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="m-0 truncate text-ui text-strong">
+                                {reason}
+                              </p>
+                              <p className="m-0 flex flex-wrap gap-cluster text-control text-muted">
+                                {reportFacts(report, now).map((fact) => (
+                                  <span key={fact}>{fact}</span>
+                                ))}
+                              </p>
+                              {report.note === null ? null : (
+                                <p
+                                  className="m-0 truncate text-control text-muted"
+                                  title={report.note}
+                                >
+                                  {report.note}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-cluster">
+                              {report.address === null ? null : (
+                                <a
+                                  className={buttonClassName({
+                                    variant: 'secondary',
+                                    size: 'sm',
+                                  })}
+                                  href={report.address}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  Open link
+                                </a>
+                              )}
+                              {canTakeDown(report) ? (
+                                <Button
+                                  variant="secondary"
+                                  tone="danger"
+                                  size="sm"
+                                  disabled={busy}
+                                  label={`Take down the link of the report: ${reason}`}
+                                  onClick={() => {
+                                    change(
+                                      () =>
+                                        takeDownReportedLink({
+                                          path: { reportId: report.reportId },
+                                        }),
+                                      reportNotice('take-down'),
+                                    );
+                                  }}
+                                >
+                                  Take down
+                                </Button>
+                              ) : null}
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={busy}
+                                label={`Close the report: ${reason}`}
+                                onClick={() => {
+                                  change(
+                                    () =>
+                                      dismissReport({
+                                        path: { reportId: report.reportId },
+                                      }),
+                                    reportNotice('close'),
+                                  );
+                                }}
+                              >
+                                Close
+                              </Button>
+                            </div>
+                          </ListRow>
+                        );
+                      })}
+                    </ul>
                   )}
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => {
-                    changePolicy(
-                      state.installation.registrationPolicy === 'open'
-                        ? 'invitation'
-                        : 'open',
-                    );
-                  }}
-                >
-                  {state.installation.registrationPolicy === 'open'
-                    ? 'Require an invitation'
-                    : 'Let anybody sign up'}
-                </Button>
-              </div>
-            </section>
-
-            <section aria-labelledby="reports-heading">
-              <h2
-                className="mb-1 px-2 text-control font-medium text-muted"
-                id="reports-heading"
-              >
-                Reports of published links
-              </h2>
-              {state.reports.length === 0 ? (
-                <p className="m-0 px-2 text-control text-muted">
-                  No report waits. A reader reports a published page from the
-                  link at its foot.
-                </p>
-              ) : (
-                <ul className="m-0 list-none p-0">
-                  {state.reports.map((report) => {
-                    const reason = reportReasonWord(report.reason);
-                    return (
-                      <ListRow key={report.reportId} className="flex-wrap">
-                        <span
-                          className="inline-flex shrink-0 items-center text-muted"
-                          aria-hidden="true"
-                        >
-                          <LinkIcon />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="m-0 truncate text-ui text-strong">
-                            {reason}
-                          </p>
-                          <p className="m-0 flex flex-wrap gap-cluster text-control text-muted">
-                            {reportFacts(report, now).map((fact) => (
-                              <span key={fact}>{fact}</span>
-                            ))}
-                          </p>
-                          {report.note === null ? null : (
-                            <p
-                              className="m-0 truncate text-control text-muted"
-                              title={report.note}
-                            >
-                              {report.note}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-cluster">
-                          {report.address === null ? null : (
-                            <a
-                              className={buttonClassName({
-                                variant: 'secondary',
-                                size: 'sm',
-                              })}
-                              href={report.address}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Open link
-                            </a>
-                          )}
-                          {canTakeDown(report) ? (
+                </>
+              ),
+              invitations: (
+                <>
+                  {state.invitations.length === 0 ? (
+                    <p className="m-0 px-2 text-control text-muted">
+                      No invitation waits. Select Invite a person to make one.
+                    </p>
+                  ) : (
+                    <ul className="m-0 list-none p-0">
+                      {state.invitations.map((invitation) => {
+                        const facts = invitationFacts(invitation, now);
+                        return (
+                          <ListRow
+                            key={invitation.invitationId}
+                            className="flex-wrap"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="m-0 truncate text-ui text-strong">
+                                {invitation.email}
+                              </p>
+                              <p className="m-0 flex flex-wrap gap-cluster text-control text-muted">
+                                {facts.map((fact) => (
+                                  <span key={fact}>{fact}</span>
+                                ))}
+                              </p>
+                            </div>
                             <Button
                               variant="secondary"
-                              tone="danger"
                               size="sm"
                               disabled={busy}
-                              label={`Take down the link of the report: ${reason}`}
+                              label={`Revoke the invitation of ${invitation.email}`}
                               onClick={() => {
                                 change(
                                   () =>
-                                    takeDownReportedLink({
-                                      path: { reportId: report.reportId },
+                                    revokeInvitation({
+                                      path: {
+                                        invitationId: invitation.invitationId,
+                                      },
                                     }),
-                                  reportNotice('take-down'),
+                                  `The invitation of ${invitation.email} is revoked. Its link opens nothing now.`,
                                 );
                               }}
                             >
-                              Take down
+                              Revoke
                             </Button>
-                          ) : null}
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={busy}
-                            label={`Close the report: ${reason}`}
-                            onClick={() => {
-                              change(
-                                () =>
-                                  dismissReport({
-                                    path: { reportId: report.reportId },
-                                  }),
-                                reportNotice('close'),
-                              );
-                            }}
+                          </ListRow>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </>
+              ),
+              accounts: (
+                <>
+                  <ul className="m-0 list-none p-0">
+                    {state.accounts.map((account) => {
+                      const name = accountName(account);
+                      const facts = accountFacts(account, now);
+                      const actions = accountActions(
+                        account,
+                        enabledAdministrators(state.accounts),
+                      );
+                      return (
+                        <ListRow key={account.accountId} className="flex-wrap">
+                          <span
+                            className="inline-flex shrink-0 items-center text-muted"
+                            aria-hidden="true"
                           >
-                            Close
-                          </Button>
-                        </div>
-                      </ListRow>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-
-            <section aria-labelledby="invitations-heading">
-              <h2
-                className="mb-1 px-2 text-control font-medium text-muted"
-                id="invitations-heading"
-              >
-                Invitations
-              </h2>
-              {state.invitations.length === 0 ? (
-                <p className="m-0 px-2 text-control text-muted">
-                  No invitation waits. Select Invite a person to make one.
-                </p>
-              ) : (
-                <ul className="m-0 list-none p-0">
-                  {state.invitations.map((invitation) => {
-                    const facts = invitationFacts(invitation, now);
-                    return (
-                      <ListRow
-                        key={invitation.invitationId}
-                        className="flex-wrap"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="m-0 truncate text-ui text-strong">
-                            {invitation.email}
-                          </p>
-                          <p className="m-0 flex flex-wrap gap-cluster text-control text-muted">
-                            {facts.map((fact) => (
-                              <span key={fact}>{fact}</span>
-                            ))}
-                          </p>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={busy}
-                          label={`Revoke the invitation of ${invitation.email}`}
-                          onClick={() => {
-                            change(
-                              () =>
-                                revokeInvitation({
-                                  path: {
-                                    invitationId: invitation.invitationId,
-                                  },
-                                }),
-                              `The invitation of ${invitation.email} is revoked. Its link opens nothing now.`,
-                            );
-                          }}
-                        >
-                          Revoke
-                        </Button>
-                      </ListRow>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-
-            <section aria-labelledby="accounts-heading">
-              <h2
-                className="mb-1 px-2 text-control font-medium text-muted"
-                id="accounts-heading"
-              >
-                Accounts
-              </h2>
-              <ul className="m-0 list-none p-0">
-                {state.accounts.map((account) => {
-                  const name = accountName(account);
-                  const facts = accountFacts(account, now);
-                  const actions = accountActions(
-                    account,
-                    enabledAdministrators(state.accounts),
-                  );
-                  return (
-                    <ListRow key={account.accountId} className="flex-wrap">
-                      <span
-                        className="inline-flex shrink-0 items-center text-muted"
-                        aria-hidden="true"
-                      >
-                        <UsersIcon />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="m-0 truncate text-ui text-strong">
-                          {name}
-                        </p>
-                        <p
-                          className="m-0 flex flex-wrap gap-cluster text-control text-muted"
-                          title={facts.join(', ')}
-                        >
-                          {facts.slice(0, 3).map((fact) => (
-                            <span key={fact}>{fact}</span>
-                          ))}
-                        </p>
-                      </div>
-                      <Menu
-                        label={`Change the account of ${name}`}
-                        icon={<MoreIcon />}
-                        compact
-                        items={actions.map((action) => ({
-                          id: action,
-                          label: accountActionLabel(action),
-                          // Only the removal destroys anything. A disabled
-                          // account comes back with Enable.
-                          danger: action === 'remove',
-                          disabled: busy,
-                          onSelect: () => {
-                            runAction(account, action);
-                          },
-                        }))}
-                      />
-                    </ListRow>
-                  );
-                })}
-              </ul>
-            </section>
-          </>
+                            <UsersIcon />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="m-0 truncate text-ui text-strong">
+                              {name}
+                            </p>
+                            <p
+                              className="m-0 flex flex-wrap gap-cluster text-control text-muted"
+                              title={facts.join(', ')}
+                            >
+                              {facts.slice(0, 3).map((fact) => (
+                                <span key={fact}>{fact}</span>
+                              ))}
+                            </p>
+                          </div>
+                          <Menu
+                            label={`Change the account of ${name}`}
+                            icon={<MoreIcon />}
+                            compact
+                            items={actions.map((action) => ({
+                              id: action,
+                              label: accountActionLabel(action),
+                              // Only the removal destroys anything. A disabled
+                              // account comes back with Enable.
+                              danger: action === 'remove',
+                              disabled: busy,
+                              onSelect: () => {
+                                runAction(account, action);
+                              },
+                            }))}
+                          />
+                        </ListRow>
+                      );
+                    })}
+                  </ul>
+                </>
+              ),
+            }}
+          />
         )}
       </div>
 
@@ -814,5 +803,33 @@ function LimitDialog({
         </DialogFooter>
       </form>
     </Dialog>
+  );
+}
+
+/**
+ * The sections of the page, in the order of the list that the side region
+ * reads. Each section takes its heading from that list, and the type holds
+ * one body for each name of it, so the page and its list cannot disagree
+ * (decision 0137).
+ */
+function AdministrationSections({
+  bodies,
+}: {
+  readonly bodies: Record<AdministrationSectionKey, ReactNode>;
+}): ReactNode {
+  return (
+    <>
+      {administrationSections.map((section) => (
+        <section key={section.key} aria-labelledby={section.id}>
+          <h2
+            className="mb-1 px-2 text-control font-medium text-muted"
+            id={section.id}
+          >
+            {section.title}
+          </h2>
+          {bodies[section.key]}
+        </section>
+      ))}
+    </>
   );
 }

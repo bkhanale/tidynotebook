@@ -76,7 +76,10 @@ import {
   focusOutline,
   focusOutlineInset,
   Notice,
+  pageColumnClassName,
   pageGutter,
+  pageRowClassName,
+  pageSideClassName,
   PanelLeftIcon,
   rowClassName,
   SearchIcon,
@@ -1954,33 +1957,39 @@ function ShellFrame({
             id="notes-content"
             className={`min-h-0 flex-1 overflow-y-auto ${sidebarInsetClass(sidebar.size)}`}
           >
-            <div
-              className={`mx-auto w-full max-w-3xl ${pageGutter} pt-4 empty:hidden`}
-            >
-              <UpdateNotice
-                store={store.store}
-                ownerId={syncSession.ownerId}
-                required={sync.state.kind === 'update-required'}
-                onFlushDrafts={flushNoteDraft}
-                onStopQueue={syncSession.stop}
-              />
-              {session.error === null ? null : (
-                <Notice tone="info" message={session.error} />
-              )}
-              {theme.syncError === null ? null : (
-                <Notice tone="info" message={theme.syncError} />
-              )}
-              {persistence.denial === null ? null : (
-                <Notice tone="problem" message={persistence.denial}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={persistence.dismiss}
-                  >
-                    Understood
-                  </Button>
-                </Notice>
-              )}
+            {/*
+              The frame notices stand in the column of the page under them
+              and keep the side region beside them, so a notice lines up
+              with the page and with the note (decision 0137).
+            */}
+            <div className={`${pageRowClassName()} ${pageGutter}`}>
+              <div className={`${pageColumnClassName()} pt-4 empty:hidden`}>
+                <UpdateNotice
+                  store={store.store}
+                  ownerId={syncSession.ownerId}
+                  required={sync.state.kind === 'update-required'}
+                  onFlushDrafts={flushNoteDraft}
+                  onStopQueue={syncSession.stop}
+                />
+                {session.error === null ? null : (
+                  <Notice tone="info" message={session.error} />
+                )}
+                {theme.syncError === null ? null : (
+                  <Notice tone="info" message={theme.syncError} />
+                )}
+                {persistence.denial === null ? null : (
+                  <Notice tone="problem" message={persistence.denial}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={persistence.dismiss}
+                    >
+                      Understood
+                    </Button>
+                  </Notice>
+                )}
+              </div>
+              <div className={pageSideClassName()} />
             </div>
             <Outlet />
           </div>

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { pageRowClassName, pageSideClassName } from '@notesapp/ui';
 import {
   noteColumnClassName,
   noteFooterClassName,
   noteFrameClassName,
   noteOutlineScrollClassName,
+  noteRowClassName,
   noteSideRegionClassName,
 } from './note-column.ts';
 
@@ -51,4 +53,15 @@ await test('the outline scrolls inside the note side region', () => {
   assert.ok(outline.includes('min-h-0'));
   assert.ok(outline.includes('overflow-y-auto'));
   assert.ok(outline.includes('overscroll-contain'));
+});
+
+await test('the note reads the row and the side region of every page', () => {
+  // Decision 0137. The note and every other page share one row and one side
+  // region, so the column does not move between a note and a page.
+  const row = noteRowClassName().split(' ');
+  const side = noteSideRegionClassName().split(' ');
+  for (const name of pageRowClassName().split(' '))
+    assert.ok(row.includes(name), `the note row lacks ${name}`);
+  for (const name of pageSideClassName().split(' '))
+    assert.ok(side.includes(name), `the note side region lacks ${name}`);
 });

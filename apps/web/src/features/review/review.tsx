@@ -74,7 +74,7 @@ export function ReviewView(): ReactNode {
     store === null
   )
     return (
-      <Page width="wide">
+      <Page>
         <PageHeader title="Review" />
         <LoadingState label="The review is loading." />
       </Page>
@@ -174,7 +174,7 @@ function ReviewDetail({
 
   if (opened.status === 'loading')
     return (
-      <Page width="wide">
+      <Page>
         <PageHeader title="Review" actions={back} />
         <LoadingState
           shape="list"
@@ -185,7 +185,7 @@ function ReviewDetail({
     );
   if (opened.status === 'none' || opened.status === 'failed')
     return (
-      <Page width="wide">
+      <Page>
         <PageHeader title="Review" actions={back} />
         {opened.status === 'failed' ? (
           <Notice tone="problem" message={reviewReadFailed} />
@@ -209,7 +209,7 @@ function ReviewDetail({
 
   const page = reviewPage(opened.review);
   return (
-    <Page width="wide">
+    <Page>
       <PageHeader
         title={page.title}
         description={page.description}

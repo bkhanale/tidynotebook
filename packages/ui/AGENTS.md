@@ -20,8 +20,8 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
   One element takes one colour class, so a tone is part of a recipe.
   `src/icon-grid.ts` is the one grid of an icon: a 24 viewport, a stroke of
   1.5, the sizes 16 and 20, and the attributes `src/icons.tsx` spreads.
-- `src/layout.tsx` holds the page frame and `pageGutter`, the one distance
-  from the screen edge to the content. `controls.tsx`, `menu.tsx`,
+- `src/layout.tsx` holds the page frame, `pageGutter`, and the row of every
+  page from `layout-classes.ts` (0137). `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
   surfaces, `overlay-position.ts` the place an overlay takes (0058),
   `loading.tsx` the placeholder of a wait, and `motion.ts` the named
@@ -91,5 +91,6 @@ and the stylesheet fallbacks to one registry.
 | `src/overlay-position.ts` | Where an overlay sits on the screen         |
 | `src/motion.ts`           | The named transitions of the application    |
 | `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow |
+| `src/layout-classes.ts`   | The row, column and side region of a page   |
 | `src/controls.tsx`        | Buttons, inputs and their wrappers          |
 | `THIRD_PARTY_LICENSES.md` | The source and licence of every palette     |

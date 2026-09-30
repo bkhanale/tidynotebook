@@ -75,6 +75,7 @@ import {
 import {
   noteFrameClassName,
   noteOutlineScrollClassName,
+  noteRowClassName,
   noteSideRegionClassName,
 } from '../../lib/note-column.ts';
 import {
@@ -1519,9 +1520,11 @@ function NoteEditorBody({
           The text and the footer are one column, so they sit in one flex
           child and the side region is its sibling (decision 0055). The name
           is not here: it is the last part of the breadcrumb in the frame
-          header, so the note starts with its text (decision 0069).
+          header, so the note starts with its text (decision 0069). The row
+          is the row of every page, so the text keeps the place of the
+          column of any other page (decision 0137).
         */}
-        <div className="flex min-h-0 flex-1 gap-6">
+        <div className={noteRowClassName()}>
           <div className={noteFrameClassName()}>
             {/*
               The row of formatting tools is the one band above the text

@@ -8,8 +8,13 @@
  * `packages/editor/src/editor-theme.ts`. See
  * [decision 0055](../../../../docs/decisions/0055-the-note-is-one-centred-column.md).
  *
+ * The row, the width of the side region and the measure are the ones of every
+ * page (decision 0137), so this module reads them from `@notesapp/ui` and
+ * adds only what the note needs: a side region that scrolls inside the note.
+ *
  * The rules live here, outside JSX, so a unit test can read them.
  */
+import { pageRowClassName, pageSideClassName } from '@notesapp/ui';
 
 /**
  * The classes of the column that the text and the footer share.
@@ -36,9 +41,19 @@ export function noteFrameClassName(): string {
   return 'flex min-h-0 min-w-0 flex-1 flex-col';
 }
 
+/**
+ * The row of the note screen: the note frame and the side region.
+ *
+ * It is the row of every page, so the note text and the column of any other
+ * page share one centre. The row fills the height of the note screen.
+ */
+export function noteRowClassName(): string {
+  return `${pageRowClassName()} min-h-0 flex-1`;
+}
+
 /** The side region limits its children to the height of the note screen. */
 export function noteSideRegionClassName(): string {
-  return 'hidden min-h-0 w-56 shrink-0 flex-col overflow-hidden xl:flex';
+  return `${pageSideClassName()} min-h-0 overflow-hidden`;
 }
 
 /** The outline keeps its natural height until it needs to scroll. */

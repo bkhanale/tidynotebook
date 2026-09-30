@@ -19,8 +19,8 @@ import {
   ChevronLeftIcon,
   LoadingState,
   Page,
-  pageGutter,
   PageHeader,
+  PageRegion,
 } from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useFiles } from '../../shell/files.tsx';
@@ -78,18 +78,18 @@ export function NoteView(): ReactNode {
   const accountId = session.account?.accountId ?? null;
   if (accountId === null)
     return (
-      <main className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <Page>
         <LoadingState shape="note" label="The note is loading." />
-      </main>
+      </Page>
     );
 
   return (
     <main className="flex h-full min-w-0 flex-col">
       <Suspense
         fallback={
-          <div className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+          <PageRegion>
             <LoadingState shape="note" label="The editor is loading." />
-          </div>
+          </PageRegion>
         }
       >
         <NoteEditorLoader

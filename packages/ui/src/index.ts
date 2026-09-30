@@ -97,7 +97,6 @@ export {
 } from './controls.tsx';
 export type { LoadingShape } from './loading.tsx';
 export { LoadingState } from './loading.tsx';
-export type { PageWidth } from './layout.tsx';
 export {
   Card,
   EmptyState,
@@ -105,7 +104,14 @@ export {
   Page,
   pageGutter,
   PageHeader,
+  PageRegion,
 } from './layout.tsx';
+export type { PageSection } from './layout-classes.ts';
+export {
+  pageColumnClassName,
+  pageRowClassName,
+  pageSideClassName,
+} from './layout-classes.ts';
 export {
   transitionAction,
   transitionField,

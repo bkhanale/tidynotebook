@@ -30,7 +30,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { getFile } from '@notesapp/api-client';
 import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 import type { LinkTarget } from '@notesapp/editor';
-import { LoadingState, Notice, pageGutter } from '@notesapp/ui';
+import { LoadingState, Notice, pageGutter, PageRegion } from '@notesapp/ui';
 import { problemMessage } from '../../app.tsx';
 import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
@@ -297,13 +297,13 @@ export function NoteEditorLoader({
 
   if (status.kind === 'loading')
     return (
-      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <PageRegion>
         <LoadingState shape="note" label="The note is loading." />
-      </section>
+      </PageRegion>
     );
   if (status.kind === 'unknown')
     return (
-      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <PageRegion>
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note not found
         </h1>
@@ -314,11 +314,11 @@ export function NoteEditorLoader({
         <p>
           <Link to={`/w/${workspaceId}`}>Back to your notes.</Link>
         </p>
-      </section>
+      </PageRegion>
     );
   if (status.kind === 'purged')
     return (
-      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <PageRegion>
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note deleted permanently
         </h1>
@@ -329,11 +329,11 @@ export function NoteEditorLoader({
         <p>
           <Link to={`/w/${workspaceId}`}>Back to your notes.</Link>
         </p>
-      </section>
+      </PageRegion>
     );
   if (status.kind === 'deleted')
     return (
-      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <PageRegion>
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note deleted on this device
         </h1>
@@ -344,22 +344,22 @@ export function NoteEditorLoader({
         <p>
           <Link to={`/w/${workspaceId}/trash`}>Open Trash.</Link>
         </p>
-      </section>
+      </PageRegion>
     );
   if (status.kind === 'unavailable')
     return (
-      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <PageRegion>
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note unavailable
         </h1>
         <p className="text-control text-danger" role="alert">
           {status.message}
         </p>
-      </section>
+      </PageRegion>
     );
   if (store === null)
     return (
-      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+      <PageRegion>
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           {displayNoteName(status.path)}
         </h1>
@@ -370,7 +370,7 @@ export function NoteEditorLoader({
         <pre className="overflow-x-auto rounded-lg border border-edge-subtle bg-card p-3 text-control">
           {status.text}
         </pre>
-      </section>
+      </PageRegion>
     );
 
   const activeStore = store;

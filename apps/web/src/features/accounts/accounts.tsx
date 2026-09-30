@@ -18,6 +18,7 @@
  * `app.tsx`.
  */
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -99,6 +100,11 @@ import {
 import { downloadAll, importAll } from '../export/export.ts';
 import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import {
+  sectionOf,
+  settingsSections,
+  type SettingsSectionKey,
+} from '../../lib/page-sections.ts';
 import { useNow } from '../../shell/now.ts';
 
 /** The title of the settings page, which is also its breadcrumb part. */
@@ -595,16 +601,17 @@ function FamilySwatch({ familyId }: { readonly familyId: string }): ReactNode {
  * because a person counts the sections of a list they scroll (decision 0063).
  */
 function SettingsSection({
-  title,
-  titleId,
+  section,
   description,
   children,
 }: {
-  readonly title: string;
-  readonly titleId: string;
+  readonly section: SettingsSectionKey;
   readonly description?: string | undefined;
   readonly children: ReactNode;
 }): ReactNode {
+  // The title and the heading come from the list that the side region of the
+  // page reads, so the two cannot disagree (decision 0137).
+  const { id: titleId, title } = sectionOf(settingsSections, section);
   return (
     <section
       className="border-t border-edge-subtle py-6"
@@ -644,8 +651,7 @@ export function ThemeSettings(): ReactNode {
   const theme = useTheme();
   return (
     <SettingsSection
-      title="Appearance"
-      titleId="theme-heading"
+      section="appearance"
       description="System follows the device. The choice applies at once on this device and goes to your account in the background."
     >
       <fieldset className="m-0 border-0 p-0">
@@ -764,8 +770,7 @@ function SpellCheckSettings(): ReactNode {
 
   return (
     <SettingsSection
-      title="Spelling"
-      titleId="spelling-heading"
+      section="spelling"
       description="Your browser marks the words that it does not know in a note. It does not check code or addresses. The settings of your browser choose the languages."
     >
       <Checkbox
@@ -994,8 +999,7 @@ function SessionsSettings(): ReactNode {
 
   return (
     <SettingsSection
-      title="Sessions"
-      titleId="sessions-heading"
+      section="sessions"
       description="These devices are signed in to your account. Sign out a device that you do not use or do not know."
     >
       {notice === null ? null : (
@@ -1119,8 +1123,7 @@ function ProfileSettings({
 
   return (
     <SettingsSection
-      title="Profile"
-      titleId="profile-heading"
+      section="profile"
       description="Your name appears with your account. Use your email address to sign in."
     >
       <form
@@ -1246,220 +1249,225 @@ export function AccountSettingsPage(): ReactNode {
       });
   }
 
-  return (
-    <Page>
-      <PageHeader title={settingsTitle} />
-      <div>
-        <ProfileSettings name={account.name} email={account.email} />
-
-        <ThemeSettings />
-
-        <SpellCheckSettings />
-
-        <SettingsSection
-          title="Daily notes"
-          titleId="daily-notes-heading"
-          description="Each day has one note, and the calendar in the sidebar opens it. These settings apply to this workspace and follow you to every device."
-        >
-          <DailyNoteSettingsFields />
-        </SettingsSection>
-
-        <SettingsSection
-          title="Available offline"
-          titleId="offline-heading"
-          description="Your notes are always kept on this device. Images and older versions take more space, so you choose whether to keep them too."
-        >
-          {offline.status === 'failed' ? (
-            <Notice
-              tone="problem"
-              message="This device cannot say what it keeps offline. Open Settings again to read it."
-            />
-          ) : offline.status === 'loading' ? (
-            // A choice that nothing has read yet is not a choice that is off
-            // (record 0038), and the `Checkbox` primitive states no waiting
-            // state, so the section shows the shape of the two rows instead.
-            <LoadingState
-              shape="list"
-              rows={2}
-              label="What this device keeps offline is loading."
-            />
-          ) : (
-            <div className="flex flex-col">
-              <Checkbox
-                id="offline-images"
-                label="Keep images on this device"
-                checked={offline.choices.images}
-                onChange={(keep) => {
-                  offline.setChoice('images', keep);
-                }}
-              />
-              <Checkbox
-                id="offline-history"
-                label="Keep older versions on this device"
-                checked={offline.choices.history}
-                onChange={(keep) => {
-                  offline.setChoice('history', keep);
-                }}
-              />
-            </div>
-          )}
-        </SettingsSection>
-
-        <SettingsSection
-          title="Export"
-          titleId="export-heading"
-          description="Download every note and image as a zip. The files keep their folders and need no application to be read again."
-        >
-          {exportError === '' ? null : (
-            <Notice className="mb-3" tone="problem" message={exportError} />
-          )}
-          <Button
-            variant="secondary"
-            icon={<DownloadIcon />}
-            disabled={exporting || workspaceId === null}
-            onClick={() => {
-              if (workspaceId === null) return;
-              setExportError('');
-              setExporting(true);
-              void downloadAll(workspaceId)
-                .catch((failure: unknown) => {
-                  setExportError(problemMessage(failure));
-                })
-                .finally(() => {
-                  setExporting(false);
-                });
-            }}
-          >
-            {exporting ? 'Preparing the download' : 'Export all notes'}
-          </Button>
-        </SettingsSection>
-
-        <SettingsSection
-          title="Import"
-          titleId="import-heading"
-          description="Import a zip of Markdown files and images. The files keep their paths and links."
-        >
-          {importNotice === '' ? null : (
-            <Notice className="mb-3" tone="info" message={importNotice} />
-          )}
-          <input
-            ref={importInput}
-            className="sr-only"
-            type="file"
-            accept=".zip,application/zip"
-            aria-label="Choose a workspace zip archive"
-            onChange={(event): void => {
-              const file = event.target.files?.[0];
-              if (file === undefined || workspaceId === null) return;
-              setImporting(true);
-              setImportNotice('');
-              void importAll(workspaceId, file)
-                .then((result) => {
-                  setImportNotice(
-                    `Imported ${String(result.notes)} ${result.notes === 1 ? 'note' : 'notes'} and ${String(result.attachments)} ${result.attachments === 1 ? 'image' : 'images'}.`,
-                  );
-                  requestSync();
-                })
-                .catch((failure: unknown) => {
-                  setImportNotice(problemMessage(failure));
-                })
-                .finally(() => {
-                  setImporting(false);
-                  event.target.value = '';
-                });
-            }}
+  // Each section renders in the order of the list that the side region reads,
+  // and the type holds one body for each name of the list (decision 0137).
+  const sectionBodies: Record<SettingsSectionKey, ReactNode> = {
+    profile: <ProfileSettings name={account.name} email={account.email} />,
+    appearance: <ThemeSettings />,
+    spelling: <SpellCheckSettings />,
+    'daily-notes': (
+      <SettingsSection
+        section="daily-notes"
+        description="Each day has one note, and the calendar in the sidebar opens it. These settings apply to this workspace and follow you to every device."
+      >
+        <DailyNoteSettingsFields />
+      </SettingsSection>
+    ),
+    offline: (
+      <SettingsSection
+        section="offline"
+        description="Your notes are always kept on this device. Images and older versions take more space, so you choose whether to keep them too."
+      >
+        {offline.status === 'failed' ? (
+          <Notice
+            tone="problem"
+            message="This device cannot say what it keeps offline. Open Settings again to read it."
           />
+        ) : offline.status === 'loading' ? (
+          // A choice that nothing has read yet is not a choice that is off
+          // (record 0038), and the `Checkbox` primitive states no waiting
+          // state, so the section shows the shape of the two rows instead.
+          <LoadingState
+            shape="list"
+            rows={2}
+            label="What this device keeps offline is loading."
+          />
+        ) : (
+          <div className="flex flex-col">
+            <Checkbox
+              id="offline-images"
+              label="Keep images on this device"
+              checked={offline.choices.images}
+              onChange={(keep) => {
+                offline.setChoice('images', keep);
+              }}
+            />
+            <Checkbox
+              id="offline-history"
+              label="Keep older versions on this device"
+              checked={offline.choices.history}
+              onChange={(keep) => {
+                offline.setChoice('history', keep);
+              }}
+            />
+          </div>
+        )}
+      </SettingsSection>
+    ),
+    export: (
+      <SettingsSection
+        section="export"
+        description="Download every note and image as a zip. The files keep their folders and need no application to be read again."
+      >
+        {exportError === '' ? null : (
+          <Notice className="mb-3" tone="problem" message={exportError} />
+        )}
+        <Button
+          variant="secondary"
+          icon={<DownloadIcon />}
+          disabled={exporting || workspaceId === null}
+          onClick={() => {
+            if (workspaceId === null) return;
+            setExportError('');
+            setExporting(true);
+            void downloadAll(workspaceId)
+              .catch((failure: unknown) => {
+                setExportError(problemMessage(failure));
+              })
+              .finally(() => {
+                setExporting(false);
+              });
+          }}
+        >
+          {exporting ? 'Preparing the download' : 'Export all notes'}
+        </Button>
+      </SettingsSection>
+    ),
+    import: (
+      <SettingsSection
+        section="import"
+        description="Import a zip of Markdown files and images. The files keep their paths and links."
+      >
+        {importNotice === '' ? null : (
+          <Notice className="mb-3" tone="info" message={importNotice} />
+        )}
+        <input
+          ref={importInput}
+          className="sr-only"
+          type="file"
+          accept=".zip,application/zip"
+          aria-label="Choose a workspace zip archive"
+          onChange={(event): void => {
+            const file = event.target.files?.[0];
+            if (file === undefined || workspaceId === null) return;
+            setImporting(true);
+            setImportNotice('');
+            void importAll(workspaceId, file)
+              .then((result) => {
+                setImportNotice(
+                  `Imported ${String(result.notes)} ${result.notes === 1 ? 'note' : 'notes'} and ${String(result.attachments)} ${result.attachments === 1 ? 'image' : 'images'}.`,
+                );
+                requestSync();
+              })
+              .catch((failure: unknown) => {
+                setImportNotice(problemMessage(failure));
+              })
+              .finally(() => {
+                setImporting(false);
+                event.target.value = '';
+              });
+          }}
+        />
+        <Button
+          variant="secondary"
+          icon={<UploadIcon />}
+          disabled={importing || workspaceId === null}
+          onClick={() => importInput.current?.click()}
+        >
+          {importing ? 'Importing files' : 'Import workspace'}
+        </Button>
+      </SettingsSection>
+    ),
+    account: (
+      <SettingsSection
+        section="account"
+        description="Your account owns every note in your workspaces. No other account can read them."
+      >
+        {storageLine(account.storage) === '' ? null : (
+          <p className="mb-0 mt-1 text-control text-muted">
+            {storageLine(account.storage)}
+          </p>
+        )}
+        {account.installationRole === 'administrator' &&
+        workspaceId !== null ? (
+          <Link
+            className={`mt-3 ${buttonClassName({ variant: 'secondary' })}`}
+            to={`/w/${workspaceId}/accounts`}
+          >
+            <span className="inline-flex items-center" aria-hidden="true">
+              <UsersIcon />
+            </span>
+            <span>Manage accounts</span>
+          </Link>
+        ) : null}
+      </SettingsSection>
+    ),
+    sessions: <SessionsSettings />,
+    'sign-out': (
+      <SettingsSection
+        section="sign-out"
+        description={
+          pending.kind === 'loading'
+            ? undefined
+            : unsent
+              ? 'Some saves have not reached the server yet. Keep them on this device for the next sign-in, or remove them now.'
+              : pending.kind === 'failed'
+                ? 'This device cannot say what is still waiting to reach the server. Sign out keeps your work on this device.'
+                : 'Every save on this device reached the server.'
+        }
+      >
+        {signOutError === '' ? null : (
+          <Notice className="mb-3" tone="problem" message={signOutError} />
+        )}
+        <div className="flex flex-wrap gap-cluster">
           <Button
             variant="secondary"
-            icon={<UploadIcon />}
-            disabled={importing || workspaceId === null}
-            onClick={() => importInput.current?.click()}
+            icon={<SignOutIcon />}
+            onClick={() => {
+              endSignOut(false);
+            }}
           >
-            {importing ? 'Importing files' : 'Import workspace'}
+            {unsent ? 'Sign out and keep them' : 'Sign out on this device'}
           </Button>
-        </SettingsSection>
-
-        <SettingsSection
-          title="Account"
-          titleId="account-heading"
-          description="Your account owns every note in your workspaces. No other account can read them."
-        >
-          {storageLine(account.storage) === '' ? null : (
-            <p className="mb-0 mt-1 text-control text-muted">
-              {storageLine(account.storage)}
-            </p>
-          )}
-          {account.installationRole === 'administrator' &&
-          workspaceId !== null ? (
-            <Link
-              className={`mt-3 ${buttonClassName({ variant: 'secondary' })}`}
-              to={`/w/${workspaceId}/accounts`}
-            >
-              <span className="inline-flex items-center" aria-hidden="true">
-                <UsersIcon />
-              </span>
-              <span>Manage accounts</span>
-            </Link>
-          ) : null}
-        </SettingsSection>
-
-        <SessionsSettings />
-
-        <SettingsSection
-          title="Sign out"
-          titleId="signout-heading"
-          description={
-            pending.kind === 'loading'
-              ? undefined
-              : unsent
-                ? 'Some saves have not reached the server yet. Keep them on this device for the next sign-in, or remove them now.'
-                : pending.kind === 'failed'
-                  ? 'This device cannot say what is still waiting to reach the server. Sign out keeps your work on this device.'
-                  : 'Every save on this device reached the server.'
-          }
-        >
-          {signOutError === '' ? null : (
-            <Notice className="mb-3" tone="problem" message={signOutError} />
-          )}
-          <div className="flex flex-wrap gap-cluster">
+          {unsent ? (
             <Button
-              variant="secondary"
-              icon={<SignOutIcon />}
+              variant="danger"
               onClick={() => {
-                endSignOut(false);
+                endSignOut(true);
               }}
             >
-              {unsent ? 'Sign out and keep them' : 'Sign out on this device'}
+              Sign out and remove them
             </Button>
-            {unsent ? (
-              <Button
-                variant="danger"
-                onClick={() => {
-                  endSignOut(true);
-                }}
-              >
-                Sign out and remove them
-              </Button>
-            ) : null}
-          </div>
-        </SettingsSection>
-
-        <SettingsSection
-          title="Remove account"
-          titleId="remove-account-heading"
-          description="This removes your account and every note in your workspaces for good. Export your notes first if you want to keep them."
+          ) : null}
+        </div>
+      </SettingsSection>
+    ),
+    'remove-account': (
+      <SettingsSection
+        section="remove-account"
+        description="This removes your account and every note in your workspaces for good. Export your notes first if you want to keep them."
+      >
+        <Button
+          variant="secondary"
+          tone="danger"
+          icon={<TrashIcon />}
+          onClick={() => {
+            setRemoving(true);
+          }}
         >
-          <Button
-            variant="secondary"
-            tone="danger"
-            icon={<TrashIcon />}
-            onClick={() => {
-              setRemoving(true);
-            }}
-          >
-            Remove my account
-          </Button>
-        </SettingsSection>
+          Remove my account
+        </Button>
+      </SettingsSection>
+    ),
+  };
+
+  return (
+    <Page sections={settingsSections}>
+      <PageHeader title={settingsTitle} />
+      <div>
+        {settingsSections.map((section) => (
+          <Fragment key={section.key}>{sectionBodies[section.key]}</Fragment>
+        ))}
       </div>
       {removing ? (
         <RemoveOwnAccountDialog

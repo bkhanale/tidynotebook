@@ -168,6 +168,7 @@ and needs no record.
 | [0134](0134-a-task-box-keeps-one-state-through-a-merge.md)                         | A task box keeps one state through a merge                                      |
 | [0135](0135-an-identity-is-keyed-by-its-provider-and-its-account.md)               | An identity is keyed by its provider and its account                            |
 | [0136](0136-the-initial-javascript-budget-follows-the-inequality-gap.md)           | The initial JavaScript budget follows the inequality gap                        |
+| [0137](0137-every-page-shares-the-note-column-and-its-side-region.md)              | Every page shares the note column and its side region                           |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -528,3 +529,8 @@ It refines the identity schema of design 015.
 Record 0136 takes the initial JavaScript budget from the 3-second budget of
 The Performance Inequality Gap, 2026, because the round figure before it had
 no source.
+
+Record 0137 gives every page the column of the note measure and the side
+region of the note, because the column moved and changed its width between
+a note and a page. A page of two or more sections lists them in the region.
+It refines records 0055 and 0091.

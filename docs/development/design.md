@@ -61,10 +61,10 @@ Radius: `rounded-sm` for a keyboard hint and a task box, `rounded-md` for a
 control and a row, `rounded-lg` for a card, a menu, a toast and a code block,
 `rounded-xl` for a dialog, `rounded-full` for an avatar alone.
 
-Space comes from the four named steps of the layout scale, `gutter`,
-`gutter-wide`, `cluster` and `group`, plus the numeric scale inside one control.
-`pageGutter` in `packages/ui/src/layout.tsx` is the one distance from the screen
-edge to the content.
+Space comes from the named steps `gutter`, `gutter-wide`, `cluster` and
+`group`, plus the numeric scale inside one control. `pageGutter` in
+`packages/ui/src/layout.tsx` is the one distance from the screen edge to the
+content. Every page is the note column and a side region (record 0137).
 
 ## Controls
 

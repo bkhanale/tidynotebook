@@ -25,11 +25,18 @@
  * and
  * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { rowClassName } from './control-classes.ts';
+import { CollapsibleSection } from './controls.tsx';
 import {
+  currentPageSection,
+  pageColumnClassName,
   pageHeaderActionsClassName,
+  pageRowClassName,
+  pageSectionsShown,
+  pageSideClassName,
   type PageHeaderActionLayout,
+  type PageSection,
 } from './layout-classes.ts';
 
 /**
@@ -41,31 +48,182 @@ import {
  */
 export const pageGutter = 'px-gutter sm:px-gutter-wide';
 
-/** How wide the reading column of a screen is. */
-export type PageWidth = 'reading' | 'wide';
-
 /**
  * The frame of one route.
  *
  * The page owns the `main` landmark, so a route renders exactly one of them
  * and a child state returns a section instead of a second landmark.
+ *
+ * Every page is the one row of decision 0137: the column of the note measure
+ * and the side region to its right. The page takes no width of its own, so
+ * the column stays where it is when a person moves from one page to another.
+ * A page of two or more sections passes them in `sections`, in page order,
+ * and the side region lists them. The page renders its sections from the same
+ * list, so the two cannot disagree.
  */
 export function Page({
   children,
-  width = 'reading',
-  className,
+  sections = [],
 }: {
   readonly children: ReactNode;
-  readonly width?: PageWidth | undefined;
-  readonly className?: string | undefined;
+  readonly sections?: readonly PageSection[] | undefined;
 }): ReactNode {
-  const measure = width === 'wide' ? 'max-w-5xl' : 'max-w-3xl';
   return (
-    <main
-      className={`mx-auto w-full ${measure} ${pageGutter} py-6 ${className ?? ''}`}
-    >
-      {children}
+    <main className={`${pageRowClassName()} ${pageGutter}`}>
+      <div className={`${pageColumnClassName()} py-6`}>{children}</div>
+      <PageSide sections={sections} />
     </main>
+  );
+}
+
+/**
+ * The frame of one state inside a route that already owns `main`.
+ *
+ * The note screen owns its landmark and its own scrolling, so a state that it
+ * shows before the editor opens, such as a wait or a note that is gone, takes
+ * this frame. It is the row of `Page` with no landmark and no list.
+ */
+export function PageRegion({
+  children,
+}: {
+  readonly children: ReactNode;
+}): ReactNode {
+  return (
+    <div className={`${pageRowClassName()} ${pageGutter}`}>
+      <div className={`${pageColumnClassName()} py-6`}>{children}</div>
+      <div className={pageSideClassName()} />
+    </div>
+  );
+}
+
+/**
+ * The side region of a page.
+ *
+ * It keeps its width when it lists nothing, so the column does not move. It
+ * stays in view while the page scrolls, and its first row lines up with the
+ * page title.
+ */
+function PageSide({
+  sections,
+}: {
+  readonly sections: readonly PageSection[];
+}): ReactNode {
+  if (!pageSectionsShown(sections))
+    return <div className={pageSideClassName()} />;
+  return (
+    <aside
+      className={`${pageSideClassName()} sticky top-0 self-start pb-6 pt-4`}
+      aria-label="Sections of this page"
+    >
+      <PageSections sections={sections} />
+    </aside>
+  );
+}
+
+/** The element that a row of the list brings into view. */
+function sectionTarget(id: string): HTMLElement | null {
+  const heading = document.getElementById(id);
+  if (heading === null) return null;
+  return heading.closest('section') ?? heading;
+}
+
+/** The nearest ancestor that scrolls, where the page sits. */
+function scrollerOf(element: HTMLElement): HTMLElement | null {
+  for (
+    let parent = element.parentElement;
+    parent !== null;
+    parent = parent.parentElement
+  ) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if (overflow === 'auto' || overflow === 'scroll') return parent;
+  }
+  return null;
+}
+
+/**
+ * The list of the sections of a page, with the section in view marked.
+ *
+ * It is the outline of a page, so it takes the section and the rows of the
+ * note outline. A row brings its section to the top and marks it at once. The
+ * next scroll of the person moves the mark again, from the rule of
+ * `currentPageSection`.
+ */
+function PageSections({
+  sections,
+}: {
+  readonly sections: readonly PageSection[];
+}): ReactNode {
+  const [open, setOpen] = useState(true);
+  const [current, setCurrent] = useState<string | null>(null);
+  // The scroll that a row starts ends on its own section, which the rule of
+  // the line cannot always reach, so that one scroll keeps the chosen row.
+  const chosen = useRef<string | null>(null);
+  // The effect reads the sections again only when the list itself changes,
+  // and not for each new array with the same rows.
+  const ids = sections.map((section) => section.id).join('\n');
+  useEffect(() => {
+    const order = ids.split('\n');
+    const first = sectionTarget(order[0] ?? '');
+    const scroller = first === null ? null : scrollerOf(first);
+    if (scroller === null) return;
+    const read = (): void => {
+      if (chosen.current !== null) {
+        setCurrent(chosen.current);
+        chosen.current = null;
+        return;
+      }
+      const origin = scroller.getBoundingClientRect().top;
+      const tops = order.flatMap((id) => {
+        const target = sectionTarget(id);
+        return target === null
+          ? []
+          : [{ id, top: target.getBoundingClientRect().top - origin }];
+      });
+      const atEnd =
+        scroller.scrollTop > 0 &&
+        scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+      setCurrent(currentPageSection(tops, atEnd));
+    };
+    read();
+    scroller.addEventListener('scroll', read, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', read);
+    };
+  }, [ids]);
+  return (
+    <CollapsibleSection
+      id="page-sections"
+      title="On this page"
+      open={open}
+      onToggle={setOpen}
+    >
+      <ol className="m-0 list-none p-0">
+        {sections.map((section) => {
+          const marked = section.id === current;
+          return (
+            <li key={section.id}>
+              <button
+                type="button"
+                className={rowClassName({
+                  current: marked,
+                  className: 'w-full text-left',
+                })}
+                aria-current={marked ? 'location' : undefined}
+                onClick={(): void => {
+                  const target = sectionTarget(section.id);
+                  if (target === null) return;
+                  chosen.current = section.id;
+                  setCurrent(section.id);
+                  target.scrollIntoView({ block: 'start' });
+                }}
+              >
+                <span className="min-w-0 flex-1 truncate">{section.title}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </CollapsibleSection>
   );
 }
 

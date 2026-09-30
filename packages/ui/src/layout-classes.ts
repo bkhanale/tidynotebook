@@ -11,3 +11,78 @@ export function pageHeaderActionsClassName(
     ? 'flex w-full items-center justify-between gap-group'
     : 'flex shrink-0 items-center gap-cluster';
 }
+
+/**
+ * The row of every page: the column and the side region to its right.
+ *
+ * `Page`, `PageRegion`, the frame notices and the note screen read this row,
+ * the column and the region below, so the column has one place and one width
+ * on every page and a move between two pages does not move it. See
+ * [decision 0137](../../../docs/decisions/0137-every-page-shares-the-note-column-and-its-side-region.md).
+ */
+export function pageRowClassName(): string {
+  return 'flex min-w-0 gap-6';
+}
+
+/**
+ * The column of a page: the note measure, centred in the space it owns.
+ *
+ * The column grows to the measure and the auto margins take the rest, so the
+ * column of a page and the column of the note share one centre (0055).
+ */
+export function pageColumnClassName(): string {
+  return 'mx-auto min-w-0 max-w-note flex-1';
+}
+
+/**
+ * The side region to the right of the column.
+ *
+ * One width on every page, and only from the extra large width up, which is
+ * the first width where the note measure and the region both fit (0055). A
+ * page that shows nothing in it keeps the space.
+ */
+export function pageSideClassName(): string {
+  return 'hidden w-56 shrink-0 flex-col xl:flex';
+}
+
+/** One section that the side region of a page lists. */
+export type PageSection = {
+  /** The identifier of the heading of the section. */
+  readonly id: string;
+  /** The title of the section, as its heading reads. */
+  readonly title: string;
+};
+
+/**
+ * Whether a page lists its sections in the side region.
+ *
+ * A list of one row does not help a person move, so a page lists its sections
+ * only when it has two or more.
+ */
+export function pageSectionsShown(sections: readonly PageSection[]): boolean {
+  return sections.length >= 2;
+}
+
+/** How far below the top of the scroller a section counts as in view. */
+export const pageSectionLine = 32;
+
+/**
+ * The section that a person reads now.
+ *
+ * `tops` are the tops of the sections in page order, in pixels from the top
+ * of the scroller. The current section is the last one whose top has passed
+ * the line, and the first one before any has. At the end of the scroll the
+ * last section is current, because a short last section never reaches the
+ * line.
+ */
+export function currentPageSection(
+  tops: readonly { readonly id: string; readonly top: number }[],
+  atEnd: boolean,
+): string | null {
+  if (tops.length === 0) return null;
+  if (atEnd) return tops[tops.length - 1]?.id ?? null;
+  let current = tops[0]?.id ?? null;
+  for (const section of tops)
+    if (section.top <= pageSectionLine) current = section.id;
+  return current;
+}
