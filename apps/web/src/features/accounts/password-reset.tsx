@@ -56,9 +56,9 @@ export function ForgotPasswordPage(): ReactNode {
     return (
       <AuthFrame title="Open the link in your mail">
         <p className="mb-5 mt-0 text-control text-muted">
-          If {sentTo} has an account, a message with a link goes to it. Open
-          the link within 1 hour to choose a new password. If no message
-          comes, look in your spam folder, or ask again in a few minutes.
+          If {sentTo} has an account, a message with a link goes to it. Open the
+          link within 1 hour to choose a new password. If no message comes, look
+          in your spam folder, or ask again in a few minutes.
         </p>
         <Link className={buttonClassName({ variant: 'secondary' })} to="/login">
           Go to sign in

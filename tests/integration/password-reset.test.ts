@@ -190,7 +190,10 @@ async function askReset(email: string): Promise<{
   status: number;
   body: unknown;
 }> {
-  const asked = await requestPasswordReset({ headers: origin, body: { email } });
+  const asked = await requestPasswordReset({
+    headers: origin,
+    body: { email },
+  });
   return { status: responseOf(asked.response).status, body: asked.data };
 }
 
@@ -225,7 +228,10 @@ await test('a reset link opens the application and replaces the password', async
   // The owner of the address learns that the password changed.
   await until(() => mailsTo(person.email).length === before + 2);
   const notice = mailsTo(person.email).at(-1);
-  assert.equal(notice?.subject, 'Your password on NotesApp at 127.0.0.1 changed');
+  assert.equal(
+    notice?.subject,
+    'Your password on NotesApp at 127.0.0.1 changed',
+  );
   assert.ok(
     notice?.text.split('\n').includes('http://127.0.0.1/forgot-password'),
   );
@@ -259,8 +265,13 @@ await test('one address takes at most three reset messages in an hour', async ()
     const statuses: number[] = [];
     for (let index = 0; index < 6; index += 1)
       statuses.push(
-        (await askResetOf(served, person.email, `192.0.2.${String(10 + index)}`))
-          .status,
+        (
+          await askResetOf(
+            served,
+            person.email,
+            `192.0.2.${String(10 + index)}`,
+          )
+        ).status,
       );
     return statuses;
   });

@@ -536,7 +536,10 @@ await test('a legal file is read once, and an unfinished one stops the start', a
     const terms = join(directory, 'terms.md');
     const privacy = join(directory, 'privacy.md');
     await writeFile(terms, '# Terms\n\nRun by Example Ltd.\n');
-    await writeFile(privacy, '# Privacy notice\n\nWrite to {{contact address}}.\n');
+    await writeFile(
+      privacy,
+      '# Privacy notice\n\nWrite to {{contact address}}.\n',
+    );
     assert.deepEqual(
       await loadLegalTexts({ legalFiles: { terms, privacy: null } }),
       { terms: '# Terms\n\nRun by Example Ltd.\n', privacy: null },
