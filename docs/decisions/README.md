@@ -173,6 +173,7 @@ and needs no record.
 | [0139](0139-the-breadcrumb-names-the-way-to-a-page-and-the-heading-names-the-page.md) | The breadcrumb names the way to a page, and the heading names the page          |
 | [0140](0140-the-installation-serves-the-legal-documents-that-its-operator-writes.md)  | The installation serves the legal documents that its operator writes            |
 | [0141](0141-a-person-resets-a-password-in-the-application.md)                         | A person resets a password in the application                                   |
+| [0142](0142-a-published-formula-keeps-its-layout-in-style-attributes.md)              | A published formula keeps its layout in style attributes                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -554,3 +555,8 @@ refuses while a blank is left. It refines record 0120. Record 0141 gives a
 person a reset of the password in the application, writes every message of
 the server in one module, and puts every message that a stranger can cause
 under one budget for each address.
+
+Record 0142 lets the style attributes of a formula apply on the published
+page, because KaTeX places each row and each script with one and the page
+refused them all. The math sanitizer stays the one producer of such an
+attribute. It refines records 0031 and 0060.
