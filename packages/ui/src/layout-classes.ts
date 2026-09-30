@@ -123,9 +123,15 @@ export function sectionScrollTop(
  * that inset back, so the text of a row, its buttons and the label of its
  * group line up with the page title and the page actions, and the fill of a
  * hovered row reaches into the gutter (record 0138).
+ *
+ * Rows separate by space and never by a rule. Under touch a row and a button
+ * are both 44 px, so the buttons of two rows would touch: the rows stand the
+ * named close-group distance apart there, the one distance between two
+ * controls. From the medium width up a control is 28 px and a row is no
+ * shorter, so a step of the numeric scale keeps two fills apart.
  */
 export function pageListClassName(): string {
-  return '-mx-2 my-0 list-none p-0';
+  return '-mx-2 my-0 flex list-none flex-col gap-cluster p-0 md:gap-1';
 }
 
 /**

@@ -140,6 +140,16 @@ await test('a list takes back the inset of its rows', () => {
   assert.ok(!list.some((name) => /^(m|mx)-/.test(name)));
 });
 
+await test('the rows of a list keep their controls apart', () => {
+  // Under touch a row and a button are both 44 px, and the Sign out buttons
+  // of two sessions touched. The rows stand the close-group distance apart.
+  const list = pageListClassName().split(' ');
+  assert.ok(list.includes('flex'));
+  assert.ok(list.includes('flex-col'));
+  assert.ok(list.includes('gap-cluster'));
+  assert.ok(list.includes('md:gap-1'));
+});
+
 await test('a group label has no inset of its own', () => {
   const label = pageGroupLabelClassName().split(' ');
   assert.ok(!label.some((name) => /^(p|px|pl|ps)-/.test(name)));

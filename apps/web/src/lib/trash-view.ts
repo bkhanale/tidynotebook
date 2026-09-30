@@ -33,10 +33,10 @@ export type LocalTrashFile = {
 };
 
 /**
- * Rows separate with the named close-group distance and no rule. The list
- * lines its rows up with the page, as every list of a page does (0138).
+ * The list of deleted notes, which is the list of every page (0138): its rows
+ * line up with the page and stand apart by the distance of that list.
  */
-export const trashListClassName = `${pageListClassName()} flex flex-col gap-cluster`;
+export const trashListClassName = pageListClassName();
 
 /**
  * The place of one destructive action and its confirmation.
