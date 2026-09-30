@@ -17,8 +17,9 @@
  *   selection is anywhere inside it.
  * - An inline construct shows its source when the selection touches the
  *   whole construct, so a cursor inside a bold word shows both `**` runs.
- * - A task box stays a checkbox whatever the selection does, and its `- [ ]`
- *   source never comes back on screen. See decision record 0033.
+ * - A bullet and a task box are drawn at every caret. Their source comes back
+ *   only while a range selection covers the marker, and no caret rests in
+ *   them. See decision records 0033 and 0132, and `./list-marker.ts`.
  * - An ordered marker keeps its rendered label while the selection touches
  *   the item text. Its numeric source returns only when the selection touches
  *   the marker itself. See decision record 0092.
@@ -51,6 +52,12 @@ import {
   type AlertTone,
 } from '@notesapp/markdown';
 import { taskToggleAt } from './commands.ts';
+import {
+  drawnAtEveryCaret,
+  listMarkerOf,
+  selectionShowsMarker,
+  type ListMarker,
+} from './list-marker.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
 
 /** One structural fact the preview decorated, in document order. */
@@ -282,14 +289,20 @@ function taskCheckMark(): SVGElement {
  *
  * The widget carries the document position of its own `[ ]`, so a click
  * toggles the task it belongs to and never the task of the current
- * selection. A pointer, a touch, and the keyboard all reach the same
- * command.
+ * selection.
  *
  * The box is a drawn control (record 0033): the native box paints the accent
  * of the operating system and nothing in the palette reaches it, so the
  * appearance is removed and `editor-theme.ts` draws the box and its mark from
  * the theme. The input itself stays, so the role, the state, the tab order
  * and the read only state all come from the platform.
+ *
+ * The box owns its events (record 0132). The editor ignores every event
+ * inside it, so a press never starts a selection or moves the caret. The
+ * toggle runs on `click`, which the platform fires for a pointer click, for a
+ * tap, and for Space on the focused box, and never for a touch that becomes a
+ * scroll. The shell around the input takes the click, because its hit area is
+ * larger than the drawn box.
  */
 class TaskCheckboxWidget extends WidgetType {
   readonly position: number;
@@ -306,7 +319,7 @@ class TaskCheckboxWidget extends WidgetType {
   }
 
   override ignoreEvent(): boolean {
-    return false;
+    return true;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -319,20 +332,33 @@ class TaskCheckboxWidget extends WidgetType {
       this.checked ? 'Task done' : 'Task not done',
     );
     box.disabled = view.state.readOnly;
-    const toggle = (event: Event): void => {
-      event.preventDefault();
+    const toggle = (): void => {
+      if (view.state.readOnly) return;
       const spec = taskToggleAt(view.state, this.position);
       if (spec === null) return;
       view.dispatch(view.state.update(spec));
     };
-    box.addEventListener('mousedown', toggle);
-    box.addEventListener('touchstart', toggle, { passive: false });
-    box.addEventListener('keydown', (event: KeyboardEvent): void => {
-      if (event.key === ' ' || event.key === 'Enter') toggle(event);
-    });
     const shell = document.createElement('span');
     shell.className = 'cm-np-task-box';
     shell.append(box, taskCheckMark());
+    // A press keeps the focus and the caret where they are, so a tap on the
+    // box of a phone opens no keyboard and puts no caret beside the box.
+    shell.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+    });
+    // The document holds the state, so the platform never flips the input
+    // itself. The new state arrives as a new widget.
+    shell.addEventListener('click', (event) => {
+      event.preventDefault();
+      toggle();
+    });
+    // Enter does not click a checkbox, and a person expects it to act on the
+    // focused box. Space already clicks it.
+    box.addEventListener('keydown', (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      toggle();
+    });
     return shell;
   }
 }
@@ -617,18 +643,10 @@ export function buildPreview(
    * inside an item keeps the leading cell that `tableLeadMark` gives it.
    */
   const hangingIndent = (item: SyntaxNode): void => {
-    const listMark = item.getChild('ListMark');
-    if (listMark === null) return;
-    const line = doc.lineAt(listMark.from);
-    const taskMarker = item.getChild('Task')?.getChild('TaskMarker') ?? null;
-    const marker = taskMarker !== null ? taskMarker.to : listMark.to;
-    if (marker > line.to) return;
-    let content = marker;
-    while (
-      content < line.to &&
-      /[ \t]/.test(doc.sliceString(content, content + 1))
-    )
-      content += 1;
+    const marker = listMarkerOf(state, item);
+    if (marker === null) return;
+    const line = doc.lineAt(marker.lineFrom);
+    const content = marker.contentFrom;
     lineClass(line.from, line.from, 'cm-np-list-line');
     // A drawn marker at the start of the line starts where the lead starts.
     // A mark that is not inclusive at its start sorts after a widget at the
@@ -643,6 +661,22 @@ export function buildPreview(
         }).range(line.from, content),
       );
     mark(content, line.to, 'cm-np-list-body');
+  };
+
+  /**
+   * Whether the selection shows the source of the drawn marker of one item.
+   *
+   * `./list-marker.ts` states the marker, so the range that the preview draws
+   * is the range where no caret rests.
+   */
+  const drawnSource = (item: SyntaxNode | null): boolean => {
+    const marker: ListMarker | null =
+      item === null ? null : listMarkerOf(state, item);
+    return (
+      marker !== null &&
+      drawnAtEveryCaret(marker) &&
+      selectionShowsMarker(marker, selection)
+    );
   };
 
   /** The values of the ordered items this build met, by item start. */
@@ -912,15 +946,16 @@ export function buildPreview(
         );
         return false;
       }
-      // The bullet of a task item is the stem of its box. The box stays a box
-      // while the line is edited, so the bullet stays hidden with it and the
-      // item never grows a second marker under the caret.
-      if (item !== null && item.getChild('Task') !== null) {
-        hide(node.from, node.to);
+      // A bullet is drawn at every caret, and its source comes back only
+      // while a range covers the marker (record 0132).
+      if (drawnSource(item)) {
+        dim(node.from, node.to);
         return false;
       }
-      if (touchesLines(node.from, node.to)) {
-        dim(node.from, node.to);
+      // The bullet of a task item is the stem of its box, so it hides with
+      // the box and the item never grows a second marker.
+      if (item !== null && item.getChild('Task') !== null) {
+        hide(node.from, node.to);
         return false;
       }
       items.push(
@@ -943,10 +978,14 @@ export function buildPreview(
 
     if (name === 'TaskMarker') {
       const checked = /[xX]/.test(doc.sliceString(node.from + 1, node.to - 1));
-      // A task box is the one construct that does not follow the reveal rule.
-      // It is a control and not a marker: a person opens the line to write the
-      // item and ticks the box in the same moment, so the box must stay a box
-      // under the caret. See decision record 0033.
+      // A task box is a control and not a marker: a person opens the line to
+      // write the item and ticks the box in the same moment, so the box stays
+      // a box under the caret (record 0033). A range that covers it shows the
+      // source that a copy takes (record 0132).
+      if (drawnSource(node.node.parent?.parent ?? null)) {
+        dim(node.from, node.to);
+        return false;
+      }
       items.push(
         Decoration.replace({
           widget: new TaskCheckboxWidget(node.from, checked),

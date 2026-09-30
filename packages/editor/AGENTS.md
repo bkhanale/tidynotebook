@@ -67,8 +67,8 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 
 - No second Markdown grammar and no second scanner: every decoration and the
   outline come from the Lezer tree.
-- A task box stays a control (0033). An ordered marker reveals its source only
-  when the selection touches it (0092). Other markers follow the reveal rule.
+- A bullet and a task box hold no caret (0033, 0132). An ordered marker shows
+  its source under the selection (0092). Others follow the reveal rule.
 - No widget outside an image, a Mermaid diagram and display math. A table
   stays text; only its model and writer change its rows and columns (0096).
 - No single dollar inline math: use `$$...$$` or `\(...\)`.
@@ -93,6 +93,7 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/table-controls.ts`   | The handles of a table and their drag (0098) |
 | `src/pointer-drag.ts`     | What one pointer event does to a drag (0098) |
 | `src/list-line.ts`        | The marker of one list line, from its text   |
+| `src/list-marker.ts`      | The drawn marker and its caret rule (0132)   |
 | `src/list-move.ts`        | Moves a list item among its siblings (0106)  |
 | `src/list-controls.ts`    | The grip that drags a list item (0106)       |
 | `src/format-context.ts`   | Where the caret stands for the tools (0094)  |

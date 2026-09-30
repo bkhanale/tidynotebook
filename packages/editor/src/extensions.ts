@@ -26,6 +26,7 @@ import { formattingKeymap } from './keymaps.ts';
 import { orderedListNumbering } from './list-numbering.ts';
 import { markdownPaste } from './paste.ts';
 import { listControls } from './list-controls.ts';
+import { listMarkerCaret } from './list-marker.ts';
 import { tableControls } from './table-controls.ts';
 import { tableGridEditing } from './table-grid.ts';
 
@@ -166,6 +167,10 @@ export function editorCommands(): Extension {
     // A table is a grid over its text: the caret stays in a cell, and the
     // edit of a person keeps the pipes of the table (record 0095).
     tableGridEditing(),
+    // A caret never rests in a drawn bullet or task box (record 0132). The
+    // filters run from the last one registered, so this one runs before the
+    // table filter and a caret it moves into a table still lands in a cell.
+    listMarkerCaret(),
     // A table carries a handle for each row and column, which opens its menu
     // and drags it to a new place (records 0097 and 0098).
     tableControls(),

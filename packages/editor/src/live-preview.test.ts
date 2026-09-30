@@ -524,13 +524,53 @@ await test('a task box stays a box while its own line is edited', () => {
   }
 });
 
-await test('a bullet that is not a task still shows its source when edited', () => {
-  // The task box is the one exception to the reveal rule. Every other marker
-  // keeps the rule, so a caret on a plain item shows the `-` it wrote.
+await test('a bullet is drawn at every caret on its line', () => {
+  // Record 0132 draws a bullet the way it draws a task box, so a caret on the
+  // line never turns the dot back into `-`.
   const doc = '- one\n';
-  assert.ok(
-    has(describe(doc, { from: 2, to: 2 }), 'mark', 'cm-np-marker', 0, 1),
-  );
+  for (const caret of [0, 1, 2, 5]) {
+    const found = describe(doc, { from: caret, to: caret });
+    assert.ok(
+      has(found, 'widget', 'BulletWidget', 0, 1),
+      `the caret at ${String(caret)} lost the bullet`,
+    );
+    assert.ok(!has(found, 'mark', 'cm-np-marker', 0, 1));
+  }
+});
+
+await test('a range over a drawn marker shows the source that a copy takes', () => {
+  // The defect this covers: a selection over a task still showed the box, so
+  // what a person saw was not the `- [ ]` that the copy took.
+  const task = 'a\n- [ ] one\n';
+  for (const range of [
+    { from: 0, to: 11 },
+    { from: 7, to: 11 },
+    { from: 3, to: 4 },
+  ]) {
+    const found = describe(task, range);
+    assert.ok(
+      !found.some((item) => item.value === 'TaskCheckboxWidget'),
+      `the range ${JSON.stringify(range)} kept the box`,
+    );
+    assert.ok(has(found, 'mark', 'cm-np-marker', 2, 3));
+    assert.ok(has(found, 'mark', 'cm-np-marker', 4, 7));
+  }
+  const bullet = describe('- one\n', { from: 0, to: 5 });
+  assert.ok(has(bullet, 'mark', 'cm-np-marker', 0, 1));
+  assert.ok(!has(bullet, 'widget', 'BulletWidget'));
+});
+
+await test('a range that stops at a drawn marker keeps it drawn', () => {
+  const doc = 'a\n- [ ] one\n';
+  // The text of the item alone, and the line above with its line break.
+  for (const range of [
+    { from: 8, to: 11 },
+    { from: 0, to: 2 },
+  ]) {
+    const found = describe(doc, range);
+    assert.ok(has(found, 'widget', 'TaskCheckboxWidget', 4, 7));
+    assert.ok(has(found, 'hide', '', 2, 3));
+  }
 });
 
 await test('a link says whether a plain click on it opens it', () => {

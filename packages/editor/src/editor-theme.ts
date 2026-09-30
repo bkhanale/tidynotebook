@@ -465,6 +465,15 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       // put the centre of a 16 px box about 2 px under the centre of the
       // word and read as a box that had slipped off the line.
       verticalAlign: 'calc(0.5cap - var(--cm-np-task-size) / 2)',
+      cursor: 'pointer',
+    },
+    // The drawn box is 16 px, which is small for a finger. The shell takes
+    // the click (record 0132), so this layer grows the area that reaches it
+    // to 24 px, the minimum target of WCAG 2.5.8, and the box stays its size.
+    '.cm-np-task-box::after': {
+      content: '""',
+      position: 'absolute',
+      inset: 'calc(var(--spacing) * -1)',
     },
     '.cm-np-task': {
       appearance: 'none',

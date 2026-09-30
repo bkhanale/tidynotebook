@@ -74,10 +74,12 @@ Reveal is per construct, never per marker.
   anywhere inside it.
 - An inline construct shows its source when the selection touches the whole
   construct, so a cursor inside a bold word shows both marker runs.
-- A task box is the one exception. It is a control and not notation, so it
-  stays a checkbox at every selection and its `- [ ]` source never comes back
-  on screen. See
-  [decision 0033](../decisions/0033-a-task-box-is-a-control-not-a-marker.md).
+- A bullet and a task box are drawn at every caret, and no caret rests in
+  them: a tap beside a box puts the caret on the item text. Their source comes
+  back only while a range selection covers the marker, so a person sees what
+  a copy takes. See
+  [decision 0033](../decisions/0033-a-task-box-is-a-control-not-a-marker.md)
+  and [decision 0132](../decisions/0132-a-list-marker-holds-no-caret.md).
 
 A widget exists only where text cannot express the result: an image, a diagram,
 and math. A table stays editable text: each row of the source is one row of a

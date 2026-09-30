@@ -163,6 +163,7 @@ and needs no record.
 | [0129](0129-the-notice-gateway-and-its-bounds.md)                                  | The notice gateway and its bounds                                               |
 | [0130](0130-one-notice-coordinator-per-account-tab.md)                             | One notice coordinator per account in the lease tab                             |
 | [0131](0131-the-notice-stream-always-runs.md)                                      | The notice stream always runs                                                   |
+| [0132](0132-a-list-marker-holds-no-caret.md)                                       | A list marker holds no caret                                                    |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -502,3 +503,8 @@ Record 0131 makes the notice stream run on every deployment, with no
 admission setting and no publishing switch, because the owner chose that on
 2026-09-29. It replaces the switch bullets of records 0125 and 0129, and the
 poll stays as the fallback.
+
+Record 0132 draws a bullet and a task box at every caret, keeps the caret
+out of the marker, and shows the source of a selected marker, the way Notion
+and Obsidian do, because a tap beside a box on a phone put the caret before
+the box. It refines records 0033 and 0025.
