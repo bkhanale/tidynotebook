@@ -22,8 +22,11 @@ import {
   type Transaction,
   type TransactionSpec,
 } from '@codemirror/state';
-import { keymap } from '@codemirror/view';
+import { EditorView, ViewPlugin, keymap } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
+
+/** The class of the shell of a task box, which owns its own events. */
+export const taskBoxClassName = 'cm-np-task-box';
 
 /** Where the marker of one list item stands on its first line. */
 export type ListMarker = {
@@ -97,12 +100,15 @@ export function listMarkerOnLine(
 /**
  * Whether the live preview draws a marker at every caret (record 0132).
  *
- * A task box always is, whatever list holds it. A bullet is. An ordered
- * number is text a person edits, so it keeps record 0092 and a caret reaches
- * it.
+ * A task box always is, whatever list holds it. A bullet is once a space
+ * follows it: CommonMark already reads a lone `-` as an empty item, but a
+ * person who has typed only the `-` has not asked for a list yet, so it stays
+ * the character they typed until the space arrives. An ordered number is text
+ * a person edits, so it keeps record 0092 and a caret reaches it.
  */
 export function drawnAtEveryCaret(marker: ListMarker): boolean {
-  return marker.task !== null || !marker.ordered;
+  if (marker.task !== null) return true;
+  return !marker.ordered && marker.contentFrom > marker.markTo;
 }
 
 /**
@@ -140,13 +146,115 @@ export function markerCaret(
   from: number,
   pointer: boolean,
 ): number {
-  const marker = listMarkerOnLine(state, pos);
-  if (marker === null || !drawnAtEveryCaret(marker)) return pos;
-  if (pos < marker.lineFrom || pos >= marker.contentFrom) return pos;
+  const marker = drawnPrefixAt(state, pos);
+  if (marker === null || pos === marker.contentFrom) return pos;
   if (!pointer && from === marker.contentFrom && marker.lineFrom > 0)
     return marker.lineFrom - 1;
   return marker.contentFrom;
 }
+
+/**
+ * The drawn marker whose prefix holds `pos`, or null.
+ *
+ * The prefix runs from the start of the line to the first character of the
+ * text, both ends included, because a place at either end is a place beside
+ * the drawn marker.
+ */
+export function drawnPrefixAt(
+  state: EditorState,
+  pos: number,
+): ListMarker | null {
+  const marker = listMarkerOnLine(state, pos);
+  if (marker === null || !drawnAtEveryCaret(marker)) return null;
+  if (pos < marker.lineFrom || pos > marker.contentFrom) return null;
+  return marker;
+}
+
+/**
+ * Takes a tap beside a drawn marker from the browser.
+ *
+ * On a touch screen the browser places the caret of a tap itself, and the
+ * editor reads it afterwards. The filter above then moved a caret that the
+ * browser had already drawn to the left of the box, so the caret showed there
+ * and jumped. A tap whose place is in the prefix of a drawn marker is answered
+ * here instead, before the browser acts: the caret goes to the first character
+ * of the text, and the browser draws no caret of its own.
+ *
+ * A touch is a tap until the browser cancels its pointer, which it does when
+ * the touch becomes a scroll or a long press of its own, so no distance or
+ * time is guessed here. The task box takes its own events, so a tap on the box
+ * never reaches this handler.
+ */
+class MarkerTap {
+  /** The touch pointer that can still end as a tap, or null. */
+  private tap: number | null = null;
+  private readonly onPointerDown: (event: PointerEvent) => void;
+  private readonly onPointerCancel: (event: PointerEvent) => void;
+  private readonly onTouchEnd: (event: TouchEvent) => void;
+  private readonly view: EditorView;
+
+  constructor(view: EditorView) {
+    this.view = view;
+    this.onPointerDown = (event): void => {
+      this.tap =
+        event.pointerType === 'touch' && event.isPrimary
+          ? event.pointerId
+          : null;
+    };
+    this.onPointerCancel = (event): void => {
+      if (event.pointerId === this.tap) this.tap = null;
+    };
+    this.onTouchEnd = (event): void => {
+      this.touchEnd(event);
+    };
+    // The whole editor listens, and not only its text: a tap in the margin
+    // to the left of a bullet is outside the text, and the browser still
+    // puts the caret of that tap at the start of the line.
+    view.dom.addEventListener('pointerdown', this.onPointerDown);
+    view.dom.addEventListener('pointercancel', this.onPointerCancel);
+    view.dom.addEventListener('touchend', this.onTouchEnd, { passive: false });
+  }
+
+  destroy(): void {
+    this.view.dom.removeEventListener('pointerdown', this.onPointerDown);
+    this.view.dom.removeEventListener('pointercancel', this.onPointerCancel);
+    this.view.dom.removeEventListener('touchend', this.onTouchEnd);
+  }
+
+  private touchEnd(event: TouchEvent): void {
+    const view = this.view;
+    const tapped = this.tap !== null;
+    this.tap = null;
+    const touch = event.changedTouches[0];
+    if (
+      !tapped ||
+      !event.cancelable ||
+      event.touches.length > 0 ||
+      event.changedTouches.length !== 1 ||
+      touch === undefined
+    )
+      return;
+    // Only a tap on the text or on the margin of the scroller is a tap on a
+    // line. A control that stands in the scroller, and the task box, which
+    // owns its own events, keep their taps.
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!view.contentDOM.contains(target) && target !== view.scrollDOM) return;
+    if (target.closest(`.${taskBoxClassName}`) !== null) return;
+    const pos = view.posAtCoords({ x: touch.clientX, y: touch.clientY });
+    if (pos === null) return;
+    const marker = drawnPrefixAt(view.state, pos);
+    if (marker === null) return;
+    event.preventDefault();
+    view.dispatch({
+      selection: EditorSelection.cursor(marker.contentFrom),
+      userEvent: 'select.pointer',
+    });
+    view.focus();
+  }
+}
+
+const markerTap = ViewPlugin.fromClass(MarkerTap);
 
 /** Holds each caret that a person moves out of a drawn marker. */
 function markerCaretFilter(
@@ -202,6 +310,7 @@ export function stayAtTextStart(target: {
 export function listMarkerCaret(): Extension {
   return [
     EditorState.transactionFilter.of(markerCaretFilter),
+    markerTap,
     // Above the default keymap, which moves Home to the start of the line.
     Prec.high(
       keymap.of([

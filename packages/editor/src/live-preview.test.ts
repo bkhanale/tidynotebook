@@ -538,6 +538,18 @@ await test('a bullet is drawn at every caret on its line', () => {
   }
 });
 
+await test('a bullet is drawn only once a space follows it', () => {
+  // A lone `-` is an empty item to CommonMark, and still the character a
+  // person just typed, so it stays that character until the space arrives.
+  const lone = describe('-\n', { from: 1, to: 1 });
+  assert.ok(!has(lone, 'widget', 'BulletWidget'));
+  assert.ok(!has(lone, 'hide', '', 0, 1));
+  assert.ok(!has(lone, 'mark', 'cm-np-marker', 0, 1));
+  assert.ok(
+    has(describe('- \n', { from: 2, to: 2 }), 'widget', 'BulletWidget', 0, 1),
+  );
+});
+
 await test('a range over a drawn marker shows the source that a copy takes', () => {
   // The defect this covers: a selection over a task still showed the box, so
   // what a person saw was not the `- [ ]` that the copy took.

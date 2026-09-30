@@ -75,7 +75,8 @@ Reveal is per construct, never per marker.
 - An inline construct shows its source when the selection touches the whole
   construct, so a cursor inside a bold word shows both marker runs.
 - A bullet and a task box are drawn at every caret, and no caret rests in
-  them: a tap beside a box puts the caret on the item text. Their source comes
+  them: a tap beside a box puts the caret on the item text. A bullet is drawn
+  once a space follows it. Their source comes
   back only while a range selection covers the marker, so a person sees what
   a copy takes. See
   [decision 0033](../decisions/0033-a-task-box-is-a-control-not-a-marker.md)

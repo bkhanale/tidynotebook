@@ -9,6 +9,7 @@ import test from 'node:test';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { noteMarkdown, parsedWhole } from './language.ts';
 import {
+  drawnPrefixAt,
   listMarkerCaret,
   listMarkerOnLine,
   selectionShowsMarker,
@@ -145,4 +146,22 @@ await test('only a range over the marker shows the marker', () => {
   assert.equal(selectionShowsMarker(marker, { from: 0, to: 2 }), false);
   assert.equal(selectionShowsMarker(marker, { from: 7, to: 11 }), true);
   assert.equal(selectionShowsMarker(marker, { from: 0, to: 11 }), true);
+});
+
+await test('a lone bullet is the character typed until its space', () => {
+  // The defect this covers: `-` became a dot before the space that asks for
+  // a list, and the caret could not stand before it.
+  assert.equal(moved('-\n', 1, 0, 'select.pointer'), 0);
+  assert.equal(drawnPrefixAt(stateOf('-\n', 1), 0), null);
+  assert.equal(moved('- \n', 2, 0, 'select.pointer'), 2);
+});
+
+await test('the prefix that a tap hands to the text holds both its ends', () => {
+  const state = stateOf('a\n- [ ] one\n', 0);
+  for (const pos of [2, 5, 8])
+    assert.equal(drawnPrefixAt(state, pos)?.contentFrom, 8);
+  // The text itself, the line above and an ordered number are no prefix.
+  assert.equal(drawnPrefixAt(state, 9), null);
+  assert.equal(drawnPrefixAt(state, 1), null);
+  assert.equal(drawnPrefixAt(stateOf('1. one\n', 0), 0), null);
 });

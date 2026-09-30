@@ -15,8 +15,10 @@ The box toggled on `touchstart`, so a scroll that started on a box ticked it.
 
 ## Decision
 
-- A bullet (`-`, `+`, `*`) and a task box are drawn at every caret. Their
-  source comes back while a range selection covers a character of the marker.
+- A bullet (`-`, `+`, `*`) and a task box are drawn at every caret. A bullet
+  is drawn once a space follows it, so a lone `-` stays the character typed.
+  Their source comes back while a range selection covers a character of the
+  marker.
   This replaces the "never drawn again" rule of record 0033 and the reveal of
   a bullet under record 0025. An ordered marker keeps record 0092.
 - The marker prefix of such a line runs from the start of the line to the
@@ -29,6 +31,10 @@ The box toggled on `touchstart`, so a scroll that started on a box ticked it.
   the syntax tree. The preview and the caret filter both read it.
 - Backspace at the first character of the text runs `deleteMarkupBackward` of
   `@codemirror/lang-markdown`, which removes the marker.
+- A tap whose place is in the prefix is taken from the browser before it draws
+  its own caret there: the editor cancels the tap and puts the caret on the
+  text. A touch that the browser cancels, a scroll or a long press, stays the
+  browser's.
 - The box owns its events. It toggles on `click`, which the platform fires for
   a tap, a pointer click and Space, and never for a scroll. A press on the box
   moves neither the caret nor the focus. Its hit area is 24 px.

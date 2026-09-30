@@ -56,6 +56,7 @@ import {
   drawnAtEveryCaret,
   listMarkerOf,
   selectionShowsMarker,
+  taskBoxClassName,
   type ListMarker,
 } from './list-marker.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
@@ -339,7 +340,7 @@ class TaskCheckboxWidget extends WidgetType {
       view.dispatch(view.state.update(spec));
     };
     const shell = document.createElement('span');
-    shell.className = 'cm-np-task-box';
+    shell.className = taskBoxClassName;
     shell.append(box, taskCheckMark());
     // A press keeps the focus and the caret where they are, so a tap on the
     // box of a phone opens no keyboard and puts no caret beside the box.
@@ -946,15 +947,18 @@ export function buildPreview(
         );
         return false;
       }
-      // A bullet is drawn at every caret, and its source comes back only
-      // while a range covers the marker (record 0132).
-      if (drawnSource(item)) {
+      // A bullet is drawn at every caret once a space follows it, and its
+      // source comes back only while a range covers the marker (record
+      // 0132). Until the space arrives it is the `-` the person typed.
+      const marker = item === null ? null : listMarkerOf(state, item);
+      if (marker === null || !drawnAtEveryCaret(marker)) return false;
+      if (selectionShowsMarker(marker, selection)) {
         dim(node.from, node.to);
         return false;
       }
       // The bullet of a task item is the stem of its box, so it hides with
       // the box and the item never grows a second marker.
-      if (item !== null && item.getChild('Task') !== null) {
+      if (marker.task !== null) {
         hide(node.from, node.to);
         return false;
       }
