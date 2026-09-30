@@ -83,9 +83,22 @@ invitation. See [Database](database.md) for the lock order.
 
 ## Password recovery
 
-With a mail transport configured, the sign-in page can send a reset link.
-Without one, the operator runs `pnpm account:recover`. The command reads a
-password from a protected file or a hidden prompt and revokes the old sessions.
+With a mail transport configured, sign in offers Forgot password
+([record 0141](../decisions/0141-a-person-resets-a-password-in-the-application.md)).
+The reset message links the reset page of the application with the token in
+the fragment, and `resetPasswordLink` in `apps/server/src/auth/better-auth.ts`
+writes it. A reset ends every session of the account and sends a notice to the
+address. Without a transport, the operator runs `pnpm account:recover`. The
+command reads a password from a protected file or a hidden prompt and revokes
+the old sessions.
+
+## Messages
+
+`apps/server/src/auth/messages.ts` writes the words of every message, and
+`apps/server/src/auth/mail.ts` sends it with the automatic headers of RFC 3834.
+Every message that a person with no session can cause goes through the one
+budgeted transport of `mail.ts`, which the composition of
+`apps/server/src/app.ts` gives to Better Auth and to open registration.
 
 ## What holds the boundary
 
@@ -93,7 +106,10 @@ password from a protected file or a hidden prompt and revokes the old sessions.
   the identity role cannot read note content. See [Database](database.md).
 - No function makes an account outside the one registration function.
 - The installation role grants no workspace access.
-- The public sign-up route is not mounted.
+- The public sign-up route is not mounted, and neither is the reset route
+  that answers a link with a redirect.
+- No message leaves the server outside `messages.ts`, and no message that a
+  stranger causes skips the budget of its address.
 - No answer exposes the session token to page script.
 - The two operator commands set a transaction setting that the operator
   functions read. It guards against a mistake of the application, not against a

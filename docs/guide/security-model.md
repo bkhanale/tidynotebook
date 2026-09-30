@@ -14,8 +14,10 @@ operator, and anyone with access to the database or the disk, can read the
 content, the note names, and the attachments.
 
 In a personal installation the operator and the reader are the same person.
-When the operator invites other people, each of them trusts the operator
-completely, and nothing in this product changes that.
+When the operator invites other people, or lets anybody sign up, each of them
+trusts the operator completely, and nothing in this product changes that. The
+operator of a public service must say so in its privacy notice. The template
+of that notice says it.
 
 An administrator of the installation is not the operator. An administrator sees
 the address, the state, the last activity and the storage use of each account,
@@ -27,9 +29,13 @@ table. See [Accounts and identity](../development/identity.md).
 
 ## What the product assumes
 
-- **An account comes in by invitation.** The setup screen creates the first
-  account, an administrator, and then closes itself. Every later account needs
-  an invitation from an administrator. Each account has its own notes, and no
+- **An account comes in by invitation, or by a sign-up that proves its
+  address.** The setup screen creates the first account, an administrator, and
+  then closes itself. Every later account needs an invitation from an
+  administrator, unless an administrator lets anybody sign up. A sign-up then
+  makes an account only after the person opens the link in a message to the
+  address. A sign-up answers the same for a new and a known address, and it
+  costs the browser a short check. Each account has its own notes, and no
   account reads the notes of another. The one way to show a note to another
   person is a link that you publish yourself, and you can stop it at any
   moment. See [Published links](published-links.md).
@@ -69,6 +75,10 @@ table. See [Accounts and identity](../development/identity.md).
   policies scope every row to its workspace, and the runtime role holds no
   migration right and no right on the identity tables.
 - No log holds a note, a search term, a header, a cookie, or a credential.
+- A password reset link goes only to the address of the account, works once
+  for 1 hour, and ends every session of the account. One address gets at most
+  three messages in an hour that a person with no session can cause, whoever
+  asks for them.
 
 ## What is a vulnerability
 

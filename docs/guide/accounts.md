@@ -32,10 +32,14 @@ the choice off to require an invitation again.
 ## Terms and privacy notice
 
 When the installation names its terms and its privacy notice, each person
-accepts them. The sign-up form links both and asks for consent. When a new
-version comes out, each person accepts it at the next visit, before the notes
-open. A person who does not accept can export their notes, remove their
-account, or sign out.
+accepts them. The sign-up form and the invitation form link both and ask for
+consent. The sign-in screen and **Settings** link them too. When a new version
+comes out, each person accepts it at the next visit, before the notes open. A
+person who does not accept can export their notes, remove their account, or
+sign out.
+
+The person who runs the server writes both documents, and the server can show
+them itself. See [Self-hosting](self-hosting.md#open-sign-up).
 
 ## Open the accounts page
 
@@ -49,7 +53,8 @@ goes back to Settings.
 1. Select **Invite a person** under **Invitations**.
 2. Enter the email address of the person, and select **Invite**.
 
-When the server can send mail, the link goes to that address. When it cannot,
+When the server can send mail, the link goes to that address, from the sender
+that the server names. When it cannot,
 the dialog shows the link once. Select **Copy link** and send the link to the
 person yourself, for example in a message. After you close the dialog, the
 link does not appear again.

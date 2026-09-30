@@ -91,6 +91,10 @@ that the certificate authority can answer the challenge. Caddy writes the
 certificate and its private key under `NOTESAPP_TLS_DIR`, so put that directory
 on encrypted host storage with the other data directories.
 
+An installation with a separate address for published pages names that host
+in `NOTESAPP_PUBLISHED_DOMAIN` too, and the proxy gets a certificate for each
+of the two.
+
 With no `NOTESAPP_DOMAIN` the proxy answers `localhost` with a certificate that
 it makes itself. That serves a check on your own machine and nothing else,
 because no browser trusts that certificate.
@@ -208,7 +212,9 @@ sudo chmod 600 /etc/notesapp/secrets/*
 
 The migration URL can use the initial PostgreSQL administrator for the first installation. The migration creates the restricted application roles and sets their passwords. Do not give either application role migration rights.
 
-Optional SMTP URLs can use `NOTESAPP_SMTP_URL_FILE`. Add these files as Compose secrets in an operator override file. Do not put credentials in `.env`, process arguments, logs, or Git.
+The SMTP URL of the mail transport is a secret too. `docker/compose.mail.yaml`
+adds it, and [Mail](#mail) states how. Do not put credentials in `.env`,
+process arguments, logs, or Git.
 
 Validate and start the installation:
 
@@ -267,12 +273,16 @@ sign-up. `NOTESAPP_SIGNUP_DIFFICULTY` sets how hard the check of the browser is
 at a sign-up, from 8 to 28. Each step doubles the time that the browser takes.
 The check runs in the browser and sends nothing to another service.
 
-A public service names its terms and its privacy notice with
-`NOTESAPP_TERMS_URL`, `NOTESAPP_TERMS_VERSION`, `NOTESAPP_PRIVACY_URL` and
-`NOTESAPP_PRIVACY_VERSION`. Set all four or none. Each account stores the
-versions that it accepted and when. When you raise a version, each person
-accepts it again before the application opens. An installation with no
-documents asks for nothing.
+A public service names its terms and its privacy notice. Each document has a
+version, `NOTESAPP_TERMS_VERSION` and `NOTESAPP_PRIVACY_VERSION`, and one
+source: an address on another site, `NOTESAPP_TERMS_URL` and
+`NOTESAPP_PRIVACY_URL`, or a Markdown file that the server shows itself, as
+[Open sign-up](#open-sign-up) states. Name both documents or neither. Each
+account stores the versions that it accepted and when. When you raise a
+version, each person accepts it again before the application opens. A change
+of a file with the same version reaches a person at the next start and asks
+nobody again, which suits a fixed typo. An installation with no documents asks
+for nothing.
 
 A sign-in needs a proved address. The first account and an invited account
 prove their address when they are made, so an installation that upgrades keeps
@@ -284,6 +294,66 @@ server sends five characters of a digest of the password and never the
 password. When the service does not answer, the server accepts the password and
 writes a log event. Set `NOTESAPP_BREACH_CHECK` to `off` in `.env` for an
 installation with no outbound network.
+
+## Mail
+
+A mail transport sends invitations, the links of a sign-up, and the links of a
+password reset. Without one, an invitation shows its link once, a person
+cannot reset a password alone, and nobody can sign up without an invitation.
+
+1. Write the SMTP URL of your mail provider, for example
+   `smtps://user:password@smtp.example.com:465`, to the file `smtp_url` in
+   `NOTESAPP_SECRETS_DIR`, with mode `0600` and owner uid 10001.
+2. Set `NOTESAPP_MAIL_FROM` in `.env` to the sender, for example
+   `NotesApp <no-reply@notes.example.com>`.
+3. Add the override file to `COMPOSE_FILE` in `.env`, as `.env.example`
+   shows, and start again.
+
+A mailbox provider refuses or hides a message that the domain of the sender
+does not vouch for. Before you open sign-up, publish these three records for
+that domain, with the values that your mail provider gives:
+
+- An SPF record that names the servers of the provider.
+- A DKIM key, so that each message carries a signature of the domain.
+- A DMARC policy, for example `p=quarantine`, so that a message that forges
+  the domain goes nowhere.
+
+Then send an invitation to an address of your own at a large mailbox provider,
+and check that it arrives in the inbox and not in spam. Each message is plain
+text. It names the product and the host of the installation, and it states that
+a program wrote it, so a vacation responder does not answer it.
+
+## Open sign-up
+
+An installation lets anybody sign up only when it has a mail transport, a
+separate address for published pages, and both legal documents. The accounts
+page names each part that is missing. Do these steps in order.
+
+1. **Mail.** Set up the transport and the three domain records, as
+   [Mail](#mail) states.
+2. **Published pages.** Point a second host name at this server, for example
+   `pages.example.net`, and set `NOTESAPP_PUBLISHED_ORIGIN` to it. With the
+   `tls` profile, also set `NOTESAPP_PUBLISHED_DOMAIN` to that host name, so
+   that the proxy gets a certificate for it.
+3. **Legal documents.** Copy `docker/legal/terms.md` and
+   `docker/legal/privacy.md` to a directory outside this checkout, and name it
+   in `NOTESAPP_LEGAL_DIR`. Fill each blank in double braces with the facts of
+   your service: who runs it, the address to write to, the law that applies,
+   and how long you keep backups and logs. Have a person who knows the law of
+   your country read both. Set `NOTESAPP_TERMS_VERSION` and
+   `NOTESAPP_PRIVACY_VERSION`, for example to the date, and add
+   `docker/compose.legal.yaml` to `COMPOSE_FILE`. The server shows the
+   documents at `/legal/terms` and `/legal/privacy`, and it refuses to start
+   while a file still holds a blank.
+4. **The proxy.** Name the proxy in `NOTESAPP_TRUSTED_PROXIES`, so that the
+   attempt limits of sign-up and sign-in count each client on its own.
+5. **Backups.** Check that the backup runs, and that a restore works. See
+   [Backup and restore](backup-and-restore.md).
+6. **Turn it on.** Sign in as an administrator, open **Settings**, select
+   **Manage accounts**, and select **Let anybody sign up**.
+
+Then sign up yourself with a new address from a private window, open the link,
+and sign in. Select **Forgot password** once, and check that the reset works.
 
 ## Health and readiness
 

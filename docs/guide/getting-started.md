@@ -20,9 +20,12 @@ other people, and each of them gets an account with its own notes. See
 Every later visit shows **Sign in** instead. Enter the same address and
 password.
 
-There is no "forgot password" link in the application. If you lose the
-password, the person who runs the server recovers the account with a command on
-the server. See [Backup and restore](backup-and-restore.md).
+If you forget the password, select **Forgot password** on the sign-in screen.
+A message with a link goes to your address. See
+[Joining an installation](joining.md#forgot-your-password). An installation that
+sends no mail shows no such link. Then the person who runs the server recovers
+the account with a command on the server. See
+[Backup and restore](backup-and-restore.md).
 
 ## What you see first
 
