@@ -72,6 +72,7 @@ import {
   themeOfFamily,
   transitionSurface,
   UploadIcon,
+  type PageSection,
 } from '@notesapp/ui';
 import {
   problemMessage,
@@ -101,6 +102,7 @@ import {
 import { downloadAll, importAll } from '../export/export.ts';
 import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import { SettingsSection } from './settings-section.tsx';
 import {
   sectionOf,
   settingsSections,
@@ -592,45 +594,9 @@ function FamilySwatch({ familyId }: { readonly familyId: string }): ReactNode {
   );
 }
 
-/**
- * One section of the settings screen.
- *
- * A section is not a card. From the medium width it is two columns: the name
- * of the section and its sentence on the left, the controls on the right, so
- * a person scans the names of every section in one pass. A hairline separates
- * one section from the next, which is the one place a rule is drawn here,
- * because a person counts the sections of a list they scroll (decision 0063).
- */
-function SettingsSection({
-  section,
-  description,
-  children,
-}: {
-  readonly section: SettingsSectionKey;
-  readonly description?: string | undefined;
-  readonly children: ReactNode;
-}): ReactNode {
-  // The title and the heading come from the list that the side region of the
-  // page reads, so the two cannot disagree (decision 0137).
-  const { id: titleId, title } = sectionOf(settingsSections, section);
-  return (
-    <section
-      className="border-t border-edge-subtle py-6"
-      aria-labelledby={titleId}
-    >
-      <div className="md:grid md:grid-cols-3 md:gap-group">
-        <div className="md:col-span-1">
-          <h2 className="m-0 text-ui font-semibold text-strong" id={titleId}>
-            {title}
-          </h2>
-          {description === undefined ? null : (
-            <p className="mb-0 mt-1 text-control text-muted">{description}</p>
-          )}
-        </div>
-        <div className="mt-3 min-w-0 md:col-span-2 md:mt-0">{children}</div>
-      </div>
-    </section>
-  );
+/** One section of Settings, by its name in the list of the page. */
+function settingsSection(key: SettingsSectionKey): PageSection {
+  return sectionOf(settingsSections, key);
 }
 
 /**
@@ -652,7 +618,7 @@ export function ThemeSettings(): ReactNode {
   const theme = useTheme();
   return (
     <SettingsSection
-      section="appearance"
+      section={settingsSection('appearance')}
       description="System follows the device. The choice applies at once on this device and goes to your account in the background."
     >
       <fieldset className="m-0 border-0 p-0">
@@ -771,7 +737,7 @@ function SpellCheckSettings(): ReactNode {
 
   return (
     <SettingsSection
-      section="spelling"
+      section={settingsSection('spelling')}
       description="Your browser marks the words that it does not know in a note. It does not check code or addresses. The settings of your browser choose the languages."
     >
       <Checkbox
@@ -1000,7 +966,7 @@ function SessionsSettings(): ReactNode {
 
   return (
     <SettingsSection
-      section="sessions"
+      section={settingsSection('sessions')}
       description="These devices are signed in to your account. Sign out a device that you do not use or do not know."
     >
       {notice === null ? null : (
@@ -1124,7 +1090,7 @@ function ProfileSettings({
 
   return (
     <SettingsSection
-      section="profile"
+      section={settingsSection('profile')}
       description="Your name appears with your account. Use your email address to sign in."
     >
       <form
@@ -1258,7 +1224,7 @@ export function AccountSettingsPage(): ReactNode {
     spelling: <SpellCheckSettings />,
     'daily-notes': (
       <SettingsSection
-        section="daily-notes"
+        section={settingsSection('daily-notes')}
         description="Each day has one note, and the calendar in the sidebar opens it. These settings apply to this workspace and follow you to every device."
       >
         <DailyNoteSettingsFields />
@@ -1266,7 +1232,7 @@ export function AccountSettingsPage(): ReactNode {
     ),
     offline: (
       <SettingsSection
-        section="offline"
+        section={settingsSection('offline')}
         description="Your notes are always kept on this device. Images and older versions take more space, so you choose whether to keep them too."
       >
         {offline.status === 'failed' ? (
@@ -1307,7 +1273,7 @@ export function AccountSettingsPage(): ReactNode {
     ),
     export: (
       <SettingsSection
-        section="export"
+        section={settingsSection('export')}
         description="Download every note and image as a zip. The files keep their folders and need no application to be read again."
       >
         {exportError === '' ? null : (
@@ -1336,7 +1302,7 @@ export function AccountSettingsPage(): ReactNode {
     ),
     import: (
       <SettingsSection
-        section="import"
+        section={settingsSection('import')}
         description="Import a zip of Markdown files and images. The files keep their paths and links."
       >
         {importNotice === '' ? null : (
@@ -1381,7 +1347,7 @@ export function AccountSettingsPage(): ReactNode {
     ),
     account: (
       <SettingsSection
-        section="account"
+        section={settingsSection('account')}
         description="Your account owns every note in your workspaces. No other account can read them."
       >
         {storageLine(account.storage) === '' ? null : (
@@ -1406,7 +1372,7 @@ export function AccountSettingsPage(): ReactNode {
     sessions: <SessionsSettings />,
     'sign-out': (
       <SettingsSection
-        section="sign-out"
+        section={settingsSection('sign-out')}
         description={
           pending.kind === 'loading'
             ? undefined
@@ -1445,7 +1411,7 @@ export function AccountSettingsPage(): ReactNode {
     ),
     'remove-account': (
       <SettingsSection
-        section="remove-account"
+        section={settingsSection('remove-account')}
         description="This removes your account and every note in your workspaces for good. Export your notes first if you want to keep them."
       >
         <Button

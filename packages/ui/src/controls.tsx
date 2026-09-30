@@ -364,24 +364,28 @@ export function Checkbox({
   checked,
   onChange,
   describedBy,
+  disabled = false,
 }: {
   readonly id: string;
   readonly label: string;
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;
   readonly describedBy?: string | undefined;
+  /** The choice cannot change now, for example while the last one is saved. */
+  readonly disabled?: boolean | undefined;
 }): ReactNode {
   return (
     <label
-      className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-control text-strong md:min-h-8"
+      className={`inline-flex min-h-11 items-center gap-2 text-control text-strong md:min-h-8 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
       htmlFor={id}
     >
       <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
         <input
           id={id}
           type="checkbox"
-          className={`peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill ${focusOutline}`}
+          className={`peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill disabled:cursor-not-allowed ${focusOutline}`}
           checked={checked}
+          disabled={disabled}
           aria-describedby={describedBy}
           onChange={(event): void => {
             onChange(event.target.checked);

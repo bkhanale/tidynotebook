@@ -23,11 +23,11 @@ and a message with a link goes to the address. The account
 exists after the person opens the link, and then the person signs in. A sign-up
 that nobody finishes goes away after a time that the server sets.
 
-Select **Let anybody sign up** under **Who can make an account** on the
+Turn on **Let anybody sign up** under **Who can make an account** on the
 accounts page. The server allows this only when the installation has a mail
 transport, a separate address for published pages, and the terms and the
-privacy notice of the service. If a part is missing, the page names it. Select
-**Require an invitation** to stop new sign-ups.
+privacy notice of the service. If a part is missing, the page names it. Turn
+the choice off to require an invitation again.
 
 ## Terms and privacy notice
 
@@ -46,7 +46,7 @@ goes back to Settings.
 
 ## Invite a person
 
-1. Select **Invite a person**.
+1. Select **Invite a person** under **Invitations**.
 2. Enter the email address of the person, and select **Invite**.
 
 When the server can send mail, the link goes to that address. When it cannot,
