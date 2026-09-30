@@ -30,3 +30,22 @@ export function waitsForConsent(
 ): boolean {
   return account.consentRequired === true;
 }
+
+/** One link to a legal document, as a screen shows it. */
+export type LegalLink = {
+  readonly label: string;
+  readonly href: string;
+};
+
+/**
+ * The links to the two documents, in the order that every screen shows them.
+ *
+ * The server names the address of each, so a screen never builds one. The
+ * terms come first, because a person accepts them first.
+ */
+export function legalLinks(documents: LegalDocuments): readonly LegalLink[] {
+  return [
+    { label: 'Terms', href: documents.terms.url },
+    { label: 'Privacy notice', href: documents.privacy.url },
+  ];
+}

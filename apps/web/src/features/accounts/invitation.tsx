@@ -12,7 +12,12 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { readInvitation, registerAccount } from '@notesapp/api-client';
+import {
+  getSetupStatus,
+  readInvitation,
+  registerAccount,
+  type LegalDocuments,
+} from '@notesapp/api-client';
 import {
   Button,
   buttonClassName,
@@ -26,7 +31,8 @@ import { problemMessage, useSession } from '../../app.tsx';
 import { invitationTokenOf } from '../../lib/accounts.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
-import { AuthFrame } from './accounts.tsx';
+import { consentTo } from '../../lib/legal.ts';
+import { AuthFrame, LegalLinks } from './accounts.tsx';
 
 /** The one sentence of an invitation that opens nothing. */
 const invalidInvitation = 'This invitation is not valid. Ask for a new one.';
@@ -36,7 +42,13 @@ type InvitationState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'invalid' }
   | { readonly kind: 'unreachable'; readonly message: string }
-  | { readonly kind: 'ready'; readonly token: string; readonly email: string };
+  | {
+      readonly kind: 'ready';
+      readonly token: string;
+      readonly email: string;
+      /** The terms and the privacy notice, or `null` (record 0120). */
+      readonly documents: LegalDocuments | null;
+    };
 
 /** The page that an invitation link opens. */
 export function InvitationPage(): ReactNode {
@@ -53,10 +65,24 @@ export function InvitationPage(): ReactNode {
     }
     let cancelled = false;
     setState({ kind: 'loading' });
-    void readInvitation({ body: { invitation: token } }).then((result) => {
+    // The terms and the privacy notice come with the setup status, so the
+    // form links both and asks for consent when the installation names them.
+    void Promise.all([
+      readInvitation({ body: { invitation: token } }),
+      getSetupStatus(),
+    ]).then(([result, setup]) => {
       if (cancelled) return;
+      if (result.data !== undefined && setup.data !== undefined) {
+        setState({
+          kind: 'ready',
+          token,
+          email: result.data.email,
+          documents: setup.data.legalDocuments,
+        });
+        return;
+      }
       if (result.data !== undefined) {
-        setState({ kind: 'ready', token, email: result.data.email });
+        setState({ kind: 'unreachable', message: problemMessage(setup.error) });
         return;
       }
       const status = result.response?.status ?? 0;
@@ -97,7 +123,11 @@ export function InvitationPage(): ReactNode {
           </Button>
         </div>
       ) : (
-        <AcceptForm token={state.token} email={state.email} />
+        <AcceptForm
+          token={state.token}
+          email={state.email}
+          documents={state.documents}
+        />
       )}
     </AuthFrame>
   );
@@ -107,9 +137,11 @@ export function InvitationPage(): ReactNode {
 function AcceptForm({
   token,
   email,
+  documents,
 }: {
   readonly token: string;
   readonly email: string;
+  readonly documents: LegalDocuments | null;
 }): ReactNode {
   const session = useSession();
   const navigate = useNavigate();
@@ -120,6 +152,7 @@ function AcceptForm({
   const [fieldError, setFieldError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
   const submit = async (): Promise<void> => {
     setFieldError('');
@@ -132,6 +165,10 @@ function AcceptForm({
       setFieldError('The two passwords are not the same.');
       return;
     }
+    if (documents !== null && !accepted) {
+      setError('Accept the terms and the privacy notice to make an account.');
+      return;
+    }
     setBusy(true);
     setError('');
     const result = await registerAccount({
@@ -139,6 +176,7 @@ function AcceptForm({
         invitation: token,
         password,
         ...(name.trim() === '' ? {} : { name: name.trim() }),
+        ...(documents === null ? {} : { consent: consentTo(documents) }),
       },
     });
     setBusy(false);
@@ -208,6 +246,17 @@ function AcceptForm({
             onChange={setReveal}
           />
         </div>
+        {documents === null ? null : (
+          <div className="mb-4">
+            <LegalLinks className="mb-2" documents={documents} />
+            <Checkbox
+              id="invite-consent"
+              label="I accept the terms and the privacy notice"
+              checked={accepted}
+              onChange={setAccepted}
+            />
+          </div>
+        )}
         {error === '' ? null : (
           <Notice className="mb-4" tone="problem" message={error} />
         )}

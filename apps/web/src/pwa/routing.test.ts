@@ -166,6 +166,22 @@ await test('the worker answers no published address', () => {
   );
 });
 
+await test('the worker answers no legal document', () => {
+  // The server builds the page of the terms and of the privacy notice. An
+  // offline device must not answer it with the application shell.
+  for (const path of ['/legal/terms', '/legal/privacy'])
+    assert.equal(
+      servedByWorker(asked(`${origin}${path}`, 'navigate'), origin, new Set()),
+      false,
+      path,
+    );
+  // A path that only starts with the same letters is the application.
+  assert.equal(
+    servedByWorker(asked(`${origin}/legalese`, 'navigate'), origin, new Set()),
+    true,
+  );
+});
+
 await test('the worker still answers every address of the application', () => {
   assert.equal(
     servedByWorker(asked(`${origin}/w/abc`, 'navigate'), origin, new Set()),

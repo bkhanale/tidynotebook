@@ -84,11 +84,12 @@ import {
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
 import {
+  forgotPasswordRoute,
   profileNameProblem,
   signUpRoute,
   storageLine,
 } from '../../lib/accounts.ts';
-import { consentTo, waitsForConsent } from '../../lib/legal.ts';
+import { consentTo, legalLinks, waitsForConsent } from '../../lib/legal.ts';
 import {
   deviceName,
   otherSessionsEndedText,
@@ -231,24 +232,7 @@ function ConsentPage(): ReactNode {
             them to open your notes. A new version asks you again.
           </p>
           {documents === null ? null : (
-            <p className="mb-5 mt-0 flex flex-wrap gap-cluster text-control">
-              <a
-                className="text-accent underline"
-                href={documents.terms.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Terms
-              </a>
-              <a
-                className="text-accent underline"
-                href={documents.privacy.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Privacy notice
-              </a>
-            </p>
+            <LegalLinks className="mb-5" documents={documents} />
           )}
           {error === '' ? null : (
             <Notice className="mb-4" tone="problem" message={error} />
@@ -327,6 +311,10 @@ type SetupStatus =
       readonly initialized: boolean;
       /** Whether a person can ask for an account (record 0114). */
       readonly openRegistration: boolean;
+      /** Whether a person can reset a password by mail (record 0141). */
+      readonly passwordReset: boolean;
+      /** The terms and the privacy notice, or `null` (record 0120). */
+      readonly legalDocuments: LegalDocuments | null;
     };
 
 /**
@@ -367,6 +355,8 @@ export function LoginPage(): ReactNode {
         kind: 'ready',
         initialized: result.data.initialized,
         openRegistration: result.data.openRegistration,
+        passwordReset: result.data.passwordReset,
+        legalDocuments: result.data.legalDocuments,
       });
     });
     return () => {
@@ -419,8 +409,16 @@ export function LoginPage(): ReactNode {
   if (session.status === 'signed-in') return <Navigate to="/" replace />;
 
   const title = setup ? 'Create your account' : 'Sign in';
+  const documents = status.kind === 'ready' ? status.legalDocuments : null;
   return (
-    <AuthFrame title={status.kind === 'loading' ? 'Notesapp' : title}>
+    <AuthFrame
+      title={status.kind === 'loading' ? 'Notesapp' : title}
+      footer={
+        documents === null ? null : (
+          <LegalLinks className="justify-center" documents={documents} />
+        )
+      }
+    >
       {status.kind === 'loading' ? (
         <LoadingState label="The sign-in screen is loading." />
       ) : status.kind === 'unreachable' ? (
@@ -500,9 +498,17 @@ export function LoginPage(): ReactNode {
                   : 'Sign in'}
             </Button>
           </form>
-          {status.kind === 'ready' && !setup && status.openRegistration ? (
+          {status.kind === 'ready' && !setup && status.passwordReset ? (
             <Link
               className={`mt-3 w-full ${buttonClassName({ variant: 'ghost' })}`}
+              to={forgotPasswordRoute}
+            >
+              Forgot password
+            </Link>
+          ) : null}
+          {status.kind === 'ready' && !setup && status.openRegistration ? (
+            <Link
+              className={`mt-1 w-full ${buttonClassName({ variant: 'ghost' })}`}
               to={signUpRoute}
             >
               Create an account
@@ -515,16 +521,68 @@ export function LoginPage(): ReactNode {
 }
 
 /**
+ * The terms and the privacy notice of the installation, or `null` while they
+ * load and when the installation names none (record 0120).
+ */
+export function useLegalDocuments(): LegalDocuments | null {
+  const [documents, setDocuments] = useState<LegalDocuments | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void getSetupStatus().then((result) => {
+      if (!cancelled) setDocuments(result.data?.legalDocuments ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return documents;
+}
+
+/**
+ * The links to the terms and the privacy notice (record 0120).
+ *
+ * Each opens in a new tab, so a form that a person fills in keeps its values.
+ */
+export function LegalLinks({
+  documents,
+  className,
+}: {
+  readonly documents: LegalDocuments;
+  readonly className?: string;
+}): ReactNode {
+  return (
+    <p
+      className={`mt-0 flex flex-wrap gap-cluster text-control ${className ?? 'mb-0'}`}
+    >
+      {legalLinks(documents).map((link) => (
+        <a
+          key={link.label}
+          className="text-accent underline"
+          href={link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {link.label}
+        </a>
+      ))}
+    </p>
+  );
+}
+
+/**
  * The frame of a screen before a session: the wordmark over one raised panel
- * on the chrome plane (decisions 0062 and 0064). Sign in, first-run setup and
- * the acceptance of an invitation use it.
+ * on the chrome plane (decisions 0062 and 0064). Sign in, first-run setup,
+ * the acceptance of an invitation and the reset of a password use it. The
+ * footer sits under the panel, where sign in shows the legal documents.
  */
 export function AuthFrame({
   title,
   children,
+  footer,
 }: {
   readonly title: string;
   readonly children: ReactNode;
+  readonly footer?: ReactNode;
 }): ReactNode {
   return (
     <div
@@ -545,6 +603,9 @@ export function AuthFrame({
         </h1>
         {children}
       </Card>
+      {footer === undefined || footer === null ? null : (
+        <footer className="mt-5 w-full max-w-sm">{footer}</footer>
+      )}
     </div>
   );
 }
@@ -1157,6 +1218,7 @@ export function AccountSettingsPage(): ReactNode {
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
   const offline = useOfflineChoices(store.store, accountId, workspaceId);
+  const documents = useLegalDocuments();
   useDocumentTitle(settingsTitle);
 
   useEffect(() => {
@@ -1367,6 +1429,9 @@ export function AccountSettingsPage(): ReactNode {
             <span>Manage accounts</span>
           </Link>
         ) : null}
+        {documents === null ? null : (
+          <LegalLinks className="mt-3" documents={documents} />
+        )}
       </SettingsSection>
     ),
     sessions: <SessionsSettings />,

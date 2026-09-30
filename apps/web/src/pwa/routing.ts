@@ -6,6 +6,7 @@
  * `service-worker.ts` can be proved on its own. The worker holds the effects
  * and this module holds the choices.
  */
+import { isLegalPath } from '../lib/legal-path.ts';
 import { isReaderPath } from '../lib/reader-path.ts';
 import { isAssetPath } from './asset-kinds.ts';
 
@@ -46,6 +47,8 @@ export function isCacheableAsset(
  * application and its not found screen. The reader has no connection either in
  * that case, so nothing would work; the message was still the wrong one. The
  * worker stands aside and the browser reports the lost connection itself.
+ * The page of a legal document is a server document for the same reason
+ * (record 0140), so the worker stands aside for it too.
  */
 export function servedByWorker(
   request: RoutedRequest,
@@ -54,7 +57,7 @@ export function servedByWorker(
 ): boolean {
   const url = new URL(request.url);
   if (url.origin !== origin) return false;
-  if (isReaderPath(url.pathname)) return false;
+  if (isReaderPath(url.pathname) || isLegalPath(url.pathname)) return false;
   if (request.mode === 'navigate') return true;
   if (request.method !== 'GET') return false;
   if (isCacheableAsset(request, origin)) return true;

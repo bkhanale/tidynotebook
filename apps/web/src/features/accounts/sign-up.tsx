@@ -11,11 +11,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
-  getSetupStatus,
   getSignUpChallenge,
   signUpAccount,
   verifyAddress,
-  type LegalDocuments,
 } from '@notesapp/api-client';
 import {
   Button,
@@ -32,7 +30,7 @@ import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { solveChallenge } from '../../lib/proof-of-work.ts';
 import { consentTo } from '../../lib/legal.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
-import { AuthFrame } from './accounts.tsx';
+import { AuthFrame, LegalLinks, useLegalDocuments } from './accounts.tsx';
 
 /** The one sentence of a verification link that opens nothing. */
 const invalidLink =
@@ -47,21 +45,11 @@ export function SignUpPage(): ReactNode {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'checking' | 'sending' | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const [documents, setDocuments] = useState<LegalDocuments | null>(null);
-  const [accepted, setAccepted] = useState(false);
-  useDocumentTitle('Create an account');
-
   // The terms and the privacy notice, when the installation names them
   // (record 0120). The form links both and asks for consent.
-  useEffect(() => {
-    let cancelled = false;
-    void getSetupStatus().then((result) => {
-      if (!cancelled) setDocuments(result.data?.legalDocuments ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const documents = useLegalDocuments();
+  const [accepted, setAccepted] = useState(false);
+  useDocumentTitle('Create an account');
 
   const submit = async (): Promise<void> => {
     setFieldError('');
@@ -161,24 +149,7 @@ export function SignUpPage(): ReactNode {
         </div>
         {documents === null ? null : (
           <div className="mb-4">
-            <p className="mb-2 mt-0 flex flex-wrap gap-cluster text-control">
-              <a
-                className="text-accent underline"
-                href={documents.terms.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Terms
-              </a>
-              <a
-                className="text-accent underline"
-                href={documents.privacy.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Privacy notice
-              </a>
-            </p>
+            <LegalLinks className="mb-2" documents={documents} />
             <Checkbox
               id="signup-consent"
               label="I accept the terms and the privacy notice"

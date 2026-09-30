@@ -17,6 +17,7 @@ import {
   openRegistrationMissingText,
   profileNameProblem,
   storageLine,
+  resetTokenOf,
   verificationTokenOf,
 } from './accounts.ts';
 
@@ -202,4 +203,16 @@ await test('a refusal names its missing parts, and anything else names none', ()
   );
   assert.deepEqual(missingPartsOf({ code: 'x' }), []);
   assert.deepEqual(missingPartsOf(null), []);
+});
+
+await test('a reset link carries its token in the fragment', () => {
+  assert.equal(
+    resetTokenOf('#Zk3bV9qLw2Xy7Tn4Rp8Hd1Ms'),
+    'Zk3bV9qLw2Xy7Tn4Rp8Hd1Ms',
+  );
+  assert.equal(resetTokenOf('abc_-123'), 'abc_-123');
+  assert.equal(resetTokenOf(''), null);
+  assert.equal(resetTokenOf('#'), null);
+  assert.equal(resetTokenOf('#a b'), null);
+  assert.equal(resetTokenOf(`#${'a'.repeat(513)}`), null);
 });

@@ -22,7 +22,9 @@ import {
 } from './features/accounts/accounts.tsx';
 import type { FrameHandle } from './lib/breadcrumb.ts';
 import {
+  forgotPasswordRoute,
   invitationRoute,
+  resetPasswordRoute,
   signUpRoute,
   verificationRoute,
 } from './lib/accounts.ts';
@@ -63,6 +65,14 @@ const SignUpPage = lazy(async () => ({
 const VerifyPage = lazy(async () => ({
   default: (await import('./features/accounts/sign-up.tsx')).VerifyPage,
 }));
+const ForgotPasswordPage = lazy(async () => ({
+  default: (await import('./features/accounts/password-reset.tsx'))
+    .ForgotPasswordPage,
+}));
+const ResetPasswordPage = lazy(async () => ({
+  default: (await import('./features/accounts/password-reset.tsx'))
+    .ResetPasswordPage,
+}));
 const PublishedLinksView = lazy(async () => ({
   default: (await import('./features/publishing/published-links.tsx'))
     .PublishedLinksView,
@@ -100,6 +110,10 @@ const router = createBrowserRouter([
   // into every link.
   { path: signUpRoute, element: deferred(<SignUpPage />) },
   { path: verificationRoute, element: deferred(<VerifyPage />) },
+  // A password reset (record 0141). The server writes the reset path into
+  // every reset message.
+  { path: forgotPasswordRoute, element: deferred(<ForgotPasswordPage />) },
+  { path: resetPasswordRoute, element: deferred(<ResetPasswordPage />) },
   {
     path: '/w/:workspaceId',
     element: <RequireSession>{deferred(<Shell />)}</RequireSession>,

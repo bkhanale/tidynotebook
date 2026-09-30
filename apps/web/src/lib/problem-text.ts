@@ -10,6 +10,10 @@
 /** A sentence for one known problem code. */
 const sentences: Readonly<Record<string, string>> = {
   account_exists: 'An account already uses this address.',
+  account_unavailable:
+    'This account cannot sign in. Ask an administrator of this installation.',
+  address_unverified:
+    'Open the link in the message that went to this address to finish your account. To get a new link, sign up again.',
   deleted_remotely:
     'This note was deleted on another device. Open Trash to restore it.',
   forbidden: 'This account cannot do that.',

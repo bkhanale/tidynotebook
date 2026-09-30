@@ -94,6 +94,24 @@ export function verificationTokenOf(hash: string): string | null {
   return verificationTokenPattern.test(token) ? token : null;
 }
 
+/** The page that asks for a password reset message (record 0141). */
+export const forgotPasswordRoute = '/forgot-password';
+
+/**
+ * The page that a reset link opens. The server writes the same path into
+ * every reset message, in `apps/server/src/auth/better-auth.ts`.
+ */
+export const resetPasswordRoute = '/reset-password';
+
+/** The shape of a reset token, as the contract states it. */
+const resetTokenPattern = /^[A-Za-z0-9_-]{1,512}$/;
+
+/** The token of a reset link, or `null` when the fragment holds none. */
+export function resetTokenOf(hash: string): string | null {
+  const token = hash.startsWith('#') ? hash.slice(1) : hash;
+  return resetTokenPattern.test(token) ? token : null;
+}
+
 /** The units of a byte count, each 1024 times the one before. */
 const byteUnits = ['bytes', 'KB', 'MB', 'GB', 'TB'] as const;
 

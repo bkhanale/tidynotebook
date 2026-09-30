@@ -59,8 +59,8 @@ result (0066). Drive the screen and read it in light and in dark first.
 on each rule below.
 
 - No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation;
-  `lib/reader-path.ts` alone names the reader path, which the owner surface and
-  the installed worker both read (0031).
+  `lib/reader-path.ts` names the reader path (0031) and `lib/legal-path.ts`
+  the legal pages (0140), and the installed worker stands aside for both.
 - No handwritten CSS, CSS module, style sheet or `style=` attribute, no
   colour value outside the theme tokens, no off-scale utility such as
   `text-xs`, `text-sm` or `w-[32rem]`, no built in shadow utility (0052), no

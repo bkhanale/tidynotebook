@@ -9,6 +9,8 @@ import {
 
 /** Every code that a server answer can carry today. */
 const codes = [
+  'account_unavailable',
+  'address_unverified',
   'deleted_remotely',
   'forbidden',
   'internal_error',
