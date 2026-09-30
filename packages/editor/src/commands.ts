@@ -57,6 +57,20 @@ export type EditorNavigation = {
   readonly onOpenLink?: ((target: LinkTarget) => void) | undefined;
 };
 
+/**
+ * The user event of a toggle of a task box.
+ *
+ * A toggle is a whole action, not a keystroke, so the screen saves it at once
+ * and another device reads it before the person reaches that device (record
+ * 0134). It is an `input` event, so it is still an edit of a person.
+ */
+export const taskToggleEvent = 'input.toggle.task';
+
+/** Whether one transaction toggles a task box. */
+export function isTaskToggle(transaction: Transaction): boolean {
+  return transaction.isUserEvent(taskToggleEvent);
+}
+
 /** One task box on a line, with absolute offsets. */
 export type TaskBox = {
   readonly from: number;
@@ -108,7 +122,7 @@ export function toggleTaskSpec(state: EditorState): TransactionSpec | null {
     }
   }
   if (changes.length === 0) return null;
-  return { changes };
+  return { changes, userEvent: taskToggleEvent };
 }
 
 /**
@@ -132,6 +146,7 @@ export function taskToggleAt(
       to: box.from + 2,
       insert: box.checked ? ' ' : 'x',
     },
+    userEvent: taskToggleEvent,
   };
 }
 

@@ -38,3 +38,5 @@ export type {
   RecoveryOutcome,
 } from './recovery.ts';
 export { recoverLegacyText } from './recovery.ts';
+export type { TextSlot } from './written-character.ts';
+export { keepWrittenCharacter } from './written-character.ts';

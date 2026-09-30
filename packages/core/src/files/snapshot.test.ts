@@ -37,6 +37,8 @@ const documentService: DocumentService = {
     ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
   replaceText: () =>
     ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
+  keepWrittenCharacter: () =>
+    ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
   observe: () => new Uint8Array(),
   stateVector: () => new Uint8Array(),
   delta: () => new Uint8Array(),

@@ -11,6 +11,7 @@ import {
   applyDocumentUpdate,
   documentStateVector,
   encodeDocumentDelta,
+  keepWrittenCharacter,
   observeDocument,
   observedCoverage,
   readDocumentText,
@@ -25,6 +26,7 @@ import {
   type DocumentService,
   type DomainErrorCode,
   type Result,
+  type TextSlot,
 } from '@notesapp/core';
 
 /** The domain code of one refusal of the document package. */
@@ -64,6 +66,19 @@ export function createDocumentService(): DocumentService {
         bytes: written.value.document,
         text: written.value.text,
         state: observeDocument(written.value.document),
+      });
+    },
+    keepWrittenCharacter: (
+      before: Uint8Array,
+      after: Uint8Array,
+      slots: readonly TextSlot[],
+    ): Result<AppliedDocument> => {
+      const kept = keepWrittenCharacter(before, after, slots);
+      if (!kept.ok) return fail(domainCode(kept.refusal));
+      return ok({
+        bytes: kept.value.document,
+        text: kept.value.text,
+        state: observeDocument(kept.value.document),
       });
     },
     observe: (document: Uint8Array) => observeDocument(document),

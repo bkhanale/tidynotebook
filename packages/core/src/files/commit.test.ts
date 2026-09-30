@@ -392,6 +392,9 @@ const documentService: DocumentService = {
   },
   replaceText: (_document: Uint8Array, text: string) =>
     ok({ bytes: bytesOf(text), text, state: bytesOf(text) }),
+  // No text of these tests holds a task box, so nothing is kept apart.
+  keepWrittenCharacter: (_before: Uint8Array, after: Uint8Array) =>
+    ok({ bytes: after, text: textOf(after), state: after }),
   observe: (document: Uint8Array) => document,
   stateVector: (document: Uint8Array) => document,
   delta: (document: Uint8Array) => document,

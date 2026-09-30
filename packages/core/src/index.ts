@@ -169,6 +169,8 @@ export {
   type SubscriptionRefusal,
 } from './files/notices.ts';
 export { acceptDocumentWork, acceptWithDocuments } from './files/documents.ts';
+export type { TextSlot } from './files/task-boxes.ts';
+export { doubledTaskBoxes } from './files/task-boxes.ts';
 export { listBacklinks, type Backlink } from './files/backlinks.ts';
 export type {
   CreateFileInput,

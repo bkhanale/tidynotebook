@@ -592,10 +592,23 @@ function NoteEditorBody({
    * writes a live version over one (decision record 0032).
    */
   const checkpointInFlightRef = useRef<Promise<boolean> | null>(null);
+  // A boundary that arrives while a checkpoint runs, such as a second toggle
+  // of a task box, gets one more checkpoint when the running one ends. The
+  // running one froze the document before that change (record 0134).
+  const checkpointAgainRef = useRef(false);
+  // The sequence of the last checkpoint of this editor, or `null` before the
+  // first. The document also holds the work of other tabs and devices, and
+  // that work is a version of the editor that wrote it. An editor with no
+  // input since its last checkpoint therefore writes no version (record
+  // 0133). The first checkpoint always runs, because a draft that this open
+  // recovered can hold work that no version holds yet.
+  const versionedSequenceRef = useRef<number | null>(null);
   const checkpointNow = useRef((): Promise<boolean> => Promise.resolve(true));
   checkpointNow.current = (): Promise<boolean> => {
     if (isDeletedRef.current) return Promise.resolve(false);
     if (bufferWasReplaced()) return Promise.resolve(false);
+    if (versionedSequenceRef.current === sequenceRef.current)
+      return Promise.resolve(false);
     // The name was checked when the person kept it. Another note can take
     // the same name later, from another tab or device, and the server would
     // refuse the save, so the reason stands on the note instead.
@@ -609,7 +622,10 @@ function NoteEditorBody({
       return Promise.resolve(false);
     }
     const existing = checkpointInFlightRef.current;
-    if (existing !== null) return existing;
+    if (existing !== null) {
+      checkpointAgainRef.current = true;
+      return existing;
+    }
     const run = (async (): Promise<boolean> => {
       await startWrittenRef.current;
       await localWorkWrittenRef.current;
@@ -621,11 +637,13 @@ function NoteEditorBody({
         // buffer can lag remote work that the store took first. The version
         // therefore freezes the document and never writes the buffer into
         // it (record 0133).
+        const draft = buildDraft(false);
         const entry = await current.store.checkpoint(
-          buildDraft(false),
+          draft,
           saveCheckpointMessage,
           'document',
         );
+        versionedSequenceRef.current = draft.sequence;
         // The new checkpoint is the parent of the next one. Holding it here
         // keeps the editor right even when its draft row is removed, so a
         // later save never names a parent the file already passed.
@@ -655,6 +673,10 @@ function NoteEditorBody({
     void run.finally(() => {
       if (checkpointInFlightRef.current === run)
         checkpointInFlightRef.current = null;
+      if (checkpointAgainRef.current) {
+        checkpointAgainRef.current = false;
+        void checkpointNow.current();
+      }
     });
     return run;
   };
@@ -815,6 +837,13 @@ function NoteEditorBody({
         document: bound,
         onFormatContext: setFormatContext,
         onTableMenu: setTableMenu,
+        // A toggle of a task box is a whole action, so it saves at once and
+        // another device reads it before the person reaches that device. Two
+        // toggles of one box that cross still merge to one state on the
+        // server (record 0134).
+        onTaskToggle: () => {
+          flushVersion.current();
+        },
         // Work of another device is not input of this device: the screen
         // shows it and schedules no save of its own (record 0085).
         onRemoteChange: (text) => {

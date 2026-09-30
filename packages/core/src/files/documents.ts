@@ -17,7 +17,10 @@
  *    deletion (record 0083).
  * 3. The update applies to a trial document. A refusal leaves the stored
  *    document exactly as it was.
- * 4. The workspace derives the text of the revision from the result, so the
+ * 4. A save keeps one state in each task box that it and another editor
+ *    wrote into, so two toggles of one box never leave it with two states
+ *    (record 0134).
+ * 5. The workspace derives the text of the revision from the result, so the
  *    stored text and the document can never disagree.
  */
 import { contentDigest } from './digest.ts';
@@ -33,12 +36,14 @@ import {
   type SupersededHead,
 } from './model.ts';
 import type {
+  AppliedDocument,
   DocumentService,
   HeadState,
   StoredDocument,
   WorkspaceTransaction,
 } from './ports.ts';
 import type { Actor } from '../identity/actor.ts';
+import { doubledTaskBoxes } from './task-boxes.ts';
 
 /** What the acceptance of one changeset produced for its documents. */
 export type AcceptedDocuments = {
@@ -50,6 +55,27 @@ export type AcceptedDocuments = {
 function sameBytes(one: Uint8Array, other: Uint8Array): boolean {
   if (one.byteLength !== other.byteLength) return false;
   return one.every((value, index) => value === other[index]);
+}
+
+/**
+ * Keeps one state in each task box that two editors wrote into.
+ *
+ * Two devices that toggle one box before either sees the other each write a
+ * state, and the document keeps both, so the box is no task box any more.
+ * The two can meet here or on a device before it saves, so every save of
+ * text work asks. The save that the workspace accepts last sets the box
+ * (record 0134). The document service changes a box only when its states
+ * come from more than one editor, so a text that one person wrote stays as
+ * they wrote it.
+ */
+function settleTaskBoxes(
+  service: DocumentService,
+  before: Uint8Array,
+  applied: AppliedDocument,
+): Result<AppliedDocument> {
+  const slots = doubledTaskBoxes(applied.text);
+  if (slots.length === 0) return ok(applied);
+  return service.keepWrittenCharacter(before, applied.bytes, slots);
 }
 
 /** The document that a note holds now, or a started one for a new note. */
@@ -124,10 +150,15 @@ export async function acceptDocumentWork(
               state: service.observe(before.bytes),
             });
     if (!applied.ok) return applied;
+    const result =
+      work.kind === 'update'
+        ? settleTaskBoxes(service, before.bytes, applied.value)
+        : applied;
+    if (!result.ok) return result;
     // Work that the document already held adds nothing. A save that repeats
     // it is a duplicate, and a duplicate never brings a note back from Trash.
     const newWork = !sameBytes(
-      applied.value.state,
+      result.value.state,
       service.observe(before.bytes),
     );
     const head = heads.get(revision.fileId);
@@ -139,12 +170,12 @@ export async function acceptDocumentWork(
       work.kind !== 'text' && head?.deleted === true && !revision.deleted
         ? !newWork
         : revision.deleted;
-    const text = deleted ? '' : applied.value.text;
+    const text = deleted ? '' : result.value.text;
     working.set(revision.fileId, {
-      bytes: applied.value.bytes,
+      bytes: result.value.bytes,
       epoch: save.epoch,
     });
-    states.set(revision.fileId, applied.value.state);
+    states.set(revision.fileId, result.value.state);
     if (!covered.value) merged.add(revision.fileId);
     accepted.push({
       ...revision,

@@ -46,6 +46,13 @@ const documentService: DocumentService = {
       text,
       state: new TextEncoder().encode(text),
     }),
+  // No text of these tests holds a task box, so nothing is kept apart.
+  keepWrittenCharacter: (_before: Uint8Array, after: Uint8Array) =>
+    ok({
+      bytes: after,
+      text: new TextDecoder().decode(after),
+      state: after,
+    }),
   observe: (document: Uint8Array) => document,
   stateVector: (document: Uint8Array) => document,
   delta: (document: Uint8Array) => document,

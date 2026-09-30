@@ -1128,6 +1128,80 @@ await test('a device whose open text lags its document never adds a task box', a
   }
 });
 
+await test('two toggles of one box that cross keep one state, the last one', async () => {
+  // Record 0134: each device toggled the box before it saw the toggle of the
+  // other. The document kept both states, and the box read "[xx]" or "[x ]".
+  const path = 'notes/crossed-tasks.md';
+  const file = await newFile(path, '- [ ] task\n');
+  const storeA = await openStore('crossed-a', 'device-crossed-a');
+  const storeB = await openStore('crossed-b', 'device-crossed-b');
+  /** One toggle on one device, saved at once as the editor does. */
+  const toggle = async (
+    store: LocalStore,
+    workingCopyId: string,
+    text: string,
+    sequence: number,
+  ): Promise<void> => {
+    await editorWrites(store, file.fileId, text);
+    const draft = draftOf(
+      ownerAccountId,
+      workingCopyId,
+      file.fileId,
+      file.revisionId,
+      text,
+      path,
+      sequence,
+    );
+    await store.saveDraft(draft);
+    assert.ok(
+      (await store.checkpoint(draft, null, 'document')) !== null,
+      `${workingCopyId} queues its toggle`,
+    );
+  };
+  const serverText = async (): Promise<string | null | undefined> =>
+    (
+      await getFile({
+        headers: browser(ownerCookie),
+        path: { workspaceId, fileId: file.fileId },
+      })
+    ).data?.head?.text;
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-crossed-a-pull');
+    await syncPull(storeB, ownerCookie, 'engine-crossed-b-pull');
+
+    // Both devices check the box, and neither has seen the other.
+    await toggle(storeA, 'working-crossed-a', '- [x] task\n', 1);
+    await toggle(storeB, 'working-crossed-b', '- [x] task\n', 1);
+    await drain(storeA, 'engine-crossed-a-send');
+    await drain(storeB, 'engine-crossed-b-send');
+    assert.equal(await serverText(), '- [x] task\n');
+
+    // Device A clears the box before it sees the save of device B. Its save
+    // reaches the server last, so it sets the box.
+    await toggle(storeA, 'working-crossed-a', '- [ ] task\n', 2);
+    await drain(storeA, 'engine-crossed-a-second');
+    assert.equal(await serverText(), '- [ ] task\n');
+
+    // Device B reads the same one box.
+    const pulled = startEngine(storeB, ownerCookie, 'engine-crossed-b-feed');
+    try {
+      await waitFor(async () => {
+        const held = await storeB.readNoteDocument(
+          ownerAccountId,
+          workspaceId,
+          file.fileId,
+        );
+        return held !== null && readDocumentText(held.bytes) === '- [ ] task\n';
+      }, 'device B reads the box that the server kept');
+    } finally {
+      await stopEngine(pulled);
+    }
+  } finally {
+    await storeB.close();
+    await storeA.close();
+  }
+});
+
 await test('a save over work it never saw joins it and offers Review', async () => {
   const file = await newFile('notes/rebased.md', '# Base\n');
   const storeA = await openStore('rebase-a', 'device-rebase-a');

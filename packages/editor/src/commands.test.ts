@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EditorState } from '@codemirror/state';
-import { editingTransaction, linkSpanAt } from './commands.ts';
+import {
+  editingTransaction,
+  isTaskToggle,
+  linkSpanAt,
+  taskToggleAt,
+  toggleTaskSpec,
+} from './commands.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
 
 await test('an editing command asks to keep the caret in view', () => {
@@ -91,4 +97,30 @@ await test('a wrapped destination loses the brackets that hold it', () => {
     spanAt('see [label](<https://example.com/a b>) here\n', 8)?.target,
     'https://example.com/a b',
   );
+});
+
+await test('a toggle of a task box states that it is one', () => {
+  // Record 0134: the screen saves a toggle at once, so another device reads
+  // it before the person reaches that device. Typing keeps the pause.
+  const state = EditorState.create({
+    doc: '- [ ] one\n- [x] two\n',
+    selection: { anchor: 3 },
+  });
+  const pointed = taskToggleAt(state, 12);
+  assert.ok(pointed !== null);
+  const toggled = state.update(pointed);
+  assert.equal(toggled.state.doc.toString(), '- [ ] one\n- [ ] two\n');
+  assert.equal(isTaskToggle(toggled), true);
+
+  const selected = toggleTaskSpec(state);
+  assert.ok(selected !== null);
+  const keyed = state.update(selected);
+  assert.equal(keyed.state.doc.toString(), '- [x] one\n- [x] two\n');
+  assert.equal(isTaskToggle(keyed), true);
+
+  const typed = state.update({
+    changes: { from: 9, insert: 's' },
+    userEvent: 'input.type',
+  });
+  assert.equal(isTaskToggle(typed), false);
 });

@@ -20,7 +20,9 @@ import {
 } from '@codemirror/view';
 import {
   editingTransaction,
+  isTaskToggle,
   linkSpanAt,
+  taskToggleEvent,
   toggleTaskSpec,
   type EditorNavigation,
   type LinkTarget,
@@ -88,6 +90,13 @@ export type CreateEditorOptions = {
    * and never enter local undo. The screen reads the new text here.
    */
   readonly onRemoteChange?: ((text: string) => void) | undefined;
+  /**
+   * Hears a toggle of a task box, after the change of the toggle.
+   *
+   * A toggle is a whole action, so the screen saves it at once rather than
+   * after a pause, and another device reads it in time (record 0134).
+   */
+  readonly onTaskToggle?: (() => void) | undefined;
   /**
    * Hears where the caret stands for the formatting row: in a table or not.
    *
@@ -175,7 +184,13 @@ export function createEditor(
       run: (view): boolean => {
         const spec = toggleTaskSpec(view.state);
         if (spec === null) return false;
-        view.dispatch(view.state.update(editingTransaction(spec)));
+        // The toggle keeps its own event, so the screen saves it at once.
+        view.dispatch(
+          view.state.update({
+            ...editingTransaction(spec),
+            userEvent: taskToggleEvent,
+          }),
+        );
         return true;
       },
     },
@@ -222,6 +237,7 @@ export function createEditor(
           return;
         }
         onChange(text);
+        if (update.transactions.some(isTaskToggle)) options.onTaskToggle?.();
       }),
       EditorView.domEventHandlers({
         // A link opens on a plain click, which is what the pointer over it

@@ -21,6 +21,7 @@ import type {
 import type { DailyNoteSettings } from '../daily-notes/model.ts';
 import type { SearchHit } from '../search/service.ts';
 import type { Backlink } from './backlinks.ts';
+import type { TextSlot } from './task-boxes.ts';
 
 /**
  * The document of one note, as the workspace holds it now.
@@ -70,6 +71,20 @@ export type DocumentService = {
    * rewrites that follow a move (record 0081).
    */
   replaceText(document: Uint8Array, text: string): Result<AppliedDocument>;
+  /**
+   * Leaves one character in each slot that two editors wrote into (record
+   * 0134).
+   *
+   * `before` is the document before the save and `after` holds the save. In
+   * a slot that the save wrote into and whose characters come from more than
+   * one editor, the last character that the save wrote stays and the others
+   * are deleted. Any other slot stays as it is.
+   */
+  keepWrittenCharacter(
+    before: Uint8Array,
+    after: Uint8Array,
+    slots: readonly TextSlot[],
+  ): Result<AppliedDocument>;
   /** The complete observed state of a document. */
   observe(document: Uint8Array): Uint8Array;
   /** The state vector of a document, which names its insertions. */

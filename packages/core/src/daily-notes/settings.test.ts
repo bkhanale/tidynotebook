@@ -105,6 +105,9 @@ function fakeStore(files: readonly FileRecord[]): WorkspaceStore & {
       replaceText: () => {
         throw new Error('unused');
       },
+      keepWrittenCharacter: () => {
+        throw new Error('unused');
+      },
       observe: () => new Uint8Array(),
       stateVector: () => new Uint8Array(),
       delta: () => new Uint8Array(),
