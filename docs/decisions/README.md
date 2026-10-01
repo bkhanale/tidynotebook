@@ -183,6 +183,9 @@ and needs no record.
 | [0149](0149-one-template-engine-fills-a-note-at-the-caret.md)                         | One template engine fills a note at the caret                                   |
 | [0150](0150-the-environment-names-the-mail-server-as-fields.md)                       | The environment names the mail server as fields                                 |
 | [0151](0151-a-page-with-no-script-follows-the-device-palette.md)                      | A page with no script follows the device palette                                |
+| [0152](0152-the-guide-is-a-static-site-of-its-own.md)                                 | The guide is a static site of its own                                           |
+| [0153](0153-the-site-answers-search-and-agents-from-its-build.md)                     | The site answers search and agents from its build                               |
+| [0154](0154-a-change-carries-its-test.md)                                             | A change carries its test                                                       |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -617,3 +620,12 @@ Record 0151 answers
 [issue 210](https://github.com/bkhanale/notesapp/issues/210). A published
 page and a legal page follow the light or dark preference of the device, with
 the Default palettes that the build writes into the one stylesheet.
+
+Records 0152 to 0154 follow
+[design 020](../design/020-a-documentation-site.md). Record 0152 builds the
+guide into a static site of its own in `apps/docs`, with the one renderer, the
+one stylesheet and the recipes of `packages/ui`, so it reads like the product.
+Record 0153 gives the site a search and the files for agents from its build,
+with no server. Record 0154 makes the gate refuse a change of source that
+carries no test and states no reason, and runs the same check as a Stop hook
+of the agent.
