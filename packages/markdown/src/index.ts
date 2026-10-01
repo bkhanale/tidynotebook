@@ -33,6 +33,7 @@ export type {
   ReferenceRewrite,
 } from './rewrite.ts';
 export {
+  mapRelativeReferences,
   migrateLegacyReferences,
   portableRelativePath,
   rewriteRelativeReferences,

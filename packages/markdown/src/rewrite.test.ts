@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  mapRelativeReferences,
   migrateLegacyReferences,
   rewriteRelativeReferences,
 } from './rewrite.ts';
@@ -40,4 +41,37 @@ await test('legacy references migrate and dead references are reported', () => {
   assert.deepEqual(migrated.deadReferences, [
     '/notes/7c9e6679-7425-40de-944b-e07fc1f90ae7',
   ]);
+});
+
+await test('a map rewrites each relative destination and keeps the rest', () => {
+  const seen: string[] = [];
+  const mapped = mapRelativeReferences(
+    [
+      '[Start](start.md#first-note) and [Rules](../../SECURITY.md)',
+      '[Site](https://example.com/a.md), [Here](#top) and [Kept](kept.md)',
+      '',
+      '[ref]: other.md',
+    ].join('\n'),
+    'docs/guide/README.md',
+    (path, fragment) => {
+      seen.push(`${path}${fragment}`);
+      return path.endsWith('kept.md') ? null : `/site/${path}${fragment}`;
+    },
+  );
+  assert.deepEqual(seen, [
+    'docs/guide/start.md#first-note',
+    'SECURITY.md',
+    'docs/guide/kept.md',
+    'docs/guide/other.md',
+  ]);
+  assert.equal(
+    mapped.text,
+    [
+      '[Start](/site/docs/guide/start.md#first-note) and [Rules](/site/SECURITY.md)',
+      '[Site](https://example.com/a.md), [Here](#top) and [Kept](kept.md)',
+      '',
+      '[ref]: /site/docs/guide/other.md',
+    ].join('\n'),
+  );
+  assert.equal(mapped.count, 3);
 });

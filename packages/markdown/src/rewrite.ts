@@ -79,13 +79,20 @@ function rewrite(source: string, replacements: readonly Replacement[]): string {
   return result;
 }
 
-/** Rewrites links when their source or target path moves. */
-export function rewriteRelativeReferences(
+/**
+ * Rewrites the destination of every relative link and image.
+ *
+ * `destination` receives the path that a relative reference resolves to from
+ * `sourcePath`, and the fragment as the author wrote it, with its `#` or as an
+ * empty text. It answers the new destination, or `null` to keep the reference
+ * as written. Every other destination and every other character of the source
+ * stays as it is.
+ */
+export function mapRelativeReferences(
   source: string,
   sourcePath: string,
-  movedPaths: ReadonlyMap<string, string>,
+  destination: (path: string, fragment: string) => string | null,
 ): ReferenceRewrite {
-  const nextSourcePath = movedPaths.get(sourcePath) ?? sourcePath;
   const replacements: Replacement[] = [];
   visit(parseMarkdown(source), (node) => {
     if (
@@ -96,18 +103,29 @@ export function rewriteRelativeReferences(
       return;
     const target = classifyUrl(node.url, sourcePath);
     if (target.kind !== 'relative') return;
-    const nextTargetPath = movedPaths.get(target.path) ?? target.path;
-    if (nextSourcePath === sourcePath && nextTargetPath === target.path) return;
     const hash = node.url.indexOf('#');
     const fragment = hash === -1 ? '' : node.url.slice(hash);
+    const text = destination(target.path, fragment);
+    if (text === null) return;
     const range = destinationRange(source, node, node.url);
     if (range === null) return;
-    replacements.push({
-      ...range,
-      text: `${portableRelativePath(nextSourcePath, nextTargetPath)}${fragment}`,
-    });
+    replacements.push({ ...range, text });
   });
   return { text: rewrite(source, replacements), count: replacements.length };
+}
+
+/** Rewrites links when their source or target path moves. */
+export function rewriteRelativeReferences(
+  source: string,
+  sourcePath: string,
+  movedPaths: ReadonlyMap<string, string>,
+): ReferenceRewrite {
+  const nextSourcePath = movedPaths.get(sourcePath) ?? sourcePath;
+  return mapRelativeReferences(source, sourcePath, (path, fragment) => {
+    const nextTargetPath = movedPaths.get(path) ?? path;
+    if (nextSourcePath === sourcePath && nextTargetPath === path) return null;
+    return `${portableRelativePath(nextSourcePath, nextTargetPath)}${fragment}`;
+  });
 }
 
 /** Rewrites the identifier references stored by version 0.1.0. */

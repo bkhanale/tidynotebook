@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@types/hast": "3.0.5",
-    "@types/mdast": "4.0.4",
+    "@types/mdast": "catalog:",
     "katex": "catalog:",
     "mdast-util-to-string": "4.0.0",
     "micromark-extension-math": "3.1.0",
