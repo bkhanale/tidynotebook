@@ -146,23 +146,74 @@ function useContentHits(
   return { hits, offline };
 }
 
-/** The command palette dialog. */
-export function CommandPalette({
-  open,
-  onOpenChange,
-  workspaceId,
-  notes,
-  store,
-  accountId,
-  actions,
-}: {
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
+/** What the palette passes to the body of its open dialog. */
+type PaletteProps = {
   readonly workspaceId: string;
   readonly notes: readonly PaletteNote[];
   readonly store: LocalStore | null;
   readonly accountId: string | null;
   readonly actions: readonly PaletteAction[];
+};
+
+/**
+ * The command palette dialog.
+ *
+ * The body of the dialog mounts when the palette opens and goes when it
+ * closes, so every open starts with an empty field, the first row chosen and
+ * the list of actions, and no row of an earlier open can answer a fast Enter.
+ * The work a person chose stays here, because it runs after the body is gone.
+ */
+export function CommandPalette({
+  open,
+  onOpenChange,
+  ...props
+}: PaletteProps & {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}): ReactNode {
+  // The work a person chose. It runs once the dialog has closed, and not in
+  // the press that chose it. The dialog makes the page inert while it is open
+  // and gives the focus back to what opened it as it closes, so an action
+  // that ran inside the dialog could not take the focus: a format action lost
+  // the caret of the note, a dialog that an action opened lost its field, and
+  // a template went nowhere. React runs the clean up of the dialog that
+  // closes before the effects of the same commit, so this effect runs on a
+  // page that is live again, with the focus back where it was.
+  const [chosen, setChosen] = useState<{ readonly run: () => void } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (open || chosen === null) return;
+    setChosen(null);
+    chosen.run();
+  }, [open, chosen]);
+
+  if (!open) return null;
+  return (
+    <PaletteDialog
+      {...props}
+      onClose={() => onOpenChange(false)}
+      closeThen={(work) => {
+        setChosen({ run: work });
+        onOpenChange(false);
+      }}
+    />
+  );
+}
+
+/** The open palette: its field, its one list and its keys. */
+function PaletteDialog({
+  workspaceId,
+  notes,
+  store,
+  accountId,
+  actions,
+  onClose,
+  closeThen,
+}: PaletteProps & {
+  readonly onClose: () => void;
+  /** Closes the palette, then runs one piece of work. */
+  readonly closeThen: (work: () => void) => void;
 }): ReactNode {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -210,13 +261,6 @@ export function CommandPalette({
   }, [step, query, notes, content.hits, actions]);
 
   useEffect(() => {
-    if (!open) return;
-    setQuery('');
-    setSelected(0);
-    setStepId(null);
-  }, [open]);
-
-  useEffect(() => {
     setSelected(0);
   }, [query, stepId]);
 
@@ -227,36 +271,10 @@ export function CommandPalette({
   }, [stepId, step]);
 
   useEffect(() => {
-    if (!open) return;
     listRef.current
       ?.querySelector('[aria-selected="true"]')
       ?.scrollIntoView({ block: 'nearest' });
-  }, [open, selected, rows]);
-
-  // The work a person chose. It runs once the dialog has closed, and not in
-  // the press that chose it. The dialog makes the page inert while it is open
-  // and gives the focus back to what opened it as it closes, so an action
-  // that ran inside the dialog could not take the focus: a format action lost
-  // the caret of the note, a dialog that an action opened lost its field, and
-  // a template went nowhere. React runs the clean up of the dialog that
-  // closes before the effects of the same commit, so this effect runs on a
-  // page that is live again, with the focus back where it was.
-  const [chosen, setChosen] = useState<{ readonly run: () => void } | null>(
-    null,
-  );
-  useEffect(() => {
-    if (open || chosen === null) return;
-    setChosen(null);
-    chosen.run();
-  }, [open, chosen]);
-
-  /** Closes the palette, then runs one piece of work. */
-  const closeThen = (work: () => void): void => {
-    setChosen({ run: work });
-    onOpenChange(false);
-  };
-
-  if (!open) return null;
+  }, [selected, rows]);
 
   const run = (row: Row | undefined): void => {
     if (row === undefined) return;
@@ -299,8 +317,8 @@ export function CommandPalette({
 
   return (
     <Dialog
-      open={open}
-      onClose={() => onOpenChange(false)}
+      open
+      onClose={onClose}
       title="Search notes and run actions"
       titleId="command-palette-title"
       hideTitle
@@ -363,7 +381,7 @@ export function CommandPalette({
       <ul
         ref={listRef}
         id="command-palette-list"
-        className="m-0 max-h-80 list-none overflow-y-auto p-2"
+        className="m-0 max-h-80 list-none overflow-y-auto p-2 empty:hidden"
         role="listbox"
         aria-label="Results"
       >
