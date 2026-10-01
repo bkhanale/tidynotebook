@@ -48,6 +48,8 @@ except its status line.
 - `CLAUDE.md` imports `AGENTS.md` for Claude Code and holds nothing else.
 - `.claude/skills/` links to `.agents/skills/`, so one skill file serves every
   agent harness.
+- `.claude/settings.json` holds the Stop hook of record 0154 and nothing
+  else.
 
 ## Lifecycle of a large task
 
