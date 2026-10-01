@@ -32,6 +32,7 @@ import { operational, unreachable } from './errors.ts';
 import { runTransaction } from './transaction.ts';
 import { membershipRepository } from './membership-repository.ts';
 import { dailyNoteSettingsRepository } from './daily-note-settings-repository.ts';
+import { templateSettingsRepository } from './template-settings-repository.ts';
 import { notesRepository } from './notes-repository.ts';
 import { historyRepository } from './history-repository.ts';
 import { trashRepository } from './trash-repository.ts';
@@ -249,6 +250,7 @@ function createTransaction(
   return {
     ...membershipRepository(context),
     ...dailyNoteSettingsRepository(context),
+    ...templateSettingsRepository(context),
     ...notesRepository(context),
     ...historyRepository(context),
     ...trashRepository(context),

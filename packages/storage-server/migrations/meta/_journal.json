@@ -183,6 +183,13 @@
       "when": 1790863502625,
       "tag": "0025_installation_mail_and_legal",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790871792305,
+      "tag": "0026_template_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -1439,3 +1439,44 @@ export const dailyNoteSettings = pgTable(
     ),
   ],
 );
+
+/**
+ * The template settings that one member keeps in one workspace.
+ *
+ * Record 0149 states the settings: the folder whose notes are the templates
+ * that the palette inserts. A row belongs to one membership, as a row of
+ * `daily_note_settings` does, and the membership reference cascades, so a
+ * member who leaves takes their settings with them and a workspace deletion
+ * removes every row. The row policy binds a row to the account of the
+ * transaction, so one member never reads the settings of another.
+ *
+ * The folder names no row of `files`: a folder holds no state of its own, so
+ * a rename of the folder leaves the setting where it was, as a rename of the
+ * daily note folder does.
+ */
+export const templateSettings = pgTable(
+  'template_settings',
+  {
+    workspaceId: uuid('workspace_id').notNull(),
+    accountId: uuid('account_id').notNull(),
+    /** The folder whose notes are the templates. */
+    folder: text('folder').notNull().default('Templates'),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.accountId] }),
+    foreignKey({
+      name: 'template_settings_membership_fk',
+      columns: [table.workspaceId, table.accountId],
+      foreignColumns: [memberships.workspaceId, memberships.accountId],
+    }).onDelete('cascade'),
+    // The contract bounds the folder, and the database holds the same bounds,
+    // so no statement can store a folder that no answer could carry.
+    check(
+      'template_settings_folder_check',
+      sql`char_length(${table.folder}) between 1 and 1024`,
+    ),
+  ],
+);
