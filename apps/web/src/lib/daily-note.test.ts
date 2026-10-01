@@ -8,7 +8,7 @@ import {
   dailyNoteOf,
   dailyNotePreview,
   dailyNoteProblems,
-  dailyNoteSettingsKey,
+  dailyNoteSettingsName,
   daysWithNotes,
   effectiveTemplateId,
   formatCachedSettings,
@@ -21,6 +21,7 @@ import {
   templateChoices,
   templateOfChoice,
 } from './daily-note.ts';
+import { memberSettingsKey } from './member-settings.ts';
 
 const notes = [
   { fileId: 'a', path: 'Daily notes/2026-09-24.md' },
@@ -154,8 +155,10 @@ await test('a cached copy reads back as the settings it stored', () => {
       parseCachedSettings(formatCachedSettings(settings)),
       settings,
     );
+  // The key keeps the spelling of every earlier release, so a device keeps
+  // the copy it already holds.
   assert.equal(
-    dailyNoteSettingsKey('account', 'workspace'),
+    memberSettingsKey(dailyNoteSettingsName, 'account', 'workspace'),
     'notesapp.daily-notes:account:workspace',
   );
 });

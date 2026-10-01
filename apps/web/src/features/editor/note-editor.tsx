@@ -89,13 +89,13 @@ import { TableMenu } from './table-menu.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
+import { useInsertTemplate } from './insert-template.ts';
+import { freeCopyPath } from '../../lib/new-note-draft.ts';
 import {
   baseNameOf,
   displayNoteName,
   duplicateNameProblem,
   folderOf,
-  joinNotePath,
-  storageNotePath,
 } from '../../lib/note-name.ts';
 import { commitNoteName } from '../../lib/note-name-commit.ts';
 import { shouldFocusNewNoteNameOnOpen } from '../../lib/note-name-input.ts';
@@ -1258,23 +1258,6 @@ function NoteEditorBody({
   /** Copies the open note into a new note beside it. */
   const duplicateNote = useCallback((): void => {
     const current = live.current;
-    const base = displayNoteName(baseNameOf(validPathRef.current));
-    const taken = new Set(
-      noteList.notes.map((entry) => entry.path.toLowerCase()),
-    );
-    let candidate = `${base} copy`;
-    let index = 2;
-    while (
-      taken.has(
-        joinNotePath(
-          folderRef.current,
-          storageNotePath(candidate),
-        ).toLowerCase(),
-      )
-    ) {
-      candidate = `${base} copy ${String(index)}`;
-      index += 1;
-    }
     const copyId = generateUUID();
     const copy: Draft = {
       accountId: current.accountId,
@@ -1283,7 +1266,11 @@ function NoteEditorBody({
       fileId: copyId,
       baseRevisionId: null,
       text: bufferRef.current,
-      path: joinNotePath(folderRef.current, storageNotePath(candidate)),
+      path: freeCopyPath(
+        noteList.notes.map((entry) => entry.path),
+        folderRef.current,
+        displayNoteName(baseNameOf(validPathRef.current)),
+      ),
       deleted: false,
       sequence: 1,
     };
@@ -1363,6 +1350,16 @@ function NoteEditorBody({
     if (view !== null) runFormatAction(view, id);
   }, []);
 
+  /** Fills one template over the selection (record 0149). */
+  const insertTemplate = useInsertTemplate({
+    store,
+    accountId,
+    workspaceId,
+    viewRef,
+    pathRef: validPathRef,
+    setNotice: setEditorNotice,
+  });
+
   /** The editor view of this working copy, for the menu of a table. */
   const currentView = useCallback((): EditorView | null => viewRef.current, []);
   const closeTableMenu = useCallback((): void => {
@@ -1394,6 +1391,7 @@ function NoteEditorBody({
       publish: publishNote,
       format: runFormat,
       formatContext,
+      insertTemplate,
     }),
     [
       fileId,
@@ -1405,6 +1403,7 @@ function NoteEditorBody({
       publishNote,
       runFormat,
       formatContext,
+      insertTemplate,
     ],
   );
   useRegisterNoteActions(noteScreenActions);

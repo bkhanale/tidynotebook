@@ -9,7 +9,8 @@
  * `lib/palette-items.ts` names the glyphs, because a palette action is data
  * and a name is not JSX. This module turns one name into the element, and the
  * record is total by its type, so a new name fails the typecheck until it has
- * a glyph.
+ * a glyph. An empty state that an action fills shows the glyph of that action
+ * at 20 px, the one size of an icon outside a control.
  */
 import type { ReactNode } from 'react';
 import {
@@ -56,69 +57,81 @@ import {
   TableRowAddIcon,
   TableRowRemoveIcon,
   TaskListIcon,
+  TemplateIcon,
   TrashIcon,
   UploadIcon,
   UsersIcon,
   WorkspaceIcon,
+  type IconProps,
 } from '@notesapp/ui';
 import type { ActionIconName } from '../lib/palette-items.ts';
 
 /** The glyph of each action name. */
-const actionIcons: Readonly<Record<ActionIconName, ReactNode>> = {
-  'align-center': <AlignCenterIcon />,
-  'align-left': <AlignLeftIcon />,
-  'align-right': <AlignRightIcon />,
-  bold: <BoldIcon />,
-  'bullet-list': <BulletListIcon />,
-  'collapse-all': <CollapseAllIcon />,
-  delete: <TrashIcon />,
-  duplicate: <CopyIcon />,
-  'expand-all': <ExpandAllIcon />,
-  export: <DownloadIcon />,
-  'heading-one': <Heading1Icon />,
-  'heading-three': <Heading3Icon />,
-  'heading-two': <Heading2Icon />,
-  history: <HistoryIcon />,
-  image: <UploadIcon />,
-  'inline-code': <CodeIcon />,
-  'insert-link': <LinkIcon />,
-  italic: <ItalicIcon />,
-  keyboard: <KeyboardIcon />,
-  move: <MoveIcon />,
-  'move-down': <ArrowDownIcon />,
-  'move-left': <ArrowLeftIcon />,
-  'move-right': <ArrowRightIcon />,
-  'move-up': <ArrowUpIcon />,
-  'new-folder': <FolderPlusIcon />,
-  'new-note': <PlusIcon />,
-  'new-workspace': <PlusIcon />,
-  'ordered-list': <OrderedListIcon />,
-  publish: <LinkIcon />,
-  'published-links': <LinkIcon />,
-  accounts: <UsersIcon />,
-  quote: <QuoteIcon />,
-  rename: <PencilIcon />,
-  settings: <SettingsIcon />,
-  sidebar: <PanelLeftIcon />,
-  'sign-out': <SignOutIcon />,
-  sort: <SortIcon />,
-  strikethrough: <StrikethroughIcon />,
-  table: <TableIcon />,
-  'table-add-column': <TableColumnAddIcon />,
-  'table-add-row': <TableRowAddIcon />,
-  'table-remove-column': <TableColumnRemoveIcon />,
-  'table-remove-row': <TableRowRemoveIcon />,
-  'table-remove': <TableRemoveIcon />,
-  'task-list': <TaskListIcon />,
-  'theme-dark': <MoonIcon />,
-  'theme-light': <SunIcon />,
-  'theme-system': <ComputerIcon />,
-  today: <CalendarDayIcon />,
-  trash: <TrashIcon />,
-  workspace: <WorkspaceIcon />,
+const actionIcons: Readonly<
+  Record<ActionIconName, (props: IconProps) => ReactNode>
+> = {
+  'align-center': AlignCenterIcon,
+  'align-left': AlignLeftIcon,
+  'align-right': AlignRightIcon,
+  bold: BoldIcon,
+  'bullet-list': BulletListIcon,
+  'collapse-all': CollapseAllIcon,
+  delete: TrashIcon,
+  duplicate: CopyIcon,
+  'expand-all': ExpandAllIcon,
+  export: DownloadIcon,
+  'heading-one': Heading1Icon,
+  'heading-three': Heading3Icon,
+  'heading-two': Heading2Icon,
+  history: HistoryIcon,
+  image: UploadIcon,
+  'inline-code': CodeIcon,
+  'insert-link': LinkIcon,
+  italic: ItalicIcon,
+  keyboard: KeyboardIcon,
+  move: MoveIcon,
+  'move-down': ArrowDownIcon,
+  'move-left': ArrowLeftIcon,
+  'move-right': ArrowRightIcon,
+  'move-up': ArrowUpIcon,
+  'new-folder': FolderPlusIcon,
+  'new-note': PlusIcon,
+  'new-workspace': PlusIcon,
+  'ordered-list': OrderedListIcon,
+  publish: LinkIcon,
+  'published-links': LinkIcon,
+  accounts: UsersIcon,
+  quote: QuoteIcon,
+  rename: PencilIcon,
+  settings: SettingsIcon,
+  sidebar: PanelLeftIcon,
+  'sign-out': SignOutIcon,
+  sort: SortIcon,
+  strikethrough: StrikethroughIcon,
+  table: TableIcon,
+  'table-add-column': TableColumnAddIcon,
+  'table-add-row': TableRowAddIcon,
+  'table-remove-column': TableColumnRemoveIcon,
+  'table-remove-row': TableRowRemoveIcon,
+  'table-remove': TableRemoveIcon,
+  'task-list': TaskListIcon,
+  template: TemplateIcon,
+  'theme-dark': MoonIcon,
+  'theme-light': SunIcon,
+  'theme-system': ComputerIcon,
+  today: CalendarDayIcon,
+  trash: TrashIcon,
+  workspace: WorkspaceIcon,
 };
 
-/** The glyph of one action. */
+/** The glyph of one action, at the size of a control and a row. */
 export function actionIcon(name: ActionIconName): ReactNode {
-  return actionIcons[name];
+  const Icon = actionIcons[name];
+  return <Icon />;
+}
+
+/** The glyph of one action, at the size of an empty state. */
+export function emptyStateIcon(name: ActionIconName): ReactNode {
+  const Icon = actionIcons[name];
+  return <Icon size={20} />;
 }

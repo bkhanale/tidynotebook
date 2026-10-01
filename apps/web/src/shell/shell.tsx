@@ -128,6 +128,11 @@ import {
   useDailyNotes,
 } from '../features/daily-notes/daily-notes.tsx';
 import { daysWithNotes } from '../lib/daily-note.ts';
+import {
+  TemplatesProvider,
+  useTemplates,
+} from '../features/templates/templates.tsx';
+import { templatePalettePick } from '../lib/templates.ts';
 import { SidebarCalendar } from '../features/daily-notes/calendar.tsx';
 import { dailyNoteDate } from '@notesapp/core';
 import { PublishDialog } from '../features/publishing/publish-dialog.tsx';
@@ -1286,13 +1291,15 @@ export function Shell(): ReactNode {
     <RequireCurrentWorkspace workspaceId={workspaceId}>
       <FilesProvider workspaceId={workspaceId}>
         <DailyNotesProvider workspaceId={workspaceId}>
-          <NoteSaveScope>
-            <NoteActionsScope>
-              <HeaderSlotProvider>
-                <ShellFrame workspaceId={workspaceId} />
-              </HeaderSlotProvider>
-            </NoteActionsScope>
-          </NoteSaveScope>
+          <TemplatesProvider workspaceId={workspaceId}>
+            <NoteSaveScope>
+              <NoteActionsScope>
+                <HeaderSlotProvider>
+                  <ShellFrame workspaceId={workspaceId} />
+                </HeaderSlotProvider>
+              </NoteActionsScope>
+            </NoteSaveScope>
+          </TemplatesProvider>
         </DailyNotesProvider>
       </FilesProvider>
     </RequireCurrentWorkspace>
@@ -1350,6 +1357,7 @@ function ShellFrame({
   const persistence = usePersistentStorage(useSavedOnce());
   const newNote = useCreateNote(store.store, accountId, workspaceId);
   const daily = useDailyNotes();
+  const templates = useTemplates();
   const noteActions = useNoteActions();
   // Every folder the tree can show: the ones the note paths imply and the
   // ones that hold no note yet.
@@ -1641,6 +1649,25 @@ function ShellFrame({
                     run: noteActions.attachImage,
                   },
                 ]),
+            // The templates of the folder of the member are the second step
+            // of this action, in the same palette (record 0149).
+            ...(noteActions.insertTemplate === null
+              ? []
+              : [
+                  {
+                    id: 'insert-template',
+                    label: 'Insert from template',
+                    keywords: 'template copy paste fill snippet insert',
+                    icon: 'template' as const,
+                    pick: templatePalettePick({
+                      settings: templates.settings,
+                      notes: files.notes,
+                      openFileId: noteActions.fileId,
+                      choose: noteActions.insertTemplate,
+                      newTemplate: newNote.create,
+                    }),
+                  },
+                ]),
             ...(noteActions.exportMarkdown === null
               ? []
               : [
@@ -1759,12 +1786,14 @@ function ShellFrame({
     [
       cycleTheme,
       daily.open,
+      files.notes,
       navigate,
       newNote.create,
       noteActions,
       otherWorkspaces,
       selectedFolder,
       sidebar.toggleCollapsed,
+      templates.settings,
       themeIconName,
       workspaceId,
     ],

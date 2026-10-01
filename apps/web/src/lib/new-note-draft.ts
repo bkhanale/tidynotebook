@@ -8,13 +8,32 @@
  * tested without a browser and without a store.
  */
 import type { Draft } from '@notesapp/sync';
-import { joinNotePath } from './note-name.ts';
+import { joinNotePath, storageNotePath } from './note-name.ts';
 
 /** The identifiers that the caller draws for one new note. */
 export type NewNoteIds = {
   readonly fileId: string;
   readonly workingCopyId: string;
 };
+
+/**
+ * The first free path of a name inside one folder: the name itself, then the
+ * name with 2, 3 and so on after it. Two paths that differ only in case are
+ * one name, as the workspace treats them.
+ */
+function freeNumberedPath(
+  takenPaths: readonly string[],
+  folder: string,
+  name: string,
+): string {
+  const taken = new Set(takenPaths.map((path) => path.toLowerCase()));
+  const at = (candidate: string): string =>
+    joinNotePath(folder, storageNotePath(candidate));
+  if (!taken.has(at(name).toLowerCase())) return at(name);
+  let index = 2;
+  while (taken.has(at(`${name} ${String(index)}`).toLowerCase())) index += 1;
+  return at(`${name} ${String(index)}`);
+}
 
 /**
  * Picks a free name for a new note inside one folder.
@@ -26,13 +45,16 @@ export function freeNotePath(
   takenPaths: readonly string[],
   folder: string,
 ): string {
-  const taken = new Set(takenPaths.map((path) => path.toLowerCase()));
-  const at = (name: string): string => joinNotePath(folder, name);
-  if (!taken.has(at('New note.md').toLowerCase())) return at('New note.md');
-  let index = 2;
-  while (taken.has(at(`New note ${String(index)}.md`).toLowerCase()))
-    index += 1;
-  return at(`New note ${String(index)}.md`);
+  return freeNumberedPath(takenPaths, folder, 'New note');
+}
+
+/** Picks a free name for the copy of a note beside it, `Plan copy` first. */
+export function freeCopyPath(
+  takenPaths: readonly string[],
+  folder: string,
+  baseName: string,
+): string {
+  return freeNumberedPath(takenPaths, folder, `${baseName} copy`);
 }
 
 /**

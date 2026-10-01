@@ -95,6 +95,7 @@ import {
 } from '../../pwa/lifecycle.ts';
 import { downloadAll, importAll } from '../export/export.ts';
 import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx';
+import { TemplateSettingsFields } from '../templates/template-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { SettingsSection } from './settings-section.tsx';
 import { ThemeSettings } from './theme-settings.tsx';
@@ -1090,6 +1091,14 @@ export function AccountSettingsPage(): ReactNode {
         description="Each day has one note, and the calendar in the sidebar opens it. These settings apply to this workspace and follow you to every device."
       >
         <DailyNoteSettingsFields />
+      </SettingsSection>
+    ),
+    templates: (
+      <SettingsSection
+        section={settingsSection('templates')}
+        description="A template is a note that you copy into another note. Select Insert from template in the command palette, and the copy goes in at the cursor. This setting applies to this workspace and follows you to every device."
+      >
+        <TemplateSettingsFields />
       </SettingsSection>
     ),
     offline: (

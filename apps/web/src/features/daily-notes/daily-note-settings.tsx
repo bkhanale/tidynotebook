@@ -13,16 +13,9 @@
  * them names the note of today as the typed layout writes it, and
  * `layoutToStore` decides what is stored.
  */
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from 'react';
-import {
-  cleanDailyNoteFolder,
+  cleanFolderPath,
   dailyNoteLayoutProblem,
   type DailyNoteSettings,
 } from '@notesapp/core';
@@ -34,6 +27,7 @@ import {
   TextField,
 } from '@notesapp/ui';
 import { useFiles } from '../../shell/files.tsx';
+import { useStoreOnLeave } from '../../shell/store-on-leave.ts';
 import {
   dailyNotePreview,
   effectiveTemplateId,
@@ -62,40 +56,19 @@ function LayoutFields({
     setFormat(settings.format);
   }, [settings.folder, settings.format]);
 
-  const layout = { folder: cleanDailyNoteFolder(folder), format };
+  const layout = { folder: cleanFolderPath(folder), format };
   const problem = dailyNoteLayoutProblem(layout);
   const sentence =
     problem === null ? undefined : layoutProblemSentences[problem];
 
-  /** Stores the typed layout when it is whole and new. */
-  const store = useRef((): void => {});
-  store.current = (): void => {
+  // The typed layout is stored when it is whole and new.
+  const leave = useStoreOnLeave((): void => {
     const next = layoutToStore({ folder, format }, settings);
     if (next !== null) onSave({ ...settings, ...next });
-  };
-  // A person who leaves the page from a field keeps what they typed. The
-  // provider of the settings outlives this page, so the change still goes.
-  useEffect(
-    () => () => {
-      store.current();
-    },
-    [],
-  );
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    store.current();
-  };
+  });
 
   return (
-    <div
-      className="mt-4"
-      onBlur={() => {
-        store.current();
-      }}
-      onKeyDown={onKeyDown}
-    >
+    <div className="mt-4" onBlur={leave.onBlur} onKeyDown={leave.onKeyDown}>
       <TextField
         id="daily-folder"
         label="Folder"
@@ -151,7 +124,7 @@ export function DailyNoteSettingsFields(): ReactNode {
         label="Template"
         value={effectiveTemplateId(settings, files.notes) ?? noTemplateValue}
         options={choices}
-        hint="A new daily note starts with a copy of the text of this note. Write {{date}}, {{date:dddd}} or {{title}} in the template to fill in the date or the name."
+        hint="A new daily note starts with a copy of the text of this note. Write {{date}}, {{date:dddd}}, {{time}} or {{title}} in the template to fill in the date, the time or the name."
         onChange={(value) => {
           daily.save({ ...settings, templateFileId: templateOfChoice(value) });
         }}

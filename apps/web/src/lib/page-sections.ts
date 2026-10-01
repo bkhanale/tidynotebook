@@ -15,6 +15,7 @@ export const settingsSections = [
   { key: 'appearance', id: 'theme-heading', title: 'Appearance' },
   { key: 'spelling', id: 'spelling-heading', title: 'Spelling' },
   { key: 'daily-notes', id: 'daily-notes-heading', title: 'Daily notes' },
+  { key: 'templates', id: 'templates-heading', title: 'Templates' },
   { key: 'offline', id: 'offline-heading', title: 'Available offline' },
   { key: 'export', id: 'export-heading', title: 'Export' },
   { key: 'import', id: 'import-heading', title: 'Import' },

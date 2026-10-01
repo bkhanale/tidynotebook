@@ -4,8 +4,10 @@ import {
   actionIconNames,
   mergeHits,
   rankActions,
+  rankChoices,
   rankNotes,
   type PaletteAction,
+  type PaletteChoice,
   type PaletteHit,
   type PaletteNote,
 } from './palette-items.ts';
@@ -136,5 +138,62 @@ await test('a ranked action keeps the glyph it named', () => {
   assert.deepEqual(
     ranked.map((action) => action.icon),
     ['theme-light'],
+  );
+});
+
+const choices: readonly PaletteChoice[] = [
+  { id: 'g', label: 'Groceries', detail: null },
+  { id: 'm', label: 'Meeting', detail: 'Work' },
+  { id: 'w', label: 'Weekly groceries', detail: 'Home' },
+  { id: 'h', label: 'Habits', detail: 'Home' },
+];
+
+await test('an empty query keeps every choice in the order of the caller', () => {
+  assert.deepEqual(rankChoices('', choices), choices);
+  assert.deepEqual(rankChoices('   ', choices), choices);
+});
+
+await test('a choice whose name matches earlier comes first', () => {
+  assert.deepEqual(
+    rankChoices('groc', choices).map((choice) => choice.id),
+    ['g', 'w'],
+  );
+  assert.deepEqual(
+    rankChoices('MEET', choices).map((choice) => choice.id),
+    ['m'],
+  );
+  assert.deepEqual(rankChoices('nothing here', choices), []);
+});
+
+await test('a choice whose folder alone matches follows the name matches', () => {
+  // `Home` names no choice, so both choices in that folder answer, and a
+  // choice is never listed twice when its name and its folder both match.
+  assert.deepEqual(
+    rankChoices('home', choices).map((choice) => choice.id),
+    ['w', 'h'],
+  );
+  assert.deepEqual(
+    rankChoices('work', choices).map((choice) => choice.id),
+    ['m'],
+  );
+});
+
+await test('an action that opens a step names its choices and no run', () => {
+  const pick: PaletteAction = {
+    id: 'insert-template',
+    label: 'Insert from template',
+    icon: 'template',
+    pick: {
+      placeholder: 'Search templates',
+      choices: { status: 'ready', choices },
+      empty: { title: 'No templates', description: '', action: null },
+      noMatch: 'No template matches that.',
+      choose: () => {},
+    },
+  };
+  assert.equal(pick.run, undefined);
+  assert.deepEqual(
+    rankActions('template', [...actions, pick]).map((action) => action.id),
+    ['insert-template'],
   );
 });

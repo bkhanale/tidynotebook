@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { freeNotePath, newNoteDraft } from './new-note-draft.ts';
+import { freeCopyPath, freeNotePath, newNoteDraft } from './new-note-draft.ts';
 
 await test('a new note is empty', () => {
   const draft = newNoteDraft({
@@ -44,5 +44,22 @@ await test('a new note in a folder counts only that folder', () => {
   assert.equal(
     freeNotePath(['Work/new note.md'], 'Work'),
     'Work/New note 2.md',
+  );
+});
+
+await test('the copy of a note takes the first free copy name beside it', () => {
+  assert.equal(freeCopyPath([], 'Work', 'Plan'), 'Work/Plan copy.md');
+  assert.equal(
+    freeCopyPath(['Work/plan copy.md'], 'Work', 'Plan'),
+    'Work/Plan copy 2.md',
+  );
+  assert.equal(
+    freeCopyPath(['Plan copy.md', 'Plan copy 2.md'], '', 'Plan'),
+    'Plan copy 3.md',
+  );
+  // A copy in another folder leaves the name free here.
+  assert.equal(
+    freeCopyPath(['Home/Plan copy.md'], 'Work', 'Plan'),
+    'Work/Plan copy.md',
   );
 });

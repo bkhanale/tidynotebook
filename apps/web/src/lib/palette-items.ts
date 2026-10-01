@@ -12,6 +12,10 @@
  *
  * Every action names its glyph here, and the palette, the sidebar and the
  * menus draw that one glyph, so one action never shows two marks.
+ *
+ * An action either runs at once or opens a second step: a list of choices
+ * in the same palette, with the same search field and the same keys, such as
+ * the templates of Insert from template (record 0149).
  */
 import type { ExcerptPart } from '@notesapp/core';
 
@@ -155,6 +159,7 @@ export const actionIconNames = [
   'table-remove-row',
   'table-remove',
   'task-list',
+  'template',
   'theme-dark',
   'theme-light',
   'theme-system',
@@ -166,8 +171,46 @@ export const actionIconNames = [
 /** One glyph of {@link actionIconNames}. */
 export type ActionIconName = (typeof actionIconNames)[number];
 
-/** One action the palette can run. */
-export type PaletteAction = {
+/** One row of the list that the second step of an action shows. */
+export type PaletteChoice = {
+  readonly id: string;
+  readonly label: string;
+  /** A quiet fact at the end of the row, such as a folder, or `null`. */
+  readonly detail: string | null;
+};
+
+/** What the second step of an action lists. */
+export type PaletteChoices =
+  | { readonly status: 'loading'; readonly label: string }
+  /** The choices cannot be read, for the one reason this sentence states. */
+  | { readonly status: 'unavailable'; readonly message: string }
+  | { readonly status: 'ready'; readonly choices: readonly PaletteChoice[] };
+
+/**
+ * The second step of an action: the palette lists choices and runs the one
+ * that a person chooses.
+ */
+export type PalettePick = {
+  /** The words of the search field while the palette lists the choices. */
+  readonly placeholder: string;
+  readonly choices: PaletteChoices;
+  /** The empty state when there is no choice at all (decision 0038). */
+  readonly empty: {
+    readonly title: string;
+    readonly description: string;
+    /** The one action that fills the list, or `null`. */
+    readonly action: {
+      readonly label: string;
+      readonly run: () => void;
+    } | null;
+  };
+  /** The sentence when the query matches no choice. */
+  readonly noMatch: string;
+  readonly choose: (id: string) => void;
+};
+
+/** What every action states, whether it runs at once or opens a step. */
+type PaletteActionBase = {
   readonly id: string;
   readonly label: string;
   /** Extra words that also find this action, such as "palette" or "dark". */
@@ -176,8 +219,14 @@ export type PaletteAction = {
   readonly icon: ActionIconName;
   /** The key line of this action, when a key runs it as well. */
   readonly keys?: string | undefined;
-  readonly run: () => void;
 };
+
+/** One action the palette can run, at once or through a list of choices. */
+export type PaletteAction = PaletteActionBase &
+  (
+    | { readonly run: () => void; readonly pick?: undefined }
+    | { readonly run?: undefined; readonly pick: PalettePick }
+  );
 
 /** The actions whose words contain the query. */
 export function rankActions(
@@ -189,4 +238,36 @@ export function rankActions(
   return actions.filter((action) =>
     `${action.label} ${action.keywords ?? ''}`.toLowerCase().includes(needle),
   );
+}
+
+/**
+ * The choices of a step that match the query.
+ *
+ * A choice whose name matches comes first, the earlier match before the
+ * later one, and a choice whose detail alone matches follows, so a person
+ * who types the name of a folder finds every choice in it. An empty query
+ * keeps the order of the caller, and so does a tie.
+ */
+export function rankChoices(
+  query: string,
+  choices: readonly PaletteChoice[],
+): readonly PaletteChoice[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return choices;
+  const byLabel = choices
+    .map((choice, order) => ({
+      choice,
+      order,
+      at: choice.label.toLowerCase().indexOf(needle),
+    }))
+    .filter((entry) => entry.at >= 0)
+    .sort((left, right) => left.at - right.at || left.order - right.order)
+    .map((entry) => entry.choice);
+  const named = new Set(byLabel);
+  const byDetail = choices.filter(
+    (choice) =>
+      !named.has(choice) &&
+      (choice.detail ?? '').toLowerCase().includes(needle),
+  );
+  return [...byLabel, ...byDetail];
 }

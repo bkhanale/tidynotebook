@@ -208,6 +208,7 @@ export {
   TableRowAddIcon,
   TableRowRemoveIcon,
   TaskListIcon,
+  TemplateIcon,
   TrashIcon,
   UploadIcon,
   UsersIcon,

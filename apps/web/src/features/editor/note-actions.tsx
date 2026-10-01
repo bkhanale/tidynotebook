@@ -40,6 +40,11 @@ export type NoteScreenActions = {
   readonly format: ((id: FormatActionId) => void) | null;
   /** Where the caret of the open editor stands, for the palette rows. */
   readonly formatContext: FormatContext;
+  /**
+   * Fills one template note and writes it over the selection of the open
+   * editor (record 0149).
+   */
+  readonly insertTemplate: ((templateFileId: string) => void) | null;
 };
 
 type NoteActionsChannel = {

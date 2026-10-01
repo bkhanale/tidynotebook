@@ -11,7 +11,9 @@
  * device makes the note at that path with the text of the template, as New
  * note makes an empty one, and its create waits in the queue at once (record
  * 0104). The settings come from the server, and this device keeps the last
- * answer in browser settings, so a start with no connection still knows them.
+ * answer in browser settings through the one hook of member settings, so a
+ * start with no connection still knows them. The template fills through the
+ * one engine of `@notesapp/core` (record 0149).
  */
 import {
   createContext,
@@ -26,7 +28,6 @@ import {
 import { useLocation, useMatches, useNavigate } from 'react-router';
 import {
   getDailyNoteSettings,
-  getFile,
   updateDailyNoteSettings,
 } from '@notesapp/api-client';
 import {
@@ -36,34 +37,34 @@ import {
   type CalendarDate,
   type DailyNoteSettings,
 } from '@notesapp/core';
-import {
-  createNote,
-  isLocalStorageError,
-  type LocalStore,
-} from '@notesapp/sync';
+import { createNote, isLocalStorageError } from '@notesapp/sync';
 import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import { useFiles } from '../../shell/files.tsx';
+import { useMemberSettings } from '../../shell/member-settings.ts';
+import { readNoteText } from '../../shell/note-text.ts';
 import { framePageOf } from '../../lib/breadcrumb.ts';
 import { dateOfInstant } from '../../lib/calendar-month.ts';
 import {
   dailyNoteOf,
   dailyNoteProblems,
-  dailyNoteSettingsKey,
+  dailyNoteSettingsName,
   effectiveTemplateId,
   formatCachedSettings,
   opensTodayAtStart,
   parseCachedSettings,
   settingsProblem,
 } from '../../lib/daily-note.ts';
+import {
+  settingsAnswer,
+  type MemberSettingsSource,
+  type MemberSettingsState,
+} from '../../lib/member-settings.ts';
 import { newNoteDraft } from '../../lib/new-note-draft.ts';
 import { baseNameOf, displayNoteName } from '../../lib/note-name.ts';
+import { templateContextAt } from '../../lib/templates.ts';
 
 /** Where the settings of the member stand. */
-export type DailyNoteSettingsState =
-  | { readonly status: 'loading' }
-  /** No answer of the server and no copy on this device. */
-  | { readonly status: 'unavailable' }
-  | { readonly status: 'ready'; readonly settings: DailyNoteSettings };
+export type DailyNoteSettingsState = MemberSettingsState<DailyNoteSettings>;
 
 /** What the frame and the Daily notes page read. */
 export type DailyNotesValue = {
@@ -109,151 +110,27 @@ function settingsOfAnswer(answer: DailyNoteSettings): DailyNoteSettings {
   };
 }
 
-/** Reads one browser setting, or `null` when storage refuses. */
-function readStored(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-/** Writes one browser setting. The copy is a cache, so a refusal is quiet. */
-function writeStored(key: string, value: string): void {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // The server keeps the settings, so the next start asks it again.
-  }
-}
-
-/**
- * The text of the template note, or `null` when this device cannot read it.
- *
- * The local store answers first, with the newest draft of this device. A note
- * this device has not received yet comes from the generated `getFile`.
- */
-async function templateText(
-  store: LocalStore,
-  accountId: string,
-  workspaceId: string,
-  fileId: string,
-): Promise<string | null> {
-  try {
-    const cached = await store.readCachedNote(accountId, workspaceId, fileId);
-    if (cached !== null && !cached.deleted) return cached.text;
-  } catch {
-    // The server read below can still answer.
-  }
-  const result = await getFile({ path: { workspaceId, fileId } });
-  if (result.error !== undefined || result.data === undefined) return null;
-  const text = result.data.head?.text;
-  return typeof text === 'string' ? text : null;
-}
-
-/** The settings of the member, read once for each workspace and kept here. */
-function useSettings(
-  accountId: string | null,
-  workspaceId: string,
-): {
-  readonly settings: DailyNoteSettingsState;
-  readonly save: (next: DailyNoteSettings) => void;
-  readonly saveProblem: string | null;
-} {
-  const [settings, setSettings] = useState<DailyNoteSettingsState>({
-    status: 'loading',
-  });
-  const [saveProblem, setSaveProblem] = useState<string | null>(null);
-  // The last settings that the server confirmed, which a refused change
-  // falls back to, and the chain that sends one change after another.
-  const confirmed = useRef<DailyNoteSettings | null>(null);
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const generation = useRef(0);
-
-  useEffect(() => {
-    if (accountId === null) {
-      setSettings({ status: 'loading' });
-      return;
-    }
-    generation.current += 1;
-    const current = generation.current;
-    const key = dailyNoteSettingsKey(accountId, workspaceId);
-    const cached = parseCachedSettings(readStored(key));
-    confirmed.current = cached;
-    setSettings(
-      cached === null
-        ? { status: 'loading' }
-        : { status: 'ready', settings: cached },
-    );
-    setSaveProblem(null);
-    void getDailyNoteSettings({ path: { workspaceId } })
-      .then((result) => {
-        if (current !== generation.current) return;
-        if (result.error !== undefined || result.data === undefined) {
-          if (cached === null) setSettings({ status: 'unavailable' });
-          return;
-        }
-        const answer = settingsOfAnswer(result.data);
-        confirmed.current = answer;
-        writeStored(key, formatCachedSettings(answer));
-        setSettings({ status: 'ready', settings: answer });
-      })
-      .catch(() => {
-        // No answer is a failed read and not an empty setting (record 0038).
-        if (current === generation.current && cached === null)
-          setSettings({ status: 'unavailable' });
-      });
-  }, [accountId, workspaceId]);
-
-  const save = useCallback(
-    (next: DailyNoteSettings): void => {
-      if (accountId === null) return;
-      const current = generation.current;
-      const key = dailyNoteSettingsKey(accountId, workspaceId);
-      /** States why, and shows the choice the server last confirmed. */
-      const refuse = (problem: string): void => {
-        setSaveProblem(problem);
-        const fallback = confirmed.current;
-        setSettings(
-          fallback === null
-            ? { status: 'unavailable' }
-            : { status: 'ready', settings: fallback },
-        );
-      };
-      setSettings({ status: 'ready', settings: next });
-      setSaveProblem(null);
-      // One change at a time, in the order the person made them, so the
-      // server ends on the last choice and never on an earlier one.
-      queue.current = queue.current.then(async () => {
-        const result = await updateDailyNoteSettings({
-          path: { workspaceId },
-          body: settingsOfAnswer(next),
-        });
-        if (current !== generation.current) return;
-        if (result.error !== undefined || result.data === undefined) {
-          refuse(
-            settingsProblem(
-              result.response?.status ?? 0,
-              problemMessage(result.error),
-            ),
-          );
-          return;
-        }
-        const answer = settingsOfAnswer(result.data);
-        confirmed.current = answer;
-        writeStored(key, formatCachedSettings(answer));
-      });
-      // A change that throws must not stop every later change, so the chain
-      // never stays in a rejected state, and the person reads why.
-      queue.current = queue.current.catch(() => {
-        if (current === generation.current) refuse(dailyNoteProblems.offline);
-      });
-    },
-    [accountId, workspaceId],
-  );
-
-  return { settings, save, saveProblem };
-}
+/** How the daily note settings read, write and cache themselves. */
+const dailyNoteSettingsSource: MemberSettingsSource<DailyNoteSettings> = {
+  name: dailyNoteSettingsName,
+  read: async (workspaceId) =>
+    settingsAnswer(
+      await getDailyNoteSettings({ path: { workspaceId } }),
+      settingsOfAnswer,
+    ),
+  write: async (workspaceId, settings) =>
+    settingsAnswer(
+      await updateDailyNoteSettings({
+        path: { workspaceId },
+        body: settingsOfAnswer(settings),
+      }),
+      settingsOfAnswer,
+    ),
+  encode: formatCachedSettings,
+  decode: parseCachedSettings,
+  refusal: (status, error) => settingsProblem(status, problemMessage(error)),
+  unsent: dailyNoteProblems.offline,
+};
 
 /** Holds the daily notes of the open workspace for every screen of the frame. */
 export function DailyNotesProvider({
@@ -270,7 +147,11 @@ export function DailyNotesProvider({
   const { store } = useLocalStore();
   const files = useFiles();
   const accountId = session.account?.accountId ?? null;
-  const { settings, save, saveProblem } = useSettings(accountId, workspaceId);
+  const { settings, save, saveProblem } = useMemberSettings(
+    dailyNoteSettingsSource,
+    accountId,
+    workspaceId,
+  );
   const [openProblem, setOpenProblem] = useState<string | null>(null);
   const opening = useRef(false);
   // An open that came while the settings were loading, which runs as soon as
@@ -332,7 +213,7 @@ export function DailyNotesProvider({
           const text =
             templateId === null
               ? ''
-              : await templateText(
+              : await readNoteText(
                   activeStore,
                   activeAccount,
                   workspace,
@@ -343,17 +224,22 @@ export function DailyNotesProvider({
             return;
           }
           // The placeholders of the template take the date and the name of
-          // this note, once, and the note stores the result (record 0102).
+          // this note and the time of now, once, and the note stores the
+          // result (records 0102 and 0149).
           const path = dailyNotePath(date, settings);
           const draft = newNoteDraft({
             accountId: activeAccount,
             workspaceId: workspace,
             path,
             ids: { fileId: generateUUID(), workingCopyId: generateUUID() },
-            text: fillTemplate(text, {
-              date,
-              title: displayNoteName(baseNameOf(path)),
-            }),
+            text: fillTemplate(
+              text,
+              templateContextAt(
+                new Date(),
+                displayNoteName(baseNameOf(path)),
+                date,
+              ),
+            ),
           });
           try {
             await createNote(activeStore, draft);

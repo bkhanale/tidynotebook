@@ -40,10 +40,7 @@ await test('each token writes its part of the date', () => {
     '1/4 04',
   );
   // Sunday is 0, as moment.js writes it.
-  assert.equal(
-    formatDate({ year: 2026, month: 9, day: 27 }, 'd'),
-    '0',
-  );
+  assert.equal(formatDate({ year: 2026, month: 9, day: 27 }, 'd'), '0');
 });
 
 await test('a slash makes folders and brackets keep text as it is', () => {
@@ -51,10 +48,7 @@ await test('a slash makes folders and brackets keep text as it is', () => {
     formatDate(day, 'YYYY/MM/YYYY-MM-DD dddd'),
     '2026/09/2026-09-25 Friday',
   );
-  assert.equal(
-    formatDate(day, '[Journal] YYYY-MM-DD'),
-    'Journal 2026-09-25',
-  );
+  assert.equal(formatDate(day, '[Journal] YYYY-MM-DD'), 'Journal 2026-09-25');
   // An unbracketed letter of a token is that token, as in moment.js.
   assert.equal(formatDate(day, 'Day YYYY'), '25ay 2026');
   // A bracket that never closes is text.
@@ -104,11 +98,7 @@ await test('a name reads back as the date that writes it', () => {
   for (let step = 0; step < 400; step += 1) {
     for (const format of formats) {
       const name = formatDate(date, format);
-      assert.deepEqual(
-        parseDate(name, format),
-        date,
-        `${format} ${name}`,
-      );
+      assert.deepEqual(parseDate(name, format), date, `${format} ${name}`);
     }
     date = addDays(date, 1);
   }

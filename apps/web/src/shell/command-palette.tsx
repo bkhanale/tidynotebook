@@ -19,6 +19,11 @@
  * `./action-icons.tsx` (decision 0065). A note row states its folder as a
  * quiet fact at the end of the row, so two notes with one name are told
  * apart.
+ *
+ * An action with a second step, such as Insert from template, does not
+ * close the palette: the one list turns into the choices of that action,
+ * with the same search field and the same keys (record 0149). Backspace in
+ * an empty field goes back to the actions, and Escape closes the palette.
  */
 import {
   Fragment,
@@ -31,17 +36,28 @@ import {
 import { useNavigate } from 'react-router';
 import { searchFiles as searchRemote } from '@notesapp/api-client';
 import { searchLocal, type LocalStore } from '@notesapp/sync';
-import { Dialog, FileTextIcon, rowClassName, SearchIcon } from '@notesapp/ui';
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  FileTextIcon,
+  LoadingState,
+  Notice,
+  rowClassName,
+  SearchIcon,
+} from '@notesapp/ui';
 import { displayNoteName } from '../lib/note-name.ts';
 import { folderOf } from '../lib/relative-time.ts';
-import { actionIcon } from './action-icons.tsx';
+import { actionIcon, emptyStateIcon } from './action-icons.tsx';
 import { KeyHint } from './key-hint.tsx';
 import {
   mergeHits,
   rankActions,
+  rankChoices,
   rankNotes,
   type NoteMatch,
   type PaletteAction,
+  type PaletteChoice,
   type PaletteHit,
   type PaletteNote,
 } from '../lib/palette-items.ts';
@@ -59,7 +75,16 @@ type Row =
       readonly kind: 'action';
       readonly id: string;
       readonly action: PaletteAction;
+    }
+  | {
+      readonly kind: 'choice';
+      readonly id: string;
+      readonly choice: PaletteChoice;
     };
+
+/** The class of the quiet label above a group of rows. */
+const groupLabelClassName =
+  'px-2 pb-1 pt-2 text-control font-medium text-muted first:pt-1';
 
 /** Reads the content matches of one query from this device and the server. */
 function useContentHits(
@@ -144,9 +169,31 @@ export function CommandPalette({
   const listRef = useRef<HTMLUListElement | null>(null);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
-  const content = useContentHits(query, store, accountId, workspaceId);
+  // The action whose choices the palette lists, by its identifier, so the
+  // step reads the newest choices of that action at every render: the list
+  // can still be loading when the step opens.
+  const [stepId, setStepId] = useState<string | null>(null);
+  const stepAction =
+    stepId === null
+      ? null
+      : (actions.find((action) => action.id === stepId) ?? null);
+  const step = stepAction?.pick ?? null;
+  const content = useContentHits(
+    step === null ? query : '',
+    store,
+    accountId,
+    workspaceId,
+  );
 
   const rows = useMemo<readonly Row[]>(() => {
+    if (step !== null)
+      return step.choices.status === 'ready'
+        ? rankChoices(query, step.choices.choices).map((choice): Row => ({
+            kind: 'choice',
+            id: `palette-choice-${choice.id}`,
+            choice,
+          }))
+        : [];
     const noteRows = rankNotes(query, notes, content.hits, noteLimit).map(
       (match): Row => ({
         kind: 'note',
@@ -160,17 +207,24 @@ export function CommandPalette({
       action,
     }));
     return [...noteRows, ...actionRows];
-  }, [query, notes, content.hits, actions]);
+  }, [step, query, notes, content.hits, actions]);
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
     setSelected(0);
+    setStepId(null);
   }, [open]);
 
   useEffect(() => {
     setSelected(0);
-  }, [query]);
+  }, [query, stepId]);
+
+  // An action that leaves while its step is open, such as the actions of a
+  // note that closed, takes the palette back to the list of actions.
+  useEffect(() => {
+    if (stepId !== null && step === null) setStepId(null);
+  }, [stepId, step]);
 
   useEffect(() => {
     if (!open) return;
@@ -179,38 +233,69 @@ export function CommandPalette({
       ?.scrollIntoView({ block: 'nearest' });
   }, [open, selected, rows]);
 
-  // The row a person chose. It runs once the dialog has closed, and not in the
-  // press that chose it. The dialog makes the page inert while it is open and
-  // gives the focus back to what opened it as it closes, so an action that
-  // ran inside the dialog could not take the focus: a format action lost the
-  // caret of the note, and a dialog that an action opened lost its field.
-  // React runs the clean up of the dialog that closes before the effects of
-  // the same commit, so this effect runs on a page that is live again, with
-  // the focus back where it was.
-  const [chosen, setChosen] = useState<Row | null>(null);
+  // The work a person chose. It runs once the dialog has closed, and not in
+  // the press that chose it. The dialog makes the page inert while it is open
+  // and gives the focus back to what opened it as it closes, so an action
+  // that ran inside the dialog could not take the focus: a format action lost
+  // the caret of the note, a dialog that an action opened lost its field, and
+  // a template went nowhere. React runs the clean up of the dialog that
+  // closes before the effects of the same commit, so this effect runs on a
+  // page that is live again, with the focus back where it was.
+  const [chosen, setChosen] = useState<{ readonly run: () => void } | null>(
+    null,
+  );
   useEffect(() => {
     if (open || chosen === null) return;
     setChosen(null);
-    if (chosen.kind === 'note') {
-      void navigate(`/w/${workspaceId}/notes/${chosen.match.fileId}`);
-      return;
-    }
-    chosen.action.run();
-  }, [open, chosen, navigate, workspaceId]);
+    chosen.run();
+  }, [open, chosen]);
+
+  /** Closes the palette, then runs one piece of work. */
+  const closeThen = (work: () => void): void => {
+    setChosen({ run: work });
+    onOpenChange(false);
+  };
 
   if (!open) return null;
 
   const run = (row: Row | undefined): void => {
     if (row === undefined) return;
-    setChosen(row);
-    onOpenChange(false);
+    if (row.kind === 'note') {
+      const fileId = row.match.fileId;
+      closeThen(() => {
+        void navigate(`/w/${workspaceId}/notes/${fileId}`);
+      });
+      return;
+    }
+    if (row.kind === 'choice') {
+      const choose = step?.choose;
+      const id = row.choice.id;
+      if (choose !== undefined)
+        closeThen(() => {
+          choose(id);
+        });
+      return;
+    }
+    const { action } = row;
+    if (action.pick !== undefined) {
+      // The palette stays open and lists the choices of the action.
+      setStepId(action.id);
+      setQuery('');
+      inputRef.current?.focus();
+      return;
+    }
+    closeThen(action.run);
   };
 
   const activeId = rows[selected]?.id;
   // The first row of each kind carries a quiet section label, so notes and
-  // actions read as two groups without leaving the one listbox.
+  // actions read as two groups without leaving the one listbox. The choices
+  // of a step carry the name of their action, so a person reads where they
+  // are.
   const firstNote = rows.findIndex((row) => row.kind === 'note');
   const firstAction = rows.findIndex((row) => row.kind === 'action');
+  const firstChoice = rows.findIndex((row) => row.kind === 'choice');
+  const placeholder = step?.placeholder ?? 'Search notes, or type an action';
 
   return (
     <Dialog
@@ -230,8 +315,8 @@ export function CommandPalette({
           type="text"
           className="min-w-0 flex-1 border-0 bg-transparent py-3 text-ui text-strong outline-none placeholder:text-muted"
           value={query}
-          placeholder="Search notes, or type an action"
-          aria-label="Search notes, or type an action"
+          placeholder={placeholder}
+          aria-label={placeholder}
           aria-controls="command-palette-list"
           aria-activedescendant={activeId}
           autoComplete="off"
@@ -256,6 +341,13 @@ export function CommandPalette({
             } else if (event.key === 'Enter') {
               event.preventDefault();
               run(rows[selected]);
+            } else if (
+              event.key === 'Backspace' &&
+              stepId !== null &&
+              query === ''
+            ) {
+              event.preventDefault();
+              setStepId(null);
             }
           }}
         />
@@ -278,19 +370,18 @@ export function CommandPalette({
         {rows.map((row, index) => (
           <Fragment key={row.id}>
             {index === firstNote ? (
-              <li
-                role="presentation"
-                className="px-2 pb-1 pt-2 text-control font-medium text-muted first:pt-1"
-              >
+              <li role="presentation" className={groupLabelClassName}>
                 Notes
               </li>
             ) : null}
             {index === firstAction ? (
-              <li
-                role="presentation"
-                className="px-2 pb-1 pt-2 text-control font-medium text-muted first:pt-1"
-              >
+              <li role="presentation" className={groupLabelClassName}>
                 Actions
+              </li>
+            ) : null}
+            {index === firstChoice ? (
+              <li role="presentation" className={groupLabelClassName}>
+                {stepAction?.label}
               </li>
             ) : null}
             <li
@@ -311,13 +402,24 @@ export function CommandPalette({
                 className="inline-flex shrink-0 items-center text-muted"
                 aria-hidden="true"
               >
-                {row.kind === 'note' ? (
-                  <FileTextIcon />
-                ) : (
+                {row.kind === 'action' ? (
                   actionIcon(row.action.icon)
+                ) : (
+                  <FileTextIcon />
                 )}
               </span>
-              {row.kind === 'note' ? (
+              {row.kind === 'choice' ? (
+                <>
+                  <span className="min-w-0 flex-1 truncate">
+                    {row.choice.label}
+                  </span>
+                  {row.choice.detail === null ? null : (
+                    <span className="shrink-0 truncate text-muted">
+                      {row.choice.detail}
+                    </span>
+                  )}
+                </>
+              ) : row.kind === 'note' ? (
                 <>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate">
@@ -362,10 +464,44 @@ export function CommandPalette({
           </Fragment>
         ))}
       </ul>
-      {rows.length === 0 ? (
-        <p className="m-4 text-control text-muted">
-          No note and no action matches that.
-        </p>
+      {step === null ? (
+        rows.length === 0 ? (
+          <p className="m-4 text-control text-muted">
+            No note and no action matches that.
+          </p>
+        ) : null
+      ) : step.choices.status === 'loading' ? (
+        <div className="px-2 pb-2">
+          <LoadingState shape="list" rows={3} label={step.choices.label} />
+        </div>
+      ) : step.choices.status === 'unavailable' ? (
+        <div className="px-2 pb-2">
+          <Notice tone="info" message={step.choices.message} />
+        </div>
+      ) : step.choices.choices.length === 0 ? (
+        <EmptyState
+          icon={
+            stepAction === null ? undefined : emptyStateIcon(stepAction.icon)
+          }
+          title={step.empty.title}
+          description={step.empty.description}
+          action={
+            step.empty.action === null ? undefined : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const fill = step.empty.action;
+                  if (fill !== null) closeThen(fill.run);
+                }}
+              >
+                {step.empty.action.label}
+              </Button>
+            )
+          }
+        />
+      ) : rows.length === 0 ? (
+        <p className="m-4 text-control text-muted">{step.noMatch}</p>
       ) : null}
     </Dialog>
   );

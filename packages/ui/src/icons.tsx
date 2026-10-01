@@ -777,6 +777,20 @@ export function CalendarDayIcon(props: IconProps): ReactNode {
   );
 }
 
+/**
+ * A layout of three blocks: a template, the text that a note copies in
+ * (record 0149).
+ */
+export function TemplateIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="3" width="18" height="7" rx="1" />
+      <rect x="3" y="14" width="9" height="7" rx="1" />
+      <rect x="16" y="14" width="5" height="7" rx="1" />
+    </IconFrame>
+  );
+}
+
 /** A check mark icon. */
 export function CheckIcon(props: IconProps): ReactNode {
   return (

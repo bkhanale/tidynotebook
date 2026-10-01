@@ -10,7 +10,7 @@
  * too. Everything is pure, so the rules are tested without a browser.
  */
 import {
-  cleanDailyNoteFolder,
+  cleanFolderPath,
   dailyNoteDate,
   dailyNoteLayoutProblem,
   dailyNotePath,
@@ -20,6 +20,7 @@ import {
   type DailyNoteSettings,
 } from '@notesapp/core';
 import type { CalendarMonth } from './calendar-month.ts';
+import { cachedObject } from './member-settings.ts';
 import { baseNameOf, displayNoteName, folderOf } from './note-name.ts';
 
 /** The facts of a note that these rules read. */
@@ -121,13 +122,8 @@ export function opensTodayAtStart(input: {
   return input.openOnStart && input.startedOnNoteList && input.stillOnStart;
 }
 
-/** The browser settings key of the cached settings of one member. */
-export function dailyNoteSettingsKey(
-  accountId: string,
-  workspaceId: string,
-): string {
-  return `notesapp.daily-notes:${accountId}:${workspaceId}`;
-}
+/** The name of the daily note settings in their browser settings key. */
+export const dailyNoteSettingsName = 'daily-notes';
 
 /** The text that this device keeps for one answer of the server. */
 export function formatCachedSettings(settings: DailyNoteSettings): string {
@@ -139,27 +135,12 @@ export function formatCachedSettings(settings: DailyNoteSettings): string {
   });
 }
 
-/**
- * The settings of a cached copy, or `null` when the copy does not parse.
- *
- * Another page of this origin can write the same key, so every member is
- * checked and a copy of another shape is no copy at all.
- */
+/** The settings of a cached copy, or `null` when the copy does not parse. */
 export function parseCachedSettings(
   source: string | null,
 ): DailyNoteSettings | null {
-  if (source === null || source === '') return null;
-  let value: unknown;
-  try {
-    value = JSON.parse(source);
-  } catch {
-    return null;
-  }
-  if (value === null || typeof value !== 'object' || Array.isArray(value))
-    return null;
-  const row: Record<string, unknown> = Object.fromEntries(
-    Object.entries(value),
-  );
+  const row = cachedObject(source);
+  if (row === null) return null;
   const templateFileId = row['templateFileId'];
   const openOnStart = row['openOnStart'];
   const folder = row['folder'];
@@ -246,7 +227,7 @@ export function layoutToStore(
   stored: DailyNoteLayout,
 ): DailyNoteLayout | null {
   const layout = {
-    folder: cleanDailyNoteFolder(typed.folder),
+    folder: cleanFolderPath(typed.folder),
     format: typed.format,
   };
   if (dailyNoteLayoutProblem(layout) !== null) return null;

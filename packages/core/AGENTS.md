@@ -25,13 +25,10 @@ the role and action matrix, and the storage ports that a runtime implements.
   `legal-templates.ts` the templates of both documents (0148). `src/history/`, `src/search/`, `src/workspaces/`, and
   `src/publications/` hold their own use cases and ports. The publication port
   declares read methods only, and no use case of it takes an `Actor`.
-- `src/dates/` holds the day arithmetic, the time of the day and the one
-  reader of a date and time format, with its two vocabularies (0101, 0149).
-  `src/daily-notes/` holds the path of the note of a date and the daily note
-  settings of a member (0099, 0101). `src/templates/` holds the one template
-  engine, which every caller fills through, and the template folder setting
-  of a member (0102, 0149). `src/files/permit.ts` is the one read check of a
-  use case.
+- `src/dates/` holds the calendar, the clock and the one format reader
+  (0101, 0149). `src/daily-notes/` holds the path of a dated note and its
+  settings (0099). `src/templates/` holds the one template engine and the
+  template folder (0102, 0149). `src/files/permit.ts` is the read check.
 - `src/index.ts` is the only public entry. A name that is not exported there
   is internal. The verified actor marker stays internal, so an actor can be
   built only through `verifyActor`.
