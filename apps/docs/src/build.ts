@@ -12,6 +12,7 @@
  * `NOTESAPP_DOCS_ORIGIN` name the address the site is served from.
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +63,8 @@ export type BuildInput = {
   readonly web: string;
   /** The folder that the site is written to. Its old content is removed. */
   readonly output: string;
+  /** The root of the repository, which a link out of the guide names. */
+  readonly repository: string;
 };
 
 /** What one build wrote. */
@@ -162,7 +165,10 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
     for (const [at, page] of pages.entries()) {
       const html = await renderMarkdown(joinSoftBreaks(page.source), {
         sourcePath: `${guideFolder}/${page.file}`,
-        noteHref: (target) => htmlDestination(settings, files, target),
+        noteHref: (target) =>
+          htmlDestination(settings, files, target, (path) =>
+            existsSync(join(input.repository, path)),
+          ),
       });
       const markdown = markdownCopy(settings, files, page);
       const document = pageDocument({
@@ -231,6 +237,7 @@ async function main(): Promise<void> {
     guide: join(repositoryRoot, guideFolder),
     web: join(repositoryRoot, 'apps/web/dist/web'),
     output,
+    repository: repositoryRoot,
   });
   process.stdout.write(
     `Docs: ${String(result.pages.length)} pages and a search index of ${String(result.indexed)} pages in ${output}, served at ${settings.origin ?? ''}${settings.base}.\n`,

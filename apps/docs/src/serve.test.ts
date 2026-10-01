@@ -9,6 +9,7 @@ await test('an address under the base maps onto a file of the site', () => {
   assert.deepEqual(route('/notesapp/', folder, '/notesapp/llms.txt'), {
     kind: 'file',
     path: join(folder, 'llms.txt'),
+    folder: '/notesapp/llms.txt/',
   });
   assert.deepEqual(route('/notesapp/', folder, '/notesapp/quickstart/'), {
     kind: 'folder',
@@ -43,4 +44,15 @@ await test('an address outside the base or the folder answers nothing', () => {
     assert.deepEqual(route('/notesapp/', folder, pathname), {
       kind: 'missing',
     });
+});
+
+await test('the folder address of a path never names another host', () => {
+  const answer = route('/', folder, '//settings');
+  assert.equal(answer.kind, 'file');
+  assert.equal(answer.kind === 'file' ? answer.folder : '', '/settings/');
+  const nested = route('/notesapp/', folder, '/notesapp//quickstart');
+  assert.equal(
+    nested.kind === 'file' ? nested.folder : '',
+    '/notesapp/quickstart/',
+  );
 });

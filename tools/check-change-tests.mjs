@@ -136,7 +136,7 @@ export function untestedAreas(changed, exempt = new Map()) {
     const area = areaOf(path);
     if (area === null) continue;
     if (isTest(path)) {
-      if (area === 'tests') integration = true;
+      if (path.startsWith('tests/integration/')) integration = true;
       else tested.add(area);
       continue;
     }
@@ -278,7 +278,9 @@ export function main(directory, options = {}) {
     return 1;
   }
   process.stdout.write(
-    `Change tests: ${change.changed.length} changed files since ${change.base.slice(0, 12)}, and every area with changed source changed a test.\n`,
+    change.changed.length === 0
+      ? 'Change tests: no file changed since main, so nothing is checked.\n'
+      : `Change tests: ${change.changed.length} changed files since ${change.base.slice(0, 12)}, and every area with changed source changed a test.\n`,
   );
   return 0;
 }

@@ -95,3 +95,21 @@ await test('the edit address opens the source of the page', () => {
     'https://github.com/bkhanale/notesapp/edit/main/docs/guide/quickstart.md',
   );
 });
+
+await test('a link out of the guide to no file of the repository stops the build', async () => {
+  const known = new Set(['SECURITY.md']);
+  await assert.rejects(
+    renderMarkdown('[Rules](../../SECURTY.md)', {
+      sourcePath: 'docs/guide/README.md',
+      noteHref: (target) =>
+        htmlDestination(hosted, files, target, (path) => known.has(path)),
+    }),
+    /links SECURTY\.md, and the repository has no such file/,
+  );
+  const html = await renderMarkdown('[Rules](../../SECURITY.md)', {
+    sourcePath: 'docs/guide/README.md',
+    noteHref: (target) =>
+      htmlDestination(hosted, files, target, (path) => known.has(path)),
+  });
+  assert.match(html, /blob\/main\/SECURITY\.md/);
+});

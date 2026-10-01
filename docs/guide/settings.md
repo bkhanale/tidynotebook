@@ -73,12 +73,15 @@ See [Templates](templates.md).
 ## Available offline
 
 Your notes are always kept on this device. Images and older versions take more
-space, so you choose whether to keep them too.
+space, so this section asks whether to keep them too.
 
-- **Keep images on this device** keeps every image of the workspace.
-- **Keep older versions on this device** keeps the history of each note.
+- **Keep images on this device** is for the images of the workspace.
+- **Keep older versions on this device** is for the older versions of each
+  note.
 
-These two choices belong to this browser. See [Working offline](offline.md).
+This browser keeps each choice for your account and the workspace that you
+have open. A box shows as on only while everything of its kind is kept, so a
+new image can turn it off again. See [Working offline](offline.md).
 
 ## Export
 
@@ -95,8 +98,7 @@ of the zip has the path of a note that is already there.
 
 ## Account
 
-This section states how much storage your account uses, when the installation
-sets a limit. Your account owns every note in your workspaces, and no other
+This section states how much of its storage limit your account uses. Your account owns every note in your workspaces, and no other
 account can read them.
 
 An administrator also sees **Manage accounts**, which opens the accounts page.

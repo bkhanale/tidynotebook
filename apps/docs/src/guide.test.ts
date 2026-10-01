@@ -142,3 +142,25 @@ await test('a page with no title is refused', () => {
     /docs\/guide\/empty\.md has no # title/,
   );
 });
+
+await test('a nested heading counts toward the identifiers', async () => {
+  const source = [
+    '# Page',
+    '',
+    '> ## Logs',
+    '',
+    '- ## Logs',
+    '',
+    '## Logs',
+    '',
+    '## Sum $a+b$',
+  ].join('\n');
+  const page = readGuidePage('page.md', source);
+  assert.deepEqual(
+    page.headings.map((heading) => heading.id),
+    ['user-content-logs-3', 'user-content-sum-a-b'],
+  );
+  const html = await renderMarkdown(source);
+  for (const heading of page.headings)
+    assert.ok(html.includes(`id="${heading.id}"`), heading.id);
+});

@@ -33,7 +33,12 @@ export const mediaTypes: Readonly<Record<string, string>> = {
 
 /** The answer of the server for one address. */
 export type Route =
-  | { readonly kind: 'file'; readonly path: string }
+  | {
+      readonly kind: 'file';
+      readonly path: string;
+      /** The address of this path as a folder, for the redirect of a folder. */
+      readonly folder: string;
+    }
   | { readonly kind: 'folder'; readonly path: string }
   | { readonly kind: 'redirect'; readonly location: string }
   | { readonly kind: 'missing' };
@@ -42,7 +47,7 @@ export type Route =
  * Maps the path of an address onto a file of the site.
  *
  * A path outside the base, a path that leaves the folder of the site, and a
- * path with an encoded separator answer nothing.
+ * path with a backslash or a null character answer nothing.
  */
 export function route(base: string, folder: string, pathname: string): Route {
   if (pathname === base.slice(0, -1) && base !== '/')
@@ -62,7 +67,8 @@ export function route(base: string, folder: string, pathname: string): Route {
     return { kind: 'missing' };
   if (relative === '' || relative.endsWith('/'))
     return { kind: 'folder', path: join(path, 'index.html') };
-  return { kind: 'file', path };
+  const parts = relative.split('/').filter((part) => part !== '');
+  return { kind: 'file', path, folder: `${base}${parts.join('/')}/` };
 }
 
 /** Starts the server and answers its address. */
@@ -96,7 +102,9 @@ export async function serve(
       if (found === null && answer.kind === 'file') {
         const info = await stat(answer.path).catch(() => null);
         if (info?.isDirectory() === true) {
-          response.writeHead(301, { location: `${pathname}/` }).end();
+          // The address comes from the path that was mapped, never from the
+          // request, so a path such as `//host` cannot name another host.
+          response.writeHead(301, { location: answer.folder }).end();
           return;
         }
       }

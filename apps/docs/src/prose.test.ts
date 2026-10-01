@@ -52,3 +52,29 @@ await test('the renderer then writes no line break inside a paragraph', async ()
     '<p>First line of a paragraph.</p>\n<p>Second<br>\nwith a break.</p>',
   );
 });
+
+await test('a wrapped quote and alert keep their structure', async () => {
+  const source = [
+    '> [!NOTE]',
+    '> The first line of the',
+    '> alert, and the second.',
+    '',
+    '> A quote',
+    '>   that wraps.',
+  ].join('\n');
+  assert.equal(
+    joinSoftBreaks(source),
+    [
+      '> [!NOTE]',
+      '> The first line of the alert, and the second.',
+      '',
+      '> A quote that wraps.',
+    ].join('\n'),
+  );
+  const html = await renderMarkdown(joinSoftBreaks(source));
+  assert.doesNotMatch(html, /&gt;/);
+  assert.match(html, /data-alert="note"/);
+  assert.match(html, /The first line of the alert, and the second\./);
+  assert.doesNotMatch(html, /\[!NOTE\]/);
+  assert.match(html, /<p>A quote that wraps\.<\/p>/);
+});

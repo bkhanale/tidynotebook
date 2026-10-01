@@ -120,8 +120,9 @@ expired link opens nothing, and you can invite the same address again.
 
 ## Accounts
 
-This section lists every account of the installation, with its role, its
-state, its last activity and its storage. Each account row has a menu. It holds the changes that apply to that account:
+This section lists every account of the installation. A row shows the name and
+the first facts of the account, and its tooltip shows every fact: the role, the
+state, the last activity, the storage and the address. Each account row has a menu. It holds the changes that apply to that account:
 
 - **Make administrator** and **Make member** change the role.
 - **Disable** signs the account out on every device and stops the next sign-in.

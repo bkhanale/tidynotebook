@@ -38,6 +38,7 @@ const result = await buildSite({
   guide,
   web: join(root, 'apps/web/dist/web'),
   output,
+  repository: root,
 });
 
 /** The file that a host serves for one address of the site, or `null`. */
@@ -283,9 +284,26 @@ await test('the built documentation site', async (t) => {
         await readFile(join(guide, 'configuration.md'), 'utf8'),
       );
       const example = await readFile(join(root, '.env.example'), 'utf8');
-      const compose = [...example.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)].map(
-        (match) => match[1] ?? '',
-      );
+      // A variable that a Compose file of the repository reads is a setting
+      // of the operator too, whether or not .env.example names it.
+      const composeFiles = [
+        'docker-compose.yml',
+        ...(await readdir(join(root, 'docker')))
+          .filter((name) => name.endsWith('.yaml'))
+          .map((name) => `docker/${name}`),
+      ];
+      const interpolated: string[] = [];
+      for (const name of composeFiles) {
+        const text = await readFile(join(root, name), 'utf8');
+        for (const match of text.matchAll(/\$\{([A-Z][A-Z0-9_]+)/g))
+          interpolated.push(match[1] ?? '');
+      }
+      const compose = [
+        ...[...example.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)].map(
+          (match) => match[1] ?? '',
+        ),
+        ...interpolated,
+      ];
       const known = new Set([...serverVariables, ...compose]);
       const missing = [...known].filter((name) => !page.has(name)).sort();
       assert.deepEqual(missing, []);

@@ -24,6 +24,10 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The change test check of record 0154 compares the branch with
+          # main, so the checkout holds the history and origin/main.
+          fetch-depth: 0
 
       # This runs before the Node setup, because the dependency cache of
       # `actions/setup-node` asks pnpm for its store directory.

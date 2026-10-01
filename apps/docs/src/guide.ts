@@ -60,7 +60,12 @@ export type GuidePage = {
 
 /** The plain text of a node, the way the renderer reads a heading. */
 function textOf(node: Nodes): string {
-  if (node.type === 'text' || node.type === 'inlineCode') return node.value;
+  // A code block, raw HTML and front matter hold no heading text. Every other
+  // node with a value is text, inline code or inline math, which the renderer
+  // keeps as its source.
+  if (node.type === 'code' || node.type === 'html' || node.type === 'yaml')
+    return '';
+  if ('value' in node) return node.value;
   if ('children' in node)
     return node.children.map((child) => textOf(child)).join('');
   return '';
@@ -159,28 +164,34 @@ export function indexProblems(
  *
  * The identifier of a heading follows the rule of `renderMarkdown`: the slug
  * of its text with the `user-content-` namespace, and a number from the second
- * use of one slug on. Every heading counts, the title as well, because the
- * renderer counts them all.
+ * use of one slug on. Every heading counts, in document order, the title and a
+ * heading inside a quote or a list as well, because the renderer counts them
+ * all. The outline lists the headings of the page itself, not the nested ones.
  */
 export function readGuidePage(file: string, source: string): GuidePage {
   const tree: Root = parseMarkdown(source);
   const used = new Map<string, number>();
   const headings: GuideHeading[] = [];
   let title = '';
-  let description = '';
-  const introduction: string[] = [];
-  for (const node of tree.children) {
+  const identify = (node: Nodes, top: boolean): void => {
     if (node.type === 'heading') {
       const text = oneLine(textOf(node));
       const base = headingSlug(text);
-      if (node.depth === 1 && title === '') title = text;
-      if (base === '') continue;
+      if (top && node.depth === 1 && title === '') title = text;
+      if (base === '') return;
       const count = used.get(base) ?? 0;
       used.set(base, count + 1);
       const id = `user-content-${base}${count === 0 ? '' : `-${String(count + 1)}`}`;
-      if (node.depth > 1) headings.push({ depth: node.depth, text, id });
-      continue;
+      if (top && node.depth > 1) headings.push({ depth: node.depth, text, id });
+      return;
     }
+    if ('children' in node)
+      for (const child of node.children) identify(child, false);
+  };
+  let description = '';
+  const introduction: string[] = [];
+  for (const node of tree.children) {
+    identify(node, true);
     if (node.type !== 'paragraph') continue;
     if (description === '') description = oneLine(textOf(node));
     else if (headings.length === 0) introduction.push(oneLine(textOf(node)));

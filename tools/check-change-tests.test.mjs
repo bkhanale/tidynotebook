@@ -81,6 +81,16 @@ await test('an integration test covers every package and no tool', () => {
   ]);
 });
 
+await test('only a change of tests/integration covers every package', () => {
+  const result = untestedAreas([
+    'apps/web/src/lib/breadcrumb.ts',
+    'tests/fixtures/sample.ts',
+  ]);
+  assert.deepEqual(result.untested, [
+    { area: 'apps/web', files: ['apps/web/src/lib/breadcrumb.ts'] },
+  ]);
+});
+
 await test('a change with no source needs no test', () => {
   const result = untestedAreas([
     'docs/guide/README.md',

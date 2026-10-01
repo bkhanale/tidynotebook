@@ -66,21 +66,21 @@ content of each one and a command that writes them.
 - `postgres_password`, `migration_database_url`, `runtime_database_password`,
   `auth_database_password`, `runtime_database_url`, `auth_database_url` and
   `auth_secret`, for every installation.
-- `smtp_password`, when the mail server takes a password.
-- `smtp_url`, when you name the mail server as one address.
+- `smtp_password`, with `docker/compose.mail.yaml`.
+- `smtp_url`, with `docker/compose.mail-url.yaml`.
 
 ## Requests and limits
 
-| Setting                           | What it does                                                                                                      |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `NOTESAPP_LOG_LEVEL`              | How much the server logs: `fatal`, `error`, `warn`, `info`, `debug` or `silent`.                                  |
-| `NOTESAPP_MAX_BODY_BYTES`         | The largest body of one request, in bytes.                                                                        |
-| `NOTESAPP_MAX_HEADER_BYTES`       | The largest headers of one request, in bytes.                                                                     |
-| `NOTESAPP_REQUEST_TIMEOUT_MS`     | The time in which a whole request must arrive, in milliseconds. It includes the body of an upload on a slow link. |
-| `NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS` | The longest pause between two parts of an upload, in milliseconds. It must be shorter than the request timeout.   |
-| `NOTESAPP_RATE_LIMIT_WINDOW_S`    | The window of the attempt limit of the setup and sign-in screens, in seconds.                                     |
-| `NOTESAPP_RATE_LIMIT_MAX`         | How many attempts one client makes in one window.                                                                 |
-| `NOTESAPP_SESSION_MAX_AGE_S`      | How long a session lasts before the person signs in again, in seconds.                                            |
+| Setting                           | What it does                                                                                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTESAPP_LOG_LEVEL`              | Required without Compose. How much the server logs: `fatal`, `error`, `warn`, `info`, `debug` or `silent`.                                                                         |
+| `NOTESAPP_MAX_BODY_BYTES`         | Required without Compose. The largest body of a request, in bytes. An image upload and a workspace import have bounds of their own, which this value does not change.              |
+| `NOTESAPP_MAX_HEADER_BYTES`       | Required without Compose. The largest headers of one request, in bytes.                                                                                                            |
+| `NOTESAPP_REQUEST_TIMEOUT_MS`     | Required without Compose. The time in which a whole request must arrive, in milliseconds. It includes the body of an upload on a slow link.                                        |
+| `NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS` | The longest pause between two parts of an upload, in milliseconds. It must be shorter than the request timeout.                                                                    |
+| `NOTESAPP_RATE_LIMIT_WINDOW_S`    | The window of the attempt limit, in seconds. The limit counts the attempts of one client at the screens and actions that a stranger can reach, such as setup, sign-in and sign-up. |
+| `NOTESAPP_RATE_LIMIT_MAX`         | How many attempts one client makes in one window.                                                                                                                                  |
+| `NOTESAPP_SESSION_MAX_AGE_S`      | How long a session that nobody uses lasts, in seconds. A browser that uses its session keeps it longer, so a person who works every day stays signed in.                           |
 
 ## Stopping the server
 
@@ -117,13 +117,14 @@ that file.
 | `NOTESAPP_SMTP_HOST`          | The host name of the mail server, with no scheme and no port.                                        |
 | `NOTESAPP_SMTP_PORT`          | The port of the mail server.                                                                         |
 | `NOTESAPP_SMTP_SECURITY`      | `tls` speaks TLS from the start, `starttls` switches to TLS before the password, `none` uses no TLS. |
-| `NOTESAPP_SMTP_USERNAME`      | The user name of the mail server. A user name needs a password, and a password needs a user name.    |
+| `NOTESAPP_SMTP_USERNAME`      | The user name of the mail server. This file requires it, and a user name needs a password.           |
 | `NOTESAPP_SMTP_PASSWORD`      | The password of the mail server. Compose reads it from the `smtp_password` file.                     |
 | `NOTESAPP_SMTP_PASSWORD_FILE` | The file that holds the password. Compose sets it.                                                   |
 | `NOTESAPP_MAIL_FROM`          | The sender, an address that the mail server lets you send from, with a name or without one.          |
 
-An older installation can name the whole mail server as one address instead,
-with `docker/compose.mail-url.yaml`. Use the fields or the address, never both.
+A mail server that takes mail with no sign-in, such as a relay inside your
+network, is named as one address instead, with `docker/compose.mail-url.yaml`.
+Use the fields or the address, never both.
 
 | Setting                  | What it does                                                           |
 | ------------------------ | ---------------------------------------------------------------------- |

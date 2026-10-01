@@ -64,15 +64,22 @@ function deadLink(path: string): Error {
  * `renderMarkdown` passes every relative link through this resolver. The
  * fragment arrives in the namespace of the renderer, which is the identifier
  * that a heading of the site carries, so it stays as it is. GitHub writes the
- * bare slug, so a link out of the guide loses the namespace.
+ * bare slug, so a link out of the guide loses the namespace. A link out of the
+ * guide must name a file that `inRepository` knows, so a typo stops the build
+ * instead of becoming an address that GitHub does not answer.
  */
 export function htmlDestination(
   settings: SiteSettings,
   files: ReadonlySet<string>,
   target: NoteTarget,
+  inRepository: (path: string) => boolean = () => true,
 ): string | null {
   if (target.path === null) return null;
   const file = guideFileOf(target.path);
+  if (file === null && !inRepository(target.path))
+    throw new Error(
+      `A guide page links ${target.path}, and the repository has no such file.`,
+    );
   if (file === null)
     return repositoryHref(
       target.path,
