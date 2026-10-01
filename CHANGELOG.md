@@ -5,6 +5,60 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0 - 2026-10-01
+
+This minor release lets an installation open sign-up to the public, lets you
+reset a forgotten password, and lets you import a theme of your own.
+
+### Added
+
+- **Forgot password.** Sign in offers Forgot password when the server sends
+  mail. A link goes to your address, works once for 1 hour, and opens a page
+  where you choose a new password. Every device then signs out, and a message
+  tells you that the password changed.
+- **Terms and privacy notice.** The server can show the terms and the privacy
+  notice that the person who runs it writes, from two Markdown files. The
+  hosting guide holds a template of each, and the server does not start while
+  a blank of a template is left.
+- Sign in, the sign-up form, the invitation form and Settings link the terms
+  and the privacy notice.
+- **Import a theme.** Settings, under Appearance, imports a theme file and
+  downloads the theme in use as a file. A theme that cannot be read lists each
+  colour to correct. An imported theme reaches every device of the account.
+- Every page except All notes and the open note has one back control before
+  its title.
+- A page of two or more sections lists them under On this page beside it.
+
+### Changed
+
+- An invited person accepts the terms and the privacy notice on the invitation
+  form, so the account opens with no second step.
+- A sign-in before you open the link of your sign-up says to open the link. A
+  sign-in of a disabled account says to ask an administrator.
+- Every message of the server is plain text and names the product and the
+  address of the installation. One address gets at most three messages in an
+  hour that a person with no account can cause.
+- Accounts is a part of Settings and takes the same layout.
+- The name of a page shows once, in its heading.
+- The hosting guide adds the mail setup, the domain records that mail needs,
+  and the steps that open sign-up.
+
+### Fixed
+
+- A request for a new password answers in the same time for every address.
+- Images next to each other on one line all show in the editor, in the order
+  that you attached them.
+- A formula on a published page keeps its layout.
+- The first page of the application loads less code.
+- Save and search are faster again.
+- A theme name counts each character once, including an emoji.
+- A device that missed the delete of an imported theme cannot put the theme
+  back.
+- The first paint of a light screen draws native controls in the right
+  appearance.
+- A server that stops right after it starts now stops.
+- The two buttons of two list rows no longer touch on a touch screen.
+
 ## 0.9.1 - 2026-09-30
 
 This patch release repairs saves across devices, keeps task boxes usable, and
