@@ -51,7 +51,7 @@ const readyTimeoutMs = 10 * 1000;
 
 /**
  * @typedef {{ status: number, stdout: string, stderr: string }} Outcome
- * @typedef {{ path: string, head: string, branch: string | null }} Worktree
+ * @typedef {{ path: string, head: string, branch: string | null, locked: boolean }} Worktree
  * @typedef {'remove' | 'delete' | 'deploy' | 'prune' | 'keep' | 'ask' | 'skip'} Mark
  * @typedef {{ mark: Mark, name: string, reason: string, oid?: string }} Line
  * @typedef {{ worktree: Line[], branch: Line[], remoteBranch: Line[], testDatabase: Line[], deployment: Line[], prune: Line[] }} Plan
@@ -122,12 +122,13 @@ function worktrees(cwd) {
     .split('\n\n')
     .filter((entry) => entry.trim() !== '')) {
     /** @type {Worktree} */
-    const entry = { path: '', head: '', branch: null };
+    const entry = { path: '', head: '', branch: null, locked: false };
     for (const line of lines(block)) {
       if (line.startsWith('worktree ')) entry.path = line.slice(9);
       if (line.startsWith('HEAD ')) entry.head = line.slice(5);
       if (line.startsWith('branch refs/heads/'))
         entry.branch = line.slice('branch refs/heads/'.length);
+      if (line === 'locked' || line.startsWith('locked ')) entry.locked = true;
     }
     found.push(entry);
   }
@@ -164,6 +165,30 @@ function commitsOutsideMain(reference, cwd) {
   const mainTree = must('git', ['rev-parse', `${mainBranch}^{tree}`], cwd);
   const unchanged = merged.status === 0 && lines(merged.stdout)[0] === mainTree;
   return patches + (unchanged ? 0 : merges);
+}
+
+/**
+ * The tracked files whose changes `git status` does not show.
+ *
+ * A file with the `skip-worktree` or the `assume-unchanged` flag keeps its
+ * changes out of `git status`. Such a file counts when it is on the disk and
+ * its content differs from the index. A sparse checkout leaves a file of
+ * this kind off the disk, and then nothing of it is lost.
+ *
+ * @param {string} path
+ */
+function hiddenChanges(path) {
+  return must('git', ['ls-files', '-v', '-s', '-z'], path)
+    .split('\0')
+    .map((entry) => /^(\S) \d+ ([0-9a-f]+) \d+\t(.*)$/s.exec(entry))
+    .filter((match) => match !== null)
+    .filter(([, tag = '']) => tag === 'S' || /^[a-z]$/.test(tag))
+    .filter(([, , blob = '', file = '']) => {
+      const absolute = join(path, file);
+      if (!existsSync(absolute)) return false;
+      return must('git', ['hash-object', '--', absolute], path) !== blob;
+    })
+    .map(([, , , file = '']) => file);
 }
 
 /**
@@ -336,6 +361,7 @@ function makePlan(also) {
       ? lines(must('git', ['status', '--porcelain'], tree.path)).length
       : 0;
     const ignored = existsSync(tree.path) ? keptIgnoredFiles(tree.path) : [];
+    const hidden = existsSync(tree.path) ? hiddenChanges(tree.path) : [];
     const stranded =
       tree.branch === null && existsSync(tree.path)
         ? commitsOutsideMain('HEAD', tree.path)
@@ -345,6 +371,11 @@ function makePlan(also) {
     if (changed > 0)
       losses.push(
         `${plural(changed, 'file has', 'files have')} changes that are not committed`,
+      );
+    if (tree.locked) losses.push('git worktree lock protects it');
+    if (hidden.length > 0)
+      losses.push(
+        `${plural(hidden.length, 'file has', 'files have')} changes that an index flag hides from git status: ${hidden.slice(0, 3).join(', ')}`,
       );
     if (ignored.length > 0)
       losses.push(

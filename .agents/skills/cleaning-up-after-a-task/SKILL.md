@@ -45,9 +45,10 @@ It fetches `origin` and changes nothing else. Each line starts with a mark:
 The plan follows these rules:
 
 - The main checkout and the `main` branch always stay.
-- A worktree goes unless it has changes that are not committed, commits on a
-  detached head that are not in `main`, or an ignored file that no build makes
-  again, such as `.env`. Then it is `ask`. Installed packages, build output
+- A worktree goes unless it has changes that are not committed, including
+  changes that an index flag hides, commits on a detached head that are not
+  in `main`, an ignored file that no build makes again, such as `.env`, or a
+  lock. Then it is `ask`. Installed packages, build output
   and `.local-app/` come back, so they do not count.
 - A branch on the machine or on `origin` stays when it has an open pull
   request. A local branch also stays when a kept worktree uses it. Any other
