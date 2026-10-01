@@ -24,29 +24,36 @@ export function useCopyNote(viewRef: RefObject<EditorView | null>): {
   readonly run: () => void;
   readonly toast: ReactNode;
 } {
-  const [message, setMessage] = useState<string | null>(null);
+  // Each copy holds a new object, even when its sentence is the same as the
+  // last one. React skips a state that is equal to the last, and a string
+  // that repeats would keep the wait of the first copy.
+  const [notice, setNotice] = useState<{ readonly message: string } | null>(
+    null,
+  );
 
   // The text comes from the one editor view of this working copy, so the
   // copy holds every edit, saved or not.
   const run = useCallback((): void => {
     const view = viewRef.current;
     if (view === null) return;
-    void copyNote(view.state.doc.toString(), copyText).then(setMessage);
+    void copyNote(view.state.doc.toString(), copyText).then((message) => {
+      setNotice({ message });
+    });
   }, [viewRef]);
 
   // A second copy starts the wait again, because it states its own result.
   useEffect(() => {
-    if (message === null) return;
+    if (notice === null) return;
     const timer = window.setTimeout(() => {
-      setMessage(null);
+      setNotice(null);
     }, copyNoticeMs);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [message]);
+  }, [notice]);
 
   return {
     run,
-    toast: message === null ? null : <Toast message={message} />,
+    toast: notice === null ? null : <Toast message={notice.message} />,
   };
 }
