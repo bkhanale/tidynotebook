@@ -7,19 +7,15 @@
  * folders below the folder. A note that a person moves or renames away from
  * that path is no longer the note of its date.
  */
-import { normalizePath } from '../files/path.ts';
-import type { CalendarDate } from './calendar.ts';
-import {
-  dailyNoteFormatProblem,
-  formatDailyNoteName,
-  parseDailyNoteName,
-} from './format.ts';
+import { isStoredFolderPath, normalizePath } from '../files/path.ts';
+import type { CalendarDate } from '../dates/calendar.ts';
+import { dateFormatProblem, formatDate, parseDate } from '../dates/format.ts';
 
 /** Where the daily notes of a member live and how each one is named. */
 export type DailyNoteLayout = {
   /** A folder path, or an empty text for the top of the workspace. */
   readonly folder: string;
-  /** The name format, as the tokens of `format.ts`. */
+  /** The name format, as the date tokens of `dates/format.ts`. */
   readonly format: string;
 };
 
@@ -50,7 +46,7 @@ export function dailyNotePath(
   date: CalendarDate,
   layout: DailyNoteLayout,
 ): string {
-  const name = `${formatDailyNoteName(date, layout.format)}${noteSuffix}`;
+  const name = `${formatDate(date, layout.format)}${noteSuffix}`;
   return layout.folder === '' ? name : `${layout.folder}/${name}`;
 }
 
@@ -67,7 +63,7 @@ export function dailyNoteDate(
 ): CalendarDate | null {
   const prefix = layout.folder === '' ? '' : `${layout.folder}/`;
   if (!path.startsWith(prefix) || !path.endsWith(noteSuffix)) return null;
-  return parseDailyNoteName(
+  return parseDate(
     path.slice(prefix.length, path.length - noteSuffix.length),
     layout.format,
   );
@@ -87,16 +83,14 @@ export type DailyNoteLayoutProblem =
 export function dailyNoteLayoutProblem(
   layout: DailyNoteLayout,
 ): DailyNoteLayoutProblem | null {
-  if (layout.folder !== '') {
-    const folder = normalizePath(layout.folder, 'folder');
-    if (!folder.ok || folder.value !== layout.folder) return 'folder';
-  }
-  const format = dailyNoteFormatProblem(layout.format);
+  if (layout.folder !== '' && !isStoredFolderPath(layout.folder))
+    return 'folder';
+  const format = dateFormatProblem(layout.format);
   if (format !== null) return format;
   for (const date of sampleDates) {
     // Each part of the name is a name that a person could type: not empty,
     // and no space at either end, which the note name field refuses too.
-    const name = formatDailyNoteName(date, layout.format);
+    const name = formatDate(date, layout.format);
     if (name.split('/').some((part) => part === '' || part !== part.trim()))
       return 'path';
     const path = dailyNotePath(date, layout);
@@ -104,17 +98,4 @@ export function dailyNoteLayoutProblem(
     if (!normalized.ok || normalized.value !== path) return 'path';
   }
   return null;
-}
-
-/**
- * The stored spelling of a folder that a person typed.
- *
- * Space at the ends and a slash at either end are dropped, so ` Journal/ `
- * is the folder `Journal`, and an empty result is the top of the workspace.
- */
-export function cleanDailyNoteFolder(text: string): string {
-  return text
-    .trim()
-    .replace(/^\/+|\/+$/g, '')
-    .trim();
 }

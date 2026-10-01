@@ -1,10 +1,10 @@
 /**
- * The name format of a daily note (record 0101).
+ * Date and time formats (records 0101 and 0149).
  *
- * A format is a text of date tokens, the subset of moment.js that Obsidian
- * uses, for example `YYYY/MM/YYYY-MM-DD dddd`. Text inside square brackets is
+ * A format is a text of tokens, the subset of moment.js that Obsidian uses,
+ * for example `YYYY/MM/YYYY-MM-DD dddd`. Text inside square brackets is
  * literal, and every other character that is not a token is literal as well,
- * so a `/` in a format separates folders.
+ * so a `/` in the name format of a daily note separates folders.
  *
  * | Token  | Writes                        | Token  | Writes          |
  * | ------ | ----------------------------- | ------ | --------------- |
@@ -16,11 +16,22 @@
  * | `MM`   | `01` to `12`                  | `dd`   | `Mo`            |
  * | `M`    | `1` to `12`                   | `d`    | `0` (Sunday) to `6` |
  *
+ * The time tokens are `HH` and `H` for the hour of 24, `hh` and `h` for the
+ * hour of 12, `mm` and `m` for the minute, `ss` and `s` for the second, and
+ * `A` or `a` for `AM` or `am`.
+ *
+ * A format reads one of two vocabularies. The date vocabulary is the name
+ * format of a daily note and a bare placeholder of a template: a path must
+ * not change from one minute to the next, and a short word such as `had`
+ * must not become a time. The date and time vocabulary is the argument of a
+ * date or a time placeholder. A letter outside the vocabulary is literal, so
+ * a path that holds an `H` keeps it.
+ *
  * The names are English on every device, because a path that followed the
  * language of a device would give two devices two notes for one date.
  *
  * A name is read back by matching the pattern of its tokens and then writing
- * the date that it names again. The name is the note of that date only when
+ * the date that it names again. The name is the name of that date only when
  * the two are equal, which holds the padding, the weekday, the ordinal and
  * the quarter in one comparison.
  */
@@ -30,9 +41,10 @@ import {
   type CalendarDate,
   type Weekday,
 } from './calendar.ts';
+import type { ClockTime } from './clock.ts';
 
-/** One token of a format. */
-type Token =
+/** One token of the date vocabulary. */
+type DateToken =
   | 'YYYY'
   | 'YY'
   | 'Q'
@@ -48,8 +60,14 @@ type Token =
   | 'dd'
   | 'd';
 
-/** The tokens, longest first, so `MMMM` is never read as four `M`. */
-const tokens: readonly Token[] = [
+/** One token of the time of the day. */
+type TimeToken = 'HH' | 'H' | 'hh' | 'h' | 'mm' | 'm' | 'ss' | 's' | 'A' | 'a';
+
+/** One token of either vocabulary. */
+type Token = DateToken | TimeToken;
+
+/** The date tokens, longest first, so `MMMM` is never read as four `M`. */
+const dateTokens: readonly DateToken[] = [
   'YYYY',
   'MMMM',
   'dddd',
@@ -66,9 +84,36 @@ const tokens: readonly Token[] = [
   'd',
 ];
 
+/** The time tokens, longest first. */
+const timeTokens: readonly TimeToken[] = [
+  'HH',
+  'hh',
+  'mm',
+  'ss',
+  'H',
+  'h',
+  'm',
+  's',
+  'A',
+  'a',
+];
+
+/**
+ * Both vocabularies, longest first. No date token starts with a time token or
+ * the reverse, so the order of two tokens of one length does not matter.
+ */
+const dateTimeTokens: readonly Token[] = [...dateTokens, ...timeTokens].sort(
+  (left, right) => right.length - left.length,
+);
+
+/** Whether a token writes a part of the time and not of the date. */
+function isTimeToken(token: Token): token is TimeToken {
+  return timeTokens.some((entry) => entry === token);
+}
+
 /** One part of a format: a token, or literal text. */
-type Part =
-  | { readonly kind: 'token'; readonly token: Token }
+type Part<T extends Token> =
+  | { readonly kind: 'token'; readonly token: T }
   | {
       readonly kind: 'text';
       readonly text: string;
@@ -102,9 +147,12 @@ const weekdayNames: Readonly<Record<Weekday, string>> = {
   7: 'Sunday',
 };
 
-/** Splits a format into its tokens and its literal text. */
-function partsOf(format: string): readonly Part[] {
-  const parts: Part[] = [];
+/** Splits a format into the tokens of one vocabulary and literal text. */
+function partsOf<T extends Token>(
+  format: string,
+  vocabulary: readonly T[],
+): readonly Part<T>[] {
+  const parts: Part<T>[] = [];
   let text = '';
   const flush = (): void => {
     if (text !== '') parts.push({ kind: 'text', text, bracketed: false });
@@ -123,7 +171,7 @@ function partsOf(format: string): readonly Part[] {
         continue;
       }
     }
-    const token = tokens.find((entry) => format.startsWith(entry, index));
+    const token = vocabulary.find((entry) => format.startsWith(entry, index));
     if (token === undefined) {
       text += format[index] ?? '';
       index += 1;
@@ -153,8 +201,8 @@ function ordinal(day: number): string {
   return `${String(day)}${suffix}`;
 }
 
-/** The text that one token writes for one date. */
-function tokenText(token: Token, date: CalendarDate): string {
+/** The text that one date token writes for one date. */
+function dateTokenText(token: DateToken, date: CalendarDate): string {
   const weekday = weekdayOf(date);
   const month = monthNames[date.month - 1] ?? '';
   switch (token) {
@@ -189,24 +237,69 @@ function tokenText(token: Token, date: CalendarDate): string {
   }
 }
 
-/** The name that a format gives one date. */
-export function formatDailyNoteName(
-  date: CalendarDate,
-  format: string,
-): string {
-  return partsOf(format)
+/** A number in two digits, for example `07`. */
+function twoDigits(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+/** The text that one time token writes for one time of the day. */
+function timeTokenText(token: TimeToken, time: ClockTime): string {
+  const hourOfTwelve = time.hour % 12 === 0 ? 12 : time.hour % 12;
+  switch (token) {
+    case 'HH':
+      return twoDigits(time.hour);
+    case 'H':
+      return String(time.hour);
+    case 'hh':
+      return twoDigits(hourOfTwelve);
+    case 'h':
+      return String(hourOfTwelve);
+    case 'mm':
+      return twoDigits(time.minute);
+    case 'm':
+      return String(time.minute);
+    case 'ss':
+      return twoDigits(time.second);
+    case 's':
+      return String(time.second);
+    case 'A':
+      return time.hour < 12 ? 'AM' : 'PM';
+    case 'a':
+      return time.hour < 12 ? 'am' : 'pm';
+  }
+}
+
+/** The text that a format of the date vocabulary gives one date. */
+export function formatDate(date: CalendarDate, format: string): string {
+  return partsOf(format, dateTokens)
     .map((part) =>
-      part.kind === 'text' ? part.text : tokenText(part.token, date),
+      part.kind === 'text' ? part.text : dateTokenText(part.token, date),
     )
     .join('');
 }
 
+/** The text that a format of both vocabularies gives one date and time. */
+export function formatDateTime(
+  date: CalendarDate,
+  time: ClockTime,
+  format: string,
+): string {
+  return partsOf(format, dateTimeTokens)
+    .map((part) => {
+      if (part.kind === 'text') return part.text;
+      return isTimeToken(part.token)
+        ? timeTokenText(part.token, time)
+        : dateTokenText(part.token, date);
+    })
+    .join('');
+}
+
 /** The tokens that state the month and the day of the month. */
-const monthTokens: readonly Token[] = ['MMMM', 'MMM', 'MM', 'M'];
-const dayTokens: readonly Token[] = ['Do', 'DD', 'D'];
+const monthTokens: readonly DateToken[] = ['MMMM', 'MMM', 'MM', 'M'];
+const dayTokens: readonly DateToken[] = ['Do', 'DD', 'D'];
 
 /** What a format lacks to name one date, or `null` when it names one. */
-export type DailyNoteFormatProblem = 'no_year' | 'no_month' | 'no_day';
+export type DateFormatProblem = 'no_year' | 'no_month' | 'no_day';
 
 /**
  * Whether a format names one date.
@@ -214,11 +307,9 @@ export type DailyNoteFormatProblem = 'no_year' | 'no_month' | 'no_day';
  * A format must state a year, a month and a day of the month, so two dates
  * never share a name. A weekday or a quarter alone names no date.
  */
-export function dailyNoteFormatProblem(
-  format: string,
-): DailyNoteFormatProblem | null {
+export function dateFormatProblem(format: string): DateFormatProblem | null {
   const used = new Set(
-    partsOf(format).flatMap((part) =>
+    partsOf(format, dateTokens).flatMap((part) =>
       part.kind === 'token' ? [part.token] : [],
     ),
   );
@@ -229,14 +320,13 @@ export function dailyNoteFormatProblem(
 }
 
 /**
- * Whether a text is a format of date tokens and nothing else, as a template
- * placeholder such as `{{YYYY-MM-DD}}` is (record 0102).
+ * Whether a text is a format of one vocabulary and nothing else.
  *
  * It holds at least one token, and every letter outside square brackets
  * belongs to a token, so a word such as `Monday` is not read as tokens.
  */
-export function isDateFormat(text: string): boolean {
-  const parts = partsOf(text);
+function isFormatOf(text: string, vocabulary: readonly Token[]): boolean {
+  const parts = partsOf(text, vocabulary);
   return (
     parts.some((part) => part.kind === 'token') &&
     parts.every(
@@ -246,13 +336,29 @@ export function isDateFormat(text: string): boolean {
   );
 }
 
+/**
+ * Whether a text is a format of date tokens alone, as a bare template
+ * placeholder such as `{{YYYY-MM-DD}}` is (records 0102 and 0149).
+ */
+export function isDateFormat(text: string): boolean {
+  return isFormatOf(text, dateTokens);
+}
+
+/**
+ * Whether a text is a format of date and time tokens, as the argument of
+ * `{{date:...}}` and `{{time:...}}` is (record 0149).
+ */
+export function isDateTimeFormat(text: string): boolean {
+  return isFormatOf(text, dateTimeTokens);
+}
+
 /** Escapes one literal text for a regular expression. */
 function escaped(text: string): string {
   return text.replaceAll(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 }
 
-/** The pattern that one token matches, with one capture group. */
-function tokenPattern(token: Token): string {
+/** The pattern that one date token matches, with one capture group. */
+function tokenPattern(token: DateToken): string {
   switch (token) {
     case 'YYYY':
       return '(\\d{4})';
@@ -300,12 +406,9 @@ function yearOfTwoDigits(value: number): number {
  * The date comes from the year, the month and the day tokens, and the name is
  * that date only when the format writes the same name for it again.
  */
-export function parseDailyNoteName(
-  name: string,
-  format: string,
-): CalendarDate | null {
-  if (dailyNoteFormatProblem(format) !== null) return null;
-  const parts = partsOf(format);
+export function parseDate(name: string, format: string): CalendarDate | null {
+  if (dateFormatProblem(format) !== null) return null;
+  const parts = partsOf(format, dateTokens);
   const pattern = new RegExp(
     `^${parts
       .map((part) =>
@@ -356,5 +459,5 @@ export function parseDailyNoteName(
   if (year === null || month === null || day === null) return null;
   const date = { year, month, day };
   if (!isCalendarDate(date)) return null;
-  return formatDailyNoteName(date, format) === name ? date : null;
+  return formatDate(date, format) === name ? date : null;
 }

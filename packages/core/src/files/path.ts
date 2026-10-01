@@ -124,3 +124,28 @@ export function isBelowFolder(
   if (path.length <= folder.length) return false;
   return folder.every((segment, index) => path[index] === segment);
 }
+
+/**
+ * Whether a text is a folder path in its stored spelling.
+ *
+ * The folder rules of `normalizePath` hold, and the text is already the
+ * normalized form, so the stored folder and the folder that a note path
+ * names are one spelling. A setting that names a folder reads this one rule.
+ */
+export function isStoredFolderPath(folder: string): boolean {
+  const normalized = normalizePath(folder, 'folder');
+  return normalized.ok && normalized.value === folder;
+}
+
+/**
+ * The stored spelling of a folder that a person typed.
+ *
+ * Space at the ends and a slash at either end are dropped, so ` Journal/ `
+ * is the folder `Journal`, and an empty result is the top of the workspace.
+ */
+export function cleanFolderPath(text: string): string {
+  return text
+    .trim()
+    .replace(/^\/+|\/+$/g, '')
+    .trim();
+}

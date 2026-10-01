@@ -19,6 +19,7 @@ import type {
   SupersededHead,
 } from './model.ts';
 import type { DailyNoteSettings } from '../daily-notes/model.ts';
+import type { TemplateSettings } from '../templates/model.ts';
 import type { SearchHit } from '../search/service.ts';
 import type { Backlink } from './backlinks.ts';
 import type { TextSlot } from './task-boxes.ts';
@@ -340,6 +341,13 @@ export type WorkspaceTransaction = {
   dailyNoteSettings(): Promise<DailyNoteSettings | null>;
   /** Replaces the daily note settings of the actor of this transaction. */
   saveDailyNoteSettings(settings: DailyNoteSettings): Promise<void>;
+  /**
+   * The template settings that the actor of this transaction keeps in this
+   * workspace, or `null` when the actor stored none (record 0149).
+   */
+  templateSettings(): Promise<TemplateSettings | null>;
+  /** Replaces the template settings of the actor of this transaction. */
+  saveTemplateSettings(settings: TemplateSettings): Promise<void>;
   /** One revision of this workspace, or `null` when it holds no such one. */
   revision(revisionId: string): Promise<RevisionRecord | null>;
   /** Searches the accepted live note index of this workspace. */

@@ -69,6 +69,8 @@ function fakeStore(
     search: () => Promise.resolve([]),
     dailyNoteSettings: () => Promise.resolve(null),
     saveDailyNoteSettings: () => Promise.resolve(),
+    templateSettings: () => Promise.resolve(null),
+    saveTemplateSettings: () => Promise.resolve(),
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     documents: () => Promise.resolve(new Map()),

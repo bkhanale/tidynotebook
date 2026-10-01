@@ -117,7 +117,11 @@ export type {
 } from './files/model.ts';
 export { fail, ok } from './files/model.ts';
 export type { PathKind } from './files/path.ts';
-export { normalizePath } from './files/path.ts';
+export {
+  cleanFolderPath,
+  isStoredFolderPath,
+  normalizePath,
+} from './files/path.ts';
 export { validateGraph } from './files/graph.ts';
 export type { FileCursor } from './files/cursor.ts';
 export { decodeFileCursor, encodeFileCursor } from './files/cursor.ts';
@@ -361,7 +365,7 @@ export type {
 export { resolvePublishedAttachment } from './publications/attachment-reference.ts';
 export type { DailyNoteSettings } from './daily-notes/model.ts';
 export { defaultDailyNoteSettings } from './daily-notes/model.ts';
-export type { CalendarDate, Weekday } from './daily-notes/calendar.ts';
+export type { CalendarDate, Weekday } from './dates/calendar.ts';
 export {
   addDays,
   addMonths,
@@ -372,22 +376,37 @@ export {
   sameCalendarDate,
   weekdayOf,
   weekdays,
-} from './daily-notes/calendar.ts';
-export type { DailyNoteFormatProblem } from './daily-notes/format.ts';
+} from './dates/calendar.ts';
+export type { ClockTime } from './dates/clock.ts';
+export type { DateFormatProblem } from './dates/format.ts';
 export {
-  dailyNoteFormatProblem,
-  formatDailyNoteName,
+  dateFormatProblem,
+  formatDate,
+  formatDateTime,
   isDateFormat,
-  parseDailyNoteName,
-} from './daily-notes/format.ts';
-export type { TemplateContext } from './daily-notes/template.ts';
-export { fillTemplate, templateVariableNames } from './daily-notes/template.ts';
+  isDateTimeFormat,
+  parseDate,
+} from './dates/format.ts';
+export type { TemplateContext } from './templates/template.ts';
+export { fillTemplate, templateVariableNames } from './templates/template.ts';
+export type {
+  TemplateFolderProblem,
+  TemplateSettings,
+} from './templates/model.ts';
+export {
+  defaultTemplateSettings,
+  isTemplatePath,
+  templateFolderProblem,
+} from './templates/model.ts';
+export {
+  readTemplateSettings,
+  updateTemplateSettings,
+} from './templates/settings.ts';
 export type {
   DailyNoteLayout,
   DailyNoteLayoutProblem,
 } from './daily-notes/path.ts';
 export {
-  cleanDailyNoteFolder,
   dailyNoteDate,
   dailyNoteLayoutProblem,
   dailyNotePath,

@@ -94,6 +94,8 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
     search: () => Promise.resolve([]),
     dailyNoteSettings: () => Promise.resolve(null),
     saveDailyNoteSettings: () => Promise.resolve(),
+    templateSettings: () => Promise.resolve(null),
+    saveTemplateSettings: () => Promise.resolve(),
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     documents: (fileIds: readonly string[]) =>

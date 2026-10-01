@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizePath } from '../files/path.ts';
 import {
-  cleanDailyNoteFolder,
   dailyNoteDate,
   dailyNoteLayoutProblem,
   dailyNotePath,
@@ -107,11 +106,4 @@ await test('a layout names every date with one valid path', () => {
       'path',
       format,
     );
-});
-
-await test('a typed folder takes its stored spelling', () => {
-  assert.equal(cleanDailyNoteFolder(' Journal/ '), 'Journal');
-  assert.equal(cleanDailyNoteFolder('/Work/Days/'), 'Work/Days');
-  assert.equal(cleanDailyNoteFolder('  '), '');
-  assert.equal(cleanDailyNoteFolder('/'), '');
 });

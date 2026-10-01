@@ -1,9 +1,9 @@
 /**
- * The days of the calendar, as data (records 0099 and 0101).
+ * The days of the calendar, as data (records 0099, 0101 and 0149).
  *
- * A daily note names a calendar date and not an instant. The name format
- * writes the weekday of a date, and the calendar of the sidebar moves between
- * days and months, so both read the day arithmetic of this one module.
+ * A daily note names a calendar date and not an instant. A date format writes
+ * the weekday of a date, and the calendar of the sidebar moves between days
+ * and months, so both read the day arithmetic of this one module.
  *
  * Day arithmetic counts whole days from a fixed origin of the proleptic
  * Gregorian calendar, never through a `Date`. A `Date` reads a two digit year

@@ -70,6 +70,8 @@ function fakeStore(files: readonly FileRecord[]): WorkspaceStore & {
       stored.set(actor.accountId, settings);
       return Promise.resolve();
     },
+    templateSettings: unused,
+    saveTemplateSettings: unused,
     receipt: unused,
     documents: unused,
     heads: unused,

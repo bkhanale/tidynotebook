@@ -6,7 +6,12 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizePath, type PathKind } from './path.ts';
+import {
+  cleanFolderPath,
+  isStoredFolderPath,
+  normalizePath,
+  type PathKind,
+} from './path.ts';
 
 /** The accepted value, or a test failure that names the rejected input. */
 function accepted(input: string, kind: PathKind = 'note'): string {
@@ -141,4 +146,23 @@ await test('the byte limits count UTF-8 bytes', () => {
   assert.equal(fits.length, 1023);
   assert.equal(accepted(fits), fits);
   rejected(`${directory.repeat(4)}${'c'.repeat(252)}.md`);
+});
+
+await test('a typed folder takes its stored spelling', () => {
+  assert.equal(cleanFolderPath(' Journal/ '), 'Journal');
+  assert.equal(cleanFolderPath('/Work/Days/'), 'Work/Days');
+  assert.equal(cleanFolderPath('  '), '');
+  assert.equal(cleanFolderPath('/'), '');
+});
+
+await test('a stored folder is a folder path in its normalized spelling', () => {
+  assert.equal(isStoredFolderPath('Templates'), true);
+  assert.equal(isStoredFolderPath('Work/Templates'), true);
+  assert.equal(isStoredFolderPath(''), false);
+  assert.equal(isStoredFolderPath('/Templates'), false);
+  assert.equal(isStoredFolderPath('Work//Templates'), false);
+  assert.equal(isStoredFolderPath('Templates '), false);
+  // The decomposed spelling is a folder, but not in its stored spelling.
+  assert.equal(isStoredFolderPath('Cafe\u0301'), false);
+  assert.equal(isStoredFolderPath('Caf\u00e9'), true);
 });
