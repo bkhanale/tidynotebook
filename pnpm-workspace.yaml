@@ -14,6 +14,7 @@ allowBuilds:
 # reference and holds the exact version rule over the value below, so a range
 # still fails the gate.
 catalog:
+  '@types/mdast': 4.0.4
   '@types/node': 26.6.3
   '@types/pg': 8.23.1
   '@types/react': 19.3.0

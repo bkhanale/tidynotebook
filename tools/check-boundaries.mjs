@@ -52,6 +52,10 @@ const allowed = {
   'note-document': [],
   ui: [],
   'sdk-codegen': ['api-contract'],
+  // The documentation site of record 0152 renders the guide with the one
+  // renderer and the recipes of the interface, and it reads the stylesheet
+  // that the build of the web application writes, so it builds after it.
+  docs: ['markdown', 'ui', 'web'],
 };
 // Core belongs here. The design requires core to run in the browser, so core
 // must stay free of Node built-in modules and server-only packages.
@@ -198,6 +202,14 @@ const featuresLineCap = 1600;
 // feature and several features still share helpers by direct import, so that
 // ban would flag true edges today. It waits until those edges move behind lib/.
 const webLibPrefix = 'apps/web/src/lib/';
+// Record 0153. The client script of the documentation site runs in the
+// browser with no bundler, so it imports the modules of its own folder and
+// nothing else: no package, and no Node module.
+const docsClientPrefix = 'apps/docs/src/client/';
+// The search index of that site is a file that the build writes beside the
+// pages, not a module of the source, so the one module that loads it computes
+// its address from the base path of the site.
+const indexLoaderFiles = new Set(['apps/docs/src/client/search-index.ts']);
 const webReactPackages = new Set(['react', 'react-dom']);
 const webScreenPrefixes = ['apps/web/src/shell/', 'apps/web/src/features/'];
 // Record 0082. Yjs stays behind the note document package: only that package
@@ -346,6 +358,17 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
       file,
       'A file in apps/web/src/lib/ is pure. It cannot import React (decision 0018).',
     );
+  if (filePath.startsWith(docsClientPrefix) && !isTest) {
+    const target = relative(
+      directory,
+      resolve(file, '..', specifier),
+    ).split(sep).join('/');
+    if (!specifier.startsWith('.') || !target.startsWith(docsClientPrefix))
+      fail(
+        file,
+        `The client script of the docs site imports only modules of ${docsClientPrefix} (record 0153), not ${specifier}.`,
+      );
+  }
   if (specifier.startsWith('.') || isAbsolute(specifier)) {
     // Handwritten relative imports carry an explicit `.ts` extension, so the
     // resolved path decides whether the target is a test file.
@@ -635,7 +658,7 @@ for (const file of sources) {
         node.exportKind === 'type';
       if (typeof source.value === 'string')
         checkImport(file, source.value, isTest, isGenerated, isTypeOnly);
-      else if (type === 'ImportExpression')
+      else if (type === 'ImportExpression' && !indexLoaderFiles.has(path))
         fail(file, 'Dynamic imports must use a literal path.');
     }
     // TypeScript `import name = require('module')` is an import too.

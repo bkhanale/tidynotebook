@@ -34,6 +34,7 @@ import { root } from './workspace.mjs';
 
 /** Every directory that must carry its own guide. */
 export const guidedDirectories = [
+  'apps/docs',
   'apps/server',
   'apps/web',
   'packages/api-client',

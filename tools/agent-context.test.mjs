@@ -100,6 +100,12 @@ await test('a path under an area lists the guide of that area', () => {
   ]);
 });
 
+await test('a path of the documentation site lists the design guide', () => {
+  const result = run({}, ['apps/docs/src/page.ts']);
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /docs\/development\/design\.md/);
+});
+
 await test('a path outside every area lists no area guide', () => {
   const result = run({}, ['packages/core/src/model.ts']);
   assert.equal(result.status, 0, result.output);

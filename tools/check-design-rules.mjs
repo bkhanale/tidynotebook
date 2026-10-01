@@ -6,8 +6,8 @@
  * person who reads a screen. This check makes those rules fail `pnpm lint`
  * instead of a review.
  *
- * It parses `.ts` and `.tsx` under `apps/web/src`, `packages/ui/src` and
- * `packages/editor/src`, plus the one file of the server that writes the
+ * It parses `.ts` and `.tsx` under `apps/web/src`, `apps/docs/src`,
+ * `packages/ui/src` and `packages/editor/src`, plus the one file of the server that writes the
  * published page, excluding test files, and reports:
  *
  * - `inline-style`: a `style` JSX attribute.
@@ -64,6 +64,7 @@ import { filesIn, root } from './workspace.mjs';
  */
 export const scannedDirectories = [
   'apps/web/src',
+  'apps/docs/src',
   'packages/ui/src',
   'packages/editor/src',
 ];

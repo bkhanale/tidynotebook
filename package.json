@@ -28,6 +28,8 @@
     "account:promote": "node apps/server/src/cli/promote-account.ts",
     "start": "node apps/server/dist/main.js",
     "dev:app": "node tools/dev-app.mjs",
+    "docs:build": "pnpm build",
+    "docs:serve": "node apps/docs/src/serve.ts",
     "verify": "pnpm contract:lint && pnpm generated:check && pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:unit && pnpm test:integration && pnpm build && pnpm lint:types",
     "perf:notices": "pnpm build && tools/test-database/ensure-postgres.sh && node tools/performance/notices.ts",
     "perf:notices-proxy": "pnpm build && tools/test-database/ensure-postgres.sh && node tools/performance/notices-proxy.ts",

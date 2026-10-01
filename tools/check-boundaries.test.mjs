@@ -781,3 +781,33 @@ await test('rejects a second entry point on any other package', () => {
     'Expose only the public package entry point through exports["."].',
   );
 });
+
+await test('the client script of the docs site imports only its own folder', () => {
+  const docs = (/** @type {string} */ source) =>
+    check(
+      workspace({
+        'packages/markdown/package.json': manifest('markdown'),
+        'packages/markdown/src/index.ts': 'export const md = 1;\n',
+        'apps/docs/package.json': manifest('docs', {
+          '@notesapp/markdown': 'workspace:*',
+        }),
+        'apps/docs/src/index.ts':
+          "import { md } from '@notesapp/markdown';\nexport const site = md;\n",
+        'apps/docs/src/client/rules.ts': 'export const rule = 1;\n',
+        'apps/docs/src/client/docs.ts': source,
+      }),
+    );
+  accepted(docs("import { rule } from './rules.ts';\nexport const a = rule;\n"));
+  rejected(
+    docs("import { md } from '@notesapp/markdown';\nexport const a = md;\n"),
+    'imports only modules of apps/docs/src/client/',
+  );
+  rejected(
+    docs("import { site } from '../index.ts';\nexport const a = site;\n"),
+    'imports only modules of apps/docs/src/client/',
+  );
+  rejected(
+    docs("import { join } from 'node:path';\nexport const a = join;\n"),
+    'imports only modules of apps/docs/src/client/',
+  );
+});

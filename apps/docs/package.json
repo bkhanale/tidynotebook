@@ -1,0 +1,30 @@
+{
+  "name": "@notesapp/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/build.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ../../packages/markdown/tsconfig.build.json ../../packages/ui/tsconfig.build.json && tsc -p tsconfig.json",
+    "build": "node src/build.ts",
+    "test:unit": "node ../../tools/run-tests.mjs unit",
+    "serve": "node src/serve.ts"
+  },
+  "dependencies": {
+    "@notesapp/markdown": "workspace:*",
+    "@notesapp/ui": "workspace:*",
+    "pagefind": "1.5.2",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@notesapp/web": "workspace:*",
+    "@types/mdast": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:toolchain"
+  }
+}

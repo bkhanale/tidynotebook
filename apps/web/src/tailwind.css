@@ -7,6 +7,12 @@
  * source of this stylesheet. Nothing else of the server is.
  */
 @source "../../../apps/server/src/routes/published-document.ts";
+/*
+ * The documentation site of decision 0152 loads this one built stylesheet as
+ * well, so the module that writes its pages is a source too. Nothing else of
+ * that package is.
+ */
+@source "../../../apps/docs/src/page.ts";
 
 /*
  * The one vendored face of the product, and its monospace sibling.

@@ -34,7 +34,7 @@ export const coreReadingList = [
  */
 export const areaReadingList = [
   [
-    /^(?:apps\/web|packages\/ui|packages\/editor)(?:\/|$)|^apps\/server\/src\/routes\/published-document\.ts$/,
+    /^(?:apps\/web|apps\/docs|packages\/ui|packages\/editor)(?:\/|$)|^apps\/server\/src\/routes\/published-document\.ts$/,
     'docs/development/design.md',
     'The one system of everything a person sees.',
   ],
