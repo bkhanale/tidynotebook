@@ -115,6 +115,18 @@ export const unavailableSentence = 'This link is not available.';
 /** The sentence of a link that asks for a password. */
 export const lockedSentence = 'This link needs a password.';
 
+/**
+ * The words under the heading of a link that opens nothing.
+ *
+ * They are the same for each of the four causes of decision 0030, so they
+ * tell a reader what to do next and nothing about why the link failed.
+ */
+export const unavailableHint =
+  'Ask the person who sent you the link for a new one.';
+
+/** The words under the heading of a link that asks for a password. */
+export const lockedHint = 'Enter the password that you got with the link.';
+
 /** The words of the empty list of a folder link. */
 export const emptyListSentence = 'This folder holds no notes.';
 
@@ -148,9 +160,27 @@ const listHeading = 'Notes';
 /** The words of the link back to the list of a folder link. */
 const listLinkWords = 'All notes';
 
-/** The layout of the one column that every state of the page uses. */
+/** The layout of the one column of a page that shows content. */
 export const pageClasses =
   'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
+
+/**
+ * The layout of a page that shows no content: a link that opens nothing and
+ * a link that asks for a password.
+ *
+ * It is the narrow column in the middle of the screen of the screens before a
+ * session, `AuthFrame` in `apps/web/src/features/accounts/accounts.tsx`, so a
+ * reader meets one short block and not one line at the top of an empty page.
+ */
+const gateClasses =
+  'mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-gutter py-10 sm:px-gutter-wide';
+
+/** The heading of a page that shows no content, the title of a page. */
+const gateHeadingClasses =
+  'mb-2 mt-0 text-xl font-semibold tracking-heading text-strong';
+
+/** The one sentence under the heading of a page that shows no content. */
+const gateHintClasses = 'm-0 text-control text-muted';
 
 /**
  * The typography of the note body.
@@ -223,8 +253,14 @@ export const linkClasses = 'text-accent underline';
 /** The classes of the list of a folder link. */
 const listClasses = 'my-4 flex flex-col gap-2';
 
-/** The classes of the password form. */
+/** The classes of the report form. */
 const formClasses = 'my-4 flex flex-col gap-2';
+
+/** The classes of the password form, under the words of its page. */
+const passwordFormClasses = 'mt-6 flex flex-col gap-4';
+
+/** The classes of the password field and its label, as `TextField` sets them. */
+const passwordFieldGroupClasses = 'flex flex-col gap-1.5';
 
 /** The classes of the label above the password field. */
 const labelClasses = 'text-control font-medium text-strong';
@@ -270,11 +306,16 @@ export const bodyClasses =
 export const publishedDocumentClasses: readonly string[] = [
   bodyClasses,
   pageClasses,
+  gateClasses,
+  gateHeadingClasses,
+  gateHintClasses,
   pageHeadingClasses,
   noteBodyClasses,
   linkClasses,
   listClasses,
   formClasses,
+  passwordFormClasses,
+  passwordFieldGroupClasses,
   labelClasses,
   reasonGroupClasses,
   reasonClasses,
@@ -293,11 +334,26 @@ function titleOf(view: PublishedPageView): string {
   return 'Notesapp';
 }
 
+/** The classes of the main region of one state of the page. */
+function mainClassesOf(view: PublishedPageView): string {
+  return view.kind === 'unavailable' || view.kind === 'locked'
+    ? gateClasses
+    : pageClasses;
+}
+
+/** The heading and the one sentence of a page that shows no content. */
+function gateHeading(heading: string, hint: string): string {
+  return [
+    `<h1 class="${gateHeadingClasses}">${escapeText(heading)}</h1>`,
+    `<p class="${gateHintClasses}">${escapeText(hint)}</p>`,
+  ].join('\n');
+}
+
 /** The main region of one state of the page. */
 function mainOf(input: PublishedDocumentInput): string {
   const view = input.view;
   if (view.kind === 'unavailable')
-    return `<p>${escapeText(unavailableSentence)}</p>`;
+    return gateHeading(unavailableSentence, unavailableHint);
   if (view.kind === 'locked') return passwordForm(input.formAction);
   if (view.kind === 'report') return reportForm(input.formAction, view.reasons);
   if (view.kind === 'reported') return `<p>${escapeText(reportedSentence)}</p>`;
@@ -336,10 +392,12 @@ function mainOf(input: PublishedDocumentInput): string {
  */
 function passwordForm(action: string): string {
   return [
-    `<p>${escapeText(lockedSentence)}</p>`,
-    `<form class="${formClasses}" method="post" action="${escapeAttribute(action)}">`,
+    gateHeading(lockedSentence, lockedHint),
+    `<form class="${passwordFormClasses}" method="post" action="${escapeAttribute(action)}">`,
+    `<div class="${passwordFieldGroupClasses}">`,
     `<label class="${labelClasses}" for="published-password">Password</label>`,
-    `<input class="${publishedFieldClasses}" id="published-password" name="password" type="password" autocomplete="off" required maxlength="512">`,
+    `<input class="${publishedFieldClasses}" id="published-password" name="password" type="password" autocomplete="off" autofocus required maxlength="512">`,
+    '</div>',
     `<button class="${publishedButtonClasses}" type="submit">Open</button>`,
     '</form>',
   ].join('\n');
@@ -398,7 +456,7 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     <title>${escapeText(titleOf(input.view))}</title>
     ${styles}</head>
   <body class="${bodyClasses}">
-    <main class="${pageClasses}">
+    <main class="${mainClassesOf(input.view)}">
 ${mainOf(input)}${footOf(input)}
     </main>
   </body>

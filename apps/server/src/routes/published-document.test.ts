@@ -11,12 +11,14 @@ import {
   emptyListSentence,
   escapeAttribute,
   escapeText,
+  lockedHint,
   lockedSentence,
   publishedDocument,
   publishedDocumentClasses,
   readableNoteName,
   reportedSentence,
   reportReasonWords,
+  unavailableHint,
   unavailableSentence,
   type PublishedPageView,
 } from './published-document.ts';
@@ -30,25 +32,50 @@ function documentOf(view: PublishedPageView, stylesheets = ['/assets/a.css']) {
   });
 }
 
-await test('a link that opens nothing says one sentence and no more', () => {
+await test('a link that opens nothing names it and the one way on', () => {
   const html = documentOf({ kind: 'unavailable' });
-  assert.ok(html.includes(unavailableSentence));
+  assert.match(html, new RegExp(`<h1 [^>]*>${unavailableSentence}</h1>`));
+  assert.ok(html.includes(unavailableHint));
   // The words of a locked link are not on this page, so the reader learns
   // nothing about the cause.
   assert.ok(!html.includes(lockedSentence));
+  assert.ok(!html.includes(lockedHint));
   assert.ok(!html.includes('<form'));
   assert.ok(!html.includes('<script'));
 });
 
 await test('a locked link shows the form and the same words every time', () => {
   const html = documentOf({ kind: 'locked' });
-  assert.ok(html.includes(lockedSentence));
+  assert.match(html, new RegExp(`<h1 [^>]*>${lockedSentence}</h1>`));
+  assert.ok(html.includes(lockedHint));
+  assert.ok(!html.includes(unavailableHint));
+  // The one field takes the focus, so a reader can type at once.
+  assert.match(html, /<input [^>]*name="password"[^>]* autofocus/);
   assert.ok(html.includes('method="post"'));
   assert.ok(html.includes('name="password"'));
   assert.ok(html.includes('type="password"'));
   // The form names the address of the page, so an unlock returns to it.
   assert.ok(html.includes('action="/published/abc"'));
   assert.ok(!html.includes('<script'));
+});
+
+await test('a page with no content is one short block in the middle', () => {
+  const middle =
+    /<main class="[^"]*\bmin-h-dvh\b[^"]*\bmax-w-sm\b[^"]*\bjustify-center\b/;
+  for (const view of [
+    { kind: 'unavailable' },
+    { kind: 'locked' },
+  ] satisfies PublishedPageView[])
+    assert.match(documentOf(view), middle, view.kind);
+  // A note keeps the note column, so its text reads at the note measure.
+  const note = documentOf({
+    kind: 'note',
+    name: 'Day one',
+    body: '<p>text</p>',
+    listHref: null,
+  });
+  assert.doesNotMatch(note, middle);
+  assert.match(note, /<main class="[^"]*\bmax-w-note\b/);
 });
 
 await test('the document loads every stylesheet of the built shell', () => {
