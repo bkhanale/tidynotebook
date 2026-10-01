@@ -1,6 +1,6 @@
 # A documentation site
 
-Status: active
+Status: complete
 
 The [GitHub project board](https://github.com/users/bkhanale/projects/2) owns
 priority and release assignment. This plan follows
@@ -41,4 +41,5 @@ priority and release assignment. This plan follows
    lists of the code against them.
 
 The deployment at `https://docs.bhu.sh/notesapp/` belongs to the
-infrastructure repository of the owner and is not an item here.
+infrastructure repository of the owner and is not an item here. Issue 232
+records the defect of the offline choices that the review of item 4 found.

@@ -1,6 +1,6 @@
 # A documentation site
 
-Status: active
+Status: complete
 
 ## The problem
 
