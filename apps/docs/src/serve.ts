@@ -117,7 +117,8 @@ export async function serve(
     server.listen(port, '127.0.0.1', done);
   });
   const address = server.address();
-  const actual = typeof address === 'object' && address !== null ? address.port : port;
+  const actual =
+    typeof address === 'object' && address !== null ? address.port : port;
   return {
     url: `http://127.0.0.1:${String(actual)}${base}`,
     close: () =>

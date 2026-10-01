@@ -797,7 +797,9 @@ await test('the client script of the docs site imports only its own folder', () 
         'apps/docs/src/client/docs.ts': source,
       }),
     );
-  accepted(docs("import { rule } from './rules.ts';\nexport const a = rule;\n"));
+  accepted(
+    docs("import { rule } from './rules.ts';\nexport const a = rule;\n"),
+  );
   rejected(
     docs("import { md } from '@notesapp/markdown';\nexport const a = md;\n"),
     'imports only modules of apps/docs/src/client/',

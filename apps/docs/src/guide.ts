@@ -101,8 +101,7 @@ export function readGuideIndex(source: string): readonly GuideGroup[] {
       const paragraph = item.children[0];
       if (paragraph?.type !== 'paragraph') continue;
       const [link, ...rest] = paragraph.children;
-      if (link?.type !== 'link' || !/^[a-z0-9-]+\.md$/.test(link.url))
-        continue;
+      if (link?.type !== 'link' || !/^[a-z0-9-]+\.md$/.test(link.url)) continue;
       const summary = oneLine(rest.map((child) => textOf(child)).join(''))
         .replace(/^-\s*/, '')
         .trim();
@@ -118,7 +117,10 @@ export function readGuideIndex(source: string): readonly GuideGroup[] {
 
 /** The files of the site in reading order: the index, then each group. */
 export function readingOrder(groups: readonly GuideGroup[]): readonly string[] {
-  return [indexFile, ...groups.flatMap((group) => group.pages.map((page) => page.file))];
+  return [
+    indexFile,
+    ...groups.flatMap((group) => group.pages.map((page) => page.file)),
+  ];
 }
 
 /**
@@ -132,7 +134,9 @@ export function indexProblems(
   files: readonly string[],
   groups: readonly GuideGroup[],
 ): readonly string[] {
-  const listed = groups.flatMap((group) => group.pages.map((page) => page.file));
+  const listed = groups.flatMap((group) =>
+    group.pages.map((page) => page.file),
+  );
   const problems: string[] = [];
   const seen = new Set<string>();
   for (const file of listed) {
@@ -140,7 +144,9 @@ export function indexProblems(
       problems.push(`${indexFile} lists ${file} more than once.`);
     seen.add(file);
     if (!files.includes(file))
-      problems.push(`${indexFile} lists ${file}, and ${guideFolder} holds no such page.`);
+      problems.push(
+        `${indexFile} lists ${file}, and ${guideFolder} holds no such page.`,
+      );
   }
   for (const file of files)
     if (file !== indexFile && !seen.has(file))

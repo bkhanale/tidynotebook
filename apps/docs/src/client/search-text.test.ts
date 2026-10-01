@@ -11,7 +11,9 @@ import { indexAddress, indexOptions } from './search-index.ts';
 
 await test('an excerpt becomes text and marked text, never markup', () => {
   assert.deepEqual(
-    excerptParts('Put an <mark>HTTPS</mark> proxy &amp; a <b>bold</b> &lt;tag&gt;'),
+    excerptParts(
+      'Put an <mark>HTTPS</mark> proxy &amp; a <b>bold</b> &lt;tag&gt;',
+    ),
     [
       { text: 'Put an ', marked: false },
       { text: 'HTTPS', marked: true },

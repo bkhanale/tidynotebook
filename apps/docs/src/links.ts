@@ -53,7 +53,9 @@ export function guideFileOf(path: string): string | null {
 
 /** States that a link names a guide page that does not exist. */
 function deadLink(path: string): Error {
-  return new Error(`A guide page links ${path}, and the guide has no such page.`);
+  return new Error(
+    `A guide page links ${path}, and the guide has no such page.`,
+  );
 }
 
 /**
@@ -100,4 +102,3 @@ export function markdownDestination(
   if (!files.has(file)) throw deadLink(path);
   return `${absoluteAddress(settings, markdownHref(settings, slugOf(file)))}${fragment}`;
 }
-

@@ -40,5 +40,7 @@ await test('an address outside the base or the folder answers nothing', () => {
     '/notesapp/%00',
     '/notesapp/%E0%A4%A',
   ])
-    assert.deepEqual(route('/notesapp/', folder, pathname), { kind: 'missing' });
+    assert.deepEqual(route('/notesapp/', folder, pathname), {
+      kind: 'missing',
+    });
 });

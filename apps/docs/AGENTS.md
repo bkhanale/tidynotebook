@@ -61,15 +61,15 @@ the files for agents, and the reference pages against the lists of the code.
 
 ## Key files
 
-| File                         | Purpose                                         |
-| ---------------------------- | ----------------------------------------------- |
-| `src/build.ts`               | The build of the site and `pnpm docs:build`     |
-| `src/guide.ts`               | The contents and the pages of the guide         |
-| `src/links.ts`               | The address of every link                       |
-| `src/page.ts`                | The document of a page and of a missing page    |
-| `src/agents.ts`              | `llms.txt`, `llms-full.txt`, the sitemap        |
-| `src/site.ts`                | The base path and the origin of a build         |
-| `src/serve.ts`               | `pnpm docs:serve`, a build on this machine      |
-| `src/client/docs.ts`         | The search, the contents and the copy controls  |
-| `src/client/search-text.ts`  | The rules of the client script                  |
-| `src/client/search-index.ts` | The one computed import, of the search script   |
+| File                         | Purpose                                        |
+| ---------------------------- | ---------------------------------------------- |
+| `src/build.ts`               | The build of the site and `pnpm docs:build`    |
+| `src/guide.ts`               | The contents and the pages of the guide        |
+| `src/links.ts`               | The address of every link                      |
+| `src/page.ts`                | The document of a page and of a missing page   |
+| `src/agents.ts`              | `llms.txt`, `llms-full.txt`, the sitemap       |
+| `src/site.ts`                | The base path and the origin of a build        |
+| `src/serve.ts`               | `pnpm docs:serve`, a build on this machine     |
+| `src/client/docs.ts`         | The search, the contents and the copy controls |
+| `src/client/search-text.ts`  | The rules of the client script                 |
+| `src/client/search-index.ts` | The one computed import, of the search script  |

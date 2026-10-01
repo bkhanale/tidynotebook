@@ -34,7 +34,8 @@ const start = [
   '',
   'Read [Quick start](quickstart.md#open) first.',
 ].join('\n');
-const quick = '# Quick start\n\nThis page is for the person who runs the server.\n';
+const quick =
+  '# Quick start\n\nThis page is for the person who runs the server.\n';
 
 const groups = readGuideIndex(readme);
 const home = readGuidePage('README.md', readme);
@@ -91,15 +92,24 @@ await test('llms-full.txt holds every page in reading order', () => {
     (title) => full.indexOf(title),
   );
   assert.ok(order.every((at) => at >= 0));
-  assert.deepEqual([...order].sort((a, b) => a - b), order);
-  assert.match(full, /<!-- https:\/\/docs\.bhu\.sh\/notesapp\/quickstart\/ -->/);
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+  );
+  assert.match(
+    full,
+    /<!-- https:\/\/docs\.bhu\.sh\/notesapp\/quickstart\/ -->/,
+  );
 });
 
 await test('the sitemap names every page when the origin is known', () => {
   assert.equal(sitemap(local, pages), null);
   const map = sitemap(hosted, pages) ?? '';
   for (const path of ['', 'getting-started/', 'quickstart/'])
-    assert.match(map, new RegExp(`<loc>https://docs\\.bhu\\.sh/notesapp/${path}</loc>`));
+    assert.match(
+      map,
+      new RegExp(`<loc>https://docs\\.bhu\\.sh/notesapp/${path}</loc>`),
+    );
   assert.equal(
     robots(hosted),
     'User-agent: *\nAllow: /\nSitemap: https://docs.bhu.sh/notesapp/sitemap.xml\n',

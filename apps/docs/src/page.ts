@@ -76,7 +76,9 @@ function icon(
   component: (props: IconProps) => ReactNode,
   className = 'shrink-0',
 ): string {
-  return renderToStaticMarkup(createElement(component, { size: 16, className }));
+  return renderToStaticMarkup(
+    createElement(component, { size: 16, className }),
+  );
 }
 
 /** The assets of the built site that a page names. */
@@ -388,7 +390,9 @@ function pager(view: PageView): string {
   const link = (target: PageLink, hint: string, end: boolean): string =>
     `<a class="${pagerLinkClasses}${end ? ' sm:col-start-2 sm:items-end sm:text-right' : ''}" href="${escapeAttribute(target.href)}"><span class="${pagerHintClasses} flex items-center gap-1">${end ? '' : icon(ChevronLeftIcon)}${hint}${end ? icon(ChevronRightIcon) : ''}</span><span class="text-ui font-medium text-strong">${escapeText(target.title)}</span></a>`;
   const parts = [
-    ...(view.previous === null ? [] : [link(view.previous, words.previous, false)]),
+    ...(view.previous === null
+      ? []
+      : [link(view.previous, words.previous, false)]),
     ...(view.next === null ? [] : [link(view.next, words.next, true)]),
   ];
   if (parts.length === 0) return '';
@@ -427,8 +431,7 @@ function searchDialog(): string {
 /** The whole document of one page. */
 export function pageDocument(view: PageView): string {
   const { settings, page } = view;
-  const title =
-    page.slug === '' ? siteName : `${page.title} | ${siteName}`;
+  const title = page.slug === '' ? siteName : `${page.title} | ${siteName}`;
   const markdown = markdownHref(settings, page.slug);
   const canonical =
     settings.origin === null

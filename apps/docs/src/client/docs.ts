@@ -156,7 +156,8 @@ function search(): void {
     list.replaceChildren(
       ...results.map((result) => {
         const row = template.content.cloneNode(true);
-        if (!(row instanceof DocumentFragment)) return document.createElement('li');
+        if (!(row instanceof DocumentFragment))
+          return document.createElement('li');
         const link = row.querySelector('a');
         const title = row.querySelector('[data-docs-result-title]');
         const excerpt = row.querySelector('[data-docs-result-excerpt]');
@@ -206,7 +207,11 @@ function search(): void {
   });
   dialog.addEventListener('click', (event) => {
     const panel = element('data-docs-search-panel');
-    if (event.target instanceof Node && panel !== null && !panel.contains(event.target))
+    if (
+      event.target instanceof Node &&
+      panel !== null &&
+      !panel.contains(event.target)
+    )
       dialog.close();
   });
   field.addEventListener('input', () => {
@@ -256,11 +261,9 @@ function copyPage(): void {
   const source = document.querySelector('[data-docs-markdown]');
   if (control === null || !(source instanceof HTMLTemplateElement)) return;
   control.addEventListener('click', () => {
-    void navigator.clipboard
-      .writeText(source.content.textContent)
-      .then(() => {
-        confirmCopy(control);
-      });
+    void navigator.clipboard.writeText(source.content.textContent).then(() => {
+      confirmCopy(control);
+    });
   });
 }
 

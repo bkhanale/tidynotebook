@@ -71,12 +71,15 @@ await test('a page states its title, its reader and its alternates', () => {
     html,
     /<link rel="alternate" type="text\/markdown" title="View as Markdown" href="\/notesapp\/self-hosting\.md">/,
   );
+  assert.match(html, /href="https:\/\/docs\.bhu\.sh\/notesapp\/llms\.txt"/);
   assert.match(
     html,
-    /href="https:\/\/docs\.bhu\.sh\/notesapp\/llms\.txt"/,
+    /<link rel="stylesheet" href="\/notesapp\/assets\/main\.css">/,
   );
-  assert.match(html, /<link rel="stylesheet" href="\/notesapp\/assets\/main\.css">/);
-  assert.match(html, /<script type="module" src="\/notesapp\/assets\/docs\.js"><\/script>/);
+  assert.match(
+    html,
+    /<script type="module" src="\/notesapp\/assets\/docs\.js"><\/script>/,
+  );
 });
 
 await test('the root states no appearance, so the device palette paints it', () => {
@@ -134,7 +137,10 @@ await test('the Markdown copy sits in the page as text', () => {
 
 await test('the search is one labelled dialog with the templates of its rows', () => {
   const html = pageDocument(view);
-  assert.match(html, /<dialog id="docs-search"[^>]*aria-label="Search the docs"/);
+  assert.match(
+    html,
+    /<dialog id="docs-search"[^>]*aria-label="Search the docs"/,
+  );
   assert.match(html, /<template data-docs-search-result>/);
   assert.match(html, /<template data-docs-code-copy>/);
   assert.match(html, /aria-keyshortcuts="\/ Control\+K Meta\+K"/);

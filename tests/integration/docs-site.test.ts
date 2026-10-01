@@ -58,10 +58,7 @@ const pages = await Promise.all(
   result.pages.map(async (page) => ({
     page,
     address: `${base}${page.slug === '' ? '' : `${page.slug}/`}`,
-    html: await readFile(
-      join(output, page.slug, 'index.html'),
-      'utf8',
-    ),
+    html: await readFile(join(output, page.slug, 'index.html'), 'utf8'),
   })),
 );
 
@@ -74,42 +71,54 @@ await test('the built documentation site', async (t) => {
     await rm(output, { recursive: true, force: true });
   });
 
-  await t.test('every page of the guide is a page and a Markdown copy', async () => {
-    const files = (await readdir(guide)).filter((name) => name.endsWith('.md'));
-    assert.equal(result.pages.length, files.length);
-    for (const { page } of pages) {
-      const copy = await readFile(
-        join(output, `${page.slug === '' ? 'index' : page.slug}.md`),
-        'utf8',
+  await t.test(
+    'every page of the guide is a page and a Markdown copy',
+    async () => {
+      const files = (await readdir(guide)).filter((name) =>
+        name.endsWith('.md'),
       );
-      assert.ok(copy.startsWith(`# ${page.title}\n`), page.file);
-      // A guide link in a copy names the copy of the other page, in full.
-      for (const match of copy.matchAll(/\]\(([^)\s]+)\)/g)) {
-        const destination = (match[1] ?? '').split('#')[0] ?? '';
-        if (destination.endsWith('.md'))
-          assert.match(destination, /^https:\/\//, `${page.file}: ${destination}`);
-      }
-    }
-  });
-
-  await t.test('every link of the site reaches a file and a heading', async () => {
-    for (const { address, html } of pages) {
-      for (const match of html.matchAll(/\shref="([^"]+)"/g)) {
-        const href = (match[1] ?? '').replaceAll('&amp;', '&');
-        if (/^(?:https?:|mailto:)/.test(href) && !href.startsWith(origin))
-          continue;
-        const target = new URL(href, `${origin}${address}`);
-        const file = await served(target.href);
-        assert.notEqual(file, null, `${address} links ${href}`);
-        if (target.hash === '' || file === null) continue;
-        const ids = idsOf(await readFile(file, 'utf8'));
-        assert.ok(
-          ids.has(decodeURIComponent(target.hash.slice(1))),
-          `${address} links ${href}, and that page holds no such heading`,
+      assert.equal(result.pages.length, files.length);
+      for (const { page } of pages) {
+        const copy = await readFile(
+          join(output, `${page.slug === '' ? 'index' : page.slug}.md`),
+          'utf8',
         );
+        assert.ok(copy.startsWith(`# ${page.title}\n`), page.file);
+        // A guide link in a copy names the copy of the other page, in full.
+        for (const match of copy.matchAll(/\]\(([^)\s]+)\)/g)) {
+          const destination = (match[1] ?? '').split('#')[0] ?? '';
+          if (destination.endsWith('.md'))
+            assert.match(
+              destination,
+              /^https:\/\//,
+              `${page.file}: ${destination}`,
+            );
+        }
       }
-    }
-  });
+    },
+  );
+
+  await t.test(
+    'every link of the site reaches a file and a heading',
+    async () => {
+      for (const { address, html } of pages) {
+        for (const match of html.matchAll(/\shref="([^"]+)"/g)) {
+          const href = (match[1] ?? '').replaceAll('&amp;', '&');
+          if (/^(?:https?:|mailto:)/.test(href) && !href.startsWith(origin))
+            continue;
+          const target = new URL(href, `${origin}${address}`);
+          const file = await served(target.href);
+          assert.notEqual(file, null, `${address} links ${href}`);
+          if (target.hash === '' || file === null) continue;
+          const ids = idsOf(await readFile(file, 'utf8'));
+          assert.ok(
+            ids.has(decodeURIComponent(target.hash.slice(1))),
+            `${address} links ${href}, and that page holds no such heading`,
+          );
+        }
+      }
+    },
+  );
 
   /** One class name as a selector of the stylesheet writes it. */
   function selectorOf(name: string): string {
@@ -133,9 +142,11 @@ await test('the built documentation site', async (t) => {
   const markers = new Set(['group']);
 
   await t.test('every class of a page is in the built stylesheet', async () => {
-    const sheets = [...(pages[0]?.html ?? '').matchAll(
-      /<link rel="stylesheet" href="([^"]+)">/g,
-    )].map((match) => match[1] ?? '');
+    const sheets = [
+      ...(pages[0]?.html ?? '').matchAll(
+        /<link rel="stylesheet" href="([^"]+)">/g,
+      ),
+    ].map((match) => match[1] ?? '');
     assert.ok(sheets.length > 0);
     let css = '';
     for (const sheet of sheets) {
@@ -157,9 +168,13 @@ await test('the built documentation site', async (t) => {
     for (const html of pages.map((entry) => entry.html))
       assert.doesNotMatch(html, /data-theme=/);
     // Every font of the stylesheet is a file of the site.
-    for (const match of css.matchAll(/url\((['"]?)(\.\.\/fonts\/[^)'"]+)\1\)/g)) {
-      const font = await served(new URL(match[2] ?? '', `${origin}${sheets[0] ?? ''}`).href);
-      assert.notEqual(font, null, match[2]);
+    for (const match of css.matchAll(
+      /url\((['"]?)(\.\.\/fonts\/[^)'"]+)\1\)/g,
+    )) {
+      const font = await served(
+        new URL(match[2] ?? '', `${origin}${sheets[0] ?? ''}`).href,
+      );
+      assert.notEqual(font, null, match[2] ?? '');
     }
     assert.doesNotMatch(css, /url\(['"]?\/fonts\//);
   });
@@ -171,7 +186,10 @@ await test('the built documentation site', async (t) => {
     );
     const languages: unknown = Reflect.get(Object(entry), 'languages');
     const english: unknown = Reflect.get(Object(languages), 'en');
-    assert.equal(Reflect.get(Object(english), 'page_count'), result.pages.length);
+    assert.equal(
+      Reflect.get(Object(english), 'page_count'),
+      result.pages.length,
+    );
     assert.notEqual(await served(`${base}pagefind/pagefind.js`), null);
     for (const { html } of pages)
       assert.equal(html.match(/data-pagefind-body/g)?.length, 1);
@@ -199,8 +217,15 @@ await test('the built documentation site', async (t) => {
     assert.ok(index.startsWith('# NotesApp docs\n\n> '));
     for (const { page, address } of pages) {
       if (page.slug !== '')
-        assert.ok(index.includes(`(${origin}${base}${page.slug}.md)`), page.file);
-      assert.ok(full.includes(`\n# ${page.title}\n`) || full.includes(`-->\n\n# ${page.title}\n`), page.file);
+        assert.ok(
+          index.includes(`(${origin}${base}${page.slug}.md)`),
+          page.file,
+        );
+      assert.ok(
+        full.includes(`\n# ${page.title}\n`) ||
+          full.includes(`-->\n\n# ${page.title}\n`),
+        page.file,
+      );
       assert.ok(map.includes(`<loc>${origin}${address}</loc>`), page.file);
     }
     const robots = await readFile(join(output, 'robots.txt'), 'utf8');
@@ -221,21 +246,27 @@ await test('the built documentation site', async (t) => {
     );
   }
 
-  await t.test('the settings page has a heading for each section of Settings', async () => {
-    const headings = await headingsOf('settings.md');
-    const missing = settingsSections
-      .map((section) => section.title)
-      .filter((title) => !headings.has(title));
-    assert.deepEqual(missing, []);
-  });
+  await t.test(
+    'the settings page has a heading for each section of Settings',
+    async () => {
+      const headings = await headingsOf('settings.md');
+      const missing = settingsSections
+        .map((section) => section.title)
+        .filter((title) => !headings.has(title));
+      assert.deepEqual(missing, []);
+    },
+  );
 
-  await t.test('the accounts page has a heading for each section of Accounts', async () => {
-    const headings = await headingsOf('accounts.md');
-    const missing = administrationSections
-      .map((section) => section.title)
-      .filter((title) => !headings.has(title));
-    assert.deepEqual(missing, []);
-  });
+  await t.test(
+    'the accounts page has a heading for each section of Accounts',
+    async () => {
+      const headings = await headingsOf('accounts.md');
+      const missing = administrationSections
+        .map((section) => section.title)
+        .filter((title) => !headings.has(title));
+      assert.deepEqual(missing, []);
+    },
+  );
 
   /** The variable names that a text names inside a code span. */
   const variablesIn = (text: string): Set<string> =>
@@ -245,18 +276,21 @@ await test('the built documentation site', async (t) => {
       ),
     );
 
-  await t.test('the configuration page names every variable, and no other', async () => {
-    const page = variablesIn(
-      await readFile(join(guide, 'configuration.md'), 'utf8'),
-    );
-    const example = await readFile(join(root, '.env.example'), 'utf8');
-    const compose = [...example.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)].map(
-      (match) => match[1] ?? '',
-    );
-    const known = new Set([...serverVariables, ...compose]);
-    const missing = [...known].filter((name) => !page.has(name)).sort();
-    assert.deepEqual(missing, []);
-    const unknown = [...page].filter((name) => !known.has(name)).sort();
-    assert.deepEqual(unknown, []);
-  });
+  await t.test(
+    'the configuration page names every variable, and no other',
+    async () => {
+      const page = variablesIn(
+        await readFile(join(guide, 'configuration.md'), 'utf8'),
+      );
+      const example = await readFile(join(root, '.env.example'), 'utf8');
+      const compose = [...example.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)].map(
+        (match) => match[1] ?? '',
+      );
+      const known = new Set([...serverVariables, ...compose]);
+      const missing = [...known].filter((name) => !page.has(name)).sort();
+      assert.deepEqual(missing, []);
+      const unknown = [...page].filter((name) => !known.has(name)).sort();
+      assert.deepEqual(unknown, []);
+    },
+  );
 });

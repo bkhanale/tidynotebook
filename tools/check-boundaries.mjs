@@ -359,10 +359,9 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
       'A file in apps/web/src/lib/ is pure. It cannot import React (decision 0018).',
     );
   if (filePath.startsWith(docsClientPrefix) && !isTest) {
-    const target = relative(
-      directory,
-      resolve(file, '..', specifier),
-    ).split(sep).join('/');
+    const target = relative(directory, resolve(file, '..', specifier))
+      .split(sep)
+      .join('/');
     if (!specifier.startsWith('.') || !target.startsWith(docsClientPrefix))
       fail(
         file,

@@ -56,13 +56,13 @@ screenshots of a changed page from it, in light and in dark.
 
 ## Proof
 
-| What                                   | Evidence                                    |
-| -------------------------------------- | ------------------------------------------- |
-| The contents, the links, the headings  | `apps/docs/src/guide.test.ts`, `links.test.ts` |
-| The page and the missing page          | `apps/docs/src/page.test.ts`                |
-| The files for agents                   | `apps/docs/src/agents.test.ts`              |
-| The rules of the client script         | `apps/docs/src/client/search-text.test.ts`  |
-| The built site, as a host serves it    | `tests/integration/docs-site.test.ts`       |
+| What                                  | Evidence                                       |
+| ------------------------------------- | ---------------------------------------------- |
+| The contents, the links, the headings | `apps/docs/src/guide.test.ts`, `links.test.ts` |
+| The page and the missing page         | `apps/docs/src/page.test.ts`                   |
+| The files for agents                  | `apps/docs/src/agents.test.ts`                 |
+| The rules of the client script        | `apps/docs/src/client/search-text.test.ts`     |
+| The built site, as a host serves it   | `tests/integration/docs-site.test.ts`          |
 
 ## Hosting
 

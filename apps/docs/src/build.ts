@@ -12,19 +12,18 @@
  * `NOTESAPP_DOCS_ORIGIN` name the address the site is served from.
  */
 import { execFileSync } from 'node:child_process';
-import {
-  cp,
-  mkdir,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as pagefind from 'pagefind';
 import { renderMarkdown } from '@notesapp/markdown';
-import { llmsFull, llmsIndex, markdownCopy, robots, sitemap } from './agents.ts';
+import {
+  llmsFull,
+  llmsIndex,
+  markdownCopy,
+  robots,
+  sitemap,
+} from './agents.ts';
 import { rebaseFonts, shellAssets } from './assets.ts';
 import {
   guideFolder,
@@ -83,7 +82,9 @@ async function copyAssets(
   input: BuildInput,
   scriptName: string,
 ): Promise<SiteAssets> {
-  const shell = shellAssets(await readFile(join(input.web, 'index.html'), 'utf8'));
+  const shell = shellAssets(
+    await readFile(join(input.web, 'index.html'), 'utf8'),
+  );
   const { base } = input.settings;
   const stylesheets: string[] = [];
   for (const href of shell.stylesheets) {
@@ -121,7 +122,9 @@ async function compileClient(output: string): Promise<string> {
 /** Builds the whole site. */
 export async function buildSite(input: BuildInput): Promise<BuildResult> {
   const { settings } = input;
-  const names = (await readdir(input.guide)).filter((name) => name.endsWith('.md'));
+  const names = (await readdir(input.guide)).filter((name) =>
+    name.endsWith('.md'),
+  );
   const index = await readFile(join(input.guide, indexFile), 'utf8');
   const groups = readGuideIndex(index);
   const problems = indexProblems(names, groups);
@@ -134,7 +137,9 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
   );
   const files = new Set(order);
   const groupOf = new Map(
-    groups.flatMap((group) => group.pages.map((entry) => [entry.file, group.title])),
+    groups.flatMap((group) =>
+      group.pages.map((entry) => [entry.file, group.title]),
+    ),
   );
   const linkOf = (page: GuidePage | undefined): PageLink | null =>
     page === undefined
@@ -168,7 +173,8 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
       previous: linkOf(pages[at - 1]),
       next: linkOf(pages[at + 1]),
     });
-    const folder = page.slug === '' ? input.output : join(input.output, page.slug);
+    const folder =
+      page.slug === '' ? input.output : join(input.output, page.slug);
     await write(join(folder, 'index.html'), document);
     await write(
       join(input.output, `${page.slug === '' ? 'index' : page.slug}.md`),
@@ -179,7 +185,9 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
       content: document,
     });
     if (added.errors.length > 0)
-      throw new Error(`Pagefind refused ${page.file}: ${added.errors.join(' ')}`);
+      throw new Error(
+        `Pagefind refused ${page.file}: ${added.errors.join(' ')}`,
+      );
     indexed += 1;
   }
   const written = await search.writeFiles({
@@ -191,9 +199,18 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
 
   const home = pages[0];
   if (home === undefined) throw new Error('The guide holds no index page.');
-  await write(join(input.output, '404.html'), missingDocument(settings, assets, groups));
-  await write(join(input.output, 'llms.txt'), llmsIndex(settings, groups, home));
-  await write(join(input.output, 'llms-full.txt'), llmsFull(settings, files, pages));
+  await write(
+    join(input.output, '404.html'),
+    missingDocument(settings, assets, groups),
+  );
+  await write(
+    join(input.output, 'llms.txt'),
+    llmsIndex(settings, groups, home),
+  );
+  await write(
+    join(input.output, 'llms-full.txt'),
+    llmsFull(settings, files, pages),
+  );
   await write(join(input.output, 'robots.txt'), robots(settings));
   const map = sitemap(settings, pages);
   if (map !== null) await write(join(input.output, 'sitemap.xml'), map);
