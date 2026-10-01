@@ -148,7 +148,9 @@ It waits while the application removes its database and its file store.
 ## Next to other worktrees
 
 - Never stop, restart or remove the PostgreSQL container of the Compose
-  project `notesapp-test`. Every worktree uses it.
+  project `notesapp-test`. Every worktree uses it. Only the
+  `cleaning-up-after-a-task` skill removes it, when the owner invokes that
+  skill and no worktree is left.
 - Cookies ignore the port, so the applications of two worktrees must never
   share one browser context. A context from `openDevice` belongs to one
   application.

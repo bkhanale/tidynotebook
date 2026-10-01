@@ -11,6 +11,9 @@
   it. Pull requests are not required.
 - Stay inside the active worktree. All edits, commits, and untracked files
   belong in that worktree.
+- Only the owner starts the `cleaning-up-after-a-task` skill. Never run it on
+  your own, and never remove another worktree, another branch, or Docker data
+  outside it.
 - A release follows the `releasing-a-version` skill, from the changelog entry
   to the signed tag, the GitHub release, and the milestone. Prove each step
   with `node tools/release-check.mjs`. A pushed tag is never moved and never
