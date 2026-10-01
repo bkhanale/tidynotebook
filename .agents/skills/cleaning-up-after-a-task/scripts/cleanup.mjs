@@ -63,11 +63,13 @@ const readyTimeoutMs = 10 * 1000;
  * @param {string} command
  * @param {string[]} args
  * @param {string} cwd
+ * @param {string} [input] The text that the command reads.
  * @returns {Outcome}
  */
-function run(command, args, cwd) {
+function run(command, args, cwd, input = '') {
   const result = spawnSync(command, args, {
     cwd,
+    input,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -84,9 +86,10 @@ function run(command, args, cwd) {
  * @param {string} command
  * @param {string[]} args
  * @param {string} cwd
+ * @param {string} [input] The text that the command reads.
  */
-function must(command, args, cwd) {
-  const outcome = run(command, args, cwd);
+function must(command, args, cwd, input = '') {
+  const outcome = run(command, args, cwd, input);
   if (outcome.status !== 0)
     throw new Error(
       `${command} ${args.join(' ')} failed:\n${outcome.stderr || outcome.stdout}`,
@@ -137,34 +140,63 @@ function worktrees(cwd) {
 }
 
 /**
+ * The patch identities of the commits in a range, with every space kept.
+ *
+ * `git cherry` strips white space before it compares two patches, so a
+ * change from `"ab"` to `"a b"` looked equal to a change that `main` made.
+ * `git patch-id --verbatim` keeps it. A commit with an empty patch has no
+ * identity, and it adds nothing.
+ *
+ * @param {string} range
+ * @param {string} cwd
+ * @returns {Map<string, string>} The identity of each commit, by commit.
+ */
+function patchIds(range, cwd) {
+  const log = must(
+    'git',
+    ['log', '--no-merges', '-p', '--format=commit %H', range],
+    cwd,
+  );
+  /** @type {Map<string, string>} */
+  const ids = new Map();
+  if (log === '') return ids;
+  const output = must('git', ['patch-id', '--verbatim'], cwd, `${log}\n`);
+  for (const line of lines(output)) {
+    const [id = '', commit = ''] = line.split(' ');
+    ids.set(commit, id);
+  }
+  return ids;
+}
+
+/**
  * How many commits of a reference have no equal change in `main`.
  *
- * `git cherry` compares the changes, not the commit names, so a branch that
- * landed through a rebase counts as landed. It leaves merge commits out, and
- * a merge can take the side of a different parent for each file, which no
- * comparison of one commit sees. So a merge that is not in `main` counts as
- * landed only when a merge of the whole reference into `main` changes
- * nothing. Otherwise each such merge counts as one change.
+ * A reference is landed when a merge of the whole reference into `main`
+ * changes nothing. Otherwise a commit counts as landed when `main` holds a
+ * commit with the same patch, space for space, so a branch that landed
+ * through a rebase counts as landed. A merge can take the side of a
+ * different parent for each file, which no comparison of one commit sees,
+ * so each merge counts as one change.
  *
  * @param {string} reference
  * @param {string} cwd
  */
 function commitsOutsideMain(reference, cwd) {
-  const patches = lines(
-    must('git', ['cherry', mainBranch, reference], cwd),
-  ).filter((line) => line.startsWith('+')).length;
-  const merges = lines(
-    must('git', ['rev-list', '--merges', `${mainBranch}..${reference}`], cwd),
-  ).length;
-  if (merges === 0) return patches;
   const merged = run(
     'git',
     ['merge-tree', '--write-tree', mainBranch, reference],
     cwd,
   );
   const mainTree = must('git', ['rev-parse', `${mainBranch}^{tree}`], cwd);
-  const unchanged = merged.status === 0 && lines(merged.stdout)[0] === mainTree;
-  return patches + (unchanged ? 0 : merges);
+  if (merged.status === 0 && lines(merged.stdout)[0] === mainTree) return 0;
+  const landed = new Set(patchIds(`${reference}..${mainBranch}`, cwd).values());
+  const patches = [
+    ...patchIds(`${mainBranch}..${reference}`, cwd).values(),
+  ].filter((id) => !landed.has(id)).length;
+  const merges = lines(
+    must('git', ['rev-list', '--merges', `${mainBranch}..${reference}`], cwd),
+  ).length;
+  return patches + merges;
 }
 
 /**
@@ -535,7 +567,7 @@ function makePlan(also) {
       name: 'local deployment',
       reason: `the main checkout is not on ${mainBranch}`,
     });
-  } else if (status.stdout !== '') {
+  } else if (status.stdout !== '' || hiddenChanges(main).length > 0) {
     plan.deployment.push({
       mark: 'skip',
       name: 'local deployment',

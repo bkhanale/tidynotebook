@@ -52,16 +52,16 @@ The plan follows these rules:
   and `.local-app/` come back, so they do not count.
 - A branch on the machine or on `origin` stays when it has an open pull
   request. A local branch also stays when a kept worktree uses it. Any other
-  branch goes when every change is in `main`, and it is `ask` when it is not.
-  A merge commit that is not in `main` counts as a change, unless a merge of
-  the whole branch into `main` changes nothing.
+  branch goes when a merge of the whole branch into `main` changes nothing, or
+  when `main` holds each of its patches, space for space, and it has no merge
+  commit outside `main`. Otherwise it is `ask`.
 - A branch is deleted only at the commit that the plan read. A branch that
   moved since then stays, and `apply` stops with the reason.
 - The test database of the Compose project `notesapp-test` goes only when no
   worktree is left. `tools/test-database/ensure-postgres.sh` starts it again
   at the next integration test or local application.
-- The deploy runs only when the main checkout is on a clean `main` and has a
-  `.env`. It builds the local `main` and does not pull.
+- The deploy runs only when the main checkout is on a clean `main`, with no
+  change that an index flag hides, and has a `.env`. It builds the local `main` and does not pull.
 - The prune keeps each running container and what it uses. The data of the
   deployment is in host directories, so the prune does not touch it.
 
