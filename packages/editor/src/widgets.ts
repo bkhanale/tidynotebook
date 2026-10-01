@@ -193,6 +193,26 @@ export type ImageOpenRequest = {
 export const imageOpenClassName = 'cm-np-widget-image-open';
 
 /**
+ * What a picture of another host shows when it does not load.
+ *
+ * The words take the place of the picture and nothing else. A picture that the
+ * host can open keeps its button around the words, because Copy link and Open
+ * original need the address alone (record 0145).
+ */
+export function failedImageView(view: {
+  readonly alt: string;
+  readonly openLabel: string | null;
+}): { readonly message: string; readonly openLabel: string | null } {
+  return {
+    message:
+      view.alt === ''
+        ? 'This picture did not load.'
+        : `This picture did not load: ${view.alt}`,
+    openLabel: view.openLabel,
+  };
+}
+
+/**
  * The accessible name of the button that opens one picture.
  *
  * The alt text is the name of the picture, so it follows the action. A
@@ -592,14 +612,13 @@ class RichWidgetType extends WidgetType {
         image.referrerPolicy = 'no-referrer';
         image.loading = 'lazy';
         image.addEventListener('error', (): void => {
-          parent.textContent = '';
+          // The words replace the picture alone, so the button that holds a
+          // picture the host can open stays around them.
+          const failure = failedImageView(view);
           const failed = document.createElement('span');
           failed.className = 'cm-np-widget-note cm-np-widget-error';
-          failed.textContent =
-            view.alt === ''
-              ? 'This picture did not load.'
-              : `This picture did not load: ${view.alt}`;
-          parent.appendChild(failed);
+          failed.textContent = failure.message;
+          image.replaceWith(failed);
         });
       }
       const label = view.openLabel;

@@ -800,12 +800,17 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       padding: '0',
       border: '0',
       font: 'inherit',
-      lineHeight: '0',
+      color: 'inherit',
+      textAlign: 'start',
       verticalAlign: 'bottom',
       background: 'transparent',
       borderRadius: 'var(--radius-md)',
       cursor: 'zoom-in',
     },
+    // The picture is a block inside its button, so no line box adds a gap
+    // under it, and the words of a picture that did not load keep the line
+    // height of the note.
+    '.cm-np-widget-image-open > .cm-np-widget-image': { display: 'block' },
     '.cm-np-widget-image-open:focus-visible': {
       outline: '2px solid var(--notes-focus)',
       outlineOffset: '2px',

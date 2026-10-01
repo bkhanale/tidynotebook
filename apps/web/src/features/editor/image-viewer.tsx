@@ -53,6 +53,7 @@ import {
   zoomOut,
   zoomPercent,
   zoomedSize,
+  viewerStatus,
   type ImageAction,
   type ImageSize,
 } from '../../lib/image-viewer.ts';
@@ -316,7 +317,7 @@ function ImageViewerBody({
     });
   };
 
-  const status = failed ? imageActionMessages.notLoaded : message;
+  const status = viewerStatus({ failed, message });
   // The zoom means nothing until the picture states its size, so the tools
   // wait for it and no percentage shows that the picture does not have.
   const idle = failed || natural === null;

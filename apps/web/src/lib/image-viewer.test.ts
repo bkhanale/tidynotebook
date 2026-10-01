@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   actionNeedsPicture,
+  imageActionMessages,
   clampZoom,
   closesOnRelease,
   fitZoom,
@@ -21,6 +22,7 @@ import {
   zoomOut,
   zoomPercent,
   zoomSteps,
+  viewerStatus,
   zoomedSize,
 } from './image-viewer.ts';
 
@@ -170,4 +172,22 @@ await test('a tap on the scrim closes the viewer and a drag does not', () => {
   assert.equal(closesOnRelease({ onScrim: true, dx: 30, dy: 0 }), false);
   // A press on the picture never closes it.
   assert.equal(closesOnRelease({ onScrim: false, dx: 0, dy: 0 }), false);
+});
+
+await test('the result of an action replaces the load failure', () => {
+  // A review of 2026-10-01. A picture that did not load kept its load message
+  // after Copy link, so a copy that worked and one that failed looked alike.
+  assert.equal(viewerStatus({ failed: false, message: '' }), '');
+  assert.equal(
+    viewerStatus({ failed: true, message: '' }),
+    imageActionMessages.notLoaded,
+  );
+  assert.equal(
+    viewerStatus({ failed: true, message: imageActionMessages.copiedLink }),
+    imageActionMessages.copiedLink,
+  );
+  assert.equal(
+    viewerStatus({ failed: true, message: imageActionMessages.copyLinkFailed }),
+    imageActionMessages.copyLinkFailed,
+  );
 });

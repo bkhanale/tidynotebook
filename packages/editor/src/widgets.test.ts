@@ -15,6 +15,7 @@ import { buildPreview, livePreview } from './live-preview.ts';
 import {
   attachmentIdOf,
   buildRichWidgets,
+  failedImageView,
   findRichRegions,
   imageOpenLabel,
   richLimits,
@@ -308,6 +309,26 @@ await test('an external picture opens in the viewer too', () => {
     assert.equal(view.openLabel, 'Open image');
     assert.equal(view.external, true);
   }
+});
+
+await test('a picture of another host that fails keeps its open button', () => {
+  // A review of 2026-10-01. The words of the failure cleared the whole widget,
+  // the open button with it, so Copy link and Open original were out of reach
+  // although they need the address alone.
+  const doc = '![Map](https://example.invalid/map.png)\n';
+  const [region] = findRichRegions(stateOf(doc, doc.length));
+  assert.ok(region !== undefined);
+  const view = widgetView(region, { onOpenImage: () => undefined });
+  assert.equal(view.kind, 'image');
+  if (view.kind !== 'image') return;
+  assert.deepEqual(failedImageView(view), {
+    message: 'This picture did not load: Map',
+    openLabel: 'Open image: Map',
+  });
+  assert.deepEqual(failedImageView({ alt: '', openLabel: null }), {
+    message: 'This picture did not load.',
+    openLabel: null,
+  });
 });
 
 await test('the name of the open button follows the alt text', () => {

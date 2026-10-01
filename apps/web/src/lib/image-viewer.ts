@@ -156,6 +156,20 @@ export const imageActionMessages = {
   notLoaded: 'The image did not load.',
 } as const;
 
+/**
+ * The one line of status the viewer states.
+ *
+ * The result of the last action wins, because it answers what the person just
+ * did. Before any action, a picture that did not load says so.
+ */
+export function viewerStatus(state: {
+  readonly failed: boolean;
+  readonly message: string;
+}): string {
+  if (state.message !== '') return state.message;
+  return state.failed ? imageActionMessages.notLoaded : '';
+}
+
 /** The name of a viewer that shows a picture with no alt text. */
 export const untitledImage = 'Image';
 
