@@ -1,0 +1,14 @@
+type: object
+description: >-
+  The template settings to store for the signed in member.
+additionalProperties: false
+required:
+  - folder
+properties:
+  folder:
+    type: string
+    description: >-
+      The folder whose notes are the templates, as a folder path with no
+      slash at either end.
+    minLength: 1
+    maxLength: 1024

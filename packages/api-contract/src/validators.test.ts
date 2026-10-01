@@ -310,6 +310,19 @@ await test('a reader gives any password and takes the same refusal', () => {
   assert.equal(validate({}), false);
 });
 
+await test('the template settings name one folder', () => {
+  const validate = requestValidator('updateTemplateSettings', 'body');
+  assert.ok(validate !== undefined);
+  assert.equal(validate({ folder: 'Templates' }), true);
+  assert.equal(validate({ folder: 'Work/Templates' }), true);
+  // The top of the workspace is no template folder.
+  assert.equal(validate({ folder: '' }), false);
+  assert.equal(validate({ folder: 'x'.repeat(1025) }), false);
+  assert.equal(validate({}), false);
+  assert.equal(validate({ folder: 'Templates', extra: true }), false);
+  assert.equal(validate({ folder: 7 }), false);
+});
+
 await test('the daily note settings name a note or no template', () => {
   const validate = requestValidator('updateDailyNoteSettings', 'body');
   assert.ok(validate !== undefined);

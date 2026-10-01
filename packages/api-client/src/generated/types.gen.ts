@@ -2278,6 +2278,26 @@ export type SyncUpdateRecord = {
 };
 
 /**
+ * The template settings that one member keeps in one workspace.
+ */
+export type TemplateSettings = {
+    /**
+     * The folder whose notes are the templates, for example Templates or Work/Templates. A note in a subfolder is a template as well.
+     */
+    readonly folder: string;
+};
+
+/**
+ * The template settings to store for the signed in member.
+ */
+export type TemplateSettingsInput = {
+    /**
+     * The folder whose notes are the templates, as a folder path with no slash at either end.
+     */
+    folder: string;
+};
+
+/**
  * One colour of an imported theme, as a hash and six hexadecimal digits.
  */
 export type ThemeColour = string;
@@ -3064,6 +3084,11 @@ export type ThemeImport = ThemeImportInput;
  * The daily note settings to store for the signed in member.
  */
 export type DailyNoteSettingsUpdate = DailyNoteSettingsInput;
+
+/**
+ * The template settings to store for the signed in member.
+ */
+export type TemplateSettingsUpdate = TemplateSettingsInput;
 
 /**
  * The name to give the workspace.
@@ -7494,6 +7519,125 @@ export type GetSnapshotPageResponses = {
 };
 
 export type GetSnapshotPageResponse = GetSnapshotPageResponses[keyof GetSnapshotPageResponses];
+
+export type GetTemplateSettingsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/template-settings';
+};
+
+export type GetTemplateSettingsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetTemplateSettingsError = GetTemplateSettingsErrors[keyof GetTemplateSettingsErrors];
+
+export type GetTemplateSettingsResponses = {
+    /**
+     * The stored template settings of the signed in member.
+     */
+    200: TemplateSettings;
+};
+
+export type GetTemplateSettingsResponse = GetTemplateSettingsResponses[keyof GetTemplateSettingsResponses];
+
+export type UpdateTemplateSettingsData = {
+    /**
+     * The template settings to store for the signed in member.
+     */
+    body: TemplateSettingsUpdate;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/template-settings';
+};
+
+export type UpdateTemplateSettingsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateTemplateSettingsError = UpdateTemplateSettingsErrors[keyof UpdateTemplateSettingsErrors];
+
+export type UpdateTemplateSettingsResponses = {
+    /**
+     * The stored template settings of the signed in member.
+     */
+    200: TemplateSettings;
+};
+
+export type UpdateTemplateSettingsResponse = UpdateTemplateSettingsResponses[keyof UpdateTemplateSettingsResponses];
 
 export type ListDeletedFilesData = {
     body?: never;

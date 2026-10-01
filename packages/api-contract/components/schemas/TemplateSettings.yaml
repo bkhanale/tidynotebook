@@ -1,0 +1,15 @@
+type: object
+description: >-
+  The template settings that one member keeps in one workspace.
+additionalProperties: false
+required:
+  - folder
+properties:
+  folder:
+    type: string
+    readOnly: true
+    description: >-
+      The folder whose notes are the templates, for example Templates or
+      Work/Templates. A note in a subfolder is a template as well.
+    minLength: 1
+    maxLength: 1024

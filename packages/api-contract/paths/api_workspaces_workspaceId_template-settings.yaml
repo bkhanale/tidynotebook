@@ -1,0 +1,61 @@
+get:
+  operationId: getTemplateSettings
+  summary: Read the template settings of the signed in member.
+  description: >-
+    Reports the template folder that the signed in account keeps in this
+    workspace. Every note below this folder, also in a subfolder, is a
+    template that the application can insert into a note. A member that never
+    stored a setting reads the default folder, Templates. The settings of
+    another member are never part of the answer.
+  tags:
+    - workspaces
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/TemplateSettings.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+put:
+  operationId: updateTemplateSettings
+  summary: Replace the template settings of the signed in member.
+  description: >-
+    Replaces the template folder that the signed in account keeps in this
+    workspace. A folder that is not a folder path in its stored spelling is
+    refused as an invalid path. The settings of another member do not change,
+    and no note moves.
+  tags:
+    - workspaces
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/TemplateSettingsUpdate.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/TemplateSettings.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

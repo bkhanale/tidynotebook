@@ -1,0 +1,5 @@
+description: The stored template settings of the signed in member.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/TemplateSettings.yaml'
