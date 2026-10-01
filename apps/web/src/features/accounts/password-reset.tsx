@@ -19,7 +19,7 @@ import {
   Notice,
   TextField,
 } from '@notesapp/ui';
-import { problemMessage } from '../../app.tsx';
+import { problemMessage, useSession } from '../../app.tsx';
 import { forgotPasswordRoute, resetTokenOf } from '../../lib/accounts.ts';
 import { problemCode } from '../../lib/problem-text.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
@@ -108,6 +108,7 @@ export function ForgotPasswordPage(): ReactNode {
 /** The page that a reset link opens. */
 export function ResetPasswordPage(): ReactNode {
   const location = useLocation();
+  const session = useSession();
   const token = resetTokenOf(location.hash);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -162,7 +163,19 @@ export function ResetPasswordPage(): ReactNode {
           Every device that was signed in is signed out. Sign in with your new
           password.
         </p>
-        <Link className={buttonClassName({ variant: 'primary' })} to="/login">
+        <Link
+          className={buttonClassName({ variant: 'primary' })}
+          to="/login"
+          onClick={() => {
+            // The server ended every session of the account, and this browser
+            // can hold one of them. The session is read again on the way out,
+            // so sign in shows its form and does not send the person to the
+            // notes of a session that ended. A read here, before the person
+            // leaves, would remount this page and lose its answer, because a
+            // change of account rebuilds the whole tree (record 0113).
+            session.refresh();
+          }}
+        >
           Go to sign in
         </Link>
       </AuthFrame>
