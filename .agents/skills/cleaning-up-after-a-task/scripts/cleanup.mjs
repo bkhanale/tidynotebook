@@ -203,13 +203,17 @@ function commitsOutsideMain(reference, cwd) {
  * The tracked files whose changes `git status` does not show.
  *
  * A file with the `skip-worktree` or the `assume-unchanged` flag keeps its
- * changes out of `git status`. Such a file counts when it is on the disk and
- * its content, its executable bit or its kind differs from the index. A sparse checkout leaves a file of
- * this kind off the disk, and then nothing of it is lost.
+ * changes out of `git status`. Such a file counts when its content, its
+ * executable bit or its kind on the disk differs from the index. A file that
+ * is not on the disk counts too, unless the worktree is a sparse checkout,
+ * which leaves such a file off the disk by design.
  *
  * @param {string} path
  */
 function hiddenChanges(path) {
+  const sparse =
+    run('git', ['config', '--bool', 'core.sparseCheckout'], path).stdout ===
+    'true';
   return must('git', ['ls-files', '-v', '-s', '-z'], path)
     .split('\0')
     .map((entry) => /^(\S) (\d+) ([0-9a-f]+) \d+\t(.*)$/s.exec(entry))
@@ -217,7 +221,7 @@ function hiddenChanges(path) {
     .filter(([, tag = '']) => tag === 'S' || /^[a-z]$/.test(tag))
     .filter(([, , mode = '', blob = '', file = '']) => {
       const absolute = join(path, file);
-      if (!existsSync(absolute)) return false;
+      if (!existsSync(absolute)) return !sparse;
       const stat = lstatSync(absolute);
       const diskMode = stat.isSymbolicLink()
         ? '120000'
@@ -665,11 +669,12 @@ function stopApplication(checkout) {
   // number to another program. The process counts as the application only
   // when it runs tools/dev-app.mjs in this checkout.
   const command = run('ps', ['-o', 'args=', '-p', String(pid)], checkout);
-  let directory = checkout;
+  // A system with no /proc shows no directory, and then the process stays.
+  let directory = '';
   try {
     directory = readlinkSync(`/proc/${pid}/cwd`);
   } catch {
-    // A system with no /proc shows no directory, so the command decides.
+    directory = '';
   }
   if (!command.stdout.includes('tools/dev-app.mjs') || directory !== checkout) {
     process.stdout.write(
