@@ -51,6 +51,7 @@ import {
   type DiagramHandle,
   type FormatActionId,
   type FormatContext,
+  type ImageOpenRequest,
   type RichWidgetResolvers,
   type TableMenuRequest,
 } from '@notesapp/editor';
@@ -112,6 +113,8 @@ import { createDocumentWorkQueue } from './document-work.ts';
 import { noteHeadWasReplaced } from './head-replaced.ts';
 import { Backlinks } from './backlinks.tsx';
 import { ReviewNoticeBar } from '../review/review-notice.tsx';
+import { ImageViewer } from './image-viewer.tsx';
+import { recordTiming } from './timing.ts';
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
@@ -136,20 +139,6 @@ const diagramFramePath = '/src/diagram/frame.html';
  * matches the head, so an extra flush costs nothing.
  */
 const versionPauseMs = 2500;
-
-/** Records a bounded browser timing entry without affecting the operation. */
-export function recordTiming(name: string, startedAt: number): void {
-  try {
-    performance.measure(name, {
-      start: startedAt,
-      end: performance.now(),
-    });
-    if (performance.getEntriesByName(name).length > 200)
-      performance.clearMeasures(name);
-  } catch {
-    // User Timing is development evidence only. It cannot break note work.
-  }
-}
 
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
@@ -326,6 +315,8 @@ function NoteEditorBody({
     useState<FormatContext>(plainTextContext);
   // The menu of a row or a column that a handle of a table asked for.
   const [tableMenu, setTableMenu] = useState<TableMenuRequest | null>(null);
+  // The picture that a press on an image of the note opened (record 0145).
+  const [openImage, setOpenImage] = useState<ImageOpenRequest | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   // The one problem line of the editor: an attachment, a paste, or an action
@@ -793,6 +784,7 @@ function NoteEditorBody({
           theme: themeRef.current,
           framePath: diagramFramePath,
         }),
+      onOpenImage: setOpenImage,
     }),
     [attachmentUrls, mathReady, resolved],
   );
@@ -1555,6 +1547,12 @@ function NoteEditorBody({
               }}
             />
             <NoteFooter text={bufferText} />
+            <ImageViewer
+              image={openImage}
+              onClose={() => {
+                setOpenImage(null);
+              }}
+            />
           </div>
           {/*
             The side region takes no width from the note text. It appears

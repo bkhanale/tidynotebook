@@ -791,6 +791,25 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       maxWidth: '100%',
       borderRadius: 'var(--radius-md)',
     },
+    // A picture that the host can open is a button around the picture
+    // (record 0145). It draws nothing of its own but the pointer that says a
+    // click zooms, and the one focus treatment of the product.
+    '.cm-np-widget-image-open': {
+      display: 'inline-block',
+      maxWidth: '100%',
+      padding: '0',
+      border: '0',
+      font: 'inherit',
+      lineHeight: '0',
+      verticalAlign: 'bottom',
+      background: 'transparent',
+      borderRadius: 'var(--radius-md)',
+      cursor: 'zoom-in',
+    },
+    '.cm-np-widget-image-open:focus-visible': {
+      outline: '2px solid var(--notes-focus)',
+      outlineOffset: '2px',
+    },
     '.cm-np-widget-note': {
       display: 'block',
       margin: '0',

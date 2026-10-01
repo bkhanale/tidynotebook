@@ -19,8 +19,14 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { transitionRaise } from './motion.ts';
 
-/** How wide a dialog panel is. */
-export type DialogWidth = 'small' | 'medium' | 'large';
+/**
+ * How wide a dialog panel is.
+ *
+ * `full` takes the whole height of the screen and a wide measure, for content
+ * that a person looks at rather than reads, such as a picture in the image
+ * viewer (record 0145). Its body then fills the room under the title.
+ */
+export type DialogWidth = 'small' | 'medium' | 'large' | 'full';
 
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -143,7 +149,9 @@ export function Dialog({
       ? 'max-w-md'
       : width === 'large'
         ? 'max-w-3xl'
-        : 'max-w-xl';
+        : width === 'full'
+          ? 'flex h-full max-w-6xl flex-col'
+          : 'max-w-xl';
   const position =
     align === 'center' ? 'items-center py-6' : 'items-start pb-6 pt-20';
 

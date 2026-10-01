@@ -16,6 +16,7 @@ import {
   attachmentIdOf,
   buildRichWidgets,
   findRichRegions,
+  imageOpenLabel,
   richLimits,
   richWidgets,
   shouldPreserveAsSource,
@@ -272,6 +273,47 @@ await test('an attachment whose bytes are missing keeps its source', () => {
   assert.ok(region !== undefined);
   const view = widgetView(region, { resolveAttachment: () => null });
   assert.equal(view.kind, 'source');
+});
+
+await test('a picture is a control only when the host can open it', () => {
+  // Record 0145. A host with a viewer makes the picture a button with a name,
+  // and a host with none, such as History, keeps a plain picture whose click
+  // opens the source.
+  const doc = `![A red bike](${attachment})\n`;
+  const [region] = findRichRegions(stateOf(doc, doc.length));
+  assert.ok(region !== undefined);
+  const resolveAttachment = (): string => 'blob:local/1';
+  const plain = widgetView(region, { resolveAttachment });
+  assert.equal(plain.kind, 'image');
+  if (plain.kind === 'image') assert.equal(plain.openLabel, null);
+  const openable = widgetView(region, {
+    resolveAttachment,
+    onOpenImage: () => undefined,
+  });
+  assert.equal(openable.kind, 'image');
+  if (openable.kind === 'image') {
+    assert.equal(openable.openLabel, 'Open image: A red bike');
+    assert.equal(openable.url, 'blob:local/1');
+    assert.equal(openable.external, false);
+  }
+});
+
+await test('an external picture opens in the viewer too', () => {
+  const doc = '![](https://example.invalid/x.png)\n';
+  const [region] = findRichRegions(stateOf(doc, doc.length));
+  assert.ok(region !== undefined);
+  const view = widgetView(region, { onOpenImage: () => undefined });
+  assert.equal(view.kind, 'image');
+  if (view.kind === 'image') {
+    assert.equal(view.openLabel, 'Open image');
+    assert.equal(view.external, true);
+  }
+});
+
+await test('the name of the open button follows the alt text', () => {
+  assert.equal(imageOpenLabel(''), 'Open image');
+  assert.equal(imageOpenLabel('   '), 'Open image');
+  assert.equal(imageOpenLabel(' Chart '), 'Open image: Chart');
 });
 
 /** The source of every range that one state hides or replaces. */

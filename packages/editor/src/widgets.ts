@@ -16,7 +16,10 @@
  *   is always reachable and always editable.
  * - The remaining widgets are declared as atomic ranges, so an arrow key
  *   steps over a widget instead of walking into hidden text.
- * - A click inside a widget puts the cursor at the start of its source.
+ * - A click inside a widget puts the cursor at the start of its source. A
+ *   picture is the one exception: when the host can show it, the picture is
+ *   a button that asks the host to open it (record 0145), and a click beside
+ *   it still opens the source.
  * - `updateDOM` re-renders when the source or a resolver changed, so a same
  *   length edit never leaves a stale preview on screen.
  *
@@ -167,7 +170,38 @@ export type RichWidgetResolvers = {
   readonly createDiagram?: ((source: string) => DiagramHandle) | undefined;
   /** Called when a widget hands the cursor back to its source. */
   readonly onOpenSource?: ((widget: RichWidget) => void) | undefined;
+  /**
+   * Opens one picture at its own size, for example in a viewer dialog of the
+   * application (record 0145). When it is absent, a picture is no control and
+   * a click on it opens its source like a click on any widget.
+   */
+  readonly onOpenImage?: ((image: ImageOpenRequest) => void) | undefined;
 };
+
+/** The picture that a press on an image widget asks the host to open. */
+export type ImageOpenRequest = {
+  /** The address the widget shows: a local blob address or an HTTPS one. */
+  readonly url: string;
+  readonly alt: string;
+  /** The destination as the note writes it, which names the file. */
+  readonly destination: string;
+  /** True for a picture on another host, whose bytes the page cannot read. */
+  readonly external: boolean;
+};
+
+/** The class of the button that holds a picture the host can open. */
+export const imageOpenClassName = 'cm-np-widget-image-open';
+
+/**
+ * The accessible name of the button that opens one picture.
+ *
+ * The alt text is the name of the picture, so it follows the action. A
+ * picture with no alt text still names what the button does.
+ */
+export function imageOpenLabel(alt: string): string {
+  const name = alt.trim();
+  return name === '' ? 'Open image' : `Open image: ${name}`;
+}
 
 /**
  * Whether a destination is a picture on another host.
@@ -352,6 +386,11 @@ export type WidgetView =
       readonly url: string;
       readonly alt: string;
       readonly external: boolean;
+      /**
+       * The name of the button that opens the picture, or null when the host
+       * shows no picture of its own and the picture is no control.
+       */
+      readonly openLabel: string | null;
     }
   | { readonly kind: 'math'; readonly html: string; readonly display: boolean }
   | {
@@ -384,6 +423,10 @@ export function widgetView(
   if (shouldPreserveAsSource(widget))
     return source('This block is large, so it stays source.');
   if (widget.kind === 'image') {
+    const openLabel =
+      resolvers.onOpenImage === undefined
+        ? null
+        : imageOpenLabel(widget.content);
     // A picture on another host keeps its address and loads by itself
     // (decision 0067). A picture of this workspace waits for the bytes that
     // the resolver holds.
@@ -393,10 +436,17 @@ export function widgetView(
         url: widget.destination,
         alt: widget.content,
         external: true,
+        openLabel,
       };
     const url = resolvers.resolveAttachment?.(widget.destination) ?? null;
     if (url === null) return source('The attachment is not ready yet.');
-    return { kind: 'image', url, alt: widget.content, external: false };
+    return {
+      kind: 'image',
+      url,
+      alt: widget.content,
+      external: false,
+      openLabel,
+    };
   }
   if (widget.kind === 'math-inline' || widget.kind === 'math-display') {
     const render = resolvers.renderMath;
@@ -457,8 +507,17 @@ class RichWidgetType extends WidgetType {
     return -1;
   }
 
-  override ignoreEvent(): boolean {
-    return false;
+  /**
+   * The editor ignores the events of the button of a picture, so a press, a
+   * key and a focus there belong to the button and never move the caret into
+   * the source (record 0145). Every other event of a widget is the editor's.
+   */
+  override ignoreEvent(event: Event): boolean {
+    const target = event.target;
+    return (
+      target instanceof Element &&
+      target.closest(`.${imageOpenClassName}`) !== null
+    );
   }
 
   /**
@@ -543,7 +602,26 @@ class RichWidgetType extends WidgetType {
           parent.appendChild(failed);
         });
       }
-      parent.appendChild(image);
+      const label = view.openLabel;
+      if (label === null) {
+        parent.appendChild(image);
+        return;
+      }
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = imageOpenClassName;
+      open.setAttribute('aria-label', label);
+      open.title = label;
+      open.addEventListener('click', (): void => {
+        this.resolvers.onOpenImage?.({
+          url: view.url,
+          alt: view.alt,
+          destination: this.widget.destination,
+          external: view.external,
+        });
+      });
+      open.appendChild(image);
+      parent.appendChild(open);
       return;
     }
     if (view.kind === 'math') {

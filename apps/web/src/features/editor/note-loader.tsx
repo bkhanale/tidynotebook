@@ -49,7 +49,8 @@ import {
   type NoteLoadStatus,
 } from '../../lib/note-load-state.ts';
 import { createDeviceOpens, readDeviceNote } from './device-note.ts';
-import { NoteEditor, recordTiming } from './note-editor.tsx';
+import { NoteEditor } from './note-editor.tsx';
+import { recordTiming } from './timing.ts';
 
 /**
  * The open reads of the note screen.

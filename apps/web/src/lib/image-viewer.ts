@@ -1,0 +1,176 @@
+/**
+ * What the image viewer of a note shows and does (record 0145).
+ *
+ * A click on a picture of the note opens it in one dialog. The dialog fits the
+ * picture to the screen, zooms it in fixed steps, and offers the actions that
+ * the page can do with that picture. Every rule of that is a pure function
+ * here, so a unit test holds it and `features/editor/image-viewer.tsx` only
+ * turns it into elements and browser calls.
+ */
+
+/** A width and a height in CSS pixels. */
+export type ImageSize = {
+  readonly width: number;
+  readonly height: number;
+};
+
+/**
+ * The zoom steps that the buttons and the keys move between, from the
+ * smallest zoom to the largest.
+ */
+export const zoomSteps = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8] as const;
+
+/** The smallest and the largest zoom. */
+export const zoomLimits = { min: 0.1, max: 8 } as const;
+
+/** Two zooms closer than this are the same step. */
+const sameStep = 0.001;
+
+/** Holds a zoom inside the limits. */
+export function clampZoom(scale: number): number {
+  if (!Number.isFinite(scale)) return 1;
+  return Math.min(zoomLimits.max, Math.max(zoomLimits.min, scale));
+}
+
+/**
+ * The zoom that shows the whole picture in the room of the viewer.
+ *
+ * A picture smaller than the room shows at its own size and never grows,
+ * because a small picture that fills the screen reads as a blurred one. A
+ * picture or a room with no size yet shows at its own size.
+ */
+export function fitZoom(natural: ImageSize, room: ImageSize): number {
+  if (natural.width <= 0 || natural.height <= 0) return 1;
+  if (room.width <= 0 || room.height <= 0) return 1;
+  return clampZoom(
+    Math.min(1, room.width / natural.width, room.height / natural.height),
+  );
+}
+
+/** The next step closer than `scale`, or the largest zoom. */
+export function zoomIn(scale: number): number {
+  return zoomSteps.find((step) => step > scale + sameStep) ?? zoomLimits.max;
+}
+
+/** The next step wider than `scale`, or the smallest zoom. */
+export function zoomOut(scale: number): number {
+  return (
+    zoomSteps.findLast((step) => step < scale - sameStep) ?? zoomLimits.min
+  );
+}
+
+/**
+ * The zoom after one turn of the wheel with Ctrl or Cmd held.
+ *
+ * A wheel and a trackpad report a distance, not a step, so the zoom follows
+ * the distance smoothly: a turn up comes closer and a turn down goes wider.
+ */
+export function wheelZoom(scale: number, deltaY: number): number {
+  return clampZoom(scale * Math.exp(-deltaY / 500));
+}
+
+/** What a key does in the viewer, or null for a key it leaves alone. */
+export function zoomKey(key: string): 'in' | 'out' | 'fit' | null {
+  if (key === '+' || key === '=') return 'in';
+  if (key === '-' || key === '_') return 'out';
+  if (key === '0') return 'fit';
+  return null;
+}
+
+/** The size the picture takes at one zoom, in whole pixels. */
+export function zoomedSize(natural: ImageSize, scale: number): ImageSize {
+  return {
+    width: Math.max(1, Math.round(natural.width * scale)),
+    height: Math.max(1, Math.round(natural.height * scale)),
+  };
+}
+
+/** The zoom as a person reads it, for example `150%`. */
+export function zoomPercent(scale: number): string {
+  return `${String(Math.round(scale * 100))}%`;
+}
+
+/** One action of the viewer. */
+export type ImageAction = 'copy-image' | 'download' | 'copy-link' | 'open';
+
+/**
+ * The actions that the page can do with one picture.
+ *
+ * The page holds the bytes of a picture of the workspace, so it copies and
+ * saves that picture. It cannot read the bytes of a picture on another host,
+ * so it copies the address and opens the original instead, where the browser
+ * of the person can save it.
+ */
+export function imageActions(external: boolean): readonly ImageAction[] {
+  return external ? ['copy-link', 'open'] : ['copy-image', 'download'];
+}
+
+/** The words of each action. */
+export const imageActionLabels: Readonly<Record<ImageAction, string>> = {
+  'copy-image': 'Copy image',
+  download: 'Download',
+  'copy-link': 'Copy link',
+  open: 'Open original',
+};
+
+/** The line the viewer states after an action, or after one that failed. */
+export const imageActionMessages = {
+  copiedImage: 'The image is on the clipboard.',
+  copiedLink: 'The link is on the clipboard.',
+  copyImageFailed: 'This browser cannot copy the image. Use Download.',
+  copyLinkFailed: 'This browser cannot copy the link.',
+  notLoaded: 'The image did not load.',
+} as const;
+
+/** The name of a viewer that shows a picture with no alt text. */
+export const untitledImage = 'Image';
+
+/** The title of the viewer: the alt text, or a plain name. */
+export function imageTitle(alt: string): string {
+  const name = alt.trim();
+  return name === '' ? untitledImage : name;
+}
+
+/** A UUID, which the editor puts before the name of an uploaded file. */
+const uuidPrefix =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-|$)/i;
+
+/** The characters that no common file system takes in a name. */
+const unsafeNameCharacters = /[\\/:*?"<>|]+/g;
+
+/** The text without its control characters, which no file name holds. */
+function printable(text: string): string {
+  return Array.from(text)
+    .filter((character) => (character.codePointAt(0) ?? 0) >= 0x20)
+    .join('');
+}
+
+/** Decodes one percent encoded part, or keeps it when it is not encoded. */
+function decodedPart(part: string): string {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return part;
+  }
+}
+
+/**
+ * The name the browser saves one picture of the workspace under.
+ *
+ * The last part of the destination names the file. The editor writes an
+ * upload as the identifier of the note, a hyphen and the name of the file,
+ * so the identifier leaves the name. A destination that names no file, such
+ * as the revision of an older note, takes the alt text, and then `image`.
+ */
+export function imageDownloadName(destination: string, alt: string): string {
+  const path = destination.split(/[?#]/, 1)[0] ?? '';
+  const last = decodedPart(path.split('/').at(-1) ?? '');
+  const fromPath = last.replace(uuidPrefix, '');
+  const chosen = fromPath.trim() !== '' ? fromPath : alt;
+  const safe = printable(chosen)
+    .replace(unsafeNameCharacters, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\.+/, '');
+  return safe === '' ? 'image' : safe;
+}

@@ -176,6 +176,7 @@ and needs no record.
 | [0142](0142-a-published-formula-keeps-its-layout-in-style-attributes.md)              | A published formula keeps its layout in style attributes                        |
 | [0143](0143-a-person-imports-a-theme-that-the-account-keeps.md)                       | A person imports a theme that the account keeps                                 |
 | [0144](0144-the-store-sends-its-feed-hints-after-its-commit.md)                       | The store sends its feed hints after its commit                                 |
+| [0145](0145-a-click-on-a-picture-opens-the-image-viewer.md)                           | A click on a picture opens the image viewer                                     |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -573,3 +574,7 @@ Record 0144 lets the unit of work of the store send its feed hints after its
 commit, because PostgreSQL serialized every commit that queued a notification
 through one lock held until its flush, and twenty saves waited for each other.
 Every other writer keeps the trigger. It refines record 0125.
+
+Record 0145 makes a picture of the note a button that opens the image
+viewer, where a person zooms, downloads and copies it. A click beside the
+picture still opens its source. It refines record 0002.

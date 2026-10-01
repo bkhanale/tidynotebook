@@ -104,6 +104,7 @@ export {
 } from './live-preview.ts';
 export type {
   DiagramHandle,
+  ImageOpenRequest,
   RichWidget,
   RichWidgetKind,
   RichWidgetResolvers,

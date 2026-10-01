@@ -95,6 +95,40 @@ export function SearchIcon(props: IconProps): ReactNode {
   );
 }
 
+/** A magnifier with a plus, for a closer zoom of a picture. */
+export function ZoomInIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </IconFrame>
+  );
+}
+
+/** A magnifier with a minus, for a wider zoom of a picture. */
+export function ZoomOutIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </IconFrame>
+  );
+}
+
+/** A box with an arrow out of it, for a page that opens in a new tab. */
+export function ExternalLinkIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </IconFrame>
+  );
+}
+
 /** A plus add icon. */
 export function PlusIcon(props: IconProps): ReactNode {
   return (

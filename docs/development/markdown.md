@@ -87,11 +87,13 @@ and math. A table stays editable text: each row of the source is one row of a
 real table and each cell holds its own padding, so the columns line up without
 a widget and every cell is edited where it stands. The delimiter row follows
 the same reveal rule as every other marker, because the columns already state
-what it says. Each widget covers whole lines or one
-span, is atomic for cursor movement, disappears while the selection touches it,
-and puts the cursor at the start of its source when clicked. A widget that
-cannot render falls back to its source with one short sentence, so a note never
-loses text to a failed render.
+what it says. Each widget covers whole lines or one span, is atomic for cursor
+movement, disappears while the selection touches it, and puts the cursor at the
+start of its source when clicked. A picture is a button that opens the image
+viewer, and a click beside it opens the source
+([decision 0145](../decisions/0145-a-click-on-a-picture-opens-the-image-viewer.md)).
+A widget that cannot render falls back to its source with one short sentence,
+so a note never loses text to a failed render.
 
 ## Safety
 

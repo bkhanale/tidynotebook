@@ -171,6 +171,7 @@ export {
   CopyIcon,
   DownloadIcon,
   ExpandAllIcon,
+  ExternalLinkIcon,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -209,4 +210,6 @@ export {
   UploadIcon,
   UsersIcon,
   WorkspaceIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
 } from './icons.tsx';
