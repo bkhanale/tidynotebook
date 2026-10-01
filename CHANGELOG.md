@@ -5,6 +5,39 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.0 - 2026-10-02
+
+This minor release lets an administrator set the mail server and the legal
+documents in the application, and lets you insert a template into any note.
+
+### Added
+
+- **Mail and legal documents in Settings.** An administrator sets the mail
+  server and the terms and the privacy notice on the accounts page, with no
+  file and no restart. Send a test message checks the mail server at once.
+- The editor of a legal document starts from the template of NotesApp. Each
+  blank of the template is a field, and the text does not save while a blank
+  is left.
+- **Insert from template.** The command palette inserts a note of your
+  template folder at the cursor and fills its placeholders. A template can
+  hold the time as well as the date.
+- Settings, under Templates, names the template folder of the workspace.
+- The person who runs the server can name the mail server as separate values,
+  so a user name or a password needs no encoding.
+
+### Changed
+
+- A published page and a legal page follow the light or dark choice of the
+  device of the reader.
+- The mail override of the hosting files takes the separate values and a
+  password file. An installation that keeps one mail URL names the new URL
+  override in its list of Compose files.
+
+### Fixed
+
+- An undo and a redo in an open note reach the server.
+- The command palette opens with an empty search field every time.
+
 ## 0.10.1 - 2026-10-01
 
 This patch release opens a picture of a note in an image viewer, fits a table
