@@ -61,12 +61,16 @@ export function ImageViewer({
   readonly onClose: () => void;
 }): ReactNode {
   const titleId = useId();
+  // The viewer draws its own title row, so the name of the picture and Close
+  // share one line at every width. The dialog keeps the heading for
+  // assistive software.
   return (
     <Dialog
       open={image !== null}
       onClose={onClose}
       title={imageTitle(image?.alt ?? '')}
       titleId={titleId}
+      hideTitle
       width="full"
       align="center"
     >
@@ -130,6 +134,21 @@ function actionIcon(action: ImageAction): ReactNode {
   return <CopyIcon />;
 }
 
+/** The room inside the padding of one element. */
+function contentBox(element: HTMLElement): ImageSize {
+  const style = getComputedStyle(element);
+  const across =
+    Number.parseFloat(style.paddingLeft) +
+    Number.parseFloat(style.paddingRight);
+  const down =
+    Number.parseFloat(style.paddingTop) +
+    Number.parseFloat(style.paddingBottom);
+  return {
+    width: Math.max(0, element.clientWidth - across),
+    height: Math.max(0, element.clientHeight - down),
+  };
+}
+
 /** The tools and the picture of one open viewer. */
 function ImageViewerBody({
   image,
@@ -161,7 +180,7 @@ function ImageViewerBody({
     const scroller = scrollerRef.current;
     if (scroller === null) return;
     const measure = (): void => {
-      setRoom({ width: scroller.clientWidth, height: scroller.clientHeight });
+      setRoom(contentBox(scroller));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -258,30 +277,48 @@ function ImageViewerBody({
   };
 
   const status = failed ? imageActionMessages.notLoaded : message;
+  // The zoom means nothing until the picture states its size, so the tools
+  // wait for it and no percentage shows that the picture does not have.
+  const idle = failed || natural === null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKeyDown}>
-      <div className="flex flex-wrap items-center gap-cluster px-5 pb-3 pt-1">
+      <div className="flex items-center gap-cluster pe-3 ps-5 pt-2">
+        <p
+          className="m-0 min-w-0 flex-1 truncate text-ui font-semibold text-strong"
+          aria-hidden="true"
+        >
+          {imageTitle(image.alt)}
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Close"
+          icon={<CloseIcon />}
+          onClick={onClose}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-cluster px-5 pb-3">
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
             label="Zoom out"
             icon={<ZoomOutIcon />}
-            disabled={failed || scale <= zoomLimits.min}
+            disabled={idle || scale <= zoomLimits.min}
             onClick={() => {
               zoomTo(zoomOut(scale));
             }}
           />
           <span className="w-12 text-center text-control tabular-nums text-muted">
-            {zoomPercent(scale)}
+            {idle ? '' : zoomPercent(scale)}
           </span>
           <Button
             variant="ghost"
             size="sm"
             label="Zoom in"
             icon={<ZoomInIcon />}
-            disabled={failed || scale >= zoomLimits.max}
+            disabled={idle || scale >= zoomLimits.max}
             onClick={() => {
               zoomTo(zoomIn(scale));
             }}
@@ -289,7 +326,7 @@ function ImageViewerBody({
           <Button
             variant="ghost"
             size="sm"
-            disabled={failed || zoom.kind === 'fit'}
+            disabled={idle || zoom.kind === 'fit'}
             onClick={() => {
               setZoom(fit);
             }}
@@ -331,9 +368,7 @@ function ImageViewerBody({
                 variant="secondary"
                 size="sm"
                 icon={actionIcon(action)}
-                disabled={
-                  failed || (action === 'copy-image' && natural === null)
-                }
+                disabled={action === 'copy-image' ? idle : failed}
                 onClick={() => {
                   run(action);
                 }}
@@ -342,18 +377,11 @@ function ImageViewerBody({
               </Button>
             ),
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Close"
-            icon={<CloseIcon />}
-            onClick={onClose}
-          />
         </div>
       </div>
       <div
         ref={scrollerRef}
-        className={`flex min-h-0 flex-1 overflow-auto overscroll-contain bg-app ${overflows ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`flex min-h-0 flex-1 overflow-auto overscroll-contain bg-app p-4 ${overflows ? 'cursor-grab active:cursor-grabbing' : ''}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
