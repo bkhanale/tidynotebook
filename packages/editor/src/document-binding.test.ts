@@ -10,8 +10,11 @@ import {
   startDocument,
   type DocumentSession,
 } from '@notesapp/note-document';
+import { editorBinding } from '@notesapp/note-document/editor-bridge';
+import { ySyncAnnotation, ySyncFacet } from 'y-codemirror.next';
 import {
   bindDocument,
+  isRemoteTransaction,
   openBoundNote,
   remoteWorkGate,
 } from './document-binding.ts';
@@ -108,6 +111,71 @@ await test('local undo never takes remote work', () => {
   binding.applyRemote(otherWork(session, '# Note\nremote\n'));
   stop();
   assert.deepEqual(origins, ['remote']);
+  session.destroy();
+});
+
+await test('an undo and a redo are input of the person, not remote work', () => {
+  const session = openDocumentSession(startDocument('Start'));
+  const binding = bindDocument(session);
+  let state = EditorState.create({
+    doc: session.text(),
+    extensions: [binding.extension],
+  });
+  const { text, undoManager } = editorBinding(session);
+  const config = state.facet(ySyncFacet);
+  const doc = text.doc;
+  if (doc === null) throw new Error('The live text has no document.');
+
+  // The sync plugin of the view writes every Yjs change that it did not make
+  // into the view, with its annotation, while Yjs calls the observers. This
+  // observer does the same, so the test reads the transaction that the view
+  // takes.
+  const written: boolean[] = [];
+  text.observe((event, transaction) => {
+    if (transaction.origin === config) return;
+    let position = 0;
+    const changes: { from: number; to: number; insert: string }[] = [];
+    for (const step of event.delta) {
+      if (typeof step.insert === 'string') {
+        changes.push({ from: position, to: position, insert: step.insert });
+      } else if (step.delete !== undefined) {
+        changes.push({
+          from: position,
+          to: position + step.delete,
+          insert: '',
+        });
+        position += step.delete;
+      } else if (step.retain !== undefined) {
+        position += step.retain;
+      }
+    }
+    const next = state.update({
+      changes,
+      annotations: [ySyncAnnotation.of(config)],
+    });
+    written.push(isRemoteTransaction(next));
+    state = next.state;
+  });
+
+  // The person types through the view, which writes with the origin that
+  // the undo manager tracks.
+  undoManager.addTrackedOrigin(config);
+  doc.transact(() => text.insert(5, ' typed'), config);
+  state = state.update({
+    changes: { from: 5, insert: ' typed' },
+    annotations: [ySyncAnnotation.of(config)],
+  }).state;
+  undoManager.stopCapturing();
+
+  undoManager.undo();
+  assert.equal(state.doc.toString(), 'Start');
+  undoManager.redo();
+  assert.equal(state.doc.toString(), 'Start typed');
+  binding.applyRemote(otherWork(session, 'Start typed remote'));
+  assert.equal(state.doc.toString(), 'Start typed remote');
+
+  assert.deepEqual(written, [false, false, true]);
+  binding.release();
   session.destroy();
 });
 

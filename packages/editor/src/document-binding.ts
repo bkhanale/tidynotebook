@@ -17,7 +17,12 @@
  * applies whatever it still holds and stops holding anything else. The
  * session itself belongs to the caller that opened the note.
  */
-import type { Extension } from '@codemirror/state';
+import {
+  Annotation,
+  EditorState,
+  type Extension,
+  type Transaction,
+} from '@codemirror/state';
 import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
 import {
   documentStateVector,
@@ -91,17 +96,28 @@ export function remoteWorkGate(session: DocumentSession): RemoteWorkGate {
   };
 }
 
+/** Marks a transaction that an undo or a redo of the person wrote. */
+const historyStep = Annotation.define<true>();
+
 /**
- * Whether one view update carries work that came from the document.
+ * Whether one transaction carries work that came from the document.
  *
  * The binding annotates every transaction that it writes into the view, so a
  * remote change and a repair are told apart from the input of the person.
- * Neither schedules a save of this device and neither enters local undo.
+ * Neither schedules a save of this device and neither enters local undo. An
+ * undo and a redo also reach the view through the document, but they are
+ * input of the person, so they save like a keystroke (issue 221).
  */
-export function isRemoteChange(update: ViewUpdate): boolean {
-  return update.transactions.some(
-    (transaction) => transaction.annotation(ySyncAnnotation) !== undefined,
+export function isRemoteTransaction(transaction: Transaction): boolean {
+  return (
+    transaction.annotation(ySyncAnnotation) !== undefined &&
+    transaction.annotation(historyStep) === undefined
   );
+}
+
+/** Whether one view update carries work that came from the document. */
+export function isRemoteChange(update: ViewUpdate): boolean {
+  return update.transactions.some(isRemoteTransaction);
 }
 
 /** One live document joined to one view. */
@@ -123,6 +139,14 @@ export function bindDocument(session: DocumentSession): DocumentBinding {
       // shortcuts list run the undo manager rather than the CodeMirror
       // history that a plain editor keeps.
       keymap.of(yUndoManagerKeymap),
+      // The step of the undo manager writes the view while it runs, so the
+      // transaction it writes is marked as input of the person here.
+      EditorState.transactionExtender.of((transaction) =>
+        binding.historyRuns() &&
+        transaction.annotation(ySyncAnnotation) !== undefined
+          ? { annotations: historyStep.of(true) }
+          : null,
+      ),
       EditorView.domEventHandlers({
         compositionstart: (): boolean => {
           composing = true;

@@ -28,7 +28,8 @@ the complete observed state that decides whether work is unseen.
   bytes and text, labels each change as local, remote, or repair, and checks
   foreign work on a trial copy before the live document takes it.
 - `src/editor-bridge.ts` is the private entry for `packages/editor` only. It
-  returns the live text and the one local undo manager of a session.
+  returns the live text, the one local undo manager of a session, and
+  whether that manager runs a step now.
 - No storage, no transport, no React, and no CodeMirror code lives here.
 
 ## Allowed imports
