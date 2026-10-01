@@ -704,7 +704,16 @@ async function apply(also) {
   }
   must('git', ['worktree', 'prune'], main);
 
+  // A pull request can open while the worktrees stop, so the list is read
+  // again here, and a branch that has one now stays.
+  const pullRequests = openPullRequestBranches(main);
   for (const entry of plan.branch.filter((line) => line.mark === 'delete')) {
+    if (pullRequests.has(entry.name)) {
+      process.stdout.write(
+        `kept      ${entry.name}, because it has an open pull request now\n`,
+      );
+      continue;
+    }
     // The old value makes the delete fail when a commit reached the branch
     // after the plan read it, so no commit that the plan did not see is lost.
     must(
@@ -720,7 +729,14 @@ async function apply(also) {
     .map((line) => ({
       branch: line.name.slice(`${remote}/`.length),
       oid: line.oid ?? '',
-    }));
+    }))
+    .filter(({ branch }) => {
+      if (!pullRequests.has(branch)) return true;
+      process.stdout.write(
+        `kept      ${remote}/${branch}, because it has an open pull request now\n`,
+      );
+      return false;
+    });
   if (remoteDeletes.length > 0) {
     // Each lease names the commit that the plan read. GitHub refuses the
     // delete of a branch that moved since then, so a commit that another
