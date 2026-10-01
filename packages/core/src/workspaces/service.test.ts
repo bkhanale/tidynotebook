@@ -35,6 +35,7 @@ import {
   listWorkspaces,
   sessionGrants,
   isThemeFamilyId,
+  readPreferences,
   themeFamilyMaximumLength,
   updatePreferences,
   updateWorkspace,
@@ -76,6 +77,8 @@ type FakeStore = WorkspaceAdminStore & {
   readonly preferences: Map<string, Preferences>;
   readonly themes: Map<string, ImportedTheme[]>;
   readonly settingsLocks: string[];
+  /** The reads of the settings, in order, to prove one snapshot. */
+  readonly reads: string[];
   readonly consents: Map<string, ConsentRecord>;
   space(id: string): Space;
   seed(id: string, members: readonly (readonly [string, Role])[]): void;
@@ -89,6 +92,7 @@ function createFakeStore(): FakeStore {
   const preferences = new Map<string, Preferences>();
   const themes = new Map<string, ImportedTheme[]>();
   const settingsLocks: string[] = [];
+  const reads: string[] = [];
   const consents = new Map<string, ConsentRecord>();
 
   const space = (id: string): Space => {
@@ -151,7 +155,21 @@ function createFakeStore(): FakeStore {
         preferences.set(actor.accountId, value);
         return Promise.resolve();
       },
-      themes: () => Promise.resolve([...(themes.get(actor.accountId) ?? [])]),
+      themes: () => {
+        reads.push('themes');
+        return Promise.resolve([...(themes.get(actor.accountId) ?? [])]);
+      },
+      settings: () => {
+        reads.push('settings');
+        return Promise.resolve({
+          ...(preferences.get(actor.accountId) ?? {
+            appearance: 'system',
+            themeFamily: 'tokyo-night',
+            spellCheck: defaultSpellCheck,
+          }),
+          themes: [...(themes.get(actor.accountId) ?? [])],
+        });
+      },
       lockSettings: () => {
         settingsLocks.push(actor.accountId);
         return Promise.resolve();
@@ -237,6 +255,7 @@ function createFakeStore(): FakeStore {
     preferences,
     themes,
     settingsLocks,
+    reads,
     consents,
     space,
     seed,
@@ -621,4 +640,13 @@ await test('a setting names an imported theme only while the account holds it', 
     themeFamily: 'nord',
   });
   assert.equal(registry.ok, true);
+});
+
+await test('the settings and the themes come from one read', async () => {
+  // Two reads under READ COMMITTED can see a delete between them, so the
+  // answer would name a removed theme. One read is one snapshot (0143).
+  const store = createFakeStore();
+  const read = await readPreferences(store, actorFor(alice));
+  assert.equal(read.ok, true);
+  assert.deepEqual(store.reads, ['settings']);
 });

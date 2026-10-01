@@ -72,11 +72,15 @@ function isPalette(palette: ImportedPalette): boolean {
   });
 }
 
-/** The stored settings and the themes of an account, in one read. */
-export async function settingsOf(
-  tx: AccountTransaction,
-): Promise<AccountSettings> {
-  return { ...(await tx.preferences()), themes: await tx.themes() };
+/**
+ * The stored settings and the themes of an account, from one snapshot.
+ *
+ * Two reads under READ COMMITTED can see a delete of the theme in use
+ * between them, and the answer would name the removed theme, so the store
+ * reads both in one statement.
+ */
+export function settingsOf(tx: AccountTransaction): Promise<AccountSettings> {
+  return tx.settings();
 }
 
 /**

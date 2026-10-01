@@ -21,6 +21,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AccountOwnStanding,
+  AccountSettings,
   AccountRecord,
   AccountStanding,
   AccountState,
@@ -127,6 +128,26 @@ function paletteOf(value: unknown): ImportedPalette | null {
       'notesapp: an imported theme row holds a palette of another shape.',
     );
   return { tokens, syntax };
+}
+
+/** Narrows one theme of the JSON list of `settings()`. */
+function themeRowOf(entry: unknown): {
+  id: string;
+  name: string;
+  palettes: unknown;
+} {
+  const members =
+    entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+      ? new Map<string, unknown>(Object.entries(entry))
+      : new Map<string, unknown>();
+  const id = members.get('id');
+  const name = members.get('name');
+  if (typeof id !== 'string' || typeof name !== 'string')
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: an imported theme row holds no identifier or no name.',
+    );
+  return { id, name, palettes: members.get('palettes') };
 }
 
 /** Narrows the stored palettes of one imported theme (record 0143). */
@@ -590,6 +611,37 @@ export function openIdentityStore(
           [accountId],
         );
         return rows.rows.map(importedThemeOf);
+      },
+
+      async settings(): Promise<AccountSettings> {
+        // One statement reads one snapshot, so a theme that a delete removes
+        // during the read is gone from the list and from the family alike.
+        const rows = await client.query<{
+          theme: string | null;
+          theme_family: string | null;
+          spell_check: boolean | null;
+          themes: unknown;
+        }>(
+          `select p.theme, p.theme_family, p.spell_check,
+                  coalesce((select json_agg(json_build_object(
+                                     'id', t.id, 'name', t.name, 'palettes', t.palettes)
+                                   order by t.created_at, t.id)
+                              from account_themes t where t.account_id = $1),
+                           '[]'::json) as themes
+             from (select $1::uuid as account_id) a
+             left join account_preferences p on p.account_id = a.account_id`,
+          [accountId],
+        );
+        const row = rows.rows[0];
+        const themes = Array.isArray(row?.themes) ? row.themes : [];
+        return {
+          appearance: asAppearance(row?.theme ?? 'system'),
+          themeFamily: asThemeFamily(row?.theme_family ?? defaultThemeFamily),
+          spellCheck: row?.spell_check ?? defaultSpellCheck,
+          themes: themes.map((entry: unknown) =>
+            importedThemeOf(themeRowOf(entry)),
+          ),
+        };
       },
 
       async lockSettings(): Promise<void> {

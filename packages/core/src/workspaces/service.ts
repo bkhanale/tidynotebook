@@ -231,7 +231,7 @@ export function updatePreferences(
       spellCheck: change.spellCheck ?? current.spellCheck,
     };
     await tx.savePreferences(checked);
-    return ok({ ...checked, themes: await tx.themes() });
+    return ok(await settingsOf(tx));
   });
 }
 

@@ -136,6 +136,12 @@ export type AccountTransaction = {
   /** The themes that the account imported, oldest first (record 0143). */
   themes(): Promise<readonly ImportedTheme[]>;
   /**
+   * The stored settings and the imported themes of the account, read in one
+   * statement. A statement reads one snapshot, so a delete of a theme that
+   * commits during the read never leaves the answer naming that theme.
+   */
+  settings(): Promise<AccountSettings>;
+  /**
    * Takes the lock of the settings of the account, so two writes of its
    * themes read the count one after the other.
    */
