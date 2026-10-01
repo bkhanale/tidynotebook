@@ -20,16 +20,30 @@ export type ImageSize = {
  */
 export const zoomSteps = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8] as const;
 
-/** The smallest and the largest zoom. */
+/**
+ * The smallest and the largest zoom that a person chooses.
+ *
+ * The fit of a very large picture on a small screen can be smaller than the
+ * smallest step, and the fit always shows the whole picture, so the lowest
+ * zoom of one picture is the smaller of the two (`lowestZoom`).
+ */
 export const zoomLimits = { min: 0.1, max: 8 } as const;
 
 /** Two zooms closer than this are the same step. */
 const sameStep = 0.001;
 
-/** Holds a zoom inside the limits. */
-export function clampZoom(scale: number): number {
+/** The lowest zoom of one picture: the smallest step, or its fit below it. */
+export function lowestZoom(fitted: number): number {
+  return Math.min(zoomLimits.min, fitted);
+}
+
+/** Holds a zoom between the lowest zoom of a picture and the largest. */
+export function clampZoom(
+  scale: number,
+  lowest: number = zoomLimits.min,
+): number {
   if (!Number.isFinite(scale)) return 1;
-  return Math.min(zoomLimits.max, Math.max(zoomLimits.min, scale));
+  return Math.min(zoomLimits.max, Math.max(lowest, scale));
 }
 
 /**
@@ -42,9 +56,9 @@ export function clampZoom(scale: number): number {
 export function fitZoom(natural: ImageSize, room: ImageSize): number {
   if (natural.width <= 0 || natural.height <= 0) return 1;
   if (room.width <= 0 || room.height <= 0) return 1;
-  return clampZoom(
-    Math.min(1, room.width / natural.width, room.height / natural.height),
-  );
+  // No step holds the fit: a 4000 px photo on a 360 px phone fits below the
+  // smallest step, and a fit held to that step would not show the photo.
+  return Math.min(1, room.width / natural.width, room.height / natural.height);
 }
 
 /** The next step closer than `scale`, or the largest zoom. */
@@ -52,10 +66,15 @@ export function zoomIn(scale: number): number {
   return zoomSteps.find((step) => step > scale + sameStep) ?? zoomLimits.max;
 }
 
-/** The next step wider than `scale`, or the smallest zoom. */
-export function zoomOut(scale: number): number {
+/** The next step wider than `scale`, or the lowest zoom of the picture. */
+export function zoomOut(
+  scale: number,
+  lowest: number = zoomLimits.min,
+): number {
   return (
-    zoomSteps.findLast((step) => step < scale - sameStep) ?? zoomLimits.min
+    zoomSteps.findLast(
+      (step) => step < scale - sameStep && step >= lowest - sameStep,
+    ) ?? Math.min(scale, lowest)
   );
 }
 
@@ -65,8 +84,12 @@ export function zoomOut(scale: number): number {
  * A wheel and a trackpad report a distance, not a step, so the zoom follows
  * the distance smoothly: a turn up comes closer and a turn down goes wider.
  */
-export function wheelZoom(scale: number, deltaY: number): number {
-  return clampZoom(scale * Math.exp(-deltaY / 500));
+export function wheelZoom(
+  scale: number,
+  deltaY: number,
+  lowest: number = zoomLimits.min,
+): number {
+  return clampZoom(scale * Math.exp(-deltaY / 500), lowest);
 }
 
 /** What a key does in the viewer, or null for a key it leaves alone. */
@@ -103,6 +126,17 @@ export type ImageAction = 'copy-image' | 'download' | 'copy-link' | 'open';
  */
 export function imageActions(external: boolean): readonly ImageAction[] {
   return external ? ['copy-link', 'open'] : ['copy-image', 'download'];
+}
+
+/**
+ * Whether an action needs the pixels of a picture that loaded.
+ *
+ * Copy image draws the picture, so it waits for it. Download saves the bytes
+ * of the address, and Copy link and Open original need the address alone, so
+ * a picture that did not load keeps them.
+ */
+export function actionNeedsPicture(action: ImageAction): boolean {
+  return action === 'copy-image';
 }
 
 /** The words of each action. */

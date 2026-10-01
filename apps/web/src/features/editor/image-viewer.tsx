@@ -37,6 +37,7 @@ import {
   ZoomOutIcon,
 } from '@notesapp/ui';
 import {
+  actionNeedsPicture,
   closesOnRelease,
   fitZoom,
   imageActionLabels,
@@ -44,6 +45,7 @@ import {
   imageActions,
   imageDownloadName,
   imageTitle,
+  lowestZoom,
   wheelZoom,
   zoomIn,
   zoomKey,
@@ -54,7 +56,7 @@ import {
   type ImageAction,
   type ImageSize,
 } from '../../lib/image-viewer.ts';
-import { copyPngImage, copyText } from '../../platform.ts';
+import { canCopyImage, copyPngImage, copyText } from '../../platform.ts';
 
 /** The viewer of one picture, or nothing while no picture is open. */
 export function ImageViewer({
@@ -173,8 +175,13 @@ function ImageViewerBody({
 
   const fitted = natural === null ? 1 : fitZoom(natural, room);
   const scale = zoom.kind === 'fit' ? fitted : zoom.value;
+  // The fit of a very large picture can be below the smallest step, and the
+  // zoom out reaches it there.
+  const lowest = lowestZoom(fitted);
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
+  const lowestRef = useRef(lowest);
+  lowestRef.current = lowest;
   const size = natural === null ? null : zoomedSize(natural, scale);
   const overflows =
     size !== null && (size.width > room.width || size.height > room.height);
@@ -206,7 +213,7 @@ function ImageViewerBody({
       event.preventDefault();
       setZoom({
         kind: 'scale',
-        value: wheelZoom(scaleRef.current, event.deltaY),
+        value: wheelZoom(scaleRef.current, event.deltaY, lowestRef.current),
       });
     };
     scroller.addEventListener('wheel', onWheel, { passive: false });
@@ -225,7 +232,7 @@ function ImageViewerBody({
     if (step === null) return;
     event.preventDefault();
     if (step === 'fit') setZoom(fit);
-    else zoomTo(step === 'in' ? zoomIn(scale) : zoomOut(scale));
+    else zoomTo(step === 'in' ? zoomIn(scale) : zoomOut(scale, lowest));
   };
 
   // A press with the mouse drags a zoomed picture. A press on the scrim that
@@ -293,6 +300,13 @@ function ImageViewerBody({
     }
     const picture = pictureRef.current;
     if (picture === null) return;
+    // A page with no clipboard for pictures, such as one served over plain
+    // HTTP, never draws the picture: a full size canvas of a large photo
+    // costs memory for a copy that cannot happen.
+    if (!canCopyImage()) {
+      setMessage(imageActionMessages.copyImageFailed);
+      return;
+    }
     void copyPngImage(pngOf(picture)).then((done) => {
       setMessage(
         done
@@ -353,9 +367,9 @@ function ImageViewerBody({
           size="sm"
           label="Zoom out"
           icon={<ZoomOutIcon />}
-          disabled={idle || scale <= zoomLimits.min}
+          disabled={idle || scale <= lowest}
           onClick={() => {
-            zoomTo(zoomOut(scale));
+            zoomTo(zoomOut(scale, lowest));
           }}
         />
         <span className="w-12 text-center text-control tabular-nums text-muted">
@@ -406,7 +420,7 @@ function ImageViewerBody({
               size="sm"
               label={imageActionLabels[action]}
               icon={actionIcon(action)}
-              disabled={action === 'copy-image' ? idle : failed}
+              disabled={actionNeedsPicture(action) && idle}
               onClick={() => {
                 run(action);
               }}

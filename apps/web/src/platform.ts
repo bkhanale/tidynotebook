@@ -21,23 +21,34 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /**
+ * Whether the asynchronous Clipboard API takes pictures on this page.
+ *
+ * A page served over plain HTTP has no clipboard at all, and an older
+ * browser has no `ClipboardItem`. A caller asks first, so it never prepares
+ * the bytes of a copy that cannot happen.
+ */
+export function canCopyImage(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const clipboard: Clipboard | undefined = navigator.clipboard;
+  return (
+    clipboard !== undefined &&
+    typeof clipboard.write === 'function' &&
+    typeof ClipboardItem !== 'undefined'
+  );
+}
+
+/**
  * Copies one PNG picture when the asynchronous Clipboard API takes pictures.
  *
  * The bytes arrive as a promise, so the write starts inside the press that
  * asked for it. Safari refuses a clipboard write that starts after the press
- * has ended, which is where an awaited canvas encode would put it.
+ * has ended, which is where an awaited canvas encode would put it. A caller
+ * asks `canCopyImage` before it starts that promise.
  */
 export async function copyPngImage(png: Promise<Blob>): Promise<boolean> {
   try {
-    if (typeof navigator === 'undefined') return false;
-    const clipboard = navigator.clipboard;
-    if (
-      clipboard === undefined ||
-      typeof clipboard.write !== 'function' ||
-      typeof ClipboardItem === 'undefined'
-    )
-      return false;
-    await clipboard.write([new ClipboardItem({ 'image/png': png })]);
+    if (!canCopyImage()) return false;
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
     return true;
   } catch {
     return false;

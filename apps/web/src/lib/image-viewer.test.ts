@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  actionNeedsPicture,
   clampZoom,
   closesOnRelease,
   fitZoom,
@@ -12,6 +13,7 @@ import {
   imageActions,
   imageDownloadName,
   imageTitle,
+  lowestZoom,
   wheelZoom,
   zoomIn,
   zoomKey,
@@ -34,11 +36,25 @@ await test('a picture or a room with no size shows at its own size', () => {
   assert.equal(fitZoom({ width: 10, height: 10 }, { width: 0, height: 0 }), 1);
 });
 
-await test('a huge picture never fits below the smallest zoom', () => {
-  assert.equal(
-    fitZoom({ width: 100_000, height: 100 }, { width: 100, height: 100 }),
-    zoomLimits.min,
-  );
+await test('a huge picture fits below the smallest step', () => {
+  // A review of 2026-10-01. A 4000 px photo on a phone narrower than 400 px
+  // fits below 10%, and a fit held to that step showed a part of it.
+  const phone = { width: 342, height: 700 };
+  const photo = { width: 4000, height: 3000 };
+  const fitted = fitZoom(photo, phone);
+  assert.ok(fitted < zoomLimits.min, String(fitted));
+  assert.ok(zoomedSize(photo, fitted).width <= phone.width);
+  assert.equal(lowestZoom(fitted), fitted);
+  assert.equal(lowestZoom(0.5), zoomLimits.min);
+});
+
+await test('a zoom out reaches the fit and stays there', () => {
+  const lowest = 0.05;
+  assert.equal(zoomOut(0.25, lowest), 0.1);
+  assert.equal(zoomOut(0.1, lowest), lowest);
+  assert.equal(zoomOut(lowest, lowest), lowest);
+  assert.equal(wheelZoom(lowest, 10_000, lowest), lowest);
+  assert.equal(clampZoom(0.01, lowest), lowest);
 });
 
 await test('the buttons move one step and stop at the limits', () => {
@@ -83,6 +99,15 @@ await test('the zoomed size is whole pixels and never zero', () => {
 
 await test('a picture of the workspace copies and downloads its bytes', () => {
   assert.deepEqual(imageActions(false), ['copy-image', 'download']);
+});
+
+await test('only Copy image waits for the pixels of the picture', () => {
+  // A review of 2026-10-01. A picture of another host that did not load still
+  // has an address, so Copy link stays as Open original does.
+  assert.equal(actionNeedsPicture('copy-image'), true);
+  assert.equal(actionNeedsPicture('download'), false);
+  assert.equal(actionNeedsPicture('copy-link'), false);
+  assert.equal(actionNeedsPicture('open'), false);
 });
 
 await test('a picture of another host copies its link and opens the original', () => {

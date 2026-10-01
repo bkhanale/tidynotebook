@@ -49,4 +49,5 @@ tap rule, the actions and the download name.
 - The published page keeps its plain picture. It runs no script of the
   application (record 0031).
 - `packages/editor/src/widgets.test.ts` and
-  `apps/web/src/lib/image-viewer.test.ts` hold the rule.
+  `apps/web/src/lib/image-viewer.test.ts` hold the rule, and
+  `tests/integration/image-viewer.test.ts` holds the built and served viewer.
