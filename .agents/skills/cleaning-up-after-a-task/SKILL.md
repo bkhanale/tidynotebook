@@ -52,8 +52,10 @@ The plan follows these rules:
 - A branch on the machine or on `origin` stays when it has an open pull
   request. A local branch also stays when a kept worktree uses it. Any other
   branch goes when every change is in `main`, and it is `ask` when it is not.
-  A merge commit that carries a change of its own, such as a conflict
-  resolution, counts as a change.
+  A merge commit that is not in `main` counts as a change, unless a merge of
+  the whole branch into `main` changes nothing.
+- A branch is deleted only at the commit that the plan read. A branch that
+  moved since then stays, and `apply` stops with the reason.
 - The test database of the Compose project `notesapp-test` goes only when no
   worktree is left. `tools/test-database/ensure-postgres.sh` starts it again
   at the next integration test or local application.

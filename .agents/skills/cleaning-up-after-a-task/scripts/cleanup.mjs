@@ -53,7 +53,7 @@ const readyTimeoutMs = 10 * 1000;
  * @typedef {{ status: number, stdout: string, stderr: string }} Outcome
  * @typedef {{ path: string, head: string, branch: string | null }} Worktree
  * @typedef {'remove' | 'delete' | 'deploy' | 'prune' | 'keep' | 'ask' | 'skip'} Mark
- * @typedef {{ mark: Mark, name: string, reason: string }} Line
+ * @typedef {{ mark: Mark, name: string, reason: string, oid?: string }} Line
  * @typedef {{ worktree: Line[], branch: Line[], remoteBranch: Line[], testDatabase: Line[], deployment: Line[], prune: Line[] }} Plan
  */
 
@@ -139,10 +139,11 @@ function worktrees(cwd) {
  * How many commits of a reference have no equal change in `main`.
  *
  * `git cherry` compares the changes, not the commit names, so a branch that
- * landed through a rebase counts as landed. It leaves merge commits out, so
- * a merge that is not in `main` counts here when it carries a change of its
- * own, such as a conflict resolution. A merge with no such change shows an
- * empty combined diff, and it adds nothing that its parents do not hold.
+ * landed through a rebase counts as landed. It leaves merge commits out, and
+ * a merge can take the side of a different parent for each file, which no
+ * comparison of one commit sees. So a merge that is not in `main` counts as
+ * landed only when a merge of the whole reference into `main` changes
+ * nothing. Otherwise each such merge counts as one change.
  *
  * @param {string} reference
  * @param {string} cwd
@@ -153,10 +154,16 @@ function commitsOutsideMain(reference, cwd) {
   ).filter((line) => line.startsWith('+')).length;
   const merges = lines(
     must('git', ['rev-list', '--merges', `${mainBranch}..${reference}`], cwd),
-  ).filter(
-    (merge) => must('git', ['show', '--cc', '--format=', merge], cwd) !== '',
   ).length;
-  return patches + merges;
+  if (merges === 0) return patches;
+  const merged = run(
+    'git',
+    ['merge-tree', '--write-tree', mainBranch, reference],
+    cwd,
+  );
+  const mainTree = must('git', ['rev-parse', `${mainBranch}^{tree}`], cwd);
+  const unchanged = merged.status === 0 && lines(merged.stdout)[0] === mainTree;
+  return patches + (unchanged ? 0 : merges);
 }
 
 /**
@@ -388,6 +395,7 @@ function makePlan(also) {
     const outside = commitsOutsideMain(name, main);
     if (outside === 0 || allowed.has(name)) {
       plan.branch.push({
+        oid: must('git', ['rev-parse', `refs/heads/${name}`], main),
         mark: 'delete',
         name,
         reason:
@@ -407,13 +415,23 @@ function makePlan(also) {
   const remoteBranches = lines(
     must(
       'git',
-      ['for-each-ref', '--format=%(refname)', `refs/remotes/${remote}`],
+      [
+        'for-each-ref',
+        '--format=%(objectname) %(refname)',
+        `refs/remotes/${remote}`,
+      ],
       main,
     ),
   )
-    .map((reference) => reference.slice(`refs/remotes/${remote}/`.length))
-    .filter((name) => name !== 'HEAD' && name !== mainBranch);
-  for (const branch of remoteBranches) {
+    .map((entry) => {
+      const [oid = '', reference = ''] = entry.split(' ');
+      return {
+        oid,
+        branch: reference.slice(`refs/remotes/${remote}/`.length),
+      };
+    })
+    .filter(({ branch }) => branch !== 'HEAD' && branch !== mainBranch);
+  for (const { oid, branch } of remoteBranches) {
     const name = `${remote}/${branch}`;
     if (pullRequests.has(branch)) {
       plan.remoteBranch.push({
@@ -426,6 +444,7 @@ function makePlan(also) {
     const outside = commitsOutsideMain(name, main);
     if (outside === 0 || allowed.has(name)) {
       plan.remoteBranch.push({
+        oid,
         mark: 'delete',
         name,
         reason:
@@ -686,17 +705,41 @@ async function apply(also) {
   must('git', ['worktree', 'prune'], main);
 
   for (const entry of plan.branch.filter((line) => line.mark === 'delete')) {
-    must('git', ['branch', '-D', entry.name], main);
+    // The old value makes the delete fail when a commit reached the branch
+    // after the plan read it, so no commit that the plan did not see is lost.
+    must(
+      'git',
+      ['update-ref', '-d', `refs/heads/${entry.name}`, entry.oid ?? ''],
+      main,
+    );
     process.stdout.write(`deleted   ${entry.name}\n`);
   }
 
-  const remoteNames = plan.remoteBranch
+  const remoteDeletes = plan.remoteBranch
     .filter((line) => line.mark === 'delete')
-    .map((line) => line.name.slice(`${remote}/`.length));
-  if (remoteNames.length > 0) {
-    must('git', ['push', remote, '--delete', ...remoteNames], main);
-    for (const name of remoteNames)
-      process.stdout.write(`deleted   ${remote}/${name}\n`);
+    .map((line) => ({
+      branch: line.name.slice(`${remote}/`.length),
+      oid: line.oid ?? '',
+    }));
+  if (remoteDeletes.length > 0) {
+    // Each lease names the commit that the plan read. GitHub refuses the
+    // delete of a branch that moved since then, so a commit that another
+    // process pushed in the meantime stays.
+    must(
+      'git',
+      [
+        'push',
+        ...remoteDeletes.map(
+          ({ branch, oid }) => `--force-with-lease=refs/heads/${branch}:${oid}`,
+        ),
+        remote,
+        '--delete',
+        ...remoteDeletes.map(({ branch }) => branch),
+      ],
+      main,
+    );
+    for (const { branch } of remoteDeletes)
+      process.stdout.write(`deleted   ${remote}/${branch}\n`);
   }
   must('git', ['fetch', '--prune', '--quiet', remote], main);
 
