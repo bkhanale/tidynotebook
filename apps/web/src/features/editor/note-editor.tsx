@@ -90,6 +90,7 @@ import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
 import { useInsertTemplate } from './insert-template.ts';
+import { useCopyNote } from './copy-note.tsx';
 import { freeCopyPath } from '../../lib/new-note-draft.ts';
 import {
   baseNameOf,
@@ -1360,6 +1361,8 @@ function NoteEditorBody({
     setNotice: setEditorNotice,
   });
 
+  const copyNote = useCopyNote(viewRef);
+
   /** The editor view of this working copy, for the menu of a table. */
   const currentView = useCallback((): EditorView | null => viewRef.current, []);
   const closeTableMenu = useCallback((): void => {
@@ -1388,6 +1391,7 @@ function NoteEditorBody({
       duplicate: duplicateNote,
       attachImage,
       exportMarkdown,
+      copyMarkdown: copyNote.run,
       publish: publishNote,
       format: runFormat,
       formatContext,
@@ -1400,6 +1404,7 @@ function NoteEditorBody({
       duplicateNote,
       attachImage,
       exportMarkdown,
+      copyNote.run,
       publishNote,
       runFormat,
       formatContext,
@@ -1588,6 +1593,7 @@ function NoteEditorBody({
           </aside>
         </div>
       </div>
+      {copyNote.toast}
     </div>
   );
 }

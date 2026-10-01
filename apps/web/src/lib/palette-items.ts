@@ -120,6 +120,7 @@ export const actionIconNames = [
   'bold',
   'bullet-list',
   'collapse-all',
+  'copy-markdown',
   'delete',
   'duplicate',
   'expand-all',

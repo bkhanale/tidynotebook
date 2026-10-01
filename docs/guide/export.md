@@ -12,6 +12,17 @@ Open the note menu in the header, the one marked **Note actions**, and select
 **Export as Markdown**. The note downloads as one `.md` file named after the
 note.
 
+## Copy one note
+
+Open the command palette with **Ctrl + P**, or **Cmd + P** on a Mac, and
+select **Copy this note as Markdown**. The whole text of the open note goes to
+the clipboard as Markdown. You do not have to select text first.
+
+The copy holds the text that you see, which includes text that you have not
+saved yet. It does not need a connection. A browser that has no clipboard,
+such as one that opens the application over plain HTTP, cannot copy the note.
+Use **Export as Markdown** there.
+
 ## Every note
 
 Open **Settings** from the header menu and find the **Export** card. Select

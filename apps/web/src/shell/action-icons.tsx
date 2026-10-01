@@ -76,6 +76,7 @@ const actionIcons: Readonly<
   bold: BoldIcon,
   'bullet-list': BulletListIcon,
   'collapse-all': CollapseAllIcon,
+  'copy-markdown': CopyIcon,
   delete: TrashIcon,
   duplicate: CopyIcon,
   'expand-all': ExpandAllIcon,

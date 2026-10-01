@@ -1683,6 +1683,17 @@ function ShellFrame({
                     run: noteActions.exportMarkdown,
                   },
                 ]),
+            ...(noteActions.copyMarkdown === null
+              ? []
+              : [
+                  {
+                    id: 'copy-note',
+                    label: 'Copy this note as Markdown',
+                    keywords: 'copy clipboard markdown text whole all source',
+                    icon: 'copy-markdown' as const,
+                    run: noteActions.copyMarkdown,
+                  },
+                ]),
             ...(noteActions.publish === null
               ? []
               : [
