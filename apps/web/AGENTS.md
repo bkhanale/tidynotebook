@@ -14,9 +14,9 @@ screens, the worker and the diagram frame. It composes and holds no rule.
   `workspaces.tsx` owns the switcher (0049). `src/features/<feature>/` is a
   feature, `src/lib/` is pure, `app.tsx`, `router.tsx` and `main.tsx` compose
   it, `src/pwa/` the worker and notices (0130), `src/diagram/` the frame.
-- `src/tailwind.css` is the only application CSS source: Tailwind imports,
-  sources, the `@font-face` block (0061), and the central scales. A domain
-  rule lives in `packages/core`, a Markdown rule in `packages/markdown`.
+- `src/tailwind.css` is the only CSS source: imports, sources, `@font-face`
+  (0061), the scales, and the built palette of a page with no script (0151).
+  A domain rule is in `packages/core`, a Markdown rule in `packages/markdown`.
 - Three planes (0052): `bg-surface` is chrome, `bg-app` a route, `bg-card`
   with an elevation step is raised. `border-edge-line` is the resting edge of
   a control and the one divider, `border-edge-subtle` a hairline inside a

@@ -18,6 +18,8 @@ await test('the page of a document holds its body and no script', () => {
   assert.match(page, /href="\/legal\/privacy">Privacy notice<\/a>/);
   assert.match(page, /href="\/login">Sign in<\/a>/);
   assert.equal(/<script|<form| on[a-z]+=/i.test(page), false);
+  // The page follows the preference of the device (record 0151).
+  assert.equal(page.includes('data-theme'), false);
 });
 
 await test('each document links the other one', () => {

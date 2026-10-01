@@ -153,6 +153,19 @@ await test('an address that holds a quote cannot start an attribute', () => {
   assert.ok(html.includes('&quot; onload=&quot;'));
 });
 
+await test('the page follows the light or dark preference of the reader', () => {
+  // Issue 210: the page stated a dark appearance for every reader. A root
+  // with no appearance takes the palette of the device from the stylesheet
+  // (record 0151).
+  for (const page of [
+    documentOf({ kind: 'unavailable' }),
+    documentOf({ kind: 'locked' }),
+  ]) {
+    assert.match(page, /<html lang="en">/);
+    assert.equal(page.includes('data-theme'), false);
+  }
+});
+
 await test('the page asks a crawler to keep it out of an index', () => {
   const html = documentOf({ kind: 'unavailable' });
   assert.ok(html.includes('<meta name="robots" content="noindex, nofollow">'));

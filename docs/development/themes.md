@@ -32,6 +32,10 @@ and
   registry into `apps/web/index.html` at build time, so the page never flashes
   the wrong palette.
 - The installed manifest, whose interface colour the same plugin writes.
+- A page with no script, a published page or a legal page. The build appends
+  the Default dark and light palettes to the one stylesheet, for a root with
+  no `data-theme`, so the page follows the preference of the device. See
+  [decision 0151](../decisions/0151-a-page-with-no-script-follows-the-device-palette.md).
 - The sandboxed diagram frame, which receives the colours it paints with in the
   render request.
 

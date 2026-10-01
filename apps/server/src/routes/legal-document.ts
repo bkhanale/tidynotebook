@@ -67,7 +67,7 @@ export function legalDocument(input: LegalDocumentInput): string {
     `<a class="${linkClasses}" href="/login">Sign in</a>`,
   ].join(' &middot; ');
   return `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

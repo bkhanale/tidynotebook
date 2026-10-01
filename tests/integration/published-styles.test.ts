@@ -38,11 +38,14 @@ import {
 } from '@notesapp/server';
 import {
   buttonClassName,
+  defaultThemeFor,
   fieldClassName,
+  themeProperties,
   transitionField,
   transitionSurface,
 } from '@notesapp/ui';
 import { orderedMarkerStyle, orderedMarkerStyles } from '@notesapp/markdown';
+import { devicePaletteRoot } from '../../apps/web/src/lib/first-paint.ts';
 import { loadCompiler, webRequire } from './support/tailwind.ts';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
@@ -125,6 +128,62 @@ await test('the published page names the mathematics style as well', async () =>
   const document = join(distribution, 'index.html');
   const shell = documentStylesheetHrefs(document, statSync(document));
   for (const href of shell) assert.ok(emitted.includes(href), href);
+});
+
+/** One colour as the minifier may write it, in its long lower case form. */
+function longColour(value: string): string {
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(value);
+  if (short === null) return value.toLowerCase();
+  return `#${(short[1] ?? '').repeat(2)}${(short[2] ?? '').repeat(2)}${(short[3] ?? '').repeat(2)}`.toLowerCase();
+}
+
+/** The declarations of every rule of one selector in a minified sheet. */
+function rulesOf(css: string, selector: string): Map<string, string>[] {
+  const rules: Map<string, string>[] = [];
+  let from = css.indexOf(`${selector}{`);
+  while (from !== -1) {
+    const start = from + selector.length + 1;
+    const body = css.slice(start, css.indexOf('}', start));
+    rules.push(
+      new Map(
+        body
+          .split(';')
+          .map((part) => part.split(':'))
+          .filter((pair) => pair.length === 2)
+          .map(([name, value]) => [name ?? '', longColour(value ?? '')]),
+      ),
+    );
+    from = css.indexOf(`${selector}{`, start);
+  }
+  return rules;
+}
+
+await test('the built stylesheet paints a page with no script in the device palette', async () => {
+  // Issue 210: a published page drew the dark palette for every reader. The
+  // build writes both default palettes from the registry into the one
+  // stylesheet, and the light one answers the light preference (record 0151).
+  const document = join(distribution, 'index.html');
+  await stat(document).catch(() => {
+    throw new Error(
+      'The browser build is absent. Run pnpm build before this test.',
+    );
+  });
+  const [href] = documentStylesheetHrefs(document, statSync(document));
+  const css = await readFile(join(distribution, (href ?? '').slice(1)), 'utf8');
+  const media = css.indexOf('@media (prefers-color-scheme:light){');
+  assert.ok(media !== -1, 'the stylesheet answers no light preference');
+  const rules = rulesOf(css, devicePaletteRoot);
+  assert.equal(rules.length, 2, 'one rule for each preference');
+  const lightAt = css.indexOf(`${devicePaletteRoot}{`, media);
+  assert.ok(lightAt > media, 'the light rule sits inside the light query');
+  for (const [rule, appearance] of [
+    [rules[0], 'dark'],
+    [rules[1], 'light'],
+  ] as const) {
+    assert.equal(rule?.get('color-scheme'), appearance);
+    for (const [name, value] of themeProperties(defaultThemeFor(appearance)))
+      assert.equal(rule?.get(name), longColour(value), `${appearance} ${name}`);
+  }
 });
 
 await test('every class of the published document reaches the stylesheet', async () => {

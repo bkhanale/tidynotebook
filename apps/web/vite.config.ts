@@ -14,7 +14,7 @@ import {
 } from './src/pwa/icons.ts';
 import { precacheWorker } from './src/pwa/precache.ts';
 import { defaultThemeFor } from '@notesapp/ui';
-import { themeRegistryData } from './src/lib/first-paint.ts';
+import { devicePaletteCss, themeRegistryData } from './src/lib/first-paint.ts';
 
 // The JSX transform comes from Vite's built-in esbuild support with the
 // automatic runtime, so no framework plugin is needed for the production
@@ -119,6 +119,29 @@ export function webManifestDocument(
 /** The installed application manifest, serialized. */
 export function webManifest(addresses: IconAddresses): string {
   return `${JSON.stringify(webManifestDocument(addresses), null, 2)}\n`;
+}
+
+/** The one application stylesheet, which the palette below joins. */
+const applicationStylesheet = resolve(import.meta.dirname, 'src/tailwind.css');
+
+/**
+ * Appends the palette of a page with no script to the one stylesheet.
+ *
+ * A published page and a legal page load this stylesheet and hold no script,
+ * so the stylesheet itself states the Default palette of each preference of
+ * the device (record 0151). The text comes from the registry at the build,
+ * so `src/tailwind.css` holds no colour value for it. It runs before the
+ * Tailwind compiler, which then treats it as any other rule.
+ */
+function devicePalette(): Plugin {
+  return {
+    name: 'notesapp-device-palette',
+    enforce: 'pre',
+    transform(code: string, id: string): string | null {
+      if (id.split('?')[0] !== applicationStylesheet) return null;
+      return `${code}\n${devicePaletteCss()}`;
+    },
+  };
 }
 
 /**
@@ -324,6 +347,8 @@ export default defineConfig(({ command }) => ({
     port: 5173,
   },
   plugins: [
+    // First, so the Tailwind compiler reads the palette with the stylesheet.
+    devicePalette(),
     tailwindcss(),
     themeAssets(import.meta.dirname),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),

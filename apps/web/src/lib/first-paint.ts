@@ -131,3 +131,46 @@ export function keptImportedFamily(
   const read = readThemeFile(file);
   return read.ok ? importedThemeFamily(familyId, read.theme) : null;
 }
+
+/**
+ * The root of a document that no script paints.
+ *
+ * The shell document states `data-theme` before its script runs, so the
+ * script and `applyTheme` always win there. A page that the server writes, a
+ * published page or a legal page, states none (record 0151).
+ */
+export const devicePaletteRoot = ':root:not([data-theme])';
+
+/** The declarations of one variant, with its colour scheme. */
+function paletteDeclarations(theme: Theme): string {
+  return [
+    `color-scheme: ${theme.appearance};`,
+    ...themeProperties(theme).map(([name, value]) => `${name}: ${value};`),
+  ]
+    .map((line) => `  ${line}`)
+    .join('\n');
+}
+
+/**
+ * The palette of a document that holds no script, as stylesheet rules.
+ *
+ * The page cannot read the preference of the device in a script (record
+ * 0031), so the stylesheet states the Default dark palette and, under the
+ * light preference, the Default light palette. Both come from the registry,
+ * so the page holds no colour value of its own. The build appends this text
+ * to the one stylesheet (`apps/web/vite.config.ts`).
+ */
+export function devicePaletteCss(): string {
+  return `${devicePaletteRoot} {
+${paletteDeclarations(defaultThemeFor('dark'))}
+}
+@media (prefers-color-scheme: light) {
+  ${devicePaletteRoot} {
+${paletteDeclarations(defaultThemeFor('light'))
+  .split('\n')
+  .map((line) => `  ${line}`)
+  .join('\n')}
+  }
+}
+`;
+}

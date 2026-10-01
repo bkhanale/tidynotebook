@@ -27,7 +27,9 @@
  * `AGENTS.md` names when it permits a typed adapter to set presentation in
  * TypeScript. `apps/web/src/tailwind.css` registers this file as a source, so
  * the build emits exactly these utilities, and
- * `tests/integration/published-styles.test.ts` proves that it does.
+ * `tests/integration/published-styles.test.ts` proves that it does. The root
+ * states no appearance, so the stylesheet paints the Default palette of the
+ * preference of the device of the reader (record 0151).
  */
 
 import type { ReportReason } from '@notesapp/core';
@@ -453,7 +455,7 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     )
     .join('');
   return `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
