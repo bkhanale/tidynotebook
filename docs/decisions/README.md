@@ -180,6 +180,7 @@ and needs no record.
 | [0146](0146-a-closed-link-page-says-what-to-do-next.md)                               | A closed link page says what to do next                                         |
 | [0147](0147-a-table-sizes-to-its-text-and-its-controls-sit-on-its-edge.md)            | A table sizes to its text and its controls sit on its edge                      |
 | [0148](0148-an-administrator-sets-the-mail-and-the-legal-documents.md)                | An administrator sets the mail and the legal documents                          |
+| [0149](0149-one-template-engine-fills-a-note-at-the-caret.md)                         | One template engine fills a note at the caret                                   |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -598,3 +599,9 @@ administrator sets the mail transport and the two legal documents in the
 application. A group that the environment sets wins and is locked, the mail
 password is sealed with a key of the server, and the legal templates move
 into `packages/core`. It refines records 0120, 0140 and 0141.
+
+Record 0149 answers
+[issue 220](https://github.com/bkhanale/notesapp/issues/220). One template
+engine in `packages/core` fills a daily note and a template that the palette
+inserts at the caret, and it gains `{{time}}`. The template folder is a
+setting of the member. It refines record 0102.
