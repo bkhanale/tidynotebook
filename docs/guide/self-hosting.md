@@ -276,7 +276,7 @@ The check runs in the browser and sends nothing to another service.
 
 A public service names its terms and its privacy notice. An administrator
 writes both in the application, from a template, as
-[Accounts and invitations](accounts.md#terms-and-privacy-notice) states. Each
+[Accounts and invitations](accounts.md#legal-documents) states. Each
 account stores the versions that it accepted and when. When a version changes,
 each person accepts it again before the application opens. An installation
 with no documents asks for nothing.
@@ -378,7 +378,7 @@ page names each part that is missing. Do these steps in order.
    `tls` profile, also set `NOTESAPP_PUBLISHED_DOMAIN` to that host name, so
    that the proxy gets a certificate for it.
 3. **Legal documents.** Add the terms and the privacy notice on the accounts
-   page, as [Accounts and invitations](accounts.md#terms-and-privacy-notice)
+   page, as [Accounts and invitations](accounts.md#legal-documents)
    states. Fill each blank of the template with the facts of your service:
    who runs it, the address to write to, the law that applies, and how long
    you keep backups and logs. Have a person who knows the law of your country

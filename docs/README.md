@@ -77,7 +77,9 @@ loads them many times.
 ## guide/
 
 **Audience:** the person who writes notes, and the person who runs a server.
-Public. This directory is published.
+Public. `apps/docs` publishes this directory as the documentation site
+(record 0152), so a page here is a page of the site and the index below is its
+contents. See [development/docs-site.md](development/docs-site.md).
 
 **Purpose:** how to use the product and how to host it. It is written from the
 visible behaviour of the application, not from a design document.

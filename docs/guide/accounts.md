@@ -14,7 +14,7 @@ An administrator manages accounts and does not read notes. You see the address,
 the name, the state, the last activity and the storage of each account. You
 cannot open a note of another account.
 
-## Let anybody sign up
+## Who can make an account
 
 An installation can let a person make an account without an invitation. The
 sign-in screen then offers **Create an account**. The person gives an address
@@ -23,8 +23,8 @@ and a message with a link goes to the address. The account
 exists after the person opens the link, and then the person signs in. A sign-up
 that nobody finishes goes away after a time that the server sets.
 
-Turn on **Let anybody sign up** under **Who can make an account** on the
-accounts page. The server allows this only when the installation has a mail
+By default, a person needs an invitation. Turn on **Let anybody sign up** in
+this section of the accounts page. The server allows this only when the installation has a mail
 server, a separate address for published pages, and the terms and the
 privacy notice of the service. If a part is missing, the page names it. You set
 the mail server and the two documents on the same page. The person who runs
@@ -59,7 +59,7 @@ When the person who runs the server sets the mail server in the server
 environment, the page shows it and offers no change. See
 [Self-hosting](self-hosting.md#mail).
 
-## Terms and privacy notice
+## Legal documents
 
 When the installation names its terms and its privacy notice, each person
 accepts them. The sign-up form and the invitation form link both and ask for
@@ -68,8 +68,8 @@ comes out, each person accepts it at the next visit, before the notes open. A
 person who does not accept can export their notes, remove their account, or
 sign out.
 
-You add both documents under **Legal documents** on the accounts page. They
-apply when both exist.
+You add both documents in this section of the accounts page. They apply when
+both exist.
 
 1. Select **Add** on the row of a document. Its editor opens in the section.
 2. Choose the source. **Text on this server** shows the document on a page of
@@ -102,9 +102,9 @@ can also search for "accounts" in the command palette. A person who is not an
 administrator does not see these entries. The caret before the page title
 goes back to Settings.
 
-## Invite a person
+## Invitations
 
-1. Select **Invite a person** under **Invitations**.
+1. Select **Invite a person**. It is the one filled button of the page.
 2. Enter the email address of the person, and select **Invite**.
 
 When the server can send mail, the link goes to that address, from the sender
@@ -118,9 +118,10 @@ change the address when they accept. Under **Invitations**, each waiting
 invitation shows when it expires. Select **Revoke** to stop one. A revoked or
 expired link opens nothing, and you can invite the same address again.
 
-## Change an account
+## Accounts
 
-Each account row has a menu. It holds the changes that apply to that account:
+This section lists every account of the installation, with its role, its
+state, its last activity and its storage. Each account row has a menu. It holds the changes that apply to that account:
 
 - **Make administrator** and **Make member** change the role.
 - **Disable** signs the account out on every device and stops the next sign-in.

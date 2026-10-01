@@ -317,6 +317,19 @@ const protectedFiles = {
 } as const;
 
 /**
+ * Every variable that this server reads, each name once.
+ *
+ * The configuration reference of the guide names each one, and
+ * `tests/integration/docs-site.test.ts` holds that page to this list, so a new
+ * variable reaches the documentation in the change that adds it.
+ */
+export const serverVariables: readonly string[] = [
+  ...variables,
+  ...optionalVariables,
+  ...Object.values(protectedFiles),
+];
+
+/**
  * The value of one protected file.
  *
  * A file usually ends with a line break, which is never part of the value. A

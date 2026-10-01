@@ -67,6 +67,7 @@ list, the branch workflow and the commit style.
 | -------------------------- | ---------------------------------------------------- |
 | `apps/web`                 | React web application and PWA                        |
 | `apps/server`              | Fastify API, authentication, and static delivery     |
+| `apps/docs`                | The static documentation site of the guide           |
 | `packages/api-contract`    | OpenAPI source contract and request validators       |
 | `packages/api-client`      | Generated typed client                               |
 | `packages/core`            | Domain rules, revision graph, and version validation |
@@ -96,7 +97,10 @@ pnpm generated:check
 ## Documentation
 
 - [docs/guide/](docs/guide/README.md) is for the people who write notes and the
-  people who run a server.
+  people who run a server. The documentation site at
+  [docs.bhu.sh/notesapp](https://docs.bhu.sh/notesapp/) publishes it with a
+  search, and an agent reads its
+  [llms.txt](https://docs.bhu.sh/notesapp/llms.txt).
 - [docs/development/](docs/development/architecture.md) is for contributors.
 - [docs/README.md](docs/README.md) states what each documentation directory
   holds and how to write a document of that kind.

@@ -7,7 +7,7 @@ import {
   resultSentence,
   resultTitle,
 } from './search-text.ts';
-import { indexAddress } from './search-index.ts';
+import { indexAddress, indexOptions } from './search-index.ts';
 
 await test('an excerpt becomes text and marked text, never markup', () => {
   assert.deepEqual(
@@ -78,4 +78,6 @@ await test('a result names its section when the section is not the page', () => 
 await test('the index sits under the base path of the site', () => {
   assert.equal(indexAddress('/'), '/pagefind/pagefind.js');
   assert.equal(indexAddress('/notesapp/'), '/notesapp/pagefind/pagefind.js');
+  // The index holds the full address of each page, so nothing goes in front.
+  assert.deepEqual(indexOptions, { baseUrl: '/' });
 });

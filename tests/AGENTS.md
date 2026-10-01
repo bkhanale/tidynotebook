@@ -65,3 +65,4 @@ generated operation and checks the server state.
 | `integration/published-write-refusal.test.ts` | Every write, with a published token    |
 | `integration/theme-variables.test.ts`         | The built stylesheet and the palette   |
 | `integration/web-delivery.test.ts`            | The served document and its headers    |
+| `integration/docs-site.test.ts`               | The built documentation site           |

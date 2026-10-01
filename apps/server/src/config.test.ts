@@ -11,6 +11,7 @@ import {
   maxLegalDocumentBytes,
   mebibyte,
   optionalVariables,
+  serverVariables,
   templateBlanks,
 } from './config.ts';
 
@@ -731,4 +732,17 @@ await test('a legal file is read once, and an unfinished one stops the start', a
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+await test('the list of every variable names each one once', () => {
+  assert.equal(new Set(serverVariables).size, serverVariables.length);
+  for (const name of [
+    'NOTESAPP_ORIGIN',
+    'NOTESAPP_AUTH_SECRET',
+    'NOTESAPP_AUTH_SECRET_FILE',
+    'NOTESAPP_SMTP_PASSWORD_FILE',
+    ...optionalVariables,
+  ])
+    assert.ok(serverVariables.includes(name), name);
+  assert.ok(serverVariables.every((name) => /^NOTESAPP_[A-Z_]+$/.test(name)));
 });

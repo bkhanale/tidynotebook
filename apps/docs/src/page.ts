@@ -151,8 +151,9 @@ export const groupClasses = 'm-0 text-control font-medium text-muted';
  *
  * It is the typography of a note on the published page: the note steps, the
  * heading ramp and its tightening, the quote bar and the alert tones. A guide
- * holds more code and more tables than a note, so inline code takes the card
- * fill, and a table scrolls on its own and takes the body text step.
+ * holds more code and more tables than a note, so code takes the fill of the
+ * chrome plane, which differs from the page in light and in dark, and a table
+ * scrolls on its own and takes the body text step.
  */
 export const articleClasses = [
   'text-note',
@@ -172,9 +173,9 @@ export const articleClasses = [
   '[&_blockquote[data-alert=tip]]:border-success',
   '[&_blockquote[data-alert=warning]]:border-danger [&_blockquote[data-alert=caution]]:border-danger',
   '[&_.notes-alert-title]:mb-1 [&_.notes-alert-title]:font-note-heading',
-  '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-card [&_pre]:p-4 [&_pre]:pr-20 [&_pre]:font-mono [&_pre]:text-note-mono [&_pre]:leading-relaxed',
+  '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-surface [&_pre]:p-4 [&_pre]:pr-20 [&_pre]:font-mono [&_pre]:text-note-mono [&_pre]:leading-relaxed',
   '[&_code]:font-mono [&_code]:text-note-mono',
-  '[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:bg-card [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:text-strong',
+  '[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:bg-surface [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:text-strong',
   '[&_hr]:my-8 [&_hr]:border-edge-line',
   '[&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-ui',
   '[&_th]:border [&_th]:border-edge-line [&_th]:bg-surface [&_th]:p-2 [&_th]:text-left [&_th]:align-top [&_th]:font-medium [&_th]:text-strong',

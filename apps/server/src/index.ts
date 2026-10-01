@@ -15,6 +15,7 @@ export {
   loadLegalTexts,
   loadProtectedEnvironment,
   loadServerConfig,
+  serverVariables,
   templateBlanks,
 } from './config.ts';
 export type {

@@ -37,6 +37,8 @@ For the person who writes the notes.
 - [Spelling](spelling.md) - the spell check of the editor, and how to turn it
   off.
 - [Export](export.md) - take every note out as plain Markdown files.
+- [Settings](settings.md) - each section of the Settings page, and where each
+  choice is kept.
 
 ## Hosting a server
 
@@ -45,6 +47,8 @@ For the person who runs the server.
 - [Quick start](quickstart.md) - the shortest path from a clone to the setup
   screen on your own machine.
 - [Self-hosting](self-hosting.md) - the production installation.
+- [Configuration reference](configuration.md) - every setting of the server
+  and of its Compose file.
 - [Backup and restore](backup-and-restore.md) - encrypted backups, and the
   restore test that makes them evidence.
 - [Upgrade](upgrade.md) - move to a new build and go back safely.

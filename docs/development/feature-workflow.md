@@ -28,6 +28,7 @@ An architectural choice needs a decision record first. See
 | Editor decoration, widget, command      | `packages/editor`          |
 | The generator or the contract check     | `tools/sdk-codegen`        |
 | A real database or a served result test | `tests`                    |
+| A guide page or the documentation site  | `docs/guide`, `apps/docs`  |
 
 ## a. The contract first
 
