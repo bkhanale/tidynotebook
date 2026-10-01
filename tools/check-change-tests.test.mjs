@@ -197,9 +197,10 @@ await test('the hook blocks one stop and gives way on the next', (t) => {
   write(directory, 'packages/ui/src/icons.tsx', 'export {};\n');
   const first = check(directory, ['--hook'], '{"stop_hook_active":false}');
   assert.equal(first.status, 0);
+  /** @type {unknown} */
   const answer = JSON.parse(first.stdout);
-  assert.equal(answer.decision, 'block');
-  assert.match(answer.reason, /packages\/ui/);
+  assert.equal(Reflect.get(Object(answer), 'decision'), 'block');
+  assert.match(String(Reflect.get(Object(answer), 'reason')), /packages\/ui/);
   const second = check(directory, ['--hook'], '{"stop_hook_active":true}');
   assert.equal(second.status, 0);
   assert.equal(second.stdout, '');

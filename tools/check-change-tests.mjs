@@ -293,10 +293,9 @@ export function main(directory, options = {}) {
  */
 function stopHookActive() {
   try {
+    /** @type {unknown} */
     const input = JSON.parse(readFileSync(0, 'utf8'));
-    return input !== null && typeof input === 'object'
-      ? input.stop_hook_active === true
-      : false;
+    return Reflect.get(Object(input), 'stop_hook_active') === true;
   } catch {
     return false;
   }
