@@ -177,6 +177,7 @@ and needs no record.
 | [0143](0143-a-person-imports-a-theme-that-the-account-keeps.md)                       | A person imports a theme that the account keeps                                 |
 | [0144](0144-the-store-sends-its-feed-hints-after-its-commit.md)                       | The store sends its feed hints after its commit                                 |
 | [0145](0145-a-click-on-a-picture-opens-the-image-viewer.md)                           | A click on a picture opens the image viewer                                     |
+| [0146](0146-a-closed-link-page-says-what-to-do-next.md)                               | A closed link page says what to do next                                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -578,3 +579,7 @@ Every other writer keeps the trigger. It refines record 0125.
 Record 0145 makes a picture of the note a button that opens the image
 viewer, where a person zooms, downloads and copies it. A click beside the
 picture still opens its source. It refines record 0002.
+
+Record 0146 lets the page of a link that opens nothing and the page of a
+link that asks for a password say what the reader can do next, in one more
+sentence that is the same for every cause. It refines record 0047.

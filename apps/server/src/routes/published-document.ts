@@ -3,8 +3,9 @@
  *
  * Decision 0031 makes the published page one HTML document that the server
  * builds, and decision 0047 makes it the answer for every state of a link: the
- * note, the list of a folder, the password form, or the one sentence that says
- * the link is not available. This module writes that document and nothing
+ * note, the list of a folder, the password form, or the sentence that says the
+ * link is not available. Record 0146 adds the one sentence under it that says
+ * what to do next. This module writes that document and nothing
  * else. It reads no store, it resolves no address, and it holds no rule about
  * what a link opens, so a unit test drives every state of it.
  *
@@ -118,13 +119,17 @@ export const lockedSentence = 'This link needs a password.';
 /**
  * The words under the heading of a link that opens nothing.
  *
- * They are the same for each of the four causes of decision 0030, so they
- * tell a reader what to do next and nothing about why the link failed.
+ * Record 0146 allows this one more sentence. It is the same for each of the
+ * four causes of decision 0030, so it tells a reader what to do next and
+ * nothing about why the link failed.
  */
 export const unavailableHint =
   'Ask the person who sent you the link for a new one.';
 
-/** The words under the heading of a link that asks for a password. */
+/**
+ * The words under the heading of a link that asks for a password. A wrong
+ * password answers them again, unchanged (record 0146).
+ */
 export const lockedHint = 'Enter the password that you got with the link.';
 
 /** The words of the empty list of a folder link. */

@@ -16,7 +16,7 @@ authentication routes on one origin, and it holds no domain rule.
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns one
   handler per operation id and the body lives in its area file. `published.ts` is the
   reader path of a published link and its report (0119), `published-document.ts`
-  writes its one document (0031, 0047), and `publications.ts` holds the owner
+  writes its one document (0031, 0047, 0146), and `publications.ts` holds the owner
   operations. `sync-notices.ts` serves the upgrade address of the notice
   stream and checks its origin (0128, 0129). `legal.ts` serves the terms and
   the privacy notice that the operator writes, and `legal-document.ts` writes
