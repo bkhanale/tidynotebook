@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   clampZoom,
+  closesOnRelease,
   fitZoom,
   imageActionLabels,
   imageActions,
@@ -135,4 +136,13 @@ await test('the steps run from the smallest zoom to the largest', () => {
     steps,
     [...steps].sort((left, right) => left - right),
   );
+});
+
+await test('a tap on the scrim closes the viewer and a drag does not', () => {
+  assert.equal(closesOnRelease({ onScrim: true, dx: 0, dy: 0 }), true);
+  assert.equal(closesOnRelease({ onScrim: true, dx: 2, dy: 2 }), true);
+  // A drag that starts on the scrim moves a zoomed picture.
+  assert.equal(closesOnRelease({ onScrim: true, dx: 30, dy: 0 }), false);
+  // A press on the picture never closes it.
+  assert.equal(closesOnRelease({ onScrim: false, dx: 0, dy: 0 }), false);
 });

@@ -22,11 +22,12 @@ import { transitionRaise } from './motion.ts';
 /**
  * How wide a dialog panel is.
  *
- * `full` takes the whole height of the screen and a wide measure, for content
- * that a person looks at rather than reads, such as a picture in the image
- * viewer (record 0145). Its body then fills the room under the title.
+ * `screen` is no panel at all: the content fills the screen over a deeper
+ * scrim, with no fill, edge or radius of its own. It is for content that a
+ * person looks at rather than reads, such as a picture in the image viewer
+ * (record 0145), and that content draws its own raised controls.
  */
-export type DialogWidth = 'small' | 'medium' | 'large' | 'full';
+export type DialogWidth = 'small' | 'medium' | 'large' | 'screen';
 
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -144,20 +145,25 @@ export function Dialog({
 
   if (!open) return null;
 
+  const screen = width === 'screen';
   const measure =
     width === 'small'
       ? 'max-w-md'
       : width === 'large'
         ? 'max-w-3xl'
-        : width === 'full'
-          ? 'flex h-full max-w-6xl flex-col'
-          : 'max-w-xl';
+        : 'max-w-xl';
   const position =
     align === 'center' ? 'items-center py-6' : 'items-start pb-6 pt-20';
+  const root = screen
+    ? 'bg-scrim/80'
+    : `overflow-y-auto bg-scrim/40 px-gutter ${position}`;
+  const panel = screen
+    ? 'relative h-full w-full text-ink outline-none'
+    : `w-full ${measure} overflow-hidden rounded-xl border border-edge-subtle bg-card text-ink shadow-modal outline-none`;
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-scrim/40 px-gutter ${position} ${transitionRaise}`}
+      className={`fixed inset-0 z-50 flex justify-center ${root} ${transitionRaise}`}
       data-notes-dialog-root=""
       role="presentation"
       onMouseDown={(event): void => {
@@ -166,7 +172,7 @@ export function Dialog({
     >
       <div
         ref={panelRef}
-        className={`w-full ${measure} overflow-hidden rounded-xl border border-edge-subtle bg-card text-ink shadow-modal outline-none ${transitionRaise}`}
+        className={`${panel} ${transitionRaise}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -175,7 +181,7 @@ export function Dialog({
       >
         <h2
           className={
-            hideTitle
+            hideTitle || screen
               ? 'sr-only'
               : 'm-0 px-5 pb-1 pt-4 text-ui font-semibold text-strong'
           }

@@ -174,3 +174,21 @@ export function imageDownloadName(destination: string, alt: string): string {
     .replace(/^\.+/, '');
   return safe === '' ? 'image' : safe;
 }
+
+/** How far a press travels before it is a drag and no longer a tap. */
+export const tapDistance = 4;
+
+/**
+ * Whether the release of one press closes the viewer.
+ *
+ * A tap on the scrim beside the picture closes it, as most viewers do. A
+ * press that starts on the picture, or one that travels, is a drag of the
+ * picture and keeps the viewer open.
+ */
+export function closesOnRelease(press: {
+  readonly onScrim: boolean;
+  readonly dx: number;
+  readonly dy: number;
+}): boolean {
+  return press.onScrim && Math.hypot(press.dx, press.dy) < tapDistance;
+}

@@ -130,9 +130,9 @@ the one list that the row and the command palette read.
 - A loading state is the placeholder in `packages/ui/src/loading.tsx`.
 - A toast is `Toast` in `packages/ui`, a raised surface at the bottom of the
   screen with one sentence and one action.
-- A menu and a dialog are raised surfaces from `packages/ui`. A dialog title is
-  `text-ui font-semibold`, its footer aligns its buttons to the end, Cancel is
-  `ghost` and the confirming action is `primary` or `danger`.
+- A menu and a dialog are raised surfaces of `packages/ui`, but the image
+  viewer is a picture on the scrim (0145). A dialog title is `text-ui`, Cancel
+  is `ghost`, and the confirming action at the end is `primary` or `danger`.
 
 ## Copy
 

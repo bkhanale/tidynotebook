@@ -25,10 +25,13 @@ through the `onOpenImage` resolver, so the editor still renders no control of
 A click on the widget beside the picture puts the caret at its source, as
 before. An arrow key still opens the source as record 0002 states.
 
-The viewer is one `Dialog` of `packages/ui`. It fits the picture to the
-screen, and it zooms with its buttons, with the `+`, `-` and `0` keys, and
-with Ctrl or Cmd and the wheel. `apps/web/src/lib/image-viewer.ts` holds the
-zoom steps, the fit, the actions and the download name.
+The viewer is one `Dialog` of `packages/ui` at the `screen` width: the
+picture stands on a deeper scrim with no panel, and one raised bar of tools
+floats over it. A tap on the scrim beside the picture closes it, as Escape
+and Close do. The viewer fits the picture to the screen, and it zooms with
+its buttons, with the `+`, `-` and `0` keys, and with Ctrl or Cmd and the
+wheel. `apps/web/src/lib/image-viewer.ts` holds the zoom steps, the fit, the
+tap rule, the actions and the download name.
 
 - A picture of the workspace offers Copy image and Download. Download saves
   the bytes of the blob address. Copy draws the picture into a canvas and

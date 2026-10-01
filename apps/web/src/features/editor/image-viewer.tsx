@@ -2,7 +2,10 @@
  * The image viewer of a note (record 0145).
  *
  * A press on a picture of the note opens it here, in the one dialog of
- * `@notesapp/ui`. The picture fits the screen first. The zoom buttons, the
+ * `@notesapp/ui`. The picture stands on the scrim with no panel around it,
+ * and one raised bar of tools floats over it, so the picture takes the whole
+ * screen. A press on the scrim beside the picture closes the viewer, as
+ * Escape and Close do. The picture fits the screen first. The zoom buttons, the
  * `+`, `-` and `0` keys, and the wheel with Ctrl or Cmd held zoom it, and a
  * drag with the mouse moves a zoomed picture. The actions are the ones the
  * page can do with that picture: a picture of the workspace is copied and
@@ -34,6 +37,7 @@ import {
   ZoomOutIcon,
 } from '@notesapp/ui';
 import {
+  closesOnRelease,
   fitZoom,
   imageActionLabels,
   imageActionMessages,
@@ -61,18 +65,15 @@ export function ImageViewer({
   readonly onClose: () => void;
 }): ReactNode {
   const titleId = useId();
-  // The viewer draws its own title row, so the name of the picture and Close
-  // share one line at every width. The dialog keeps the heading for
-  // assistive software.
+  // The dialog keeps the heading for assistive software, and the bar of tools
+  // shows the name of the picture where the screen has room for it.
   return (
     <Dialog
       open={image !== null}
       onClose={onClose}
       title={imageTitle(image?.alt ?? '')}
       titleId={titleId}
-      hideTitle
-      width="full"
-      align="center"
+      width="screen"
     >
       {image === null ? null : (
         <ImageViewerBody key={image.url} image={image} onClose={onClose} />
@@ -87,13 +88,17 @@ type Zoom =
 
 const fit: Zoom = { kind: 'fit' };
 
-/** Where one drag of a zoomed picture started. */
-type DragStart = {
+/** Where one press on the room of the picture started. */
+type PressStart = {
   readonly pointerId: number;
   readonly x: number;
   readonly y: number;
   readonly left: number;
   readonly top: number;
+  /** True when the press drags a zoomed picture. */
+  readonly pan: boolean;
+  /** True when the press started on the scrim and not on the picture. */
+  readonly onScrim: boolean;
 };
 
 /** Encodes the shown picture as one PNG, the one type a clipboard takes. */
@@ -159,7 +164,7 @@ function ImageViewerBody({
 }): ReactNode {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pictureRef = useRef<HTMLImageElement | null>(null);
-  const dragRef = useRef<DragStart | null>(null);
+  const pressRef = useRef<PressStart | null>(null);
   const [natural, setNatural] = useState<ImageSize | null>(null);
   const [room, setRoom] = useState<ImageSize>({ width: 0, height: 0 });
   const [zoom, setZoom] = useState<Zoom>(fit);
@@ -223,31 +228,52 @@ function ImageViewerBody({
     else zoomTo(step === 'in' ? zoomIn(scale) : zoomOut(scale));
   };
 
+  // A press with the mouse drags a zoomed picture. A press on the scrim that
+  // does not travel is a tap, and a tap on the scrim closes the viewer.
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     const scroller = scrollerRef.current;
-    if (scroller === null || !overflows) return;
-    if (event.pointerType === 'touch' || event.button !== 0) return;
-    event.preventDefault();
-    scroller.setPointerCapture(event.pointerId);
-    dragRef.current = {
+    if (scroller === null || event.button !== 0) return;
+    const pan = overflows && event.pointerType !== 'touch';
+    if (pan) {
+      event.preventDefault();
+      scroller.setPointerCapture(event.pointerId);
+    }
+    pressRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
       left: scroller.scrollLeft,
       top: scroller.scrollTop,
+      pan,
+      onScrim: event.target === event.currentTarget,
     };
   };
 
   const onPointerMove = (event: PointerEvent<HTMLDivElement>): void => {
     const scroller = scrollerRef.current;
-    const start = dragRef.current;
+    const start = pressRef.current;
     if (scroller === null || start?.pointerId !== event.pointerId) return;
+    if (!start.pan) return;
     scroller.scrollLeft = start.left - (event.clientX - start.x);
     scroller.scrollTop = start.top - (event.clientY - start.y);
   };
 
-  const endDrag = (): void => {
-    dragRef.current = null;
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>): void => {
+    const start = pressRef.current;
+    pressRef.current = null;
+    if (start?.pointerId !== event.pointerId) return;
+    if (
+      closesOnRelease({
+        onScrim: start.onScrim,
+        dx: event.clientX - start.x,
+        dy: event.clientY - start.y,
+      })
+    )
+      onClose();
+  };
+
+  const endPress = (): void => {
+    pressRef.current = null;
   };
 
   const run = (action: ImageAction): void => {
@@ -282,115 +308,19 @@ function ImageViewerBody({
   const idle = failed || natural === null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKeyDown}>
-      <div className="flex items-center gap-cluster pe-3 ps-5 pt-2">
-        <p
-          className="m-0 min-w-0 flex-1 truncate text-ui font-semibold text-strong"
-          aria-hidden="true"
-        >
-          {imageTitle(image.alt)}
-        </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          label="Close"
-          icon={<CloseIcon />}
-          onClick={onClose}
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-cluster px-5 pb-3">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Zoom out"
-            icon={<ZoomOutIcon />}
-            disabled={idle || scale <= zoomLimits.min}
-            onClick={() => {
-              zoomTo(zoomOut(scale));
-            }}
-          />
-          <span className="w-12 text-center text-control tabular-nums text-muted">
-            {idle ? '' : zoomPercent(scale)}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Zoom in"
-            icon={<ZoomInIcon />}
-            disabled={idle || scale >= zoomLimits.max}
-            onClick={() => {
-              zoomTo(zoomIn(scale));
-            }}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={idle || zoom.kind === 'fit'}
-            onClick={() => {
-              setZoom(fit);
-            }}
-          >
-            Fit
-          </Button>
-        </div>
-        <p
-          className="m-0 min-w-0 flex-1 truncate text-control text-muted"
-          role="status"
-        >
-          {status}
-        </p>
-        <div className="flex items-center gap-cluster">
-          {imageActions(image.external).map((action) =>
-            action === 'open' ? (
-              <a
-                key={action}
-                className={buttonClassName({
-                  variant: 'secondary',
-                  size: 'sm',
-                })}
-                href={image.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                referrerPolicy="no-referrer"
-              >
-                <span
-                  className="inline-flex items-center justify-center"
-                  aria-hidden="true"
-                >
-                  {actionIcon(action)}
-                </span>
-                <span>{imageActionLabels[action]}</span>
-              </a>
-            ) : (
-              <Button
-                key={action}
-                variant="secondary"
-                size="sm"
-                icon={actionIcon(action)}
-                disabled={action === 'copy-image' ? idle : failed}
-                onClick={() => {
-                  run(action);
-                }}
-              >
-                {imageActionLabels[action]}
-              </Button>
-            ),
-          )}
-        </div>
-      </div>
+    <div className="relative h-full w-full" onKeyDown={onKeyDown}>
       <div
         ref={scrollerRef}
-        className={`flex min-h-0 flex-1 overflow-auto overscroll-contain bg-app p-4 ${overflows ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className={`flex h-full w-full overflow-auto overscroll-contain p-6 ${overflows ? 'cursor-grab active:cursor-grabbing' : ''}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerUp={onPointerUp}
+        onPointerCancel={endPress}
       >
         {failed ? null : (
           <img
             ref={pictureRef}
-            className={`m-auto max-w-none select-none ${size === null ? 'invisible' : ''}`}
+            className={`m-auto max-w-none shrink-0 select-none ${size === null ? 'invisible' : ''}`}
             src={image.url}
             alt={image.alt}
             width={size?.width}
@@ -408,6 +338,97 @@ function ImageViewerBody({
               setFailed(true);
             }}
           />
+        )}
+      </div>
+      {/*
+        The one bar of tools floats over the picture. It is a raised surface,
+        so it reads on a light picture and on a dark one alike.
+      */}
+      <div className="absolute inset-x-3 top-3 mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-lg border border-edge-subtle bg-card p-1 text-strong shadow-overlay">
+        <p className="m-0 hidden max-w-xs truncate px-2 text-control font-medium md:block">
+          {imageTitle(image.alt)}
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Zoom out"
+          icon={<ZoomOutIcon />}
+          disabled={idle || scale <= zoomLimits.min}
+          onClick={() => {
+            zoomTo(zoomOut(scale));
+          }}
+        />
+        <span className="w-12 text-center text-control tabular-nums text-muted">
+          {idle ? '' : zoomPercent(scale)}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Zoom in"
+          icon={<ZoomInIcon />}
+          disabled={idle || scale >= zoomLimits.max}
+          onClick={() => {
+            zoomTo(zoomIn(scale));
+          }}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={idle || zoom.kind === 'fit'}
+          onClick={() => {
+            setZoom(fit);
+          }}
+        >
+          Fit
+        </Button>
+        {imageActions(image.external).map((action) =>
+          action === 'open' ? (
+            <a
+              key={action}
+              className={buttonClassName({
+                variant: 'ghost',
+                size: 'sm',
+                iconOnly: true,
+              })}
+              href={image.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              referrerPolicy="no-referrer"
+              aria-label={imageActionLabels[action]}
+              title={imageActionLabels[action]}
+            >
+              {actionIcon(action)}
+            </a>
+          ) : (
+            <Button
+              key={action}
+              variant="ghost"
+              size="sm"
+              label={imageActionLabels[action]}
+              icon={actionIcon(action)}
+              disabled={action === 'copy-image' ? idle : failed}
+              onClick={() => {
+                run(action);
+              }}
+            />
+          ),
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Close"
+          icon={<CloseIcon />}
+          onClick={onClose}
+        />
+      </div>
+      <div
+        className="pointer-events-none absolute inset-x-3 bottom-4 flex justify-center"
+        role="status"
+      >
+        {status === '' ? null : (
+          <p className="m-0 rounded-lg border border-edge-subtle bg-card px-3 py-2 text-control text-strong shadow-overlay">
+            {status}
+          </p>
         )}
       </div>
     </div>

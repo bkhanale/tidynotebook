@@ -146,7 +146,8 @@ To add an image, paste it, drag the file onto the editor, or use **Attach
 image** in the note menu. The editor uploads it and writes the Markdown for
 you. Only images are accepted, and an upload needs a connection.
 
-Click an image to open it at full size. Use the zoom buttons, the `+`, `-`
+Click an image to open it at full size over the darkened page. To close it,
+click outside the image, press Escape, or use the close button. Use the zoom buttons, the `+`, `-`
 and `0` keys, or the mouse wheel with Ctrl or Cmd held to zoom. When you zoom
 in, drag the image to move it. An image from this note has **Copy image** and
 **Download**. An image from another site has **Copy link** and **Open
