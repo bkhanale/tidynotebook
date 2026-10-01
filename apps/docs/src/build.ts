@@ -151,51 +151,56 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
   const script = await compileClient(input.output);
   const assets = await copyAssets(input, script);
 
-  const created = await pagefind.createIndex({ forceLanguage: 'en' });
-  if (created.index === undefined)
-    throw new Error(`Pagefind did not start: ${created.errors.join(' ')}`);
-  const search = created.index;
+  // The Node API of Pagefind runs a service process, so it stops on every
+  // path out of the index, or a failed build would never end.
   let indexed = 0;
-  for (const [at, page] of pages.entries()) {
-    const html = await renderMarkdown(joinSoftBreaks(page.source), {
-      sourcePath: `${guideFolder}/${page.file}`,
-      noteHref: (target) => htmlDestination(settings, files, target),
-    });
-    const markdown = markdownCopy(settings, files, page);
-    const document = pageDocument({
-      settings,
-      assets,
-      groups,
-      page,
-      group: groupOf.get(page.file) ?? null,
-      html,
-      markdown,
-      previous: linkOf(pages[at - 1]),
-      next: linkOf(pages[at + 1]),
-    });
-    const folder =
-      page.slug === '' ? input.output : join(input.output, page.slug);
-    await write(join(folder, 'index.html'), document);
-    await write(
-      join(input.output, `${page.slug === '' ? 'index' : page.slug}.md`),
-      markdown,
-    );
-    const added = await search.addHTMLFile({
-      url: pageHref(settings, page.slug),
-      content: document,
-    });
-    if (added.errors.length > 0)
-      throw new Error(
-        `Pagefind refused ${page.file}: ${added.errors.join(' ')}`,
+  try {
+    const created = await pagefind.createIndex({ forceLanguage: 'en' });
+    if (created.index === undefined)
+      throw new Error(`Pagefind did not start: ${created.errors.join(' ')}`);
+    const search = created.index;
+    for (const [at, page] of pages.entries()) {
+      const html = await renderMarkdown(joinSoftBreaks(page.source), {
+        sourcePath: `${guideFolder}/${page.file}`,
+        noteHref: (target) => htmlDestination(settings, files, target),
+      });
+      const markdown = markdownCopy(settings, files, page);
+      const document = pageDocument({
+        settings,
+        assets,
+        groups,
+        page,
+        group: groupOf.get(page.file) ?? null,
+        html,
+        markdown,
+        previous: linkOf(pages[at - 1]),
+        next: linkOf(pages[at + 1]),
+      });
+      const folder =
+        page.slug === '' ? input.output : join(input.output, page.slug);
+      await write(join(folder, 'index.html'), document);
+      await write(
+        join(input.output, `${page.slug === '' ? 'index' : page.slug}.md`),
+        markdown,
       );
-    indexed += 1;
+      const added = await search.addHTMLFile({
+        url: pageHref(settings, page.slug),
+        content: document,
+      });
+      if (added.errors.length > 0)
+        throw new Error(
+          `Pagefind refused ${page.file}: ${added.errors.join(' ')}`,
+        );
+      indexed += 1;
+    }
+    const written = await search.writeFiles({
+      outputPath: join(input.output, 'pagefind'),
+    });
+    if (written.errors.length > 0)
+      throw new Error(`Pagefind did not write: ${written.errors.join(' ')}`);
+  } finally {
+    await pagefind.close();
   }
-  const written = await search.writeFiles({
-    outputPath: join(input.output, 'pagefind'),
-  });
-  if (written.errors.length > 0)
-    throw new Error(`Pagefind did not write: ${written.errors.join(' ')}`);
-  await pagefind.close();
 
   const home = pages[0];
   if (home === undefined) throw new Error('The guide holds no index page.');

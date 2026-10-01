@@ -261,9 +261,17 @@ function copyPage(): void {
   const source = document.querySelector('[data-docs-markdown]');
   if (control === null || !(source instanceof HTMLTemplateElement)) return;
   control.addEventListener('click', () => {
-    void navigator.clipboard.writeText(source.content.textContent).then(() => {
-      confirmCopy(control);
-    });
+    void navigator.clipboard
+      .writeText(source.content.textContent)
+      .then(() => {
+        confirmCopy(control);
+      })
+      .catch(() => {
+        // A page with no clipboard, such as one over plain HTTP, opens the
+        // Markdown copy instead.
+        const link = document.querySelector('link[type="text/markdown"]');
+        if (link instanceof HTMLLinkElement) window.location.assign(link.href);
+      });
   });
 }
 
@@ -283,6 +291,11 @@ function copyCode(): void {
         .writeText((block.textContent ?? '').replace(/\n$/, ''))
         .then(() => {
           confirmCopy(control);
+        })
+        .catch(() => {
+          // A page with no clipboard selects the code instead, so the person
+          // copies it with the keyboard.
+          window.getSelection()?.selectAllChildren(block);
         });
     });
   }
