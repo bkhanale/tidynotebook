@@ -25,7 +25,7 @@
  * script takes no backup of the database or of the stored files.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { request } from 'node:http';
 import { join, sep } from 'node:path';
 import process from 'node:process';
@@ -204,7 +204,7 @@ function commitsOutsideMain(reference, cwd) {
  *
  * A file with the `skip-worktree` or the `assume-unchanged` flag keeps its
  * changes out of `git status`. Such a file counts when it is on the disk and
- * its content differs from the index. A sparse checkout leaves a file of
+ * its content, its executable bit or its kind differs from the index. A sparse checkout leaves a file of
  * this kind off the disk, and then nothing of it is lost.
  *
  * @param {string} path
@@ -212,15 +212,25 @@ function commitsOutsideMain(reference, cwd) {
 function hiddenChanges(path) {
   return must('git', ['ls-files', '-v', '-s', '-z'], path)
     .split('\0')
-    .map((entry) => /^(\S) \d+ ([0-9a-f]+) \d+\t(.*)$/s.exec(entry))
+    .map((entry) => /^(\S) (\d+) ([0-9a-f]+) \d+\t(.*)$/s.exec(entry))
     .filter((match) => match !== null)
     .filter(([, tag = '']) => tag === 'S' || /^[a-z]$/.test(tag))
-    .filter(([, , blob = '', file = '']) => {
+    .filter(([, , mode = '', blob = '', file = '']) => {
       const absolute = join(path, file);
       if (!existsSync(absolute)) return false;
-      return must('git', ['hash-object', '--', absolute], path) !== blob;
+      const stat = lstatSync(absolute);
+      const diskMode = stat.isSymbolicLink()
+        ? '120000'
+        : (stat.mode & 0o111) !== 0
+          ? '100755'
+          : '100644';
+      if (diskMode !== mode) return true;
+      const content = stat.isSymbolicLink()
+        ? must('git', ['hash-object', '--stdin'], path, readlinkSync(absolute))
+        : must('git', ['hash-object', '--', absolute], path);
+      return content !== blob;
     })
-    .map(([, , , file = '']) => file);
+    .map(([, , , , file = '']) => file);
 }
 
 /**
@@ -649,6 +659,22 @@ function stopApplication(checkout) {
   try {
     process.kill(pid, 0);
   } catch {
+    return;
+  }
+  // A process that ended leaves its file behind, and the system can give its
+  // number to another program. The process counts as the application only
+  // when it runs tools/dev-app.mjs in this checkout.
+  const command = run('ps', ['-o', 'args=', '-p', String(pid)], checkout);
+  let directory = checkout;
+  try {
+    directory = readlinkSync(`/proc/${pid}/cwd`);
+  } catch {
+    // A system with no /proc shows no directory, so the command decides.
+  }
+  if (!command.stdout.includes('tools/dev-app.mjs') || directory !== checkout) {
+    process.stdout.write(
+      `left      process ${pid}, because it is not the application of ${checkout}\n`,
+    );
     return;
   }
   if (existsSync(join(checkout, appScript))) {
