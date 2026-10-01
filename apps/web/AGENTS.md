@@ -100,6 +100,9 @@ on each rule below.
 | `src/lib/format-toolbar.ts`                   | The formatting tools and rows     |
 | `src/features/daily-notes/daily-notes.tsx`    | The one way to open a date (0099) |
 | `src/lib/daily-note.ts`                       | The daily note rules of a device  |
+| `src/features/templates/templates.tsx`        | The template folder (0149)        |
+| `src/lib/templates.ts`                        | The template rules of a device    |
+| `src/shell/member-settings.ts`                | The one hook of a member setting  |
 | `vite.config.ts`                              | Build, theme, icons, worker       |
 | `src/pwa/icons.ts`                            | The one list of the icons         |
 | `icons/`                                      | The icon files the build names    |

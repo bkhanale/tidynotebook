@@ -25,6 +25,8 @@ For the person who writes the notes.
 - [Working offline](offline.md) - what you can do with no connection.
 - [Daily notes](daily-notes.md) - one note for each day, a template, and the
   calendar in the sidebar.
+- [Templates](templates.md) - copy a note that you keep as a template into
+  another note, with the date and the time filled in.
 - [Trash](trash.md) - how a deleted note comes back.
 - [Published links](published-links.md) - show one note, or one folder, to a
   person who has no account.
