@@ -340,6 +340,9 @@ change.
 The server does not start when a value is missing or not valid. The message
 names the value and never shows the password.
 
+A mail relay with no sign-in has no user name and no password. Use the URL
+form below for it, for example `smtp://relay.internal:25`.
+
 An installation that names its mail server as one SMTP URL can keep it. Write
 the URL to the file `smtp_url` in `NOTESAPP_SECRETS_DIR`, and use
 `docker/compose.mail-url.yaml` in place of `docker/compose.mail.yaml`. In the

@@ -223,6 +223,21 @@ await test('the mail password can come from a protected file', async () => {
     assert.equal(config.mail?.kind, 'fields');
     if (config.mail?.kind !== 'fields') return;
     assert.equal(config.mail.fields.password, 'p@ss:w/rd?#%');
+    // A space at either end of a password is part of it, as in the variable.
+    await writeFile(path, ' spaced pass \n');
+    const spaced = loadServerConfig(
+      await loadProtectedEnvironment(
+        environment({
+          ...mailFields,
+          NOTESAPP_SMTP_PASSWORD: undefined,
+          NOTESAPP_SMTP_PASSWORD_FILE: path,
+        }),
+      ),
+    );
+    assert.equal(
+      spaced.mail?.kind === 'fields' ? spaced.mail.fields.password : null,
+      ' spaced pass ',
+    );
     await assert.rejects(
       loadProtectedEnvironment(
         environment({ ...mailFields, NOTESAPP_SMTP_PASSWORD_FILE: path }),

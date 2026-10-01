@@ -316,6 +316,20 @@ const protectedFiles = {
   NOTESAPP_SMTP_PASSWORD: 'NOTESAPP_SMTP_PASSWORD_FILE',
 } as const;
 
+/**
+ * The value of one protected file.
+ *
+ * A file usually ends with a line break, which is never part of the value. A
+ * password can start or end with a space, so its file loses the final line
+ * break alone and reads as the variable reads. Every other value is a URL or
+ * a secret that holds no space, so it loses the space around it.
+ */
+function protectedValue(name: string, text: string): string {
+  return name === 'NOTESAPP_SMTP_PASSWORD'
+    ? text.replace(/\r?\n$/, '')
+    : text.trim();
+}
+
 type RawConfig = Record<(typeof variables)[number], string> &
   Partial<Record<(typeof optionalVariables)[number], string>>;
 
@@ -339,7 +353,7 @@ export async function loadProtectedEnvironment(
     if (path === undefined || path === '') continue;
     let value: string;
     try {
-      value = (await readFile(path, 'utf8')).trim();
+      value = protectedValue(valueName, await readFile(path, 'utf8'));
     } catch {
       throw new ConfigError([
         `${fileName}: the protected file cannot be read.`,
