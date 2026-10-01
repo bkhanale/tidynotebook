@@ -20,10 +20,14 @@ import {
   maxProofDifficulty,
   minProofDifficulty,
   legalDocumentNames,
+  mailSecurities,
+  readMailSettings,
   maxLegalTextBytes,
   templateBlanks,
   type LegalDocumentName,
   type LegalDocuments,
+  type MailSettingsProblem,
+  type StoredMailSettings,
 } from '@notesapp/core';
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
@@ -46,13 +50,30 @@ function isLogLevel(value: string): value is LogLevel {
   return logLevels.some((level) => level === value);
 }
 
-/** The mail transport that password recovery uses, when one is configured. */
-export type MailConfig = {
-  /** SMTP URL of the transport, for example `smtps://user:secret@host:465`. */
-  readonly smtpUrl: string;
-  /** Address that a recovery message is sent from. */
-  readonly from: string;
+/** The mail server as separate fields, with the password open. */
+export type MailFields = Omit<StoredMailSettings, 'passwordSealed'> & {
+  readonly password: string | null;
 };
+
+/**
+ * The mail transport that the environment names, when it names one.
+ *
+ * An operator names it as one SMTP URL or as separate fields, and never as
+ * both (record 0150). The fields need no percent encoding, so a user name or
+ * a password with a reserved character reaches the mail server as written.
+ */
+export type MailConfig =
+  | {
+      readonly kind: 'url';
+      /** SMTP URL of the transport, for example `smtps://user:secret@host:465`. */
+      readonly smtpUrl: string;
+      /** Address that a message is sent from. */
+      readonly from: string;
+    }
+  | {
+      readonly kind: 'fields';
+      readonly fields: MailFields;
+    };
 
 /** Validated server configuration. */
 export type ServerConfig = {
@@ -262,6 +283,11 @@ export const optionalVariables = [
   'NOTESAPP_PORT',
   'NOTESAPP_TRUSTED_PROXIES',
   'NOTESAPP_SMTP_URL',
+  'NOTESAPP_SMTP_HOST',
+  'NOTESAPP_SMTP_PORT',
+  'NOTESAPP_SMTP_SECURITY',
+  'NOTESAPP_SMTP_USERNAME',
+  'NOTESAPP_SMTP_PASSWORD',
   'NOTESAPP_MAIL_FROM',
   'NOTESAPP_SESSION_MAX_AGE_S',
   'NOTESAPP_RATE_LIMIT_WINDOW_S',
@@ -287,6 +313,7 @@ const protectedFiles = {
   NOTESAPP_AUTH_DATABASE_URL: 'NOTESAPP_AUTH_DATABASE_URL_FILE',
   NOTESAPP_AUTH_SECRET: 'NOTESAPP_AUTH_SECRET_FILE',
   NOTESAPP_SMTP_URL: 'NOTESAPP_SMTP_URL_FILE',
+  NOTESAPP_SMTP_PASSWORD: 'NOTESAPP_SMTP_PASSWORD_FILE',
 } as const;
 
 type RawConfig = Record<(typeof variables)[number], string> &
@@ -446,6 +473,11 @@ const configSchema: SchemaObject = {
       pattern: '^smtps?://',
       maxLength: 1024,
     },
+    NOTESAPP_SMTP_HOST: { type: 'string', maxLength: 255 },
+    NOTESAPP_SMTP_PORT: positiveInteger,
+    NOTESAPP_SMTP_SECURITY: { type: 'string', enum: [...mailSecurities] },
+    NOTESAPP_SMTP_USERNAME: { type: 'string', maxLength: 320 },
+    NOTESAPP_SMTP_PASSWORD: { type: 'string', maxLength: 1024 },
     NOTESAPP_MAIL_FROM: { type: 'string', minLength: 3, maxLength: 320 },
     NOTESAPP_SESSION_MAX_AGE_S: positiveInteger,
     NOTESAPP_RATE_LIMIT_WINDOW_S: positiveInteger,
@@ -501,13 +533,8 @@ export function loadServerConfig(
         (issue) => `${issue.path}: ${issue.message}`,
       ),
     );
-  const mail =
-    raw.NOTESAPP_SMTP_URL === undefined
-      ? null
-      : {
-          smtpUrl: raw.NOTESAPP_SMTP_URL,
-          from: raw.NOTESAPP_MAIL_FROM ?? '',
-        };
+  const mail = readMail(raw);
+  if (!mail.ok) throw new ConfigError(mail.issues);
   const served = readServedOrigins(
     raw.NOTESAPP_ORIGIN,
     raw.NOTESAPP_ADDITIONAL_ORIGINS,
@@ -552,10 +579,6 @@ export function loadServerConfig(
   if (shutdown.deadlineMs <= shutdown.gracePeriodMs)
     partial.push(
       'NOTESAPP_SHUTDOWN_DEADLINE_MS: the stop deadline must be longer than NOTESAPP_SHUTDOWN_GRACE_MS.',
-    );
-  if (mail !== null && mail.from === '')
-    partial.push(
-      'NOTESAPP_MAIL_FROM: a mail transport also needs a sender address.',
     );
   const requestTimeoutMs = Number(raw.NOTESAPP_REQUEST_TIMEOUT_MS);
   const uploadIdleTimeoutMs =
@@ -603,7 +626,7 @@ export function loadServerConfig(
           ? 100
           : Number(raw.NOTESAPP_RATE_LIMIT_MAX),
     },
-    mail,
+    mail: mail.mail,
     sessionMaxAgeSeconds:
       raw.NOTESAPP_SESSION_MAX_AGE_S === undefined
         ? 60 * 60 * 24 * 7
@@ -613,6 +636,103 @@ export function loadServerConfig(
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
     ...readLegalDocuments(raw, canonical),
   };
+}
+
+/** The separate variables of the mail server, in the order of a message. */
+const mailFieldVariables = [
+  'NOTESAPP_SMTP_HOST',
+  'NOTESAPP_SMTP_PORT',
+  'NOTESAPP_SMTP_SECURITY',
+  'NOTESAPP_SMTP_USERNAME',
+  'NOTESAPP_SMTP_PASSWORD',
+] as const;
+
+/** What each refused field of the mail server names. */
+const mailFieldIssues: Readonly<Record<MailSettingsProblem, string>> = {
+  host: 'NOTESAPP_SMTP_HOST: name the host of the mail server, with no scheme and no port.',
+  port: 'NOTESAPP_SMTP_PORT: name a port between 1 and 65535.',
+  security: `NOTESAPP_SMTP_SECURITY: name one of ${mailSecurities.join(', ')}.`,
+  username:
+    'NOTESAPP_SMTP_USERNAME: the user name holds a character that a mail server cannot take.',
+  password:
+    'NOTESAPP_SMTP_PASSWORD: the password holds a character that a mail server cannot take.',
+  sender:
+    'NOTESAPP_MAIL_FROM: name one address, or a name and an address, for example NotesApp <no-reply@example.com>.',
+};
+
+/**
+ * The mail transport of the environment, from one URL or from the fields.
+ *
+ * The fields pass the same rule as the mail settings of the application
+ * (record 0148), so one transport reads the same in either place. Every
+ * message names the variable and never repeats its value.
+ */
+function readMail(
+  raw: Partial<Record<(typeof optionalVariables)[number], string>>,
+):
+  | { readonly ok: true; readonly mail: MailConfig | null }
+  | { readonly ok: false; readonly issues: readonly string[] } {
+  const named = mailFieldVariables.filter((name) => raw[name] !== undefined);
+  const from = raw.NOTESAPP_MAIL_FROM;
+  if (raw.NOTESAPP_SMTP_URL !== undefined) {
+    if (named.length > 0)
+      return {
+        ok: false,
+        issues: [
+          `NOTESAPP_SMTP_URL: set the mail server as one URL or as separate fields, not both. Remove NOTESAPP_SMTP_URL or ${named.join(', ')}.`,
+        ],
+      };
+    if (from === undefined)
+      return {
+        ok: false,
+        issues: [
+          'NOTESAPP_MAIL_FROM: a mail transport also needs a sender address.',
+        ],
+      };
+    return {
+      ok: true,
+      mail: { kind: 'url', smtpUrl: raw.NOTESAPP_SMTP_URL, from },
+    };
+  }
+  if (named.length === 0) return { ok: true, mail: null };
+  const issues: string[] = [];
+  if (raw.NOTESAPP_SMTP_HOST === undefined)
+    issues.push('NOTESAPP_SMTP_HOST: a mail server needs a host.');
+  if (raw.NOTESAPP_SMTP_PORT === undefined)
+    issues.push('NOTESAPP_SMTP_PORT: a mail server needs a port.');
+  if (raw.NOTESAPP_SMTP_SECURITY === undefined)
+    issues.push(
+      `NOTESAPP_SMTP_SECURITY: a mail server needs a security mode, one of ${mailSecurities.join(', ')}.`,
+    );
+  // A password with no user name signs in as nobody, and a user name with
+  // no password fails at the first message. Both stop here instead.
+  if (
+    raw.NOTESAPP_SMTP_USERNAME !== undefined &&
+    raw.NOTESAPP_SMTP_PASSWORD === undefined
+  )
+    issues.push(
+      'NOTESAPP_SMTP_PASSWORD: a user name also needs a password. Set NOTESAPP_SMTP_PASSWORD or NOTESAPP_SMTP_PASSWORD_FILE.',
+    );
+  if (
+    raw.NOTESAPP_SMTP_PASSWORD !== undefined &&
+    raw.NOTESAPP_SMTP_USERNAME === undefined
+  )
+    issues.push('NOTESAPP_SMTP_USERNAME: a password also needs a user name.');
+  if (from === undefined)
+    issues.push(
+      'NOTESAPP_MAIL_FROM: a mail transport also needs a sender address.',
+    );
+  if (issues.length > 0) return { ok: false, issues };
+  const read = readMailSettings({
+    host: raw.NOTESAPP_SMTP_HOST ?? '',
+    port: Number(raw.NOTESAPP_SMTP_PORT),
+    security: raw.NOTESAPP_SMTP_SECURITY ?? '',
+    username: raw.NOTESAPP_SMTP_USERNAME ?? null,
+    password: raw.NOTESAPP_SMTP_PASSWORD ?? null,
+    sender: from ?? '',
+  });
+  if (!read.ok) return { ok: false, issues: [mailFieldIssues[read.problem]] };
+  return { ok: true, mail: { kind: 'fields', fields: read.value } };
 }
 
 /** The address of one document: a full http or https URL, or `null`. */

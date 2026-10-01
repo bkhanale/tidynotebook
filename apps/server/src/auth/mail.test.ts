@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { loadServerConfig } from '../config.ts';
 import {
   budgetedTransport,
   envelopeOf,
@@ -121,4 +122,38 @@ await test('a failure names only its kind', () => {
   });
   assert.equal(mailFailureReason(certificate), 'security');
   assert.equal(mailFailureReason('x'), 'other');
+});
+
+await test('the mail fields of the environment build the transport of its URL', () => {
+  // `smtps://me%40example.com:p%40ss%3Aw%2Frd%3F%23%25@smtp.example.com:465`
+  // names this server. The fields name it with no percent encoding and reach
+  // the transport with the same host, port, protection and sign-in.
+  const config = loadServerConfig({
+    NOTESAPP_ORIGIN: 'http://127.0.0.1',
+    NOTESAPP_DATABASE_URL:
+      'postgres://notesapp:notesapp@127.0.0.1:5432/notesapp',
+    NOTESAPP_AUTH_DATABASE_URL:
+      'postgres://notesapp_auth:notesapp_auth@127.0.0.1:5432/notesapp',
+    NOTESAPP_STORAGE_ROOT: '/var/lib/notesapp',
+    NOTESAPP_AUTH_SECRET: 'test-secret-value-for-integration-checks',
+    NOTESAPP_MAX_BODY_BYTES: '1048576',
+    NOTESAPP_MAX_HEADER_BYTES: '16384',
+    NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
+    NOTESAPP_SMTP_HOST: 'smtp.example.com',
+    NOTESAPP_SMTP_PORT: '465',
+    NOTESAPP_SMTP_SECURITY: 'tls',
+    NOTESAPP_SMTP_USERNAME: 'me@example.com',
+    NOTESAPP_SMTP_PASSWORD: 'p@ss:w/rd?#%',
+    NOTESAPP_MAIL_FROM: 'me@example.com',
+  });
+  assert.equal(config.mail?.kind, 'fields');
+  if (config.mail?.kind !== 'fields') return;
+  const options = transportOptions(config.mail.fields);
+  assert.equal(options.host, 'smtp.example.com');
+  assert.equal(options.port, 465);
+  assert.equal(options.secure, true);
+  assert.deepEqual(options.auth, {
+    user: 'me@example.com',
+    pass: 'p@ss:w/rd?#%',
+  });
 });

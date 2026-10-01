@@ -12,8 +12,7 @@
  * log. `messages.ts` writes the words of every message.
  */
 import { createTransport } from 'nodemailer';
-import type { StoredMailSettings } from '@notesapp/core';
-import type { MailConfig } from '../config.ts';
+import type { MailConfig, MailFields } from '../config.ts';
 
 /** One message that the server sends. */
 export type MailMessage = {
@@ -59,10 +58,11 @@ export const noMailer: Mailer = {
   send: () => Promise.reject(new MailUnavailableError()),
 };
 
-/** The mail settings of the application, with the password opened. */
-export type ApplicationMail = Omit<StoredMailSettings, 'passwordSealed'> & {
-  readonly password: string | null;
-};
+/**
+ * The mail settings of the application, with the password opened. The
+ * fields of the environment have the same shape (record 0150).
+ */
+export type ApplicationMail = MailFields;
 
 /**
  * The longest waits of one message, in milliseconds. A mail server that does
@@ -191,8 +191,9 @@ export function envelopeOf(
 }
 
 /**
- * Builds the transport of `NOTESAPP_SMTP_URL`, or `null` when the
- * environment names none.
+ * Builds the transport that the environment names, or `null` when it names
+ * none. The fields build the transport of the application settings, and the
+ * URL keeps the meaning that the transport library gives it (record 0150).
  *
  * A test supplies its own transport instead, so no integration check needs a
  * mail server.
@@ -201,6 +202,7 @@ export function createMailTransport(
   mail: MailConfig | null,
 ): MailTransport | null {
   if (mail === null) return null;
+  if (mail.kind === 'fields') return connectMailTransport(mail.fields);
   const transport = createTransport(mail.smtpUrl);
   return {
     async send(message: MailMessage): Promise<void> {

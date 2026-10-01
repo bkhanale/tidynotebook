@@ -181,6 +181,7 @@ and needs no record.
 | [0147](0147-a-table-sizes-to-its-text-and-its-controls-sit-on-its-edge.md)            | A table sizes to its text and its controls sit on its edge                      |
 | [0148](0148-an-administrator-sets-the-mail-and-the-legal-documents.md)                | An administrator sets the mail and the legal documents                          |
 | [0149](0149-one-template-engine-fills-a-note-at-the-caret.md)                         | One template engine fills a note at the caret                                   |
+| [0150](0150-the-environment-names-the-mail-server-as-fields.md)                       | The environment names the mail server as fields                                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -605,3 +606,7 @@ Record 0149 answers
 engine in `packages/core` fills a daily note and a template that the palette
 inserts at the caret, and it gains `{{time}}`. The template folder is a
 setting of the member. It refines record 0102.
+Record 0150 answers
+[issue 214](https://github.com/bkhanale/notesapp/issues/214). The environment
+names the mail server as separate fields that pass the rule of the settings of
+the application, or as the one SMTP URL, and never as both. It refines record 0148.

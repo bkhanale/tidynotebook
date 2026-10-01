@@ -1,25 +1,30 @@
 # Compose override that gives the application a mail transport.
 #
 # An installation that opens registration, and one that sends invitations and
-# password resets by mail, needs it. The SMTP URL holds a password, so it is a
-# secret file and never a value in `.env`. Name this file after the main one:
+# password resets by mail, needs it. Name this file after the main one:
 #
 #   COMPOSE_FILE=docker-compose.yml:docker/compose.mail.yaml
 #
 # An administrator can set the mail server in the application instead, with
 # no file and no restart. This override wins over that page and locks it.
 #
-# Write the URL, for example `smtps://user:password@smtp.example.com:465`, to
-# `smtp_url` in NOTESAPP_SECRETS_DIR with mode 0600 and owner uid 10001, and
-# set NOTESAPP_MAIL_FROM in `.env`. See docs/guide/self-hosting.md.
+# Set the host, the port, the security mode, the user name and the sender in
+# `.env`. Each value is written as it is, with no percent encoding. The
+# password is a secret: write it to `smtp_password` in NOTESAPP_SECRETS_DIR
+# with mode 0600 and owner uid 10001. An installation that keeps one SMTP URL
+# uses docker/compose.mail-url.yaml instead. See docs/guide/self-hosting.md.
 services:
   app:
     environment:
-      NOTESAPP_SMTP_URL_FILE: /run/secrets/smtp_url
+      NOTESAPP_SMTP_HOST: ${NOTESAPP_SMTP_HOST:?Set NOTESAPP_SMTP_HOST in .env. It names the host of the mail server, for example smtp.example.com. An installation that keeps one SMTP URL uses docker/compose.mail-url.yaml instead.}
+      NOTESAPP_SMTP_PORT: ${NOTESAPP_SMTP_PORT:?Set NOTESAPP_SMTP_PORT in .env, for example 465 or 587.}
+      NOTESAPP_SMTP_SECURITY: ${NOTESAPP_SMTP_SECURITY:?Set NOTESAPP_SMTP_SECURITY in .env to tls, starttls or none.}
+      NOTESAPP_SMTP_USERNAME: ${NOTESAPP_SMTP_USERNAME:?Set NOTESAPP_SMTP_USERNAME in .env. It is the user name that signs in to the mail server.}
+      NOTESAPP_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
       NOTESAPP_MAIL_FROM: ${NOTESAPP_MAIL_FROM:?Set NOTESAPP_MAIL_FROM in .env. It names the sender of every message, for example NotesApp <no-reply@notes.example.com>.}
     secrets:
-      - smtp_url
+      - smtp_password
 
 secrets:
-  smtp_url:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/smtp_url
+  smtp_password:
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/smtp_password

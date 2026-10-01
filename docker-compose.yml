@@ -100,8 +100,8 @@ services:
       NOTESAPP_INVITATION_LIFETIME_HOURS: ${NOTESAPP_INVITATION_LIFETIME_HOURS:-}
       NOTESAPP_PENDING_ACCOUNT_HOURS: ${NOTESAPP_PENDING_ACCOUNT_HOURS:-}
       NOTESAPP_SIGNUP_DIFFICULTY: ${NOTESAPP_SIGNUP_DIFFICULTY:-}
-      # The mail transport is a secret, so `docker/compose.mail.yaml` adds it
-      # with its sender.
+      # The mail transport has a secret, so `docker/compose.mail.yaml` adds
+      # it with its sender, or `docker/compose.mail-url.yaml` as one URL.
       # The terms and the privacy notice of a public installation. Name both
       # or neither, each by an address or by a file, with its version.
       # `docker/compose.legal.yaml` mounts the files. A raised version asks

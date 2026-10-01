@@ -213,7 +213,7 @@ sudo chmod 600 /etc/notesapp/secrets/*
 The migration URL can use the initial PostgreSQL administrator for the first installation. The migration creates the restricted application roles and sets their passwords. Do not give either application role migration rights.
 
 An administrator can set the mail server in the application, so it needs no
-secret file. When you set it in the environment instead, its SMTP URL is a
+secret file. When you set it in the environment instead, its password is a
 secret too. `docker/compose.mail.yaml` adds it, and [Mail](#mail) states how.
 Do not put credentials in `.env`, process arguments, logs, or Git.
 
@@ -318,13 +318,34 @@ To set the mail server in the environment instead, do these steps. The
 environment then wins, and the accounts page shows the server and offers no
 change.
 
-1. Write the SMTP URL of your mail provider, for example
-   `smtps://user:password@smtp.example.com:465`, to the file `smtp_url` in
-   `NOTESAPP_SECRETS_DIR`, with mode `0600` and owner uid 10001.
-2. Set `NOTESAPP_MAIL_FROM` in `.env` to the sender, for example
-   `NotesApp <no-reply@notes.example.com>`.
-3. Add the override file to `COMPOSE_FILE` in `.env`, as `.env.example`
-   shows, and start again.
+1. Set these values in `.env`, as your mail provider gives them. Write each
+   value as it is. Do not encode a character such as `@` or `:`.
+   - `NOTESAPP_SMTP_HOST`: the host of the mail server, for example
+     `smtp.example.com`.
+   - `NOTESAPP_SMTP_PORT`: the port, usually `465` or `587`.
+   - `NOTESAPP_SMTP_SECURITY`: `tls` for a port that starts with TLS, usually
+     `465`. `starttls` for a port that upgrades the connection, usually
+     `587`.
+   - `NOTESAPP_SMTP_USERNAME`: the user name that signs in.
+   - `NOTESAPP_MAIL_FROM`: the sender, for example
+     `NotesApp <no-reply@notes.example.com>`.
+2. Write the password to the file `smtp_password` in `NOTESAPP_SECRETS_DIR`,
+   with mode `0600` and owner uid 10001.
+3. Add `docker/compose.mail.yaml` to `COMPOSE_FILE` in `.env`, as
+   `.env.example` shows, and start again.
+4. Open **Settings**, select **Manage accounts**, and select
+   **Send a test message** under **Mail**. A wrong value shows here, before a
+   person waits for a link.
+
+The server does not start when a value is missing or not valid. The message
+names the value and never shows the password.
+
+An installation that names its mail server as one SMTP URL can keep it. Write
+the URL to the file `smtp_url` in `NOTESAPP_SECRETS_DIR`, and use
+`docker/compose.mail-url.yaml` in place of `docker/compose.mail.yaml`. In the
+URL, encode each reserved character of the user name and the password, for
+example `@` as `%40`. Set the URL or the separate values, not both. The server
+does not start when it gets both.
 
 A mailbox provider refuses or hides a message that the domain of the sender
 does not vouch for. Before you open sign-up, publish these three records for

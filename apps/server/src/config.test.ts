@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
   ConfigError,
   loadLegalTexts,
+  loadProtectedEnvironment,
   loadServerConfig,
   maxLegalDocumentBytes,
   mebibyte,
@@ -100,6 +101,141 @@ await test('a mail transport needs a sender address', () => {
       error.issues.some((issue) => issue.includes('NOTESAPP_MAIL_FROM')),
   );
   assert.equal(loadServerConfig(valid).mail, null);
+});
+
+/** The mail server of a Proton account, as separate fields. */
+const mailFields: Readonly<Record<string, string>> = {
+  NOTESAPP_SMTP_HOST: 'smtp.protonmail.ch',
+  NOTESAPP_SMTP_PORT: '587',
+  NOTESAPP_SMTP_SECURITY: 'starttls',
+  NOTESAPP_SMTP_USERNAME: 'me@example.com',
+  NOTESAPP_SMTP_PASSWORD: 'p@ss:w/rd?#%',
+  NOTESAPP_MAIL_FROM: 'NotesApp <me@example.com>',
+};
+
+/** The issues of an environment that must stop the start. */
+function refusal(overrides: Readonly<Record<string, string | undefined>>) {
+  try {
+    loadServerConfig(environment(overrides));
+  } catch (error) {
+    if (error instanceof ConfigError) return error.issues;
+    throw error;
+  }
+  return assert.fail('the environment was accepted');
+}
+
+await test('the mail server can be named as separate fields', () => {
+  // A user name that is an address and a password with reserved characters
+  // reach the transport as written, with no percent encoding (issue 214).
+  assert.deepEqual(loadServerConfig(environment(mailFields)).mail, {
+    kind: 'fields',
+    fields: {
+      host: 'smtp.protonmail.ch',
+      port: 587,
+      security: 'starttls',
+      username: 'me@example.com',
+      password: 'p@ss:w/rd?#%',
+      sender: 'NotesApp <me@example.com>',
+    },
+  });
+});
+
+await test('a mail server with no sign-in needs no user name', () => {
+  const config = loadServerConfig(
+    environment({
+      ...mailFields,
+      NOTESAPP_SMTP_USERNAME: undefined,
+      NOTESAPP_SMTP_PASSWORD: undefined,
+      NOTESAPP_SMTP_SECURITY: 'none',
+    }),
+  );
+  assert.equal(config.mail?.kind, 'fields');
+  if (config.mail?.kind !== 'fields') return;
+  assert.equal(config.mail.fields.username, null);
+  assert.equal(config.mail.fields.password, null);
+});
+
+await test('the mail server is one URL or the fields, never both', () => {
+  const issues = refusal({
+    ...mailFields,
+    NOTESAPP_SMTP_URL: 'smtps://user:secret@smtp.example.com:465',
+  });
+  assert.equal(issues.length, 1);
+  assert.match(issues[0] ?? '', /^NOTESAPP_SMTP_URL: /);
+  assert.match(issues[0] ?? '', /NOTESAPP_SMTP_HOST/);
+  assert.ok(!issues.join('\n').includes('secret'));
+  assert.ok(!issues.join('\n').includes('p@ss'));
+});
+
+await test('each missing field of the mail server is named', () => {
+  assert.deepEqual(
+    refusal({ NOTESAPP_SMTP_USERNAME: 'me@example.com' }).map(
+      (issue) => issue.split(':')[0],
+    ),
+    [
+      'NOTESAPP_SMTP_HOST',
+      'NOTESAPP_SMTP_PORT',
+      'NOTESAPP_SMTP_SECURITY',
+      'NOTESAPP_SMTP_PASSWORD',
+      'NOTESAPP_MAIL_FROM',
+    ],
+  );
+  assert.deepEqual(
+    refusal({ ...mailFields, NOTESAPP_SMTP_USERNAME: undefined }).map(
+      (issue) => issue.split(':')[0],
+    ),
+    ['NOTESAPP_SMTP_USERNAME'],
+  );
+});
+
+await test('a field of the mail server that is not valid is refused', () => {
+  const cases: readonly [Record<string, string>, string][] = [
+    [{ NOTESAPP_SMTP_HOST: 'smtps://smtp.example.com' }, 'NOTESAPP_SMTP_HOST'],
+    [{ NOTESAPP_SMTP_HOST: 'smtp.example.com:465' }, 'NOTESAPP_SMTP_HOST'],
+    [{ NOTESAPP_SMTP_PORT: '70000' }, 'NOTESAPP_SMTP_PORT'],
+    [{ NOTESAPP_SMTP_PORT: 'abc' }, '/NOTESAPP_SMTP_PORT'],
+    [{ NOTESAPP_SMTP_SECURITY: 'ssl' }, '/NOTESAPP_SMTP_SECURITY'],
+    [{ NOTESAPP_MAIL_FROM: 'not an address' }, 'NOTESAPP_MAIL_FROM'],
+  ];
+  for (const [overrides, name] of cases) {
+    const issues = refusal({ ...mailFields, ...overrides });
+    assert.ok(
+      issues.some((issue) => issue.startsWith(`${name}:`)),
+      `${JSON.stringify(overrides)}: ${issues.join(' | ')}`,
+    );
+    assert.ok(!issues.join('\n').includes('p@ss'));
+  }
+});
+
+await test('the mail password can come from a protected file', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-mail-'));
+  try {
+    const path = join(directory, 'smtp_password');
+    await writeFile(path, 'p@ss:w/rd?#%\n');
+    const loaded = await loadProtectedEnvironment(
+      environment({
+        ...mailFields,
+        NOTESAPP_SMTP_PASSWORD: undefined,
+        NOTESAPP_SMTP_PASSWORD_FILE: path,
+      }),
+    );
+    const config = loadServerConfig(loaded);
+    assert.equal(config.mail?.kind, 'fields');
+    if (config.mail?.kind !== 'fields') return;
+    assert.equal(config.mail.fields.password, 'p@ss:w/rd?#%');
+    await assert.rejects(
+      loadProtectedEnvironment(
+        environment({ ...mailFields, NOTESAPP_SMTP_PASSWORD_FILE: path }),
+      ),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.issues.some((issue) =>
+          issue.startsWith('NOTESAPP_SMTP_PASSWORD: '),
+        ),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 await test('the listening socket has a default and takes named values', () => {
@@ -397,7 +533,12 @@ await test('every optional setting reaches the container of the Compose file', a
     readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
   const compose = await read('docker-compose.yml');
   const byOverride: Readonly<Record<string, string>> = {
-    NOTESAPP_SMTP_URL: 'docker/compose.mail.yaml',
+    NOTESAPP_SMTP_URL: 'docker/compose.mail-url.yaml',
+    NOTESAPP_SMTP_HOST: 'docker/compose.mail.yaml',
+    NOTESAPP_SMTP_PORT: 'docker/compose.mail.yaml',
+    NOTESAPP_SMTP_SECURITY: 'docker/compose.mail.yaml',
+    NOTESAPP_SMTP_USERNAME: 'docker/compose.mail.yaml',
+    NOTESAPP_SMTP_PASSWORD: 'docker/compose.mail.yaml',
     NOTESAPP_MAIL_FROM: 'docker/compose.mail.yaml',
     NOTESAPP_TERMS_FILE: 'docker/compose.legal.yaml',
     NOTESAPP_PRIVACY_FILE: 'docker/compose.legal.yaml',
@@ -409,8 +550,12 @@ await test('every optional setting reaches the container of the Compose file', a
       continue;
     }
     assert.doesNotMatch(compose, new RegExp(`^ +${name}(_FILE)?:`, 'm'), name);
-    // The mail URL arrives as a protected file, the others as themselves.
-    const variable = name === 'NOTESAPP_SMTP_URL' ? `${name}_FILE` : name;
+    // The mail URL and the mail password arrive as protected files, the
+    // others as themselves.
+    const variable =
+      name === 'NOTESAPP_SMTP_URL' || name === 'NOTESAPP_SMTP_PASSWORD'
+        ? `${name}_FILE`
+        : name;
     assert.match(
       await read(override),
       new RegExp(`^ +${variable}:`, 'm'),

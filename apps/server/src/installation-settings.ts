@@ -72,7 +72,7 @@ export type InstallationSettingsInput = {
   readonly reader: InstallationSettingsReader;
   /**
    * The transport of the environment, or `null`. A test gives its own here,
-   * and it then stands for `NOTESAPP_SMTP_URL`.
+   * and it then stands for the transport of the environment.
    */
   readonly environmentMail: MailTransport | null;
   /** The texts of the legal files that the environment names. */
@@ -99,7 +99,7 @@ export type InstallationSettings = {
   template(name: LegalDocumentName): string;
 };
 
-/** The parts of `NOTESAPP_SMTP_URL` that a person may read. */
+/** The parts of the environment transport that a person may read. */
 function environmentMailView(config: ServerConfig): MailView {
   const empty: MailView = {
     source: 'environment',
@@ -107,10 +107,14 @@ function environmentMailView(config: ServerConfig): MailView {
     port: null,
     security: null,
     username: null,
-    sender: config.mail?.from ?? null,
+    sender: config.mail?.kind === 'url' ? config.mail.from : null,
     passwordStored: false,
   };
   if (config.mail === null) return empty;
+  if (config.mail.kind === 'fields') {
+    const { host, port, security, username, sender } = config.mail.fields;
+    return { ...empty, host, port, security, username, sender };
+  }
   try {
     const url = new URL(config.mail.smtpUrl);
     return {

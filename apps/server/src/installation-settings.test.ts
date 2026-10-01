@@ -185,6 +185,33 @@ await test('the environment wins over the stored row and is locked', async () =>
   assert.ok(!JSON.stringify(view).includes('secret'));
 });
 
+await test('the mail fields of the environment show as written and lock the row', async () => {
+  const { settings } = decider(
+    stored,
+    {
+      NOTESAPP_SMTP_HOST: 'smtp.env.example',
+      NOTESAPP_SMTP_PORT: '587',
+      NOTESAPP_SMTP_SECURITY: 'starttls',
+      NOTESAPP_SMTP_USERNAME: 'me@env.example',
+      NOTESAPP_SMTP_PASSWORD: 'p@ss:w/rd',
+      NOTESAPP_MAIL_FROM: 'Env <env@example.com>',
+    },
+    { send: () => Promise.resolve() },
+  );
+  assert.equal(settings.environment.mail, true);
+  const view = await settings.mailView();
+  assert.deepEqual(view, {
+    source: 'environment',
+    host: 'smtp.env.example',
+    port: 587,
+    security: 'starttls',
+    username: 'me@env.example',
+    sender: 'Env <env@example.com>',
+    passwordStored: false,
+  });
+  assert.ok(!JSON.stringify(view).includes('p@ss'));
+});
+
 await test('the documents apply when both exist and a text is served at once', async () => {
   const terms = { kind: 'text' as const, text: '# Terms', version: 't1' };
   const one = decider({ ...emptyInstallationSettings, terms });
