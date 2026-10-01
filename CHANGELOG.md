@@ -5,6 +5,37 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.1 - 2026-10-01
+
+This patch release opens a picture of a note in an image viewer, fits a table
+to its text, and lets the page of a closed link say what to do next.
+
+### Added
+
+- Select a picture in a note to open it in an image viewer. The viewer fits
+  the picture to the screen, zooms it, and copies or downloads it. A picture
+  from another site gives Copy link and Open original.
+- Select the dark area beside the picture to close the viewer.
+
+### Changed
+
+- A table takes the width of its text and fits the note column. A cell breaks
+  a line between words and not inside a word.
+- The row and column controls of a table are small grips on its edge. A grip
+  marks its row or column while its menu is open or while you drag it.
+- The bars under a table and at its right edge add a row or a column at the
+  end.
+- The page of a link that opens nothing and the page of a link that asks for a
+  password show a heading and one sentence that tells you what to do next. The
+  password field gets the focus.
+
+### Fixed
+
+- A click on a line below a picture, a diagram, or display math puts the
+  cursor on that line and not on the line below it.
+- The row and column grips of a table stay on the cell under the pointer and
+  on the cell of the cursor after a click.
+
 ## 0.10.0 - 2026-10-01
 
 This minor release lets an installation open sign-up to the public, lets you
