@@ -518,6 +518,15 @@ await test('a password link shows a form and answers one set of words', async ()
   assert.equal(shut.response.status, 200);
   assert.ok(shut.html.includes('This link needs a password.'));
   assert.ok(shut.html.includes('name="password"'));
+  // The form is one short block in the middle of the screen: the sentence as
+  // its heading, the one way on under it, and the field that takes the focus.
+  const lockedPage = [
+    /<h1 [^>]*>This link needs a password\.<\/h1>/,
+    /Enter the password that you got with the link\./,
+    /<input [^>]*name="password"[^>]* autofocus/,
+    /<main class="[^"]*\bmin-h-dvh\b[^"]*\bmax-w-sm\b[^"]*\bjustify-center\b/,
+  ];
+  for (const shape of lockedPage) assert.match(shut.html, shape);
   assert.ok(!shut.html.includes('day-two'));
 
   const wrong = await openPublishedPage({
@@ -528,6 +537,7 @@ await test('a password link shows a form and answers one set of words', async ()
   assert.equal(responseOf(wrong.response).status, 200);
   // The same words and the same form as a link that was never opened.
   assert.ok(wrongHtml.includes('This link needs a password.'));
+  for (const shape of lockedPage) assert.match(wrongHtml, shape);
   assert.ok(!wrongHtml.includes('day-two'));
 
   const right = await openPublishedPage({

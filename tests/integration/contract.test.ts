@@ -576,7 +576,16 @@ await test('the page of a published link always answers a page', async () => {
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
   const html = String(answer.data);
-  assert.ok(html.includes('This link is not available.'));
+  // The sentence is the heading of one short block in the middle of the
+  // screen, with the one way on under it.
+  assert.match(html, /<h1 [^>]*>This link is not available\.<\/h1>/);
+  assert.ok(
+    html.includes('Ask the person who sent you the link for a new one.'),
+  );
+  assert.match(
+    html,
+    /<main class="[^"]*\bmin-h-dvh\b[^"]*\bmax-w-sm\b[^"]*\bjustify-center\b/,
+  );
   assert.ok(!html.includes('published_link_unavailable'));
   assert.ok(!html.includes('<script'));
 });
