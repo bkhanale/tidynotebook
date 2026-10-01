@@ -45,11 +45,15 @@ It fetches `origin` and changes nothing else. Each line starts with a mark:
 The plan follows these rules:
 
 - The main checkout and the `main` branch always stay.
-- A worktree goes unless it has changes that are not committed, or commits on
-  a detached head that are not in `main`. Then it is `ask`.
+- A worktree goes unless it has changes that are not committed, commits on a
+  detached head that are not in `main`, or an ignored file that no build makes
+  again, such as `.env`. Then it is `ask`. Installed packages, build output
+  and `.local-app/` come back, so they do not count.
 - A branch on the machine or on `origin` stays when it has an open pull
   request. A local branch also stays when a kept worktree uses it. Any other
   branch goes when every change is in `main`, and it is `ask` when it is not.
+  A merge commit that carries a change of its own, such as a conflict
+  resolution, counts as a change.
 - The test database of the Compose project `notesapp-test` goes only when no
   worktree is left. `tools/test-database/ensure-postgres.sh` starts it again
   at the next integration test or local application.

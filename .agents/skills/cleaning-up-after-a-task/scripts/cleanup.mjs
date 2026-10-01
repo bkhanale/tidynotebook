@@ -139,15 +139,70 @@ function worktrees(cwd) {
  * How many commits of a reference have no equal change in `main`.
  *
  * `git cherry` compares the changes, not the commit names, so a branch that
- * landed through a rebase counts as landed.
+ * landed through a rebase counts as landed. It leaves merge commits out, so
+ * a merge that is not in `main` counts here when it carries a change of its
+ * own, such as a conflict resolution. A merge with no such change shows an
+ * empty combined diff, and it adds nothing that its parents do not hold.
  *
  * @param {string} reference
  * @param {string} cwd
  */
 function commitsOutsideMain(reference, cwd) {
-  return lines(must('git', ['cherry', mainBranch, reference], cwd)).filter(
-    (line) => line.startsWith('+'),
+  const patches = lines(
+    must('git', ['cherry', mainBranch, reference], cwd),
+  ).filter((line) => line.startsWith('+')).length;
+  const merges = lines(
+    must('git', ['rev-list', '--merges', `${mainBranch}..${reference}`], cwd),
+  ).filter(
+    (merge) => must('git', ['show', '--cc', '--format=', merge], cwd) !== '',
   ).length;
+  return patches + merges;
+}
+
+/**
+ * The ignored files of a worktree that a build or a test can make again.
+ *
+ * `git worktree remove` deletes every ignored file with the worktree. Build
+ * output, installed packages and the state of the local application come
+ * back on the next install, build or start. Anything else that git ignores,
+ * such as `.env`, a secret or a data directory, may exist only there.
+ */
+const disposableDirectories = new Set([
+  'node_modules',
+  'dist',
+  'coverage',
+  '.tooling',
+  '.local-app',
+]);
+const disposableSuffixes = ['.tsbuildinfo', '.DS_Store'];
+
+/**
+ * The ignored paths of a worktree that no build or test makes again.
+ *
+ * @param {string} path
+ */
+function keptIgnoredFiles(path) {
+  return must(
+    'git',
+    [
+      'status',
+      '--porcelain',
+      '--ignored=matching',
+      '--untracked-files=normal',
+      '-z',
+    ],
+    path,
+  )
+    .split('\0')
+    .filter((entry) => entry.startsWith('!! '))
+    .map((entry) => entry.slice(3))
+    .filter(
+      (file) =>
+        !file
+          .split('/')
+          .some((segment) => disposableDirectories.has(segment)) &&
+        !disposableSuffixes.some((suffix) => file.endsWith(suffix)),
+    );
 }
 
 /**
@@ -273,6 +328,7 @@ function makePlan(also) {
     const changed = existsSync(tree.path)
       ? lines(must('git', ['status', '--porcelain'], tree.path)).length
       : 0;
+    const ignored = existsSync(tree.path) ? keptIgnoredFiles(tree.path) : [];
     const stranded =
       tree.branch === null && existsSync(tree.path)
         ? commitsOutsideMain('HEAD', tree.path)
@@ -282,6 +338,10 @@ function makePlan(also) {
     if (changed > 0)
       losses.push(
         `${plural(changed, 'file has', 'files have')} changes that are not committed`,
+      );
+    if (ignored.length > 0)
+      losses.push(
+        `git ignores ${ignored.slice(0, 3).join(', ')}${ignored.length > 3 ? ` and ${plural(ignored.length - 3, 'more path', 'more paths')}` : ''}, and no build makes ${ignored.length === 1 ? 'it' : 'them'} again`,
       );
     if (stranded > 0)
       losses.push(
