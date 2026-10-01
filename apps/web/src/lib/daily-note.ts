@@ -168,24 +168,17 @@ export const dailyNoteProblems = {
     'This device is full, so the note was not made. Free space and try again.',
   write: 'The note could not be made on this device.',
   templateRefused: 'That note cannot be the template. Choose another note.',
-  offline:
-    'The setting did not reach the server. Try again when you are online.',
 } as const;
 
 /**
- * What a person reads when a change of a setting did not reach the server.
+ * What a person reads when the server refused a change of a setting.
  *
  * The server answers `not_found` for a template that is no live note of the
- * workspace, and no answer at all means the setting is not kept. Each of the
- * two has its own sentence. Every other failure takes the one sentence of the
- * problem that the caller already chose.
+ * workspace, which has its own sentence. Every other refusal takes the one
+ * sentence of the problem that the caller already chose.
  */
 export function settingsProblem(status: number, general: string): string {
-  if (status === 404) return dailyNoteProblems.templateRefused;
-  // With no answer at all the setting is not kept anywhere, which the
-  // general sentence of an unreachable server does not say.
-  if (status === 0) return dailyNoteProblems.offline;
-  return general;
+  return status === 404 ? dailyNoteProblems.templateRefused : general;
 }
 
 /**

@@ -51,7 +51,9 @@ import { folderOf } from '../lib/relative-time.ts';
 import { actionIcon, emptyStateIcon } from './action-icons.tsx';
 import { KeyHint } from './key-hint.tsx';
 import {
+  activeRowIndex,
   mergeHits,
+  pickAnnouncement,
   rankActions,
   rankChoices,
   rankNotes,
@@ -229,6 +231,9 @@ function PaletteDialog({
       ? null
       : (actions.find((action) => action.id === stepId) ?? null);
   const step = stepAction?.pick ?? null;
+  // The choices are built once for each step that opens, and again only when
+  // the action gives new ones.
+  const stepChoices = useMemo(() => step?.choices() ?? null, [step]);
   const content = useContentHits(
     step === null ? query : '',
     store,
@@ -237,9 +242,9 @@ function PaletteDialog({
   );
 
   const rows = useMemo<readonly Row[]>(() => {
-    if (step !== null)
-      return step.choices.status === 'ready'
-        ? rankChoices(query, step.choices.choices).map((choice): Row => ({
+    if (stepChoices !== null)
+      return stepChoices.status === 'ready'
+        ? rankChoices(query, stepChoices.choices).map((choice): Row => ({
             kind: 'choice',
             id: `palette-choice-${choice.id}`,
             choice,
@@ -258,7 +263,7 @@ function PaletteDialog({
       action,
     }));
     return [...noteRows, ...actionRows];
-  }, [step, query, notes, content.hits, actions]);
+  }, [stepChoices, query, notes, content.hits, actions]);
 
   useEffect(() => {
     setSelected(0);
@@ -305,7 +310,9 @@ function PaletteDialog({
     closeThen(action.run);
   };
 
-  const activeId = rows[selected]?.id;
+  // The marked row, which is always a row of the list (`activeRowIndex`).
+  const active = activeRowIndex(selected, rows.length);
+  const activeId = rows[active]?.id;
   // The first row of each kind carries a quiet section label, so notes and
   // actions read as two groups without leaving the one listbox. The choices
   // of a step carry the name of their action, so a person reads where they
@@ -314,6 +321,10 @@ function PaletteDialog({
   const firstAction = rows.findIndex((row) => row.kind === 'action');
   const firstChoice = rows.findIndex((row) => row.kind === 'choice');
   const placeholder = step?.placeholder ?? 'Search notes, or type an action';
+  const announcement =
+    step === null || stepAction === null || stepChoices === null
+      ? ''
+      : pickAnnouncement(stepAction.label, step, stepChoices, rows.length);
 
   return (
     <Dialog
@@ -342,13 +353,13 @@ function PaletteDialog({
           onKeyDown={(event): void => {
             if (event.key === 'ArrowDown') {
               event.preventDefault();
-              setSelected((value) =>
-                rows.length === 0 ? 0 : (value + 1) % rows.length,
-              );
+              setSelected(rows.length === 0 ? 0 : (active + 1) % rows.length);
             } else if (event.key === 'ArrowUp') {
               event.preventDefault();
-              setSelected((value) =>
-                rows.length === 0 ? 0 : (value - 1 + rows.length) % rows.length,
+              setSelected(
+                rows.length === 0
+                  ? 0
+                  : (active - 1 + rows.length) % rows.length,
               );
             } else if (event.key === 'Home') {
               event.preventDefault();
@@ -358,7 +369,7 @@ function PaletteDialog({
               setSelected(Math.max(rows.length - 1, 0));
             } else if (event.key === 'Enter') {
               event.preventDefault();
-              run(rows[selected]);
+              run(rows[active]);
             } else if (
               event.key === 'Backspace' &&
               stepId !== null &&
@@ -373,6 +384,14 @@ function PaletteDialog({
           <KeyHint keys="Escape" />
         </span>
       </div>
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
+      {stepChoices?.status === 'ready' && stepChoices.notice !== null ? (
+        <p className="m-0 border-b border-edge-line px-gutter py-2 text-control text-muted">
+          {stepChoices.notice}
+        </p>
+      ) : null}
       {content.offline ? (
         <p className="m-0 border-b border-edge-line px-gutter py-2 text-control text-muted">
           No connection. These results come from this device.
@@ -383,7 +402,7 @@ function PaletteDialog({
         id="command-palette-list"
         className="m-0 max-h-80 list-none overflow-y-auto p-2 empty:hidden"
         role="listbox"
-        aria-label="Results"
+        aria-label={stepAction?.label ?? 'Results'}
       >
         {rows.map((row, index) => (
           <Fragment key={row.id}>
@@ -405,9 +424,9 @@ function PaletteDialog({
             <li
               id={row.id}
               role="option"
-              aria-selected={index === selected}
+              aria-selected={index === active}
               className={rowClassName({
-                selected: index === selected,
+                selected: index === active,
                 className: 'md:min-h-8',
               })}
               onMouseEnter={() => setSelected(index)}
@@ -482,42 +501,46 @@ function PaletteDialog({
           </Fragment>
         ))}
       </ul>
-      {step === null ? (
+      {step === null || stepChoices === null ? (
         rows.length === 0 ? (
           <p className="m-4 text-control text-muted">
             No note and no action matches that.
           </p>
         ) : null
-      ) : step.choices.status === 'loading' ? (
+      ) : stepChoices.status === 'loading' ? (
         <div className="px-2 pb-2">
-          <LoadingState shape="list" rows={3} label={step.choices.label} />
+          <LoadingState shape="list" rows={3} label={stepChoices.label} />
         </div>
-      ) : step.choices.status === 'unavailable' ? (
+      ) : stepChoices.status === 'unavailable' ? (
         <div className="px-2 pb-2">
-          <Notice tone="info" message={step.choices.message} />
+          <Notice tone="info" message={stepChoices.message} />
         </div>
-      ) : step.choices.choices.length === 0 ? (
-        <EmptyState
-          icon={
-            stepAction === null ? undefined : emptyStateIcon(stepAction.icon)
-          }
-          title={step.empty.title}
-          description={step.empty.description}
-          action={
-            step.empty.action === null ? undefined : (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  const fill = step.empty.action;
-                  if (fill !== null) closeThen(fill.run);
-                }}
-              >
-                {step.empty.action.label}
-              </Button>
-            )
-          }
-        />
+      ) : stepChoices.choices.length === 0 ? (
+        // A list that is not complete states so above and claims no empty
+        // folder.
+        stepChoices.notice !== null ? null : (
+          <EmptyState
+            icon={
+              stepAction === null ? undefined : emptyStateIcon(stepAction.icon)
+            }
+            title={step.empty.title}
+            description={step.empty.description}
+            action={
+              step.empty.action === null ? undefined : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const fill = step.empty.action;
+                    if (fill !== null) closeThen(fill.run);
+                  }}
+                >
+                  {step.empty.action.label}
+                </Button>
+              )
+            }
+          />
+        )
       ) : rows.length === 0 ? (
         <p className="m-4 text-control text-muted">{step.noMatch}</p>
       ) : null}

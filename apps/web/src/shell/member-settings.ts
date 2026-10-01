@@ -6,13 +6,17 @@
  * last answer in browser settings, so a start with no connection still knows
  * it. A change shows at once, goes to the server one after another in the
  * order the person made them, and falls back to the last confirmed answer
- * with one sentence when the server refuses it. The daily note settings and
- * the template settings each give one `MemberSettingsSource`, and this hook
- * holds every other part, so the two cannot drift apart.
+ * with one sentence when the server refuses it. A read that found nothing
+ * runs again when the connection or the tab comes back, so the sentence that
+ * asks the person to connect and try again keeps its word. The daily note
+ * settings and the template settings each give one `MemberSettingsSource`,
+ * and this hook holds every other part, so the two cannot drift apart.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   memberSettingsKey,
+  memberSettingsUnsent,
+  refusalSentence,
   type MemberSettingsSource,
   type MemberSettingsState,
 } from '../lib/member-settings.ts';
@@ -63,15 +67,44 @@ export function useMemberSettings<T>(
   // falls back to, and the chain that sends one change after another.
   const confirmed = useRef<T | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const generation = useRef(0);
+  // `scope` names the account and the workspace that a read is for, and an
+  // answer of another scope is dropped. `change` counts the changes of the
+  // person: a slow read never overwrites a change that came after it, and
+  // the answer of a change shows only when no later change follows it.
+  const scope = useRef(0);
+  const change = useRef(0);
+  const [attempt, setAttempt] = useState(0);
+  const unavailable = settings.status === 'unavailable';
+
+  // A read that found nothing runs again when the connection or the tab
+  // comes back, as the list of notes does.
+  useEffect(() => {
+    if (!unavailable) return;
+    const retry = (): void => {
+      setAttempt((value) => value + 1);
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') retry();
+    };
+    window.addEventListener('online', retry);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [unavailable]);
 
   useEffect(() => {
+    scope.current += 1;
     if (accountId === null) {
       setSettings({ status: 'loading' });
       return;
     }
-    generation.current += 1;
-    const current = generation.current;
+    const current = scope.current;
+    const changes = change.current;
+    /** Whether the answer of this read is still the one to show. */
+    const fresh = (): boolean =>
+      current === scope.current && changes === change.current;
     const key = memberSettingsKey(source.name, accountId, workspaceId);
     const cached = source.decode(readStored(key));
     confirmed.current = cached;
@@ -84,7 +117,7 @@ export function useMemberSettings<T>(
     void source
       .read(workspaceId)
       .then((answer) => {
-        if (current !== generation.current) return;
+        if (!fresh()) return;
         if (answer.kind === 'refused') {
           if (cached === null) setSettings({ status: 'unavailable' });
           return;
@@ -95,15 +128,19 @@ export function useMemberSettings<T>(
       })
       .catch(() => {
         // No answer is a failed read and not an empty setting (record 0038).
-        if (current === generation.current && cached === null)
-          setSettings({ status: 'unavailable' });
+        if (fresh() && cached === null) setSettings({ status: 'unavailable' });
       });
-  }, [source, accountId, workspaceId]);
+  }, [source, accountId, workspaceId, attempt]);
 
   const save = useCallback(
     (next: T): void => {
       if (accountId === null) return;
-      const current = generation.current;
+      change.current += 1;
+      const current = scope.current;
+      const changes = change.current;
+      /** Whether this change is the newest of its scope. */
+      const newest = (): boolean =>
+        current === scope.current && changes === change.current;
       const key = memberSettingsKey(source.name, accountId, workspaceId);
       /** States why, and shows the choice the server last confirmed. */
       const refuse = (problem: string): void => {
@@ -121,18 +158,25 @@ export function useMemberSettings<T>(
       // server ends on the last choice and never on an earlier one.
       queue.current = queue.current.then(async () => {
         const answer = await source.write(workspaceId, next);
-        if (current !== generation.current) return;
         if (answer.kind === 'refused') {
-          refuse(source.refusal(answer.status, answer.error));
+          if (newest()) refuse(refusalSentence(source, answer));
           return;
         }
-        confirmed.current = answer.settings;
+        // The copy of this device is the copy of the scope of the change.
         writeStored(key, source.encode(answer.settings));
+        if (current !== scope.current) return;
+        confirmed.current = answer.settings;
+        // The newest change shows what the server stored. An earlier one
+        // leaves the screen to the change that follows it.
+        if (newest()) {
+          setSettings({ status: 'ready', settings: answer.settings });
+          setSaveProblem(null);
+        }
       });
       // A change that throws must not stop every later change, so the chain
       // never stays in a rejected state, and the person reads why.
       queue.current = queue.current.catch(() => {
-        if (current === generation.current) refuse(source.unsent);
+        if (newest()) refuse(memberSettingsUnsent);
       });
     },
     [source, accountId, workspaceId],

@@ -63,7 +63,9 @@ function FolderField({
         error={problem === null ? undefined : templateFolderSentences[problem]}
       />
       <p className="mb-3 mt-0 text-control text-muted" aria-live="polite">
-        {problem === null ? templateCountLine(count) : ''}
+        {problem !== null || files.loading
+          ? ''
+          : templateCountLine(count, files.limitNotice === null)}
       </p>
     </div>
   );

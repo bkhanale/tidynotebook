@@ -42,11 +42,29 @@ export type MemberSettingsSource<T> = {
   readonly encode: (settings: T) => string;
   /** The settings of a kept copy, or `null` when the copy does not parse. */
   readonly decode: (source: string | null) => T | null;
-  /** The one sentence of a write that the server refused. */
+  /** The one sentence of a write that the server answered and refused. */
   readonly refusal: (status: number, error: unknown) => string;
-  /** The one sentence of a write that reached no server. */
-  readonly unsent: string;
 };
+
+/**
+ * The one sentence of a change of a setting that reached no server.
+ *
+ * With no answer at all the setting is not kept anywhere, which the general
+ * sentence of an unreachable server does not say. Every setting reads this
+ * one sentence, so the hook states it and no source repeats it.
+ */
+export const memberSettingsUnsent =
+  'The setting did not reach the server. Try again when you are online.';
+
+/** The one sentence of a refused change of a setting. */
+export function refusalSentence<T>(
+  source: MemberSettingsSource<T>,
+  answer: { readonly status: number; readonly error: unknown },
+): string {
+  return answer.status === 0
+    ? memberSettingsUnsent
+    : source.refusal(answer.status, answer.error);
+}
 
 /** The browser settings key of one setting of one member. */
 export function memberSettingsKey(

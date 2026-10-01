@@ -129,7 +129,6 @@ const dailyNoteSettingsSource: MemberSettingsSource<DailyNoteSettings> = {
   encode: formatCachedSettings,
   decode: parseCachedSettings,
   refusal: (status, error) => settingsProblem(status, problemMessage(error)),
-  unsent: dailyNoteProblems.offline,
 };
 
 /** Holds the daily notes of the open workspace for every screen of the frame. */

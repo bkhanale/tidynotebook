@@ -90,40 +90,54 @@ export function templateChoices(
  * The line under the folder field: how many templates the typed folder holds,
  * as a count and a whole phrase.
  */
-export function templateCountLine(count: number): string {
-  if (count === 0) return 'This folder has no notes yet.';
+export function templateCountLine(count: number, complete: boolean): string {
+  if (!complete) return templateProblems.partial;
+  if (count === 0) return 'This folder has no templates yet.';
   if (count === 1) return 'This folder has 1 template.';
   return `This folder has ${String(count)} templates.`;
 }
+
+/** The note list of the frame, as these rules read it. */
+export type TemplateNoteList = {
+  readonly notes: readonly TemplateCandidate[];
+  /** True while the first read of the list has not answered. */
+  readonly loading: boolean;
+  /** False when the workspace holds more notes than the list. */
+  readonly complete: boolean;
+};
 
 /**
  * The second step of Insert from template in the command palette.
  *
  * The palette lists the templates of the folder of the member. While the
- * settings load it says so, and with no settings at all it states the one
- * cause (record 0038). A folder with no note is an empty state whose one
- * action makes the first template in that folder.
+ * settings or the note list load it says so, and with no settings at all it
+ * states the one cause (record 0038). A list that is not complete can miss a
+ * template, so the step says so, and it never claims that the folder is
+ * empty. A complete folder with no note is an empty state whose one action
+ * makes the first template in that folder.
  */
 export function templatePalettePick(input: {
   readonly settings: MemberSettingsState<TemplateSettings>;
-  readonly notes: readonly TemplateCandidate[];
+  readonly list: TemplateNoteList;
   readonly openFileId: string | null;
   readonly choose: (templateFileId: string) => void;
   readonly newTemplate: (folder: string) => void;
 }): PalettePick {
-  const { settings } = input;
+  const { settings, list } = input;
   const folder = settings.status === 'ready' ? settings.settings.folder : '';
   return {
     placeholder: 'Search templates',
-    choices:
-      settings.status === 'loading'
-        ? { status: 'loading', label: 'The templates are loading.' }
-        : settings.status === 'unavailable'
-          ? { status: 'unavailable', message: templateProblems.settings }
-          : {
-              status: 'ready',
-              choices: templateChoices(input.notes, folder, input.openFileId),
-            },
+    choices: () => {
+      if (settings.status === 'unavailable')
+        return { status: 'unavailable', message: templateProblems.settings };
+      if (settings.status === 'loading' || list.loading)
+        return { status: 'loading', label: 'The templates are loading.' };
+      return {
+        status: 'ready',
+        choices: templateChoices(list.notes, folder, input.openFileId),
+        notice: list.complete ? null : templateProblems.partial,
+      };
+    },
     empty: {
       title: 'No templates',
       description: `Add a note to the folder ${folder} to use it as a template. You can change the folder in Settings.`,
@@ -196,22 +210,20 @@ export const templateProblems = {
   settings:
     'The template settings did not load. Connect to the internet and try again.',
   text: 'The template is not on this device, so it was not inserted. Connect to the internet and try again.',
-  unsent:
-    'The setting did not reach the server. Try again when you are online.',
+  partial:
+    'The list of notes is not complete, so some templates can be missing.',
 } as const;
 
 /**
- * What a person reads when a change of the folder did not reach the server.
+ * What a person reads when the server refused a change of the folder.
  *
- * The server answers `invalid_path` for a folder that it cannot store, and no
- * answer at all means the setting is not kept. Every other failure takes the
- * one sentence of the problem that the caller already chose.
+ * The server answers `invalid_path` for a folder that it cannot store, which
+ * has its own sentence. Every other refusal takes the one sentence of the
+ * problem that the caller already chose.
  */
 export function templateSettingsProblem(
   status: number,
   general: string,
 ): string {
-  if (status === 422) return templateFolderSentences.folder;
-  if (status === 0) return templateProblems.unsent;
-  return general;
+  return status === 422 ? templateFolderSentences.folder : general;
 }

@@ -1661,7 +1661,11 @@ function ShellFrame({
                     icon: 'template' as const,
                     pick: templatePalettePick({
                       settings: templates.settings,
-                      notes: files.notes,
+                      list: {
+                        notes: files.notes,
+                        loading: files.loading,
+                        complete: files.limitNotice === null,
+                      },
                       openFileId: noteActions.fileId,
                       choose: noteActions.insertTemplate,
                       newTemplate: newNote.create,
@@ -1786,6 +1790,8 @@ function ShellFrame({
     [
       cycleTheme,
       daily.open,
+      files.limitNotice,
+      files.loading,
       files.notes,
       navigate,
       newNote.create,

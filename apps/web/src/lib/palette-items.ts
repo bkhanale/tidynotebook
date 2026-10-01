@@ -184,7 +184,12 @@ export type PaletteChoices =
   | { readonly status: 'loading'; readonly label: string }
   /** The choices cannot be read, for the one reason this sentence states. */
   | { readonly status: 'unavailable'; readonly message: string }
-  | { readonly status: 'ready'; readonly choices: readonly PaletteChoice[] };
+  | {
+      readonly status: 'ready';
+      readonly choices: readonly PaletteChoice[];
+      /** A quiet sentence above the list, such as a list that is partial. */
+      readonly notice: string | null;
+    };
 
 /**
  * The second step of an action: the palette lists choices and runs the one
@@ -193,7 +198,11 @@ export type PaletteChoices =
 export type PalettePick = {
   /** The words of the search field while the palette lists the choices. */
   readonly placeholder: string;
-  readonly choices: PaletteChoices;
+  /**
+   * What the step lists. The palette asks for it when the step opens, so a
+   * closed palette builds no list.
+   */
+  readonly choices: () => PaletteChoices;
   /** The empty state when there is no choice at all (decision 0038). */
   readonly empty: {
     readonly title: string;
@@ -270,4 +279,46 @@ export function rankChoices(
       (choice.detail ?? '').toLowerCase().includes(needle),
   );
   return [...byLabel, ...byDetail];
+}
+
+/** A count of results as a whole phrase, for example `1 result`. */
+function resultCount(count: number): string {
+  return count === 1 ? '1 result' : `${String(count)} results`;
+}
+
+/**
+ * What a screen reader announces about the second step of an action.
+ *
+ * The field keeps the focus when a step opens, so the change of its label
+ * alone is not announced. The palette reads this sentence into a polite live
+ * region instead: the name of the step, then what it lists now.
+ */
+export function pickAnnouncement(
+  label: string,
+  pick: PalettePick,
+  choices: PaletteChoices,
+  matches: number,
+): string {
+  if (choices.status === 'loading') return `${label}. ${choices.label}`;
+  if (choices.status === 'unavailable') return `${label}. ${choices.message}`;
+  const notice = choices.notice === null ? '' : ` ${choices.notice}`;
+  if (choices.choices.length === 0)
+    return choices.notice === null
+      ? `${label}. ${pick.empty.title}. ${pick.empty.description}`
+      : `${label}.${notice}`;
+  if (matches === 0) return `${label}. ${pick.noMatch}`;
+  return `${label}. ${resultCount(matches)}.${notice}`;
+}
+
+/**
+ * The row that the palette marks, from the row a person last chose.
+ *
+ * The list changes under the pointer and under each keystroke, so the chosen
+ * place can stand past the end of a shorter list. The mark then falls on the
+ * last row, and Enter always runs a row that the person sees. An empty list
+ * marks no row, `-1`.
+ */
+export function activeRowIndex(selected: number, rowCount: number): number {
+  if (rowCount === 0) return -1;
+  return Math.min(Math.max(selected, 0), rowCount - 1);
 }

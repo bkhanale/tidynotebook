@@ -4,6 +4,8 @@ import {
   actionIconNames,
   mergeHits,
   rankActions,
+  activeRowIndex,
+  pickAnnouncement,
   rankChoices,
   rankNotes,
   type PaletteAction,
@@ -185,7 +187,7 @@ await test('an action that opens a step names its choices and no run', () => {
     icon: 'template',
     pick: {
       placeholder: 'Search templates',
-      choices: { status: 'ready', choices },
+      choices: () => ({ status: 'ready', choices, notice: null }),
       empty: { title: 'No templates', description: '', action: null },
       noMatch: 'No template matches that.',
       choose: () => {},
@@ -196,4 +198,63 @@ await test('an action that opens a step names its choices and no run', () => {
     rankActions('template', [...actions, pick]).map((action) => action.id),
     ['insert-template'],
   );
+});
+
+await test('a step announces its name and what it lists now', () => {
+  const pick = {
+    placeholder: 'Search templates',
+    choices: () => ({ status: 'ready' as const, choices, notice: null }),
+    empty: {
+      title: 'No templates',
+      description: 'Add a note to the folder Templates.',
+      action: null,
+    },
+    noMatch: 'No template matches that.',
+    choose: (): void => {},
+  };
+  const label = 'Insert from template';
+  const ready = { status: 'ready' as const, choices, notice: null };
+  assert.equal(
+    pickAnnouncement(label, pick, ready, 4),
+    'Insert from template. 4 results.',
+  );
+  assert.equal(
+    pickAnnouncement(label, pick, ready, 1),
+    'Insert from template. 1 result.',
+  );
+  assert.equal(
+    pickAnnouncement(label, pick, ready, 0),
+    'Insert from template. No template matches that.',
+  );
+  assert.equal(
+    pickAnnouncement(label, pick, { ...ready, choices: [] }, 0),
+    'Insert from template. No templates. Add a note to the folder Templates.',
+  );
+  assert.equal(
+    pickAnnouncement(label, pick, { status: 'loading', label: 'Loading.' }, 0),
+    'Insert from template. Loading.',
+  );
+  assert.equal(
+    pickAnnouncement(
+      label,
+      pick,
+      { status: 'unavailable', message: 'Connect and try again.' },
+      0,
+    ),
+    'Insert from template. Connect and try again.',
+  );
+  assert.equal(
+    pickAnnouncement(label, pick, { ...ready, notice: 'Partial.' }, 2),
+    'Insert from template. 2 results. Partial.',
+  );
+});
+
+await test('the marked row is always a row of the list', () => {
+  assert.equal(activeRowIndex(0, 3), 0);
+  assert.equal(activeRowIndex(2, 3), 2);
+  // A pointer over a row of a longer list leaves its place past the end of
+  // the list that the next keystroke makes.
+  assert.equal(activeRowIndex(7, 1), 0);
+  assert.equal(activeRowIndex(-1, 2), 0);
+  assert.equal(activeRowIndex(4, 0), -1);
 });

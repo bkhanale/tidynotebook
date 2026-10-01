@@ -6,7 +6,10 @@ import test from 'node:test';
 import {
   cachedObject,
   memberSettingsKey,
+  memberSettingsUnsent,
+  refusalSentence,
   settingsAnswer,
+  type MemberSettingsSource,
 } from './member-settings.ts';
 
 await test('one key names one setting of one member in one workspace', () => {
@@ -54,4 +57,24 @@ await test('a result with data is stored, and every other result is refused', ()
     status: 204,
     error: undefined,
   });
+});
+
+await test('a change that reached no server has the one sentence of every setting', () => {
+  const source: MemberSettingsSource<string> = {
+    name: 'test',
+    read: () => Promise.resolve({ kind: 'stored', settings: '' }),
+    write: () => Promise.resolve({ kind: 'stored', settings: '' }),
+    encode: (settings) => settings,
+    decode: (text) => text,
+    refusal: (status) => `refused ${String(status)}`,
+  };
+  assert.equal(
+    refusalSentence(source, { status: 0, error: undefined }),
+    memberSettingsUnsent,
+  );
+  // An answer that the server gave keeps the sentence of its setting.
+  assert.equal(
+    refusalSentence(source, { status: 422, error: {} }),
+    'refused 422',
+  );
 });

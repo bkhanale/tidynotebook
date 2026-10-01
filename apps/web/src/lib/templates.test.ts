@@ -133,7 +133,6 @@ await test('a refused folder has its own sentence and every other failure keeps 
     templateSettingsProblem(422, 'general'),
     templateFolderSentences.folder,
   );
-  assert.equal(templateSettingsProblem(0, 'general'), templateProblems.unsent);
   assert.equal(templateSettingsProblem(500, 'server'), 'server');
 });
 
@@ -149,28 +148,36 @@ await test('every sentence of a template problem names no code', () => {
 });
 
 await test('the count of templates is a count and a whole phrase', () => {
-  assert.equal(templateCountLine(0), 'This folder has no notes yet.');
-  assert.equal(templateCountLine(1), 'This folder has 1 template.');
-  assert.equal(templateCountLine(3), 'This folder has 3 templates.');
+  assert.equal(templateCountLine(0, true), 'This folder has no templates yet.');
+  assert.equal(templateCountLine(1, true), 'This folder has 1 template.');
+  assert.equal(templateCountLine(3, true), 'This folder has 3 templates.');
+  // A list that is not complete gives no count that could be false.
+  assert.equal(templateCountLine(0, false), templateProblems.partial);
+  assert.equal(templateCountLine(3, false), templateProblems.partial);
 });
+
+/** The note list of the frame, complete and answered. */
+const list = { notes, loading: false, complete: true };
 
 await test('the step of Insert from template lists the templates of the member', () => {
   const chosen: string[] = [];
   const made: string[] = [];
   const pick = templatePalettePick({
     settings: { status: 'ready', settings: { folder: 'Templates' } },
-    notes,
+    list,
     openFileId: 'm',
     choose: (id) => chosen.push(id),
     newTemplate: (folder) => made.push(folder),
   });
   assert.equal(pick.placeholder, 'Search templates');
+  const choices = pick.choices();
   assert.deepEqual(
-    pick.choices.status === 'ready'
-      ? pick.choices.choices.map((choice) => choice.id)
+    choices.status === 'ready'
+      ? choices.choices.map((choice) => choice.id)
       : null,
     ['b', 'd', 'g', 'w'],
   );
+  assert.equal(choices.status === 'ready' ? choices.notice : 'none', null);
   pick.choose('g');
   assert.deepEqual(chosen, ['g']);
   // The one action of the empty state makes a note in the folder.
@@ -181,19 +188,31 @@ await test('the step of Insert from template lists the templates of the member',
 
 await test('the step says that it waits, or why it cannot list', () => {
   const input = {
-    notes,
+    list,
     openFileId: null,
     choose: (): void => {},
     newTemplate: (): void => {},
   };
+  const ready = { status: 'ready' as const, settings: { folder: 'Templates' } };
   assert.equal(
-    templatePalettePick({ ...input, settings: { status: 'loading' } }).choices
+    templatePalettePick({ ...input, settings: { status: 'loading' } }).choices()
       .status,
     'loading',
   );
+  // A note list that has not answered is no empty folder (record 0038).
+  assert.equal(
+    templatePalettePick({
+      ...input,
+      settings: ready,
+      list: { notes: [], loading: true, complete: true },
+    }).choices().status,
+    'loading',
+  );
   assert.deepEqual(
-    templatePalettePick({ ...input, settings: { status: 'unavailable' } })
-      .choices,
+    templatePalettePick({
+      ...input,
+      settings: { status: 'unavailable' },
+    }).choices(),
     { status: 'unavailable', message: templateProblems.settings },
   );
   // A folder with no note is an empty list, which the empty state names.
@@ -201,7 +220,16 @@ await test('the step says that it waits, or why it cannot list', () => {
     templatePalettePick({
       ...input,
       settings: { status: 'ready', settings: { folder: 'Recipes' } },
-    }).choices,
-    { status: 'ready', choices: [] },
+    }).choices(),
+    { status: 'ready', choices: [], notice: null },
+  );
+  // A list that is not complete can miss a template, and says so.
+  assert.deepEqual(
+    templatePalettePick({
+      ...input,
+      settings: { status: 'ready', settings: { folder: 'Recipes' } },
+      list: { notes, loading: false, complete: false },
+    }).choices(),
+    { status: 'ready', choices: [], notice: templateProblems.partial },
   );
 });

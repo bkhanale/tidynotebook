@@ -184,7 +184,6 @@ await test('a refused template has its own sentence and every other failure keep
     settingsProblem(404, 'general'),
     dailyNoteProblems.templateRefused,
   );
-  assert.equal(settingsProblem(0, 'general'), dailyNoteProblems.offline);
   assert.equal(settingsProblem(500, 'server'), 'server');
 });
 

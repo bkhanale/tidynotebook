@@ -25,7 +25,6 @@ import {
 import {
   formatCachedTemplateSettings,
   parseCachedTemplateSettings,
-  templateProblems,
   templateSettingsName,
   templateSettingsProblem,
 } from '../../lib/templates.ts';
@@ -55,7 +54,6 @@ const templateSettingsSource: MemberSettingsSource<TemplateSettings> = {
   decode: parseCachedTemplateSettings,
   refusal: (status, error) =>
     templateSettingsProblem(status, problemMessage(error)),
-  unsent: templateProblems.unsent,
 };
 
 const TemplatesContext = createContext<MemberSettings<TemplateSettings>>({
