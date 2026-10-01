@@ -52,9 +52,9 @@ The plan follows these rules:
   and `.local-app/` come back, so they do not count.
 - A branch on the machine or on `origin` stays when it has an open pull
   request. A local branch also stays when a kept worktree uses it. Any other
-  branch goes when a merge of the whole branch into `main` changes nothing, or
-  when `main` holds each of its patches, space for space, and it has no merge
-  commit outside `main`. Otherwise it is `ask`.
+  branch goes when a merge of the whole branch into `main` changes nothing.
+  Otherwise it is `ask`. A rebased branch whose lines `main` changed later can
+  be `ask` too, because no merge proves it.
 - A branch is deleted only at the commit that the plan read. A branch that
   moved since then stays, and `apply` stops with the reason.
 - The test database of the Compose project `notesapp-test` goes only when no

@@ -140,43 +140,14 @@ function worktrees(cwd) {
 }
 
 /**
- * The patch identities of the commits in a range, with every space kept.
- *
- * `git cherry` strips white space before it compares two patches, so a
- * change from `"ab"` to `"a b"` looked equal to a change that `main` made.
- * `git patch-id --verbatim` keeps it. A commit with an empty patch has no
- * identity, and it adds nothing.
- *
- * @param {string} range
- * @param {string} cwd
- * @returns {Map<string, string>} The identity of each commit, by commit.
- */
-function patchIds(range, cwd) {
-  const log = must(
-    'git',
-    ['log', '--no-merges', '-p', '--format=commit %H', range],
-    cwd,
-  );
-  /** @type {Map<string, string>} */
-  const ids = new Map();
-  if (log === '') return ids;
-  const output = must('git', ['patch-id', '--verbatim'], cwd, `${log}\n`);
-  for (const line of lines(output)) {
-    const [id = '', commit = ''] = line.split(' ');
-    ids.set(commit, id);
-  }
-  return ids;
-}
-
-/**
- * How many commits of a reference have no equal change in `main`.
+ * How many commits of a reference are not proved to be in `main`.
  *
  * A reference is landed when a merge of the whole reference into `main`
- * changes nothing. Otherwise a commit counts as landed when `main` holds a
- * commit with the same patch, space for space, so a branch that landed
- * through a rebase counts as landed. A merge can take the side of a
- * different parent for each file, which no comparison of one commit sees,
- * so each merge counts as one change.
+ * changes nothing. That holds for a branch that landed through a merge, a
+ * fast forward, a rebase or a cherry-pick. A comparison of patches proves
+ * less: a patch identity ignores line numbers, so two edits of two copies of
+ * one repeated block look equal. A reference that fails the merge proof
+ * counts every commit that `main` does not hold, and the owner decides.
  *
  * @param {string} reference
  * @param {string} cwd
@@ -189,14 +160,12 @@ function commitsOutsideMain(reference, cwd) {
   );
   const mainTree = must('git', ['rev-parse', `${mainBranch}^{tree}`], cwd);
   if (merged.status === 0 && lines(merged.stdout)[0] === mainTree) return 0;
-  const landed = new Set(patchIds(`${reference}..${mainBranch}`, cwd).values());
-  const patches = [
-    ...patchIds(`${mainBranch}..${reference}`, cwd).values(),
-  ].filter((id) => !landed.has(id)).length;
-  const merges = lines(
-    must('git', ['rev-list', '--merges', `${mainBranch}..${reference}`], cwd),
-  ).length;
-  return patches + merges;
+  return Math.max(
+    1,
+    Number(
+      must('git', ['rev-list', '--count', `${mainBranch}..${reference}`], cwd),
+    ),
+  );
 }
 
 /**
@@ -214,14 +183,26 @@ function hiddenChanges(path) {
   const sparse =
     run('git', ['config', '--bool', 'core.sparseCheckout'], path).stdout ===
     'true';
+  // A sparse checkout leaves a file off the disk by design only when its rules
+  // do not select the file. A selected file that is gone was deleted.
+  const selected = (/** @type {string} */ file) => {
+    const check = run(
+      'git',
+      ['sparse-checkout', 'check-rules', '-z'],
+      path,
+      `${file}\0`,
+    );
+    return check.status !== 0 || check.stdout.replace(/\0$/, '') === file;
+  };
   return must('git', ['ls-files', '-v', '-s', '-z'], path)
     .split('\0')
     .map((entry) => /^(\S) (\d+) ([0-9a-f]+) \d+\t(.*)$/s.exec(entry))
     .filter((match) => match !== null)
     .filter(([, tag = '']) => tag === 'S' || /^[a-z]$/.test(tag))
-    .filter(([, , mode = '', blob = '', file = '']) => {
+    .filter(([, tag = '', mode = '', blob = '', file = '']) => {
       const absolute = join(path, file);
-      if (!existsSync(absolute)) return !sparse;
+      if (!existsSync(absolute))
+        return !(sparse && tag === 'S' && !selected(file));
       const stat = lstatSync(absolute);
       const diskMode = stat.isSymbolicLink()
         ? '120000'
@@ -647,6 +628,10 @@ function printPlan(plan) {
 /**
  * Stops the local application of a checkout when one runs there.
  *
+ * It throws when a process that may be the application runs and its
+ * directory is unknown, so `apply` stops before it removes a worktree under a
+ * running application that would then keep its database.
+ *
  * @param {string} checkout
  */
 function stopApplication(checkout) {
@@ -676,6 +661,10 @@ function stopApplication(checkout) {
   } catch {
     directory = '';
   }
+  if (command.stdout.includes('tools/dev-app.mjs') && directory === '')
+    throw new Error(
+      `Process ${pid} runs tools/dev-app.mjs, and this system does not show its directory. Stop it with node ${appScript} stop in ${checkout}, then run apply again.`,
+    );
   if (!command.stdout.includes('tools/dev-app.mjs') || directory !== checkout) {
     process.stdout.write(
       `left      process ${pid}, because it is not the application of ${checkout}\n`,
