@@ -7,13 +7,13 @@ screens, the worker and the diagram frame. It composes and holds no rule.
 
 ## What lives here and what does not
 
-- `src/shell/` is the app frame: the 44 px header, the sidebar of rows, the
-  palette and the frame notices. `header-slot.tsx` holds the two places a
-  route writes into the header (0064, 0069), `lib/breadcrumb.ts` states its
-  parts (0064) and `action-icons.tsx` draws the one glyph of an action (0065).
-  `workspaces.tsx` owns the switcher (0049). `src/features/<feature>/` is a
-  feature, `src/lib/` is pure, `app.tsx`, `router.tsx` and `main.tsx` compose
-  it, `src/pwa/` the worker and notices (0130), `src/diagram/` the frame.
+- `src/shell/` is the frame: the header, the sidebar, the palette and the
+  notices. `header-slot.tsx` holds the two places a route writes into the
+  header (0064, 0069), `lib/breadcrumb.ts` states its parts (0064) and
+  `action-icons.tsx` the glyph of an action (0065). `workspaces.tsx` owns the
+  switcher (0049). `src/features/<feature>/` is a feature, `src/lib/` is pure,
+  `app.tsx`, `router.tsx` and `main.tsx` compose it, `src/pwa/` the worker and
+  notices (0130), `src/diagram/` the frame, `src/published/` its page (0158).
 - `src/tailwind.css` is the only CSS source: imports, sources, `@font-face`
   (0061), the scales, and the built palette of a page with no script (0151).
   A domain rule is in `packages/core`, a Markdown rule in `packages/markdown`.
@@ -106,6 +106,7 @@ on each rule below.
 | `src/lib/templates.ts`                        | The template rules of a device    |
 | `src/shell/member-settings.ts`                | The one hook of a member setting  |
 | `vite.config.ts`                              | Build, theme, icons, worker       |
+| `src/published/diagrams.ts`                   | The script of a published diagram |
 | `src/pwa/icons.ts`                            | The one list of the icons         |
 | `icons/`                                      | The icon files the build names    |
 | `src/logging.ts`                              | Browser sink for log events       |

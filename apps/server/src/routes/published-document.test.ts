@@ -244,3 +244,39 @@ await test('the answer after a report says one sentence', () => {
   assert.ok(html.includes(reportedSentence));
   assert.ok(!html.includes('<form'));
 });
+
+await test('a note with a diagram names the one diagram script and no inline one', () => {
+  // Record 0158. The script is a file of the build that waits for the
+  // document, and only the page of a note carries it.
+  const view: PublishedPageView = {
+    kind: 'note',
+    name: 'Plan',
+    body: '<pre data-diagram="mermaid">graph TD;</pre>',
+    listHref: null,
+  };
+  const html = publishedDocument({
+    view,
+    stylesheets: ['/assets/a.css'],
+    formAction: '/published/abc',
+    diagramScript: '/assets/published-diagrams-M0Ar9lYV.js',
+  });
+  assert.ok(
+    html.includes(
+      '<script src="/assets/published-diagrams-M0Ar9lYV.js" defer></script>',
+    ),
+  );
+  assert.equal(html.split('<script').length - 1, 1);
+  // The placeholder stays the source of the diagram for a reader with no
+  // script.
+  assert.ok(html.includes('<pre data-diagram="mermaid">graph TD;</pre>'));
+  // With no script, and in every state that is not a note, the page holds
+  // no script at all.
+  assert.ok(!documentOf(view).includes('<script'));
+  const locked = publishedDocument({
+    view: { kind: 'locked' },
+    stylesheets: [],
+    formAction: '/published/abc',
+    diagramScript: '/assets/published-diagrams-M0Ar9lYV.js',
+  });
+  assert.ok(!locked.includes('<script'));
+});

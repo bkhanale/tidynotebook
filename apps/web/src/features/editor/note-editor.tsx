@@ -102,7 +102,7 @@ import { commitNoteName } from '../../lib/note-name-commit.ts';
 import { shouldFocusNewNoteNameOnOpen } from '../../lib/note-name-input.ts';
 import { OutlinePanel } from './outline.tsx';
 import { useDeleteNotice } from '../trash/trash.tsx';
-import { createDiagramFrame } from '../../diagram/frame.ts';
+import { createDiagramFrame, diagramFramePath } from '../../diagram/frame.ts';
 import {
   resolveSaveState,
   useBlockUnsafeReload,
@@ -122,14 +122,6 @@ const draftSaveDelayMs = 120;
 
 /** Delay before work that reads the complete document. */
 const documentWorkDelayMs = 200;
-
-/**
- * The built diagram frame document.
- *
- * A plain path string on purpose: this names a static Vite entry, not an
- * application API route, so it stays a literal instead of a constructed URL.
- */
-const diagramFramePath = '/src/diagram/frame.html';
 
 /**
  * A version is created automatically this long after typing stops.

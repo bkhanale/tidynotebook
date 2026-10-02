@@ -30,6 +30,16 @@ import { generateUUID } from '@notesapp/core';
 export type DiagramTheme = 'light' | 'dark';
 
 /**
+ * The built diagram frame document.
+ *
+ * The editor and the published page (record 0158) both load this one
+ * document. A plain path string on purpose: it names a static Vite entry,
+ * not an application API route, so it stays a literal instead of a
+ * constructed URL. `apps/web/vite.config.ts` emits the frame at this path.
+ */
+export const diagramFramePath = '/src/diagram/frame.html';
+
+/**
  * The only message the parent sends to the frame.
  *
  * `requestId` matches one render; `source` is the raw Mermaid source without
@@ -176,15 +186,33 @@ export function clampDiagramHeight(height: number): number {
 }
 
 /**
+ * One colour of the palette in the six digit form of a request.
+ *
+ * `applyTheme` writes each colour in six digits. A page with no script reads
+ * its palette from the built stylesheet instead (record 0151), and the
+ * minifier writes a colour such as `#ffffff` as `#fff`. The frame accepts six
+ * digits alone, so the short form is written out here, and the light palette
+ * of a published page reaches the frame like the dark one does.
+ */
+export function longHexColour(value: string): string {
+  const short = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(value);
+  if (short === null) return value;
+  return `#${(short[1] ?? '').repeat(2)}${(short[2] ?? '').repeat(2)}${(short[3] ?? '').repeat(2)}`;
+}
+
+/**
  * The colours the page renders with right now.
  *
- * `applyTheme` writes the whole palette on the document element, so reading
- * the computed values here keeps the frame on the theme of the page without
- * every caller passing one down.
+ * `applyTheme` writes the whole palette on the document element, and the
+ * stylesheet states it on a page with no script, so reading the computed
+ * values here keeps the frame on the theme of the page without every caller
+ * passing one down.
  */
 function activePalette(): readonly string[] {
   const style = window.getComputedStyle(document.documentElement);
-  return paletteNames.map((name) => style.getPropertyValue(name).trim());
+  return paletteNames.map((name) =>
+    longHexColour(style.getPropertyValue(name).trim()),
+  );
 }
 
 /** Options of one parent side diagram frame. */
@@ -203,6 +231,15 @@ export type DiagramFrameOptions = {
   readonly timeoutMs?: number | undefined;
   /** How long the parent waits for the frame document itself to load. */
   readonly loadTimeoutMs?: number | undefined;
+  /**
+   * What a failure does instead of the fallback of the editor.
+   *
+   * The editor leaves it out, and a failure then shows what happened, the
+   * source and a Try again action inside the widget. The published page
+   * passes it, because its own code block already shows the source, so the
+   * frame leaves and the code block comes back (record 0158).
+   */
+  readonly onFailure?: (() => void) | undefined;
 };
 
 /**
@@ -276,6 +313,12 @@ export function createDiagramFrame(options: DiagramFrameOptions): {
     settled = true;
     stopClock();
     frame = null;
+    if (options.onFailure !== undefined) {
+      wrapper.setAttribute('data-notesapp-diagram', 'source');
+      wrapper.textContent = '';
+      options.onFailure();
+      return;
+    }
     wrapper.setAttribute('data-notesapp-diagram', 'source');
     wrapper.textContent = '';
     // The element sits inside the widget of `packages/editor`, so it reads

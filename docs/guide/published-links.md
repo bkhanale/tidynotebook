@@ -84,7 +84,8 @@ notes, and the reader opens one note from that list.
 A link from one note to another note opens only if your published link opens
 that second note. A link to any other note keeps its words and opens nothing.
 
-A diagram appears as its text, because the published page draws no diagram.
+A diagram is drawn as it is in your note. A browser that runs no script
+shows the text of the diagram instead.
 
 The reader sees the last version that your server holds. An edit on your device
 reaches the reader after you save it.

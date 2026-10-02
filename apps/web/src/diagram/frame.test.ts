@@ -12,6 +12,9 @@ import {
   clampDiagramHeight,
   diagramFrameStyle,
   diagramLimits,
+  isDiagramRequest,
+  longHexColour,
+  paletteNames,
 } from './frame.ts';
 
 await test('the diagram frame lets a click reach the editor', () => {
@@ -36,4 +39,24 @@ await test('a reported height is clamped into the applied bounds', () => {
   assert.equal(clampDiagramHeight(Number.NaN), diagramLimits.minHeightPx);
   assert.equal(clampDiagramHeight(10_000), diagramLimits.maxHeightPx);
   assert.equal(clampDiagramHeight(240.4), 240);
+});
+
+await test('a short colour of the stylesheet reaches the frame in six digits', () => {
+  // The light palette of a published page comes from the built stylesheet,
+  // which writes `#ffffff` as `#fff`. The frame refused that request, so a
+  // published diagram drew in dark and never in light (record 0158).
+  assert.equal(longHexColour('#fff'), '#ffffff');
+  assert.equal(longHexColour('#1A6'), '#11AA66');
+  assert.equal(longHexColour('#f7f7f5'), '#f7f7f5');
+  assert.equal(longHexColour('white'), 'white');
+  const palette = ['#fff', '#f7f7f5', '#37352f', '#1a63c4', '#85837d'];
+  const request = (colours: readonly string[]) => ({
+    requestId: 'r',
+    source: 'graph TD;',
+    theme: 'light',
+    palette: colours,
+  });
+  assert.equal(paletteNames.length, palette.length);
+  assert.equal(isDiagramRequest(request(palette)), false);
+  assert.equal(isDiagramRequest(request(palette.map(longHexColour))), true);
 });

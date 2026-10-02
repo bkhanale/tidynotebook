@@ -63,6 +63,17 @@ async function writeBuild(): Promise<string> {
   await writeFile(join(directory, 'assets/app-Origin01.css'), 'body{}');
   await writeFile(join(directory, 'assets/geist-Origin01.woff2'), 'font');
   await writeFile(join(directory, 'assets/main-Origin01.js'), 'void 0;');
+  // The diagram script of a published page and the frame that it loads
+  // (record 0158).
+  await writeFile(
+    join(directory, 'assets/published-diagrams-Origin01.js'),
+    'void 0;',
+  );
+  await mkdir(join(directory, 'src/diagram'), { recursive: true });
+  await writeFile(
+    join(directory, 'src/diagram/frame.html'),
+    '<!doctype html><html><body><script>void 0;</script></body></html>',
+  );
   return directory;
 }
 
@@ -222,6 +233,56 @@ await test('the published origin answers no API route, no shell and no script', 
   assert.equal(
     (await onPages('GET', '/assets/geist-Origin01.woff2')).statusCode,
     200,
+  );
+});
+
+await test('a published diagram loads its script and its frame from the published origin', async () => {
+  // Issue 236 and record 0158. A note that holds a diagram names the one
+  // diagram script of the build, the published origin serves that script and
+  // the frame document, and the policy of the page names both on that host.
+  const diagram = await publishNote(
+    '# Flow\n\n```mermaid\ngraph TD;\n  A-->B;\n```\n',
+  );
+  const page = await onPages('GET', `/published/${diagram.token}`);
+  assert.equal(page.statusCode, 200);
+  assert.ok(
+    page.body.includes(
+      '<script src="/assets/published-diagrams-Origin01.js" defer></script>',
+    ),
+  );
+  const policy = String(page.headers['content-security-policy']);
+  assert.ok(
+    policy.includes(
+      'script-src pages.test/assets/published-diagrams-Origin01.js;',
+    ),
+    policy,
+  );
+  assert.ok(
+    policy.includes('frame-src pages.test/src/diagram/frame.html;'),
+    policy,
+  );
+  assert.ok(policy.includes("frame-ancestors 'none'"), policy);
+  const script = await onPages('GET', '/assets/published-diagrams-Origin01.js');
+  assert.equal(script.statusCode, 200);
+  assert.match(
+    String(script.headers['content-type']),
+    /^application\/javascript/,
+  );
+  const frame = await onPages('GET', '/src/diagram/frame.html');
+  assert.equal(frame.statusCode, 200);
+  // The frame may stand inside a page of its own origin and nowhere else.
+  assert.ok(
+    String(frame.headers['content-security-policy']).includes(
+      "frame-ancestors 'self'",
+    ),
+  );
+  // A note with no diagram names no script, and its policy refuses every one.
+  const plain = await onPages('GET', `/published/${first.token}`);
+  assert.ok(!plain.body.includes('<script'));
+  assert.ok(
+    String(plain.headers['content-security-policy']).includes(
+      "script-src 'none'",
+    ),
   );
 });
 

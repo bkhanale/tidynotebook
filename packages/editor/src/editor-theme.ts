@@ -8,8 +8,8 @@
  * invents a color, a size, or a radius.
  *
  * The note surface is the design. Body text is 16 px on a 1.65 line height
- * at a measure of 40 rem, headings run on one clear ramp from one and a half
- * times the body size down to body size at level six, and monospaced text
+ * at a measure of 40 rem, headings run on one clear ramp from one and three
+ * quarters of the body size down to body size at level six, and monospaced text
  * sits at 0.9 em so a code span keeps the line height of the paragraph around
  * it.
  *

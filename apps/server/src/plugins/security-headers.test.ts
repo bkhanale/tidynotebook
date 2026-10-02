@@ -7,8 +7,10 @@ import {
   dataContentPolicy,
   framedDocumentContentPolicy,
   inlineScriptHashes,
+  publishedDiagramContentPolicy,
   publishedDocumentContentPolicy,
   publishedDocumentHeaders,
+  publishedDocumentHeadersWith,
   serviceWorkerContentPolicy,
 } from './security-headers.ts';
 
@@ -140,4 +142,91 @@ await test('the published page names no origin and no cache', () => {
   // defect D43 reported for this one page.
   const base = Object.fromEntries(baseSecurityHeaders('https://notes.invalid'));
   assert.equal(base['referrer-policy'], 'strict-origin-when-cross-origin');
+});
+
+/** The diagram files of a build, as the composition names them. */
+const diagramAssets = {
+  script: '/assets/published-diagrams-M0Ar9lYV.js',
+  frame: '/src/diagram/frame.html',
+};
+
+await test('a page with a diagram names one script and one frame and nothing more', () => {
+  // Record 0158. The policy of a note that holds a diagram is the policy of
+  // every other page with two exact sources, on the host of the request.
+  const policy = publishedDiagramContentPolicy(
+    'pages.example.net',
+    diagramAssets,
+  );
+  assert.ok(policy !== null);
+  const directives = policy.split('; ');
+  assert.ok(
+    directives.includes(
+      'script-src pages.example.net/assets/published-diagrams-M0Ar9lYV.js',
+    ),
+  );
+  assert.ok(
+    directives.includes('frame-src pages.example.net/src/diagram/frame.html'),
+  );
+  // Every other directive is the directive of a page with no diagram.
+  const others = directives.filter(
+    (directive) =>
+      !directive.startsWith('script-src') && !directive.startsWith('frame-src'),
+  );
+  assert.deepEqual(
+    others,
+    publishedDocumentContentPolicy
+      .split('; ')
+      .filter((directive) => !directive.startsWith('script-src')),
+  );
+  // No origin wide script source, no inline script and no evaluation.
+  assert.ok(!/script-src[^;]*'self'/.test(policy), policy);
+  assert.ok(!/frame-src[^;]*'self'/.test(policy), policy);
+  assert.ok(!/script-src[^;]*unsafe/.test(policy), policy);
+  assert.ok(!/script-src[^;]*sha256/.test(policy), policy);
+  assert.ok(directives.includes("frame-ancestors 'none'"));
+  // A port of the host stays with it, because the page was opened there.
+  assert.ok(
+    publishedDiagramContentPolicy('127.0.0.1:32771', diagramAssets)?.includes(
+      'script-src 127.0.0.1:32771/assets/',
+    ),
+  );
+});
+
+await test('a host or a path that a policy cannot name gives no diagram script', () => {
+  for (const host of [
+    undefined,
+    '',
+    'pages.example.net; script-src *',
+    'pages.example.net *',
+    "'unsafe-inline'",
+    '[::1]:8080',
+    'https://pages.example.net',
+  ])
+    assert.equal(
+      publishedDiagramContentPolicy(host, diagramAssets),
+      null,
+      String(host),
+    );
+  assert.equal(
+    publishedDiagramContentPolicy('pages.example.net', {
+      ...diagramAssets,
+      script: '/assets/a.js; script-src *',
+    }),
+    null,
+  );
+  assert.equal(
+    publishedDiagramContentPolicy('pages.example.net', {
+      ...diagramAssets,
+      frame: 'https://elsewhere.example/frame.html',
+    }),
+    null,
+  );
+});
+
+await test('the headers of a page with a diagram keep the rules of every page', () => {
+  const headers = Object.fromEntries(publishedDocumentHeadersWith('x'));
+  assert.equal(headers['content-security-policy'], 'x');
+  assert.equal(headers['referrer-policy'], 'no-referrer');
+  assert.equal(headers['cache-control'], 'private, no-store');
+  assert.equal(headers['x-robots-tag'], 'noindex, nofollow');
 });

@@ -101,7 +101,9 @@ export const framedDocumentContentPolicy = [
  *
  * `script-src 'none'` is the rule of decision 0031. The page holds no script,
  * so an injected one cannot run even if a later change let one through the
- * sanitizer. `style-src` has no `'unsafe-inline'`, so a `<style>` element
+ * sanitizer. The one exception is a note that holds a diagram, whose policy
+ * `publishedDiagramContentPolicy` below names one file of the build by its
+ * exact address (record 0158). `style-src` has no `'unsafe-inline'`, so a `<style>` element
  * cannot apply. `style-src-attr` allows a `style` attribute, because KaTeX
  * places each row and each script of a formula with one (decision 0142). The
  * math sanitizer of `@notesapp/markdown` is the one producer of such an
@@ -127,6 +129,77 @@ export const publishedDocumentContentPolicy = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+/** The files that a published page loads to draw its diagrams. */
+export type PublishedDiagramAssets = {
+  /** The address of the one diagram script of the build, on this origin. */
+  readonly script: string;
+  /** The address of the sandboxed diagram frame, on this origin. */
+  readonly frame: string;
+};
+
+/** A host name, with an optional port, as a source of a content policy. */
+const policyHost = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d{1,5})?$/;
+
+/** A path of the build, with no query, no fragment and no space. */
+const policyPath = /^\/[A-Za-z0-9._/-]+$/;
+
+/**
+ * Content policy of a published page whose note holds a diagram (record 0158).
+ *
+ * It is the policy above with two more sources, each one exact. `script-src`
+ * names the one diagram script of the build and `frame-src` the one frame
+ * document, both by their full path on the host of the request, so no other
+ * file of this origin runs and no other document is framed. A host source
+ * with no scheme takes the scheme of the page, so the two files load the way
+ * the page did. There is still no `'self'`, no inline script, no hash, no
+ * `'unsafe-eval'` and no other origin, and `frame-ancestors 'none'` stays.
+ *
+ * The answer is `null` when the host or a path cannot be written as a source.
+ * The page then names no script and shows the source of each diagram.
+ *
+ * @param host the `Host` header of the request, which the host allowlist of
+ *   `app.ts` already accepted.
+ */
+export function publishedDiagramContentPolicy(
+  host: string | undefined,
+  assets: PublishedDiagramAssets,
+): string | null {
+  const name = (host ?? '').trim().toLowerCase();
+  if (!policyHost.test(name)) return null;
+  if (!policyPath.test(assets.script) || !policyPath.test(assets.frame))
+    return null;
+  return publishedDocumentContentPolicy
+    .split('; ')
+    .map((directive) =>
+      directive === "script-src 'none'"
+        ? `script-src ${name}${assets.script}`
+        : directive,
+    )
+    .flatMap((directive) =>
+      directive.startsWith('connect-src')
+        ? [directive, `frame-src ${name}${assets.frame}`]
+        : [directive],
+    )
+    .join('; ');
+}
+
+/**
+ * The headers of one published page, with its content policy.
+ *
+ * Every page of a link carries the same three rules below. Only the content
+ * policy changes, for a note that holds a diagram.
+ */
+export function publishedDocumentHeadersWith(
+  policy: string,
+): readonly HeaderPair[] {
+  return [
+    ['content-security-policy', policy],
+    ['cache-control', 'private, no-store'],
+    ['referrer-policy', 'no-referrer'],
+    ['x-robots-tag', 'noindex, nofollow'],
+  ];
+}
+
 /**
  * Headers that belong to the published page and to no other answer.
  *
@@ -143,12 +216,8 @@ export const publishedDocumentContentPolicy = [
  * - A published address that a person pastes in public must not become a
  *   search result, so the page asks a crawler to keep it out of an index.
  */
-export const publishedDocumentHeaders: readonly HeaderPair[] = [
-  ['content-security-policy', publishedDocumentContentPolicy],
-  ['cache-control', 'private, no-store'],
-  ['referrer-policy', 'no-referrer'],
-  ['x-robots-tag', 'noindex, nofollow'],
-];
+export const publishedDocumentHeaders: readonly HeaderPair[] =
+  publishedDocumentHeadersWith(publishedDocumentContentPolicy);
 
 /**
  * Headers of the page of a legal document (record 0140).

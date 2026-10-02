@@ -26,6 +26,7 @@ import { createWorkspaceHandlers } from './workspaces.ts';
 import type { ReadinessProbe } from './health.ts';
 import { configurationProbe, createServiceHandlers } from './health.ts';
 import type { HandlerMap } from '../plugins/register.ts';
+import type { PublishedDiagramAssets } from '../plugins/security-headers.ts';
 
 import {
   type AttachmentStore,
@@ -100,6 +101,11 @@ export type PublicationDependencies = {
   readonly hasher: PasswordHasher;
   /** The stylesheets of the built application document. */
   readonly stylesheets: () => readonly string[];
+  /**
+   * The diagram script and the frame document of the build (record 0158). A
+   * composition that leaves it out serves every diagram as its source.
+   */
+  readonly diagrams?: () => PublishedDiagramAssets | null;
   /** Where the cause of a reader refusal goes, for the operator only. */
   readonly recordRefusal: (cause: ReaderRefusalCause) => void;
 };
@@ -251,6 +257,7 @@ export function createHandlers(
             secrets: secretDigest,
             hasher: published.hasher,
             stylesheets: published.stylesheets,
+            diagrams: published.diagrams ?? (() => null),
             clock: Date.now,
             recordRefusal: published.recordRefusal,
           },

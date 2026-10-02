@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   acceptedEncodings,
@@ -6,6 +9,8 @@ import {
   isHashedAssetName,
   matchesEntityTag,
   mimeTypeFor,
+  publishedDiagramFrameHref,
+  publishedDiagramScriptHref,
   servesApplicationShell,
   servesBrowserAssets,
   stylesheetHrefs,
@@ -215,4 +220,35 @@ await test('a document that names one stylesheet twice answers it once', () => {
     '<link rel="STYLESHEET" href="/a.css">',
   ].join('\n');
   assert.deepEqual(stylesheetHrefs(html), ['/a.css']);
+});
+
+await test('the diagram script of a published page is the one file of its name', async () => {
+  // Record 0158. A published page names the diagram script only when the
+  // build holds it and the frame that it loads, and a second file of one name
+  // would leave the choice to chance.
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-diagram-script-'));
+  try {
+    await mkdir(join(directory, 'assets'));
+    await mkdir(join(directory, 'src/diagram'), { recursive: true });
+    await writeFile(
+      join(directory, 'assets/published-diagrams-M0Ar9lYV.js'),
+      '',
+    );
+    await writeFile(join(directory, 'assets/published-links-BgGi9BLm.js'), '');
+    // No frame document yet, so no script.
+    assert.equal(publishedDiagramScriptHref(directory), null);
+    await writeFile(join(directory, publishedDiagramFrameHref), '');
+    assert.equal(
+      publishedDiagramScriptHref(directory),
+      '/assets/published-diagrams-M0Ar9lYV.js',
+    );
+    await writeFile(
+      join(directory, 'assets/published-diagrams-ZZZZZZZZ.js'),
+      '',
+    );
+    assert.equal(publishedDiagramScriptHref(directory), null);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+  assert.equal(publishedDiagramScriptHref(join(directory, 'gone')), null);
 });

@@ -67,10 +67,15 @@ import {
   createProblem,
   problemMediaType,
 } from './plugins/problem.ts';
-import { baseSecurityHeaders } from './plugins/security-headers.ts';
+import {
+  baseSecurityHeaders,
+  type PublishedDiagramAssets,
+} from './plugins/security-headers.ts';
 import {
   builtStylesheetHrefs,
   documentStylesheetHrefs,
+  publishedDiagramFrameHref,
+  publishedDiagramScriptHref,
   sendStaticFile,
   servesApplicationShell,
   servesBrowserAssets,
@@ -692,6 +697,16 @@ async function composeApp(
     const emitted = builtStylesheetHrefs(resolve(webDist, 'assets'));
     return [...shell, ...emitted.filter((href) => !shell.includes(href))];
   };
+  // A note that holds a diagram draws it with the one diagram script of the
+  // build, in the frame that the editor uses (record 0158). A deployment that
+  // serves no built assets answers none, and the page shows the source.
+  const publishedDiagrams = (): PublishedDiagramAssets | null => {
+    if (webDist === null) return null;
+    const script = publishedDiagramScriptHref(webDist);
+    return script === null
+      ? null
+      : { script, frame: publishedDiagramFrameHref };
+  };
   // The cause of a reader refusal reaches the operator and reaches no answer.
   // The sink is filled once the instance exists, as the protocol sink below
   // is, so nothing reaches the console in between.
@@ -786,6 +801,7 @@ async function composeApp(
           attachments,
           hasher: createPublicationHasher(auth.auth),
           stylesheets: publishedStylesheets,
+          diagrams: publishedDiagrams,
           recordRefusal: (cause) => refusals.record?.(cause),
         },
         ...(options?.lifecycle === undefined

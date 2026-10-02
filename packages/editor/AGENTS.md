@@ -13,18 +13,18 @@ diff for History.
 
 ## What lives here and what does not
 
-- `create-editor.ts` builds one instance; `extensions.ts`, `language.ts`,
+- `create-editor.ts` builds one instance; `extensions.ts`, `language.ts` with
+  the fence languages and code tokens of `@notesapp/markdown` (0159),
   `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
 - `document-binding.ts` joins the live document of an open note to one view
-  (record 0082). `openBoundNote` is what a screen uses, so no screen opens a
-  document of its own. A bound editor takes its undo from Yjs and leaves the
-  CodeMirror history out; a plain editor, which History and a diff use, keeps
-  that history. Work of another device reaches a bound note through the gate
-  of this module only: it holds one merged update while an IME composition
-  runs, because an update inside a composition loses the composed characters.
-- `live-preview.ts` has the decorations, `widgets.ts` the widgets,
-  `table-grid.ts` and `table-controls.ts` the table (0095 to 0098, 0147), and
-  `list-move.ts` and `list-controls.ts` the move of a list item (0106).
+  (0082), and `openBoundNote` is what a screen uses. A bound editor takes its
+  undo from Yjs; a plain one, for History and a diff, keeps CodeMirror history.
+  Work of another device waits in its gate while an IME composition runs,
+  because an update inside a composition loses the composed characters.
+- `live-preview.ts` has the decorations, the inline HTML of 0157 among them,
+  `widgets.ts` the widgets, `table-grid.ts` and `table-controls.ts` the table
+  (0095 to 0098, 0147), and `list-move.ts` and `list-controls.ts` the move of
+  a list item (0106).
 - `editor-theme.ts` is the typed CodeMirror adapter and the one place here
   that sets presentation in TypeScript. It reads the named steps of
   `apps/web/src/tailwind.css`, which `editorThemeVariables` lists for the

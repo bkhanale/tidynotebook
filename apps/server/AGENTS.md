@@ -12,7 +12,7 @@ authentication routes on one origin, and it holds no domain rule.
   resource: `register.ts`, `problem.ts`, `security-headers.ts`, `static-assets.ts`,
   `host.ts`, `content-disposition.ts`, `body-idle-timeout.ts`, `attempt-store.ts`
   and `published-origin.ts`, which keeps the published origin to the reader path
-  and redirects a reader address to it (0118).
+  and its files (0158) and redirects a reader address to it (0118).
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns one
   handler per operation id and the body lives in its area file. `published.ts` is the
   reader path of a published link and its report (0119), `published-document.ts`
@@ -75,8 +75,8 @@ request that no generated operation can express uses `app.inject()`.
 - No handwritten HTTP transport. `better-auth.ts` is the one listed protocol file.
 - No message text outside `src/auth/messages.ts`, and no message that a person
   with no session can cause outside the budgeted transport of `mail.ts` (0141).
-- No actor helper in `src/routes/published.ts`, no script, no second stylesheet, no
-  uncached HTML, and no application shell under `/published/` (0031, 0047).
+- No actor helper in `src/routes/published.ts`, no script but the diagram file (0158),
+  no second stylesheet, no uncached HTML and no shell under `/published/` (0031, 0047).
 
 ## Key files
 

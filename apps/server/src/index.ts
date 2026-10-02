@@ -143,14 +143,19 @@ export {
   secretDigest,
 } from './auth/publication-secrets.ts';
 export {
+  publishedDiagramContentPolicy,
   publishedDocumentContentPolicy,
   publishedDocumentHeaders,
+  type PublishedDiagramAssets,
 } from './plugins/security-headers.ts';
 export {
   assetHashLength,
   builtStylesheetHrefs,
   cacheControlFor,
   documentStylesheetHrefs,
+  publishedDiagramFrameHref,
+  publishedDiagramScriptFile,
+  publishedDiagramScriptHref,
 } from './plugins/static-assets.ts';
 export {
   publishedButtonClasses,

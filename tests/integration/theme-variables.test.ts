@@ -137,10 +137,29 @@ await test('the note surface keeps its designed typography', () => {
   assert.match(css, /--text-note:\s*1rem/);
   assert.match(css, /--text-note--line-height:\s*1\.65/);
   assert.match(css, /--container-note:\s*40rem/);
-  assert.match(css, /--text-note-h1:\s*1\.5em/);
+  assert.match(css, /--text-note-h1:\s*1\.75em/);
+  assert.match(css, /--text-note-h2:\s*1\.375em/);
   assert.match(css, /--text-note-h6:\s*1em/);
   assert.match(css, /--text-note-mono:\s*0\.9em/);
   assert.match(css, /--font-weight-note-heading:\s*600/);
+});
+
+await test('a first level heading stands clear of a second level one', () => {
+  // Issue 238. The first step was 1.5 em and the second 1.25 em, so a first
+  // level heading of a note read close to a second level one, in the editor
+  // and on the published page alike. Each step is at least an eighth larger
+  // than the next, and the first step a quarter larger than the second.
+  const steps = [1, 2, 3, 4].map((level) => {
+    const found = new RegExp(
+      `--text-note-h${String(level)}:\\s*([0-9.]+)em`,
+    ).exec(css);
+    assert.ok(found !== null, `the stylesheet states no step ${String(level)}`);
+    return Number(found[1]);
+  });
+  const [first = 0, second = 0, third = 0, fourth = 0] = steps;
+  assert.ok(first / second >= 1.25, `${String(first)} to ${String(second)}`);
+  assert.ok(second / third >= 1.125, `${String(second)} to ${String(third)}`);
+  assert.ok(third / fourth >= 1.125, `${String(third)} to ${String(fourth)}`);
 });
 
 await test('the named steps of the interface reach the stylesheet', () => {

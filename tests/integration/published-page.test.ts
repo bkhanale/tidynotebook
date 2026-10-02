@@ -49,6 +49,7 @@ import {
   createPublicationCleanup,
   createPublicationHasher,
   loadServerConfig,
+  publishedDiagramContentPolicy,
   publishedDocumentContentPolicy,
   type ServerConfig,
   sessionAllowedBy,
@@ -151,6 +152,12 @@ const logs = new LogRecorder();
 /** The stylesheet that a built shell document would name. */
 const stylesheet = '/assets/published-test.css';
 
+/** The diagram files that a build would hold (record 0158). */
+const diagramAssets = {
+  script: '/assets/published-diagrams-TestTest.js',
+  frame: '/src/diagram/frame.html',
+};
+
 const server = await startTestServer({
   environment: environment(),
   handlers: (value) =>
@@ -163,6 +170,7 @@ const server = await startTestServer({
         attachments,
         hasher,
         stylesheets: () => [stylesheet],
+        diagrams: () => diagramAssets,
         recordRefusal: (cause) => causes.push(cause),
       },
     }),
@@ -308,6 +316,35 @@ const formulasText = [
   '',
 ].join('\n');
 const formulasId = await writeNote('notes/trip/formulas.md', formulasText);
+const elementsText = [
+  '# Elements',
+  '',
+  '## Second level',
+  '',
+  'Press <kbd>Ctrl</kbd> and <kbd>S</kbd>, H<sub>2</sub>O, <mark>kept</mark>, one<br>two.',
+  '',
+  '<details>',
+  '<summary>Folded title</summary>',
+  '',
+  'Folded words.',
+  '',
+  '</details>',
+  '',
+  '<span onclick="alert(1)" style="position:fixed">Span words</span> and <a href="javascript:alert(1)">raw link</a>.',
+  '',
+  '- [x] done',
+  '- [ ] open',
+  '',
+  '| Left | Right |',
+  '| :--- | ----: |',
+  '| a    | 1     |',
+  '',
+  '```ts',
+  'const kept: number = 1; // note',
+  '```',
+  '',
+].join('\n');
+const elementsId = await writeNote('notes/trip/elements.md', elementsText);
 
 /** Publishes one link and answers its token. */
 async function publish(
@@ -374,7 +411,9 @@ await test('a reader with no session reads the list of a folder link', async () 
 });
 
 await test('the page carries a private cache directive and its own policy', async () => {
-  const page = await readPage(folder.token, { note: dayOneId });
+  // The note of day two holds no diagram, so it keeps the policy that refuses
+  // every script.
+  const page = await readPage(folder.token, { note: dayTwoId });
   const headers = page.response.headers;
   assert.equal(headers.get('cache-control'), 'private, no-store');
   assert.ok(!(headers.get('cache-control') ?? '').includes('public'));
@@ -395,9 +434,12 @@ await test('the page loads the one built application stylesheet', async () => {
 
 await test('a script and an event attribute never travel, a picture does', async () => {
   const page = await readPage(folder.token, { note: dayOneId });
-  // The one sanitized renderer drops every raw HTML node with its attributes,
-  // so no element and no attribute of the source reaches the reader.
-  assert.ok(!page.html.includes('<script'));
+  // The one sanitized renderer keeps the safe HTML of record 0157 only, so no
+  // script of the source and no attribute of the source reaches the reader.
+  // The one script of the page is the diagram file of the build.
+  assert.deepEqual(page.html.match(/<script[^>]*>/g), [
+    `<script src="${diagramAssets.script}" defer>`,
+  ]);
   assert.ok(!page.html.includes('onerror'));
   assert.ok(!page.html.includes('src="x"'));
   // Decision 0067. An external picture over HTTPS keeps its address, sends no
@@ -410,8 +452,13 @@ await test('a script and an event attribute never travel, a picture does', async
   );
   // The words around a dropped element stay, so nothing of the author is lost.
   assert.ok(page.html.includes('The first day.'));
-  assert.ok(page.html.includes('alert(1)'));
-  assert.ok(page.html.includes('const kept = 1;'));
+  // A script is code and not words of the note, so it leaves with its
+  // content (record 0157).
+  assert.ok(!page.html.includes('alert(1)'));
+  // The code keeps every word, in the token spans of record 0159.
+  assert.ok(
+    page.html.includes('<span class="notes-code-keyword">const</span> kept'),
+  );
   assert.ok(page.html.includes('<table>'));
   assert.ok(page.html.includes('type="checkbox"'));
 });
@@ -436,11 +483,72 @@ await test('a formula keeps the styles that place it, and an author style does n
   assert.ok(page.html.includes('Over the page'));
 });
 
-await test('a mermaid fence stays a placeholder on the server path', async () => {
+await test('a mermaid fence names the diagram script and keeps its source', async () => {
+  // Issue 236 and record 0158. The page drew no diagram. It now names the
+  // diagram script of the build, which draws the diagram in the frame of the
+  // editor, and the source stays the code block of a reader with no script.
   const page = await readPage(folder.token, { note: dayOneId });
-  assert.ok(page.html.includes('data-diagram="mermaid"'));
-  assert.ok(page.html.includes('graph TD;'));
-  assert.ok(!page.html.includes('<svg'));
+  assert.ok(page.html.includes('<pre data-diagram="mermaid">graph TD;'));
+  assert.ok(
+    page.html.includes(`<script src="${diagramAssets.script}" defer></script>`),
+  );
+  // The page draws no diagram itself. The one drawing it holds is the check
+  // mark of each task.
+  for (const drawing of page.html.match(/<svg[^>]*>/g) ?? [])
+    assert.ok(drawing.startsWith('<svg class="notes-task-mark"'), drawing);
+  // The content policy names that one script and that one frame, on the host
+  // that the reader asked, and nothing else.
+  const policy = page.response.headers.get('content-security-policy') ?? '';
+  const host = new URL(server.baseUrl).host;
+  assert.equal(policy, publishedDiagramContentPolicy(host, diagramAssets));
+  const directives = policy.split('; ');
+  assert.ok(directives.includes(`script-src ${host}${diagramAssets.script}`));
+  assert.ok(directives.includes(`frame-src ${host}${diagramAssets.frame}`));
+  assert.ok(directives.includes("frame-ancestors 'none'"));
+  assert.ok(!/script-src[^;]*unsafe/.test(policy));
+  assert.ok(!/script-src[^;]*'self'/.test(policy));
+  // A note with no diagram names no script.
+  const plain = await readPage(folder.token, { note: dayTwoId });
+  assert.ok(!plain.html.includes('<script'));
+});
+
+await test('the safe HTML of a note reaches the reader with its words', async () => {
+  // Issue 235 and record 0157.
+  const page = await readPage(folder.token, { note: elementsId });
+  for (const kept of [
+    '<kbd>Ctrl</kbd> and <kbd>S</kbd>',
+    'H<sub>2</sub>O',
+    '<mark>kept</mark>',
+    'one<br>two',
+    '<details>\n<summary>Folded title</summary>\n<p>Folded words.</p>\n</details>',
+    '<span>Span words</span> and raw link.',
+  ])
+    assert.ok(page.html.includes(kept), kept);
+  assert.ok(!page.html.includes('onclick'));
+  assert.ok(!page.html.includes('position:fixed'));
+  assert.ok(!page.html.includes('javascript:'));
+});
+
+await test('code, tasks and a table reach the reader as the editor draws them', async () => {
+  // Issues 237 and 238. The code carries the token classes of the one map of
+  // record 0159, a task carries its check mark, and a header cell carries the
+  // alignment of its column.
+  const page = await readPage(folder.token, { note: elementsId });
+  assert.ok(
+    page.html.includes(
+      '<code class="language-ts"><span class="notes-code-keyword">const</span> kept',
+    ),
+  );
+  assert.ok(
+    page.html.includes('<span class="notes-code-comment">// note</span>'),
+  );
+  assert.ok(
+    page.html.includes(
+      '<input type="checkbox" checked disabled><svg class="notes-task-mark"',
+    ),
+  );
+  assert.ok(page.html.includes('<th align="right">Right</th>'));
+  assert.ok(page.html.includes('<h1 id="user-content-elements">Elements</h1>'));
 });
 
 await test('a link inside the scope resolves and one outside it does not', async () => {

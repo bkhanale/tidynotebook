@@ -36,6 +36,9 @@ and
   the Default dark and light palettes to the one stylesheet, for a root with
   no `data-theme`, so the page follows the preference of the device. See
   [decision 0151](../decisions/0151-a-page-with-no-script-follows-the-device-palette.md).
+  Its code reads the syntax group through the `--color-syntax-*` names of
+  `apps/web/src/tailwind.css`, as the editor reads `--notes-syntax-*` (record
+  0159).
 - The sandboxed diagram frame, which receives the colours it paints with in the
   render request.
 

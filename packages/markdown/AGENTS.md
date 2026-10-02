@@ -7,23 +7,24 @@ this directory. The recipe for a whole feature is in
 ## Purpose
 
 The one definition of the Markdown language: remark with CommonMark and GFM,
-math, the sanitizer, the URL policy, the parse limits, and `renderMarkdown`.
-The editor, the server index, and Read mode all read a note through it.
+math, author HTML, the sanitizer, the URL policy, the fence languages, the
+parse limits, and `renderMarkdown`. Every reader of a note reads it here.
 
 ## What lives here and what does not
 
 - `parse.ts` gives the mdast tree with source offsets. `render.ts` gives
   sanitized HTML. `links.ts` extracts note links and attachment references.
   `plain-text.ts` gives the plain text of a search excerpt (0162).
-- `policy.ts` classifies a URL. `limits.ts` holds the size and depth limits
-  and `MarkdownLimitError`. `math.ts` and `math-syntax.ts` hold the math
-  rules and delimiters. `alerts.ts` holds the alert marker of a block quote,
-  which the live preview reads as well. `ordered-markers.ts` holds the
-  style cycle and the label of an ordered item, which the live preview and
-  the published page both follow (record 0089).
-- `test-data/content.ts` is the corpus document that both render paths must
-  agree on, and the note of block syntax that a parse of the editor must
-  read the same in slices (record 0155).
+- `policy.ts` classifies a URL. `limits.ts` holds the limits and
+  `MarkdownLimitError`, `math.ts` and `math-syntax.ts` the math rules,
+  `alerts.ts` the alert marker and `ordered-markers.ts` the style and label of
+  an ordered item (0089), which the live preview reads as well.
+- `html-elements.ts` is the one list of author HTML (0157), which
+  `render.ts` applies after the parse of `hast-util-raw`. `code-languages.ts`
+  and `code-tokens.ts` are the one list of fence languages and the one map of
+  code tokens (0159), which both surfaces read. `task-mark.ts` is the mark.
+- `test-data/content.ts` is the corpus that both render paths agree on, and
+  the note of block syntax that the editor reads the same in slices (0155).
 - `package.json` states `"sideEffects": false`, so a bundle takes only the
   modules a caller imports. The link scan of the first route then leaves the
   renderer and KaTeX in the deferred chunks. A module here runs nothing when
@@ -34,8 +35,9 @@ The editor, the server index, and Read mode all read a note through it.
 
 ## Allowed imports
 
-`@notesapp/core`, plus the remark, rehype, micromark, unified, and `katex`
-packages.
+`@notesapp/core`, plus the remark, rehype, micromark, unified, `hast-util-raw`
+and `katex` packages, `@lezer/common`, `@lezer/highlight`, and the Lezer
+language packages of `code-languages.ts`. No CodeMirror package.
 
 This package is browser code. It cannot import a Node built in module, a Node
 only package, or a server only package.
@@ -48,6 +50,8 @@ only package, or a server only package.
 - **A sanitizer allowance.** Change the schema in `policy.ts` and add a
   `policy.test.ts` case that proves the refusal of the neighbouring unsafe
   form.
+- **An author element or a fence language.** One entry of `authorElements`
+  or of `codeLanguages`, and a test of the kept form and the refused one.
 - **A limit.** Add the named value in `limits.ts` and the
   `MarkdownLimitReason` for it, and prove the refusal in `limits.test.ts`.
 
@@ -68,8 +72,8 @@ through the editor path, so both surfaces must agree on structure.
 - No `fetch` and no storage. A caller passes an `attachmentHref` resolver, and
   a surface that opens some notes and not others passes a `noteHref` resolver.
 - No wiki link syntax. A link between notes is a standard Markdown link.
-- No unsanitized HTML path. Every render goes through `rehype-sanitize` with
-  the policy in `policy.ts`.
+- No unsanitized HTML path, no second HTML parser and no second highlighter.
+  Every render goes through `rehype-sanitize` with `policy.ts`.
 - No unbounded parse. Every entry point refuses a document over the limits
   with `MarkdownLimitError`.
 - No second copy of a delimiter or a limit in `packages/editor`.
@@ -82,6 +86,9 @@ through the editor path, so both surfaces must agree on structure.
 | `src/parse.ts`           | The parser and its extension set            |
 | `src/render.ts`          | `renderMarkdown` and heading slugs          |
 | `src/policy.ts`          | The sanitizer schema and the URL policy     |
+| `src/html-elements.ts`   | The HTML that an author may write (0157)    |
+| `src/code-languages.ts`  | The one list of fence languages (0159)      |
+| `src/code-tokens.ts`     | The one map of code tokens (0159)           |
 | `src/alerts.ts`          | The alert marker and the five tones         |
 | `src/footnote-syntax.ts` | The footnote label rule (0156)              |
 | `src/ordered-markers.ts` | The label and style of an ordered item      |

@@ -15,7 +15,15 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
-import { assetHashLength, cacheControlFor } from '@notesapp/server';
+import {
+  assetHashLength,
+  cacheControlFor,
+  publishedDiagramFrameHref,
+  publishedDiagramScriptFile,
+  publishedDiagramScriptHref,
+} from '@notesapp/server';
+import { diagramFramePath } from '../../apps/web/src/diagram/frame.ts';
+import { publishedDiagramScriptName } from '../../apps/web/vite.config.ts';
 import { appIcons, iconHashLength } from '../../apps/web/src/pwa/icons.ts';
 import {
   builtScripts,
@@ -161,4 +169,24 @@ await test('the first route loads no library that only a note needs', async () =
       .map((script) => script.file);
     assert.deepEqual(holders, [], `${library.name} is on the first route`);
   }
+});
+
+await test('the build writes one self-contained diagram script for a published page', async () => {
+  // Record 0158. The content policy of a published page names one script of
+  // the build by its address, so the script loads no chunk, and the server
+  // finds it by the name that the build gives it.
+  const href = publishedDiagramScriptHref(distribution);
+  assert.ok(href !== null, 'the server finds no diagram script in the build');
+  const name = href.slice('/assets/'.length);
+  assert.match(name, publishedDiagramScriptFile);
+  assert.ok(name.startsWith(`${publishedDiagramScriptName}-`));
+  assert.ok(cacheControlFor(href).includes('immutable'));
+  const script = await readFile(join(distribution, href), 'utf8');
+  // A classic script with no import: the page names it with no module type.
+  assert.doesNotMatch(script, /(?:^|[\n;])\s*(?:import|export)[\s{'"(]/);
+  assert.doesNotMatch(script, /\bimport\(/);
+  // It loads the frame of the editor, at the address that the policy names.
+  assert.equal(publishedDiagramFrameHref, diagramFramePath);
+  assert.ok(script.includes(diagramFramePath));
+  await readFile(join(distribution, publishedDiagramFrameHref));
 });

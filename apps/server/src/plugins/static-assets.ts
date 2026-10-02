@@ -28,7 +28,7 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, readdirSync, readFileSync, statSync } from 'node:fs';
 import type { Stats } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   appShellContentPolicy,
@@ -362,6 +362,53 @@ export function builtStylesheetHrefs(
     .filter((name) => name.endsWith('.css'))
     .sort((left, right) => left.localeCompare(right))
     .map((name) => `/assets/${name}`);
+}
+
+/**
+ * The name of the diagram script of a published page, with its hash.
+ *
+ * `publishedDiagramScript` in `apps/web/vite.config.ts` writes the file under
+ * this name (record 0158), and `tests/integration/web-build.test.ts` holds the
+ * two together.
+ */
+export const publishedDiagramScriptFile =
+  /^published-diagrams-[A-Za-z0-9_-]{8}\.js$/;
+
+/**
+ * The address of the diagram frame document of the build.
+ *
+ * The editor and the published page load the same frame. Its address is
+ * `diagramFramePath` of `apps/web/src/diagram/frame.ts`, which the server
+ * cannot import, so `tests/integration/web-build.test.ts` holds this copy to
+ * the built script that names it.
+ */
+export const publishedDiagramFrameHref = '/src/diagram/frame.html';
+
+/**
+ * The address of the diagram script of a published page, or `null`.
+ *
+ * The build writes one such file. A deployment that serves no built assets,
+ * or a build with no frame document, answers `null`, and a published page
+ * then shows the source of each diagram as a code block.
+ *
+ * @param webDirectory the built web directory, which holds `assets/` and the
+ *   frame document.
+ */
+export function publishedDiagramScriptHref(
+  webDirectory: string,
+): string | null {
+  if (statFile(join(webDirectory, publishedDiagramFrameHref)) === null)
+    return null;
+  let names: readonly string[];
+  try {
+    names = readdirSync(join(webDirectory, 'assets'));
+  } catch {
+    return null;
+  }
+  const found = names.filter((name) => publishedDiagramScriptFile.test(name));
+  // Two files of one name would leave the choice of script to chance, so a
+  // build that holds them answers none and the page stays readable.
+  return found.length === 1 ? `/assets/${found[0] ?? ''}` : null;
 }
 
 /** The same-origin stylesheet addresses of one HTML document. */

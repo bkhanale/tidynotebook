@@ -65,9 +65,12 @@ table. See [Accounts and identity](../development/identity.md).
   published link carries its own secret in the address. That secret opens what
   you published, for reading only, and it reaches nothing else.
 - A write must also name an origin that the installation serves.
-- Note content is rendered through one sanitizer. Raw HTML is dropped, and a
-  link to anything other than a web address, a mail address, another note, or
-  an attachment loses its destination.
+- Note content is rendered through one sanitizer. It keeps a safe set of
+  HTML elements with no script, no style and no event, and a link to anything
+  other than a web address, a mail address, another note, or an attachment
+  loses its destination.
+- A published page runs no script, except the one file of the server that
+  draws a diagram in a sandboxed frame.
 - An image from another site is never fetched by the page on its own. It needs
   an explicit action, so opening a note cannot tell another site that you read
   it.

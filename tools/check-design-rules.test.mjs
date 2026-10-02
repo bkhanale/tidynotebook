@@ -56,6 +56,7 @@ const fixtureStylesheet = `@theme inline {
   --color-edge-subtle: var(--notes-border-subtle);
   --color-focus: var(--notes-focus);
   --color-scrim: var(--notes-scrim);
+  --color-syntax-keyword: var(--notes-syntax-keyword);
 }
 `;
 
@@ -207,6 +208,8 @@ await test('a colour class that names no token fails', () => {
     'border-edge-loud',
     'bg-danger-soft',
     'md:text-muted-strong',
+    // A code colour of record 0159 that the stylesheet does not name.
+    'text-syntax-heading',
   ])
     assert.notEqual(
       textRules['colour-token'](name, screen, tokens),
@@ -231,6 +234,7 @@ await test('a colour class that names a token passes', () => {
     'border-transparent',
     'text-control',
     'rounded-md',
+    '[&_.notes-code-keyword]:text-syntax-keyword',
   ])
     assert.equal(textRules['colour-token'](name, screen, tokens), null, name);
 });

@@ -119,6 +119,9 @@ quotes, inline code, fenced code with a language, indented code, links,
 reference links, images, thematic breaks, hard breaks, escapes, and entities
 all work as CommonMark describes.
 
+Code in a fence named `js`, `ts`, `json`, `css` or `html` shows in colour,
+in the note and on a published page alike.
+
 A task box is a real checkbox. Select it to tick the line. A table shows as a
 grid of cells, and the note stores it as a GitHub table. A long cell wraps
 onto more lines, so each column takes the width that its text needs. A table
@@ -169,7 +172,8 @@ failing.
 
 ## Diagrams and images
 
-A code fence marked `mermaid` is drawn as a diagram.
+A code fence marked `mermaid` is drawn as a diagram, in the note and on a
+published page.
 
 An image from this note shows the picture. An image from another site shows the
 picture as well, and the address must start with `https`. Opening the note
@@ -188,12 +192,22 @@ in, drag the image to move it. An image from this note has **Copy image** and
 original**. To change the Markdown of an image, click next to the image or
 move the cursor onto it with the arrow keys.
 
-## HTML is not rendered
+## HTML in a note
 
-Raw HTML is shown as text in the note and removed from a published link.
-Nothing you write as HTML has any effect. A link to anything other than a web address, a
-mail address, another note, or an attachment loses its destination and is shown
-as plain text.
+A note keeps a safe set of HTML, the set that GitHub keeps. For example,
+`<kbd>Ctrl</kbd>` shows a key, `H<sub>2</sub>O` and `x<sup>2</sup>` show a
+subscript and a superscript, `<mark>` marks text, `<br>` breaks a line, and
+`<details>` with a `<summary>` folds a block on a published page.
+
+The note shows a key, a subscript, a superscript, a mark and other text
+elements as they look. It shows a block element such as `<details>`, and
+`<br>`, as its HTML.
+
+Other HTML loses its tags and keeps its words. A script, a style, an event
+and a link or a picture written as HTML have no effect. Write a link or a
+picture in Markdown instead. A link to anything other than a web address, a
+mail address, another note, or an attachment loses its destination and is
+shown as plain text.
 
 ## Limits
 

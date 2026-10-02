@@ -315,6 +315,63 @@ function diagramFrame(directory: string): Plugin {
   };
 }
 
+/**
+ * The name of the diagram script of a published page, before its hash.
+ *
+ * `publishedDiagramScriptHref` in `apps/server/src/plugins/static-assets.ts`
+ * finds the file by this name, and `tests/integration/web-build.test.ts`
+ * holds the two together.
+ */
+export const publishedDiagramScriptName = 'published-diagrams';
+
+/**
+ * Emits the diagram script of a published page as one file (record 0158).
+ *
+ * The content policy of a published page names this one file by its address,
+ * so the script cannot load a chunk of its own. This plugin builds the entry
+ * alone with `inlineDynamicImports`, as `diagramFrame` does, and emits it
+ * under a name that carries the hash of its bytes, so the browser keeps it as
+ * long as it likes.
+ */
+function publishedDiagramScript(directory: string): Plugin {
+  return {
+    name: 'notesapp-published-diagram-script',
+    apply: 'build',
+    async generateBundle(): Promise<void> {
+      const result = await build({
+        configFile: false,
+        root: directory,
+        logLevel: 'warn',
+        build: {
+          write: false,
+          target: 'es2024',
+          minify: true,
+          rollupOptions: {
+            input: resolve(directory, 'src/published/diagrams.ts'),
+            output: { format: 'iife', inlineDynamicImports: true },
+          },
+        },
+      });
+      const code = (Array.isArray(result) ? result : [result])
+        .flatMap((one) => ('output' in one ? one.output : []))
+        .filter((chunk) => chunk.type === 'chunk')
+        .map((chunk) => chunk.code)
+        .join('\n');
+      if (code === '')
+        throw new Error('The diagram script of a published page is empty.');
+      const hash = createHash('sha256')
+        .update(code)
+        .digest('base64url')
+        .slice(0, 8);
+      this.emitFile({
+        type: 'asset',
+        fileName: `assets/${publishedDiagramScriptName}-${hash}.js`,
+        source: code,
+      });
+    },
+  };
+}
+
 export default defineConfig(({ command }) => ({
   build: {
     outDir: 'dist/web',
@@ -352,6 +409,9 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     themeAssets(import.meta.dirname),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
+    ...(command === 'build'
+      ? [publishedDiagramScript(import.meta.dirname)]
+      : []),
     // Last, because its hook reads every emitted file of the build, including
     // the application manifest and the diagram frame that the two plugins
     // above emit.

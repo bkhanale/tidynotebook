@@ -25,6 +25,11 @@
  * link opens. This file digests the secrets of the address, renders the note
  * through the one sanitized renderer, builds the addresses of the page, and
  * writes the headers of decision 0047.
+ *
+ * **A diagram is the one script.** A note that holds a diagram names the
+ * diagram script of the build, and its content policy names that file and the
+ * frame document by their exact address on the host of the request (record
+ * 0158). Every other page keeps the policy that refuses every script.
  */
 import {
   isReportReason,
@@ -48,7 +53,12 @@ import type {
   PublicationUnlockResult,
 } from '@notesapp/storage-server';
 import { PublishedLinkUnavailableError } from '../plugins/problem.ts';
-import { publishedDocumentHeaders } from '../plugins/security-headers.ts';
+import {
+  publishedDiagramContentPolicy,
+  publishedDocumentHeaders,
+  publishedDocumentHeadersWith,
+  type PublishedDiagramAssets,
+} from '../plugins/security-headers.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import {
   contentDisposition,
@@ -86,11 +96,41 @@ export type PublishedDependencies = {
   readonly hasher: PasswordHasher;
   /** The stylesheets of the built application document. */
   readonly stylesheets: () => readonly string[];
+  /**
+   * The diagram script and the frame document of the build, or `null` when
+   * the build holds none (record 0158).
+   */
+  readonly diagrams: () => PublishedDiagramAssets | null;
   /** The instant of one request. */
   readonly clock: () => number;
   /** Where the cause of a refusal goes, for the operator only. */
   readonly recordRefusal: (cause: ReaderRefusalCause) => void;
 };
+
+/** The placeholder of a diagram, as `renderMarkdown` writes it. */
+const diagramPlaceholder = '<pre data-diagram="mermaid">';
+
+/** The script of one page that draws its diagrams, with its policy. */
+type DiagramPage = { readonly script: string; readonly policy: string };
+
+/**
+ * The diagram script of one page and its content policy, or `null`.
+ *
+ * Only a note whose sanitized body holds a diagram placeholder gets one. The
+ * renderer is the one producer of the placeholder, so the text of an author
+ * cannot ask for the script. A build with no script, and a host that a policy
+ * cannot name, answer `null`, and the page shows the source of each diagram.
+ */
+function diagramPageOf(
+  view: PublishedPageView,
+  host: string | undefined,
+  assets: PublishedDiagramAssets | null,
+): DiagramPage | null {
+  if (view.kind !== 'note' || assets === null) return null;
+  if (!view.body.includes(diagramPlaceholder)) return null;
+  const policy = publishedDiagramContentPolicy(host, assets);
+  return policy === null ? null : { script: assets.script, policy };
+}
 
 /** The name of a download whose stored path holds none. */
 const fallbackAttachmentName = 'image';
@@ -229,19 +269,27 @@ export function createPublishedHandlers(
     token: string,
     ticket: string | null,
     note: string | null,
-  ): Promise<HandlerResult> => ({
-    status: 200,
-    mediaType: 'text/html',
-    body: publishedDocument({
-      view,
-      stylesheets: parts.stylesheets(),
-      // The form returns to the address that the reader is on, so an unlock
-      // of a folder link opens the note that the reader asked for.
-      formAction: pageAddress(token, null, note),
-      reportHref: reportAddress(token),
-    }),
-    headers: publishedDocumentHeaders,
-  });
+    host: string | undefined,
+  ): Promise<HandlerResult> => {
+    const diagrams = diagramPageOf(view, host, parts.diagrams());
+    return {
+      status: 200,
+      mediaType: 'text/html',
+      body: publishedDocument({
+        view,
+        stylesheets: parts.stylesheets(),
+        // The form returns to the address that the reader is on, so an unlock
+        // of a folder link opens the note that the reader asked for.
+        formAction: pageAddress(token, null, note),
+        reportHref: reportAddress(token),
+        diagramScript: diagrams?.script ?? null,
+      }),
+      headers:
+        diagrams === null
+          ? publishedDocumentHeaders
+          : publishedDocumentHeadersWith(diagrams.policy),
+    };
+  };
 
   /** The state of one address, as one read of the domain answers it. */
   const readPage = (
@@ -268,7 +316,13 @@ export function createPublishedHandlers(
       const ticket = queryValue(request, 'ticket');
       const note = queryValue(request, 'note');
       const page = await readPage(token, ticket, note);
-      return answerPage(await viewOf(page, token, ticket), token, ticket, note);
+      return answerPage(
+        await viewOf(page, token, ticket),
+        token,
+        ticket,
+        note,
+        request.headers.host,
+      );
     },
 
     openPublishedPage: async (request): Promise<HandlerResult> => {
@@ -286,10 +340,22 @@ export function createPublishedHandlers(
         parts.recordRefusal(unlocked.cause);
         // The same words and the same form as a link that was never opened.
         const page = await readPage(token, null, note);
-        return answerPage(await viewOf(page, token, null), token, null, note);
+        return answerPage(
+          await viewOf(page, token, null),
+          token,
+          null,
+          note,
+          request.headers.host,
+        );
       }
       const page = await readPage(token, ticket, note);
-      return answerPage(await viewOf(page, token, ticket), token, ticket, note);
+      return answerPage(
+        await viewOf(page, token, ticket),
+        token,
+        ticket,
+        note,
+        request.headers.host,
+      );
     },
 
     unlockPublishedLink: async (request): Promise<HandlerResult> => {

@@ -14,10 +14,14 @@
  * other value that this module writes passes `escapeText` or `escapeAttribute`
  * first, so no name and no address can end an element or start an attribute.
  *
- * **The page holds no script.** There is no inline script, no module, and no
- * event attribute, so the content policy of `plugins/security-headers.ts` can
- * refuse every script source. The password form is therefore a plain form that
- * sends the form encoding of HTML, and the server answers this document again.
+ * **The page holds no script of its own.** There is no inline script, no
+ * module, and no event attribute, so the content policy of
+ * `plugins/security-headers.ts` refuses every script source. The password form
+ * is therefore a plain form that sends the form encoding of HTML, and the
+ * server answers this document again. A note that holds a diagram is the one
+ * exception: the page names the diagram script of the build, which draws each
+ * diagram in the frame of the editor, and its policy names that one file
+ * (record 0158). With no script the page shows the source of the diagram.
  *
  * **Presentation comes from the built application stylesheet.** The document
  * loads the stylesheet of the shell, so the page cannot drift from the theme.
@@ -104,6 +108,13 @@ export type PublishedDocumentInput = {
    * list carry it, so a reader can report what the link shows.
    */
   readonly reportHref?: string | null;
+  /**
+   * The address of the diagram script of the build, or `null`.
+   *
+   * Only a note that holds a diagram carries it (record 0158), and the
+   * content policy of the page names the same address.
+   */
+  readonly diagramScript?: string | null;
 };
 
 /**
@@ -198,12 +209,18 @@ const gateHintClasses = 'm-0 text-control text-muted';
  * standard spacing scale, the tracking scale, and the semantic colours of the
  * theme registry.
  *
- * This page is the second renderer of one note, so its structure reads the
- * same as the editor of `packages/editor`: the same heading tightening, the
- * same quote bar, and a divider that a person can see on every palette.
+ * This page is the second renderer of one note, so it draws what the live
+ * preview of `packages/editor` draws (design 021). Each group below names the
+ * rule of `packages/editor/src/editor-theme.ts` that it follows: the heading
+ * ramp, the quote bar, the code card, the task box, the grid of a table, the
+ * inline HTML elements of record 0157, and the code colours of record 0159.
  */
 export const noteBodyClasses = [
-  'text-note',
+  // The note is the product, so its body reads in the strong text colour, as
+  // the editor draws it.
+  'text-note text-strong',
+  // The heading ramp of the note: one weight, the size of the step states the
+  // level, and the two large steps tighten their letters (`headingRules`).
   '[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-note-h1 [&_h1]:font-note-heading [&_h1]:tracking-display [&_h1]:text-strong',
   '[&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:text-note-h2 [&_h2]:font-note-heading [&_h2]:tracking-heading [&_h2]:text-strong',
   '[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-note-h3 [&_h3]:font-note-heading [&_h3]:tracking-heading [&_h3]:text-strong',
@@ -220,8 +237,20 @@ export const noteBodyClasses = [
   '[&_ol_ol]:list-lower-alpha [&_ol_ol_ol]:list-lower-roman',
   '[&_ol_ol_ol_ol]:list-decimal [&_ol_ol_ol_ol_ol]:list-lower-alpha [&_ol_ol_ol_ol_ol_ol]:list-lower-roman',
   '[&_li]:my-1',
+  // A task item draws the task box of record 0033 where the bullet of an item
+  // stands, and no bullet. The box is the native disabled checkbox with its
+  // appearance removed: the component edge and the page fill at rest, the ink
+  // fill when the task is done. The check mark is the element after the box,
+  // and it lies over the box while the box is checked.
+  '[&_li.task-list-item]:list-none',
+  '[&_.task-list-item_input]:-ml-6 [&_.task-list-item_input]:mr-1.5 [&_.task-list-item_input]:size-4 [&_.task-list-item_input]:appearance-none [&_.task-list-item_input]:rounded-sm [&_.task-list-item_input]:border [&_.task-list-item_input]:border-edge [&_.task-list-item_input]:bg-app [&_.task-list-item_input]:align-middle',
+  '[&_.task-list-item_input:checked]:border-accent-fill [&_.task-list-item_input:checked]:bg-accent-fill',
+  '[&_.notes-task-mark]:-ml-5.5 [&_.notes-task-mark]:mr-1.5 [&_.notes-task-mark]:hidden [&_.notes-task-mark]:size-4 [&_.notes-task-mark]:align-middle [&_.notes-task-mark]:text-on-accent',
+  '[&_input:checked+.notes-task-mark]:inline-block',
   '[&_a]:text-accent [&_a]:underline',
-  '[&_strong]:font-semibold',
+  '[&_strong]:font-semibold [&_b]:font-semibold',
+  // A struck run reads in the muted text, as the strike of the editor does.
+  '[&_del]:text-muted [&_s]:text-muted [&_strike]:text-muted',
   '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge-line [&_blockquote]:pl-4 [&_blockquote]:text-muted',
   // An alert is a quote that states a tone, and the note surface draws the
   // same three colours for the five tones of GitHub. The title word states
@@ -234,14 +263,37 @@ export const noteBodyClasses = [
   '[&_blockquote[data-alert=note]_.notes-alert-title]:text-accent [&_blockquote[data-alert=important]_.notes-alert-title]:text-accent',
   '[&_blockquote[data-alert=tip]_.notes-alert-title]:text-success',
   '[&_blockquote[data-alert=warning]_.notes-alert-title]:text-danger [&_blockquote[data-alert=caution]_.notes-alert-title]:text-danger',
-  '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-card [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-note-mono',
-  '[&_code]:font-mono [&_code]:text-note-mono',
+  // A code block is one card of the note: the chrome fill, the hairline of a
+  // raised surface and the card radius, as `.cm-np-code-block-line` draws it.
+  // The code inside it keeps the size of the block.
+  '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-edge-subtle [&_pre]:bg-surface [&_pre]:px-4 [&_pre]:py-3 [&_pre]:font-mono [&_pre]:text-note-mono',
+  // A code span is a word inside a sentence: the quietest tint and the small
+  // radius of a hint, as `.cm-np-code` draws it.
+  '[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:bg-hover [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.25 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-note-mono',
+  // The code colours of record 0159: one class for each token of
+  // `packages/markdown/src/code-tokens.ts`, one colour of the syntax group of
+  // the theme for each, and a comment that leans.
+  '[&_.notes-code-keyword]:text-syntax-keyword [&_.notes-code-string]:text-syntax-string [&_.notes-code-comment]:text-syntax-comment [&_.notes-code-comment]:italic',
+  '[&_.notes-code-number]:text-syntax-number [&_.notes-code-tag]:text-syntax-tag [&_.notes-code-attribute]:text-syntax-attribute',
+  '[&_.notes-code-punctuation]:text-syntax-punctuation [&_.notes-code-invalid]:text-danger',
+  // The inline HTML of record 0157, as `inlineHtmlRules` of the editor draws
+  // it. A key is a hint with the divider edge, and a mark is the tone surface
+  // of the accent with the strong text on it.
+  '[&_kbd]:rounded-sm [&_kbd]:border [&_kbd]:border-edge-line [&_kbd]:bg-surface [&_kbd]:px-1 [&_kbd]:font-mono [&_kbd]:text-note-mono',
+  '[&_mark]:rounded-sm [&_mark]:bg-accent-surface [&_mark]:px-0.5 [&_mark]:text-strong',
+  '[&_details]:my-4 [&_summary]:cursor-pointer [&_summary]:rounded-sm [&_summary:focus-visible]:outline-2 [&_summary:focus-visible]:outline-offset-2 [&_summary:focus-visible]:outline-focus',
+  // A diagram that the script of record 0158 draws stands where its source
+  // stood.
+  '[&_.notes-diagram]:my-4',
   '[&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg',
   '[&_hr]:my-8 [&_hr]:border-edge-line',
-  '[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse',
-  '[&_th]:border [&_th]:border-edge-line [&_th]:bg-surface [&_th]:p-2 [&_th]:text-left [&_th]:font-medium [&_th]:text-strong',
-  '[&_td]:border [&_td]:border-edge-line [&_td]:p-2',
-  '[&_input]:mr-2',
+  // A table is a grid that sizes to its text and scrolls on its own when it
+  // cannot fit, as `.cm-np-table` draws it (record 0147). The collapsed edges
+  // pass to the rows, and a header cell takes the alignment of its column.
+  '[&_table]:my-4 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-note-mono',
+  '[&_th]:border [&_th]:border-edge-line [&_th]:bg-hover [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-start [&_th]:align-top [&_th]:font-note-heading [&_th]:text-strong',
+  '[&_td]:border [&_td]:border-edge-line [&_td]:px-3 [&_td]:py-1.5 [&_td]:align-top',
+  '[&_:is(th,td)[align=center]]:text-center [&_:is(th,td)[align=right]]:text-right [&_:is(th,td)[align=left]]:text-left',
 ].join(' ');
 
 /**
@@ -454,6 +506,14 @@ export function publishedDocument(input: PublishedDocumentInput): string {
       (href) => `<link rel="stylesheet" href="${escapeAttribute(href)}">\n    `,
     )
     .join('');
+  // The script waits for the document, so it finds every placeholder, and it
+  // is a file of the build: the page holds no inline script.
+  const script =
+    input.view.kind === 'note' &&
+    input.diagramScript !== undefined &&
+    input.diagramScript !== null
+      ? `<script src="${escapeAttribute(input.diagramScript)}" defer></script>\n    `
+      : '';
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -461,7 +521,7 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <title>${escapeText(titleOf(input.view))}</title>
-    ${styles}</head>
+    ${styles}${script}</head>
   <body class="${bodyClasses}">
     <main class="${mainClassesOf(input.view)}">
 ${mainOf(input)}${footOf(input)}

@@ -137,7 +137,7 @@ const pressScale = /(?:^|[\s:])(?:scale|scale-x|scale-y)-\d+(?![\w-])/;
  * modifier is stripped before the token is looked up.
  */
 const colourClass =
-  /(?:^|[\s:])(?:bg|text|border|ring|outline|fill|stroke|decoration|placeholder|caret|accent|divide|shadow|from|via|to)-(app|surface|card|hover|active|ink|strong|muted|accent|success|danger|edge|focus|scrim|on)((?:-[a-z]+)*)(?:\/\d+)?(?![\w-])/g;
+  /(?:^|[\s:])(?:bg|text|border|ring|outline|fill|stroke|decoration|placeholder|caret|accent|divide|shadow|from|via|to)-(app|surface|card|hover|active|ink|strong|muted|accent|success|danger|edge|focus|scrim|on|syntax)((?:-[a-z]+)*)(?:\/\d+)?(?![\w-])/g;
 
 /** The component edge, which only a control with a drawn state may name. */
 const statefulEdge = /(?:^|[\s:])(?:border|ring)-edge(?![\w-])/;

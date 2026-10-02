@@ -86,16 +86,29 @@ are in [The live preview](live-preview.md).
 
 ## Safety
 
-The renderer drops raw HTML and keeps its text, so nothing a person writes as
-HTML can act. The URL policy keeps a small set of schemes and the two internal
-prefixes, and it removes the destination of anything else rather than following
-it. An external image loads over HTTPS and no other scheme, and it carries
+A note keeps the HTML elements of `packages/markdown/src/html-elements.ts`,
+parsed with parse5, and the live preview draws the inline ones. Any other
+element keeps its text alone, and a script or a style leaves with its content
+([decision 0157](../decisions/0157-a-note-keeps-a-safe-set-of-html-elements.md)).
+The URL policy keeps a small set of schemes and the two internal prefixes, and
+it removes the destination of anything else rather than following it. An
+external image loads over HTTPS and no other scheme, and it carries
 `referrerpolicy="no-referrer"`. See
 [decision 0067](../decisions/0067-an-external-picture-loads-by-itself.md).
 
 `packages/markdown/src/policy.ts` is the one definition of both rules. A change
 there is a change to the security surface, so it needs a test that proves the
 refusal.
+
+## Code and diagrams
+
+`packages/markdown/src/code-languages.ts` is the one list of the languages of a
+fence, and `code-tokens.ts` maps their tokens to the syntax colours. The
+renderer and the editor read both, so a fence has one set of colours
+([decision 0159](../decisions/0159-one-highlighter-colours-code-on-both-surfaces.md)).
+The published page draws a diagram in the frame of the editor with one script
+that its policy names, and shows the source with no script
+([decision 0158](../decisions/0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)).
 
 ## Limits
 

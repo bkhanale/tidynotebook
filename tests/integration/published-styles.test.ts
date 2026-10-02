@@ -44,7 +44,11 @@ import {
   transitionField,
   transitionSurface,
 } from '@notesapp/ui';
-import { orderedMarkerStyle, orderedMarkerStyles } from '@notesapp/markdown';
+import {
+  codeTokenClasses,
+  orderedMarkerStyle,
+  orderedMarkerStyles,
+} from '@notesapp/markdown';
 import { devicePaletteRoot } from '../../apps/web/src/lib/first-paint.ts';
 import { loadCompiler, webRequire } from './support/tailwind.ts';
 
@@ -205,6 +209,59 @@ await test('every class of the published document reaches the stylesheet', async
     css.includes('.max-w-note {\n    max-width: var(--container-note);'),
   );
   assert.ok(css.includes('--notes-accent-text'));
+});
+
+await test('the published page draws what the live preview draws', async () => {
+  // Issues 237 and 238, design 021. Each rule below is the compiled form of a
+  // look that `packages/editor/src/editor-theme.ts` gives the same construct.
+  const css = await buildCss(publishedDocumentClasses);
+  for (const rule of [
+    // A code block is a card in light as well as in dark: the chrome fill,
+    // the subtle edge and the card radius.
+    'pre {\n    background-color: var(--notes-surface,',
+    'pre {\n    border-color: var(--notes-border-subtle,',
+    'pre {\n    border-radius: var(--radius-lg);',
+    // Each code token takes the colour of its name in the syntax group. The
+    // inline theme writes the palette name of the registry into each rule.
+    '.notes-code-keyword {\n    color: var(--notes-syntax-keyword,',
+    '.notes-code-string {\n    color: var(--notes-syntax-string,',
+    '.notes-code-comment {\n    color: var(--notes-syntax-comment,',
+    '.notes-code-comment {\n    font-style: italic;',
+    '.notes-code-tag {\n    color: var(--notes-syntax-tag,',
+    '.notes-code-attribute {\n    color: var(--notes-syntax-attribute,',
+    '.notes-code-number {\n    color: var(--notes-syntax-number,',
+    '.notes-code-punctuation {\n    color: var(--notes-syntax-punctuation,',
+    // A task item has no bullet and draws the task box of the theme.
+    'li.task-list-item {\n    list-style-type: none;',
+    '.task-list-item input {\n    appearance: none;',
+    '.task-list-item input {\n    border-color: var(--notes-border,',
+    '.task-list-item input:checked {\n    background-color: var(--notes-accent-fill,',
+    'input:checked + .notes-task-mark {\n    display: inline-block;',
+    // A table sizes to its text and scrolls on its own, and a header cell
+    // follows the alignment of its column.
+    'table {\n    display: block;',
+    'table {\n    overflow-x: auto;',
+    'th {\n    text-align: start;',
+    ':is(th, td)[align=right] {\n    text-align: right;',
+    ':is(th, td)[align=center] {\n    text-align: center;',
+    'th {\n    background-color: var(--notes-surface-hover,',
+    // The inline HTML of record 0157.
+    'kbd {\n    border-color: var(--notes-border-line,',
+    'mark {\n    background-color: var(--notes-accent-surface,',
+  ])
+    assert.ok(css.includes(rule), rule);
+  // A header cell no longer forces the left edge over its alignment.
+  assert.ok(!css.includes('th {\n    text-align: left;'));
+  // A table no longer fills the column.
+  assert.ok(!css.includes('table {\n    width: 100%;'));
+});
+
+await test('every code token of the renderer has a colour on the page', () => {
+  // Record 0159. The renderer writes one class for each token of the one map,
+  // so the page must name each class, or a token reads as plain text.
+  const classes = publishedDocumentClasses.join(' ');
+  for (const name of codeTokenClasses)
+    assert.ok(classes.includes(`[&_.${name}]:text-`), name);
 });
 
 await test('a nested ordered list of the published page takes the one cycle', async () => {

@@ -17,6 +17,11 @@
       "reason": "The box of the Checkbox is one of the five controls that decision 0063 reserves the component edge for. A person reads the state of a checkbox from its shape alone, so its edge must meet the 3 to 1 non text minimum that theme.test.ts holds `border` to."
     },
     {
+      "file": "apps/server/src/routes/published-document.ts",
+      "rule": "stateful-edge",
+      "reason": "The box of a published task is the task box of decision 0033, one of the five controls that decision 0063 reserves the component edge for. The editor draws it with the same edge, and a reader reads its state from its shape alone."
+    },
+    {
       "file": "apps/web/src/lib/tree-row.ts",
       "rule": "stateful-edge",
       "reason": "The drop target of the folder tree is named by decision 0063. While a row is dragged over a folder, the edge is the whole message, so it must meet the 3 to 1 non text minimum."
