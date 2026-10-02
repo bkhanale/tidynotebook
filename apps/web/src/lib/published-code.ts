@@ -15,6 +15,28 @@
  */
 export const publishedCodeSelector = 'figure.notes-code';
 
+/** The caption of a block, which holds its label, as the renderer writes it. */
+export const publishedCodeLabelSelector = 'figcaption.notes-code-label';
+
+/** The part of a figure that the label of its block is read from. */
+export type CodeFigure = {
+  querySelector(
+    selector: string,
+  ): { readonly textContent: string | null } | null;
+};
+
+/**
+ * The label of the block of one figure, or `null` for a block with none.
+ *
+ * The copy control names its block by this label, as the bar of the editor
+ * does, so two controls of a page differ.
+ */
+export function publishedCodeLabel(figure: CodeFigure): string | null {
+  const text =
+    figure.querySelector(publishedCodeLabelSelector)?.textContent?.trim() ?? '';
+  return text === '' ? null : text;
+}
+
 /**
  * The text that the copy of one block takes.
  *

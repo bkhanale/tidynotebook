@@ -4,22 +4,27 @@
  * The page shows each block with its language in a bar at the top of the
  * card, which a reader with no script reads too. This module puts a copy
  * control at the other end of the bar. The control is the ghost button of
- * `packages/ui`, with the copy glyph and its word, and its name states what
- * it copies. A copy says Copied for a moment. A browser with no clipboard,
- * such as one that opened the page over plain HTTP, gets no control, and the
- * reader selects the code instead.
+ * `packages/ui`, with the copy glyph and its word, and its name says the
+ * language of the block (`copyControlWords`). A copy says Copied for a
+ * moment. A browser with no clipboard, such as one that opened the page over
+ * plain HTTP, gets no control, and the reader selects the code instead.
+ *
+ * A copy fails one way. When the browser refuses the clipboard, the control
+ * selects the code and says so, and the reader copies it with the keyboard.
  */
 import {
   buttonClassName,
   checkParts,
   compactButtonVisualClassName,
   copiedForMs,
-  copyCodeWords,
+  copyControlWords,
   copyParts,
   glyph,
+  type CopyState,
 } from '@notesapp/ui';
 import {
   copiedCode,
+  publishedCodeLabel,
   publishedCodeSelector,
   publishedCopyPlace,
 } from '../lib/published-code.ts';
@@ -29,6 +34,7 @@ const glyphClass = 'size-4 shrink-0';
 
 /** One copy control for the code block of one figure. */
 function copyControl(figure: HTMLElement, code: HTMLElement): HTMLElement {
+  const label = publishedCodeLabel(figure);
   const control = document.createElement('button');
   control.type = 'button';
   control.className = buttonClassName({
@@ -37,7 +43,6 @@ function copyControl(figure: HTMLElement, code: HTMLElement): HTMLElement {
     compact: true,
     className: publishedCopyPlace,
   });
-  control.setAttribute('aria-label', copyCodeWords.name);
   const surface = document.createElement('span');
   surface.className = compactButtonVisualClassName({
     variant: 'ghost',
@@ -45,32 +50,46 @@ function copyControl(figure: HTMLElement, code: HTMLElement): HTMLElement {
     iconOnly: false,
   });
   const word = document.createElement('span');
-  word.textContent = copyCodeWords.action;
   const status = document.createElement('span');
   status.className = 'sr-only';
   status.setAttribute('role', 'status');
-  surface.append(glyph(glyphClass, copyParts), word);
   control.append(surface, status);
   let timer = 0;
+
+  /** Shows one state of the control: its glyph, its word and its name. */
+  const show = (state: CopyState): void => {
+    const words = copyControlWords(state, label);
+    word.textContent = words.word;
+    surface.replaceChildren(
+      glyph(glyphClass, state === 'copied' ? checkParts : copyParts),
+      word,
+    );
+    control.setAttribute('aria-label', words.name);
+    status.textContent = words.announcement;
+  };
+
+  /** States the outcome of one copy, then goes back to ready. */
+  const settle = (state: CopyState): void => {
+    show(state);
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      show('ready');
+    }, copiedForMs);
+  };
+
+  show('ready');
   control.addEventListener('click', () => {
-    void navigator.clipboard
-      .writeText(copiedCode(code.textContent ?? ''))
-      .then(() => {
-        surface.replaceChildren(glyph(glyphClass, checkParts), word);
-        word.textContent = copyCodeWords.done;
-        status.textContent = copyCodeWords.announcement;
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => {
-          surface.replaceChildren(glyph(glyphClass, copyParts), word);
-          word.textContent = copyCodeWords.action;
-          status.textContent = '';
-        }, copiedForMs);
-      })
-      .catch(() => {
+    navigator.clipboard.writeText(copiedCode(code.textContent ?? '')).then(
+      () => {
+        settle('copied');
+      },
+      () => {
         // A copy that the browser refuses selects the code, so the reader
-        // copies it with the keyboard.
+        // copies it with the keyboard, and the control says so.
         window.getSelection()?.selectAllChildren(code);
-      });
+        settle('selected');
+      },
+    );
   });
   figure.append(control);
   return control;

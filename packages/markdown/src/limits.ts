@@ -241,6 +241,24 @@ export function assertParseLimits(source: string): void {
   assertLineNesting(source, lineStart, source.length);
 }
 
+/**
+ * Whether a document passes the checks that run before a parse.
+ *
+ * A surface that offers an action on the parse of a note, such as the copy
+ * of a code block, asks this first, so it offers no action that the parse
+ * would refuse. A tree that a parse finds too deep is refused after the
+ * parse, so the action keeps its own path for that refusal.
+ */
+export function withinParseLimits(source: string): boolean {
+  try {
+    assertParseLimits(source);
+    return true;
+  } catch (error) {
+    if (error instanceof MarkdownLimitError) return false;
+    throw error;
+  }
+}
+
 /** A tree node that may hold children, in mdast or in hast. */
 type TreeNode = {
   readonly type: string;

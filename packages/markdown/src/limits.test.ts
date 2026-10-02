@@ -12,7 +12,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractAttachmentRefs, extractLinks } from './links.ts';
-import { markdownLimits, MarkdownLimitError } from './limits.ts';
+import {
+  markdownLimits,
+  MarkdownLimitError,
+  withinParseLimits,
+} from './limits.ts';
 import { parseMarkdown } from './parse.ts';
 import { renderMarkdown } from './render.ts';
 
@@ -210,4 +214,18 @@ await test('nested HTML is refused with the nesting error and never a stack erro
     `${'<div>'.repeat(depth)}x${'</div>'.repeat(depth)}\n`,
   );
   assert.ok(html.includes('x'));
+});
+
+await test('a surface asks whether the parse takes a note before it offers an action', () => {
+  // Review of record 0174: a copy control stood on a note past the limits
+  // and did nothing when pressed.
+  assert.equal(withinParseLimits('```js\nx\n```\n'), true);
+  assert.equal(
+    withinParseLimits('a'.repeat(markdownLimits.maxInputBytes + 1)),
+    false,
+  );
+  assert.equal(
+    withinParseLimits(`${'> '.repeat(markdownLimits.maxNestingDepth + 1)}x`),
+    false,
+  );
 });

@@ -14,18 +14,25 @@
  * closed. A diagram is a widget of its own and carries no bar.
  *
  * The copy control is the ghost button of `packages/ui`, with the copy glyph
- * and its word. It takes the focus with Tab after the text and runs with
- * Enter or Space. A press keeps the caret where it is. A copy writes the code
- * of the block as the renderer reads it, says Copied for a moment, and tells
- * a screen reader that the code is on the clipboard.
+ * and its word, and its name says the language of the block
+ * (`copyControlWords`). It takes the focus with Tab after the text and runs
+ * with Enter or Space. A press keeps the caret where it is. A copy writes the
+ * code of the block as the renderer reads it, says Copied for a moment, and
+ * tells a screen reader that the code is on the clipboard.
+ *
+ * A copy fails one way. When the browser refuses the clipboard, or the parse
+ * refuses the note, the control selects the code in the text and says so,
+ * and the person copies it with the keyboard. A note that the parse refuses
+ * before it starts, such as one past the size limit, shows no bar at all.
  */
 import { syntaxTree } from '@codemirror/language';
-import type { EditorState, Extension } from '@codemirror/state';
+import type { EditorState, Extension, Text } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import {
   codeBlockLabel,
   diagramFence,
   parseMarkdown,
+  withinParseLimits,
   type Root,
 } from '@notesapp/markdown';
 import {
@@ -33,9 +40,10 @@ import {
   checkParts,
   compactButtonVisualClassName,
   copiedForMs,
-  copyCodeWords,
+  copyControlWords,
   copyParts,
   glyph,
+  type CopyState,
 } from '@notesapp/ui';
 
 /** One code block that carries a bar. */
@@ -114,6 +122,62 @@ export function codeBlockText(doc: string, at: number): string | null {
   return found;
 }
 
+/**
+ * The range that a copy selects when the browser refuses it: the code of the
+ * block that starts at `from`, without its fences, or `null` for no block.
+ *
+ * A fence with no code selects the place where its code would go, so the
+ * caret lands inside the block.
+ */
+export function codeBlockSelection(
+  state: EditorState,
+  from: number,
+): { readonly from: number; readonly to: number } | null {
+  let found: { from: number; to: number } | null = null;
+  syntaxTree(state).iterate({
+    from,
+    to: from,
+    enter: (node) => {
+      if (found !== null) return false;
+      if (node.from !== from) return true;
+      if (node.name === 'CodeBlock') {
+        found = { from: node.from, to: node.to };
+        return false;
+      }
+      if (node.name !== 'FencedCode') return true;
+      // Inside a quote or a list the code is one piece for each line.
+      const pieces = node.node.getChildren('CodeText');
+      const first = pieces[0];
+      const last = pieces.at(-1);
+      if (first !== undefined && last !== undefined)
+        found = { from: first.from, to: last.to };
+      else {
+        const end = state.doc.lineAt(node.from).to;
+        found = { from: end, to: end };
+      }
+      return false;
+    },
+  });
+  return found;
+}
+
+/**
+ * Whether the parse takes a note, so a copy of its blocks can work.
+ *
+ * The answer is kept for each version of the text, so the bars measure it
+ * once for each change.
+ */
+const parsedNotes = new WeakMap<Text, boolean>();
+
+/** Whether a copy of the blocks of one text can work. */
+function copiesFrom(doc: Text): boolean {
+  const known = parsedNotes.get(doc);
+  if (known !== undefined) return known;
+  const within = withinParseLimits(doc.toString());
+  parsedNotes.set(doc, within);
+  return within;
+}
+
 /** The class of the glyph inside a control: the 16 px of a control. */
 const glyphClass = 'size-4 shrink-0';
 
@@ -121,9 +185,11 @@ const glyphClass = 'size-4 shrink-0';
 type Bar = {
   readonly element: HTMLElement;
   readonly label: HTMLElement;
+  readonly control: HTMLButtonElement;
   readonly surface: HTMLElement;
   readonly word: HTMLElement;
   block: CodeBlockBar | null;
+  state: CopyState;
   timer: number;
 };
 
@@ -173,7 +239,6 @@ class CodeControls {
       size: 'sm',
       compact: true,
     });
-    control.setAttribute('aria-label', copyCodeWords.name);
     const surface = document.createElement('span');
     surface.className = compactButtonVisualClassName({
       variant: 'ghost',
@@ -181,12 +246,20 @@ class CodeControls {
       iconOnly: false,
     });
     const word = document.createElement('span');
-    word.textContent = copyCodeWords.action;
-    surface.append(glyph(glyphClass, copyParts), word);
     control.append(surface);
     element.append(label, control);
     this.layer.append(element);
-    const made: Bar = { element, label, surface, word, block: null, timer: 0 };
+    const made: Bar = {
+      element,
+      label,
+      control,
+      surface,
+      word,
+      block: null,
+      state: 'ready',
+      timer: 0,
+    };
+    this.show(made, 'ready');
     // A press keeps the caret and the selection in the text.
     control.addEventListener('mousedown', (event) => {
       event.preventDefault();
@@ -198,24 +271,66 @@ class CodeControls {
     return made;
   }
 
+  /** Shows one state of the control of a bar: its glyph, word and name. */
+  private show(bar: Bar, state: CopyState): void {
+    bar.state = state;
+    const words = copyControlWords(state, bar.block?.label ?? null);
+    bar.word.textContent = words.word;
+    bar.surface.replaceChildren(
+      glyph(glyphClass, state === 'copied' ? checkParts : copyParts),
+      bar.word,
+    );
+    bar.control.setAttribute('aria-label', words.name);
+  }
+
+  /** States the outcome of one copy, then goes back to ready. */
+  private settle(bar: Bar, state: CopyState): void {
+    this.show(bar, state);
+    this.view.dispatch({
+      effects: EditorView.announce.of(
+        copyControlWords(state, bar.block?.label ?? null).announcement,
+      ),
+    });
+    window.clearTimeout(bar.timer);
+    bar.timer = window.setTimeout(() => {
+      this.show(bar, 'ready');
+    }, copiedForMs);
+  }
+
+  /**
+   * The one failure path of a copy: the code of the block is selected in the
+   * text, so the person copies it with the keyboard, and the bar says so.
+   */
+  private selectCode(bar: Bar, block: CodeBlockBar): void {
+    if (!this.view.dom.isConnected) return;
+    const range = codeBlockSelection(this.view.state, block.from);
+    if (range !== null)
+      this.view.dispatch({
+        selection: { anchor: range.from, head: range.to },
+        scrollIntoView: true,
+        userEvent: 'select',
+      });
+    this.view.focus();
+    this.settle(bar, 'selected');
+  }
+
   /** Writes the code of the block of one bar to the clipboard. */
   private copy(bar: Bar): void {
     const block = bar.block;
     if (block === null) return;
     const code = codeBlockText(this.view.state.doc.toString(), block.from);
-    if (code === null) return;
-    void navigator.clipboard.writeText(code).then(() => {
-      bar.surface.replaceChildren(glyph(glyphClass, checkParts), bar.word);
-      bar.word.textContent = copyCodeWords.done;
-      this.view.dispatch({
-        effects: EditorView.announce.of(copyCodeWords.announcement),
-      });
-      window.clearTimeout(bar.timer);
-      bar.timer = window.setTimeout(() => {
-        bar.surface.replaceChildren(glyph(glyphClass, copyParts), bar.word);
-        bar.word.textContent = copyCodeWords.action;
-      }, copiedForMs);
-    });
+    if (code === null) {
+      this.selectCode(bar, block);
+      return;
+    }
+    navigator.clipboard.writeText(code).then(
+      () => {
+        if (bar.block === block) this.settle(bar, 'copied');
+      },
+      () => {
+        if (bar.block === block) this.selectCode(bar, block);
+      },
+    );
   }
 
   /** Measures each code block on the screen and places its bar. */
@@ -223,8 +338,10 @@ class CodeControls {
     this.view.requestMeasure({
       key: this,
       read: (view): readonly { block: CodeBlockBar; place: Place }[] => {
-        // A browser with no clipboard copies nothing, so it shows no bar.
+        // A browser with no clipboard copies nothing, and the parse refuses a
+        // note past its limits, so neither shows a bar.
         if (typeof navigator.clipboard?.writeText !== 'function') return [];
+        if (!copiesFrom(view.state.doc)) return [];
         const scroller = view.scrollDOM.getBoundingClientRect();
         const placed: { block: CodeBlockBar; place: Place }[] = [];
         for (const range of view.visibleRanges)
@@ -248,8 +365,15 @@ class CodeControls {
       write: (placed): void => {
         placed.forEach(({ block, place }, index) => {
           const bar = this.bar(index);
+          const same =
+            bar.block?.from === block.from && bar.block.label === block.label;
           bar.block = block;
           bar.label.textContent = block.label ?? '';
+          // A bar that now stands on another block names that block.
+          if (!same) {
+            window.clearTimeout(bar.timer);
+            this.show(bar, 'ready');
+          }
           bar.element.hidden = false;
           // A place on the screen is a measured number, which no class can
           // state, so the layer writes it, as a tooltip of CodeMirror does.
