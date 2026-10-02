@@ -65,6 +65,10 @@ another port. A server that starts with a port in the origin and no
 `NOTESAPP_PORT` stops and names the value to set. The Compose file and the
 image both set it already.
 
+The application compresses its own files and its large answers, so a proxy
+does not have to. A proxy that compresses too leaves those answers as they
+are.
+
 ### The TLS profile
 
 The Compose file holds an optional Caddy service in the `tls` profile. It

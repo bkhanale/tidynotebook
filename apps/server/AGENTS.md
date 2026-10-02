@@ -10,9 +10,10 @@ authentication routes on one origin, and it holds no domain rule.
 
 - `src/plugins/` holds one cross-cutting Fastify concern per file and no business
   resource: `register.ts`, `problem.ts`, `security-headers.ts`, `static-assets.ts`,
-  `host.ts`, `content-disposition.ts`, `body-idle-timeout.ts`, `attempt-store.ts`
-  and `published-origin.ts`, which keeps the published origin to the reader path
-  and its files (0158) and redirects a reader address to it (0118).
+  `host.ts`, `content-disposition.ts`, `body-idle-timeout.ts`, `attempt-store.ts`,
+  `compression.ts` of a large JSON read (0169), and `published-origin.ts`, which
+  keeps the published origin to the reader path and its files (0158) and sends
+  a reader address to it (0118).
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns one
   handler per operation id and the body lives in its area file. `published.ts` is the
   reader path of a published link and its report (0119), `published-document.ts`
@@ -21,11 +22,10 @@ authentication routes on one origin, and it holds no domain rule.
   stream and checks its origin (0128, 0129). `legal.ts` serves the terms and
   the privacy notice that the operator writes, and `legal-document.ts` writes
   their page with the classes of the published page (0140).
-- `src/notices/` holds the notice gateway of the process and its bounds (0129).
-  `src/plugins/websocket.ts` is the one file that imports a WebSocket library,
-  and the gateway reads its `StreamSocket` only.
-- `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start
-  and of the stop and holds no signal and no exit.
+- `src/notices/` holds the notice gateway and its bounds (0129). Only
+  `src/plugins/websocket.ts` imports a WebSocket library; the gateway reads its
+  `StreamSocket`.
+- `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start and the stop, and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a
   published link, the seal of a reported address and of the mail password
   (`seal.ts`, 0123, 0148), mail and its budget for each address (`mail.ts`), the words of every message

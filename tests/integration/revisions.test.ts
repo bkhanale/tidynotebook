@@ -346,6 +346,47 @@ await test('a read names the parts of the head that it carries', async () => {
   );
 });
 
+await test('a large read leaves compressed and keeps the tag of its revision', async () => {
+  // Issue 264, record 0169. No JSON answer was compressed, so a read sent
+  // every byte of its text and of its document.
+  const text = `# large\n${'One line of a long note.\n'.repeat(2000)}`;
+  const file = await newFile('notes/large.md', text);
+  const encoded = await getFile({
+    headers: { ...browser(cookie), 'accept-encoding': 'br, gzip' },
+    path: { workspaceId, fileId: file.fileId },
+  });
+  const plain = await getFile({
+    headers: { ...browser(cookie), 'accept-encoding': 'identity' },
+    path: { workspaceId, fileId: file.fileId },
+  });
+  const sent = responseOf(encoded.response);
+  const whole = responseOf(plain.response);
+  assert.equal(sent.headers.get('content-encoding'), 'br');
+  assert.equal(whole.headers.get('content-encoding'), null);
+  for (const response of [sent, whole]) {
+    assert.match(response.headers.get('vary') ?? '', /accept-encoding/i);
+    assert.equal(response.headers.get('etag'), `"${file.revisionId}"`);
+  }
+  assert.ok(
+    Number(sent.headers.get('content-length')) * 4 <
+      Number(whole.headers.get('content-length')),
+    'the compressed read is a fraction of the plain read',
+  );
+  // The client reads the same answer from both.
+  assert.equal(encoded.data?.head?.text, text);
+  assert.deepEqual(encoded.data, plain.data);
+  // A conditional read of the same revision still answers 304.
+  const cached = await getFile({
+    headers: {
+      ...browser(cookie),
+      'accept-encoding': 'br, gzip',
+      'if-none-match': sent.headers.get('etag') ?? '',
+    },
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(responseOf(cached.response).status, 304);
+});
+
 await test('a deeply nested note path stays durable', async () => {
   const path = 'work/plans/next/outline.md';
   const file = await newFile(path, '# Nested note\n');

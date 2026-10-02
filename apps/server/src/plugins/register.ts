@@ -39,6 +39,7 @@ import {
 } from './problem.ts';
 import { createServerLogger } from '../logging.ts';
 import { attemptAddress } from './attempt-store.ts';
+import { compressAnswer } from './compression.ts';
 import { isUpgrade, mountSocketRoute, type StreamSocket } from './websocket.ts';
 
 declare module 'fastify' {
@@ -779,6 +780,8 @@ export function registerOperations(
             }),
       },
       ...(bodyLimit === null ? {} : { bodyLimit }),
+      // A large JSON read leaves compressed (record 0169).
+      ...(operation.method === 'get' ? { onSend: compressAnswer } : {}),
       schema,
       handler: async (request, reply) => {
         const result = await handler(request, reply);

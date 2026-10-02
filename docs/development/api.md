@@ -102,6 +102,11 @@ text asks for the text alone. The default keeps the full head, so a bundle of
 an earlier release still opens a note
 ([record 0168](../decisions/0168-a-note-read-carries-the-document-only-for-an-editor.md)).
 
+The server compresses the JSON answer of a large read itself, in
+`apps/server/src/plugins/compression.ts`, and a write and an answer that sets
+a cookie leave as they are
+([record 0169](../decisions/0169-the-server-compresses-a-large-json-read.md)).
+
 ## Errors
 
 Every failure is an RFC 9457 problem document with a stable application code.

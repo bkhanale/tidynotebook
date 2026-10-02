@@ -38,5 +38,5 @@ from the contract.
   sends a fraction of its bytes.
 - A read cannot be cut into parts by a range request.
 - `apps/server/src/plugins/compression.test.ts` proves the rule of each answer,
-  and `tests/integration/web-delivery.test.ts` proves the served bytes, the
-  headers and an answer that stays plain.
+  and `tests/integration/revisions.test.ts` proves a served read, its headers,
+  its tag and a plain read.
