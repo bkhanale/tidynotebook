@@ -203,6 +203,7 @@ import { ShortcutsDialog } from './shortcuts.tsx';
 import {
   syncDotClassName,
   syncFooter,
+  syncStateIsQuiet,
   syncStatusClassNames,
 } from '../lib/sync-state.ts';
 import type { CalendarMonth } from '../lib/calendar-month.ts';
@@ -1360,7 +1361,15 @@ function ShellFrame({
   const sync = useWorkspaceSync(store.store, accountId, workspaceId);
   const syncSession = useSyncSession();
   const flushNoteDraft = useFlushNoteDraft();
-  const persistence = usePersistentStorage(useSavedOnce());
+  const online = useOnline();
+  // Work that the server does not have yet: a note made on this device, or a
+  // save the server has not accepted. It can go up while the device is
+  // online and sync runs, so only then is it not at risk.
+  const persistence = usePersistentStorage({
+    afterFirstSave: useSavedOnce(),
+    unsentWork: files.notes.some((note) => note.localOnly || note.unsent),
+    sending: online && syncStateIsQuiet(sync.state),
+  });
   const newNote = useCreateNote(store.store, accountId, workspaceId);
   const daily = useDailyNotes();
   const templates = useTemplates();
@@ -2022,17 +2031,19 @@ function ShellFrame({
                 {theme.syncError === null ? null : (
                   <Notice tone="info" message={theme.syncError} />
                 )}
-                {persistence.denial === null ? null : (
-                  <Notice tone="problem" message={persistence.denial}>
+                {persistence.notice.kind === 'quiet' ? (
+                  <Notice tone="info" message={persistence.notice.message}>
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={persistence.dismiss}
+                      onClick={persistence.close}
                     >
-                      Understood
+                      Close
                     </Button>
                   </Notice>
-                )}
+                ) : persistence.notice.kind === 'at-risk' ? (
+                  <Notice tone="problem" message={persistence.notice.message} />
+                ) : null}
               </div>
               <div className={pageSideClassName()} />
             </div>

@@ -306,6 +306,7 @@ await test('a store that cannot open reads as a sentence, not an engine notice',
       'opening the local database ran out of space',
     ),
     new LocalStorageError('aborted', 'checking the local schema failed'),
+    new LocalStorageError('unavailable', 'indexedDB is not defined'),
   ];
   for (const refusal of refusals) {
     const sentence = describeStorageFailure(refusal);
@@ -313,6 +314,12 @@ await test('a store that cannot open reads as a sentence, not an engine notice',
     assert.equal(sentence.includes(refusal.message), false);
   }
   assert.equal(describeStorageFailure(refusals[0]), blockedUpgradeInstructions);
+  // A store that cannot open at all is its own cause. It read as the refusal
+  // of persistent storage, which is a different fact with a different step.
+  assert.doesNotMatch(
+    describeStorageFailure(refusals[4]),
+    /persistent|refused/i,
+  );
 });
 
 await test('online sign-out revokes before it clears private data', async () => {

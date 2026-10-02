@@ -37,9 +37,11 @@ The command palette adds a line saying that its results come from this device.
 ## Two things to know
 
 **Persistent storage.** After your first save the browser is asked to keep your
-data. If it refuses, the application shows a notice, because offline work is
-then not durable on that browser. Keep the tab open, and copy anything
-important out.
+data. If it refuses, it can remove the data of this device when the device
+needs space. Notes on your server stay safe, so a quiet notice says this once,
+and **Close** removes it from that device. When changes are only on this
+device and cannot go to your server, a stronger notice shows until they do.
+Keep the tab open until then.
 
 **Updates.** When a new version of the application has downloaded, a notice
 offers **Update now**. The update waits for you, so a running tab is never

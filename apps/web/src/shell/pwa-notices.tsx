@@ -2,9 +2,9 @@
  * The two notices of the installed application.
  *
  * An installed worker waits until the person accepts the update, so the
- * shell has to offer it. Durable local storage has to be asked for, and a
- * refusal has to be said once, because the promise of offline drafts does
- * not hold without it.
+ * shell has to offer it. Durable local storage has to be asked for. A
+ * refusal is said once for the device, quietly, and strongly only while work
+ * that is on this device alone is at risk (`pwa/persistence.ts`).
  */
 import {
   useCallback,
@@ -17,9 +17,16 @@ import type { LocalStore } from '@notesapp/sync';
 import { Button, Notice } from '@notesapp/ui';
 import {
   describeStorageFailure,
-  persistenceDenialMessage,
   requestPersistentStorage,
 } from '../pwa/lifecycle.ts';
+import {
+  persistenceAskedKey,
+  persistenceNotice,
+  persistenceNoticeClosedKey,
+  readPersistenceOutcome,
+  type PersistenceRequest,
+  type StorageNotice,
+} from '../pwa/persistence.ts';
 import {
   closeForUpdate,
   currentUpdateRegistration,
@@ -232,43 +239,91 @@ export function UpdateNotice({
   );
 }
 
-const persistenceAskedKey = 'notesapp.persistence-asked';
+/** Reads one local setting, or `null` where the browser refuses the read. */
+function readSetting(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Writes one local setting. A refused write keeps the value for this tab. */
+function writeSetting(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Stated above.
+  }
+}
 
 /**
- * Asks for durable storage after the first save, once per device.
+ * Asks for durable storage after the first save, once per device, and
+ * answers the notice that the refusal needs now (`pwa/persistence.ts`).
  *
  * The request needs a reason the browser can see, so it runs after a save
- * instead of at start. A refusal is said once and then remembered, so the
- * message never repeats on every save.
+ * instead of at start. The outcome is stored, so the request never repeats.
+ * A device that was refused asks the browser again at start whether the data
+ * is kept now, because a browser can grant a site that a person uses more.
+ *
+ * `unsentWork` is true while this device holds work the server does not
+ * have, and `sending` while that work can go to the server now.
  */
-export function usePersistentStorage(afterFirstSave: boolean): {
-  readonly denial: string | null;
-  readonly dismiss: () => void;
+export function usePersistentStorage(input: {
+  readonly afterFirstSave: boolean;
+  readonly unsentWork: boolean;
+  readonly sending: boolean;
+}): {
+  readonly notice: StorageNotice;
+  readonly close: () => void;
 } {
-  const [denial, setDenial] = useState<string | null>(null);
+  const { afterFirstSave, unsentWork, sending } = input;
+  const [outcome, setOutcome] = useState<PersistenceRequest | null>(() =>
+    readPersistenceOutcome(readSetting(persistenceAskedKey)),
+  );
+  const [closed, setClosed] = useState(
+    () => readSetting(persistenceNoticeClosedKey) === 'closed',
+  );
 
   useEffect(() => {
-    if (!afterFirstSave) return;
-    let asked = 'no';
-    try {
-      asked = window.localStorage.getItem(persistenceAskedKey) ?? 'no';
-    } catch {
+    if (outcome !== 'denied') return;
+    const storage =
+      typeof navigator === 'undefined' ? undefined : navigator.storage;
+    if (storage === undefined || typeof storage.persisted !== 'function')
       return;
-    }
-    if (asked !== 'no') return;
-    void requestPersistentStorage().then((outcome) => {
-      try {
-        window.localStorage.setItem(persistenceAskedKey, outcome);
-      } catch {
-        // The outcome is still correct for this tab.
-      }
-      if (outcome === 'denied') setDenial(persistenceDenialMessage());
-    });
-  }, [afterFirstSave]);
+    let cancelled = false;
+    void storage
+      .persisted()
+      .then((kept) => {
+        if (cancelled || !kept) return;
+        writeSetting(persistenceAskedKey, 'granted');
+        setOutcome('granted');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [outcome]);
 
-  const dismiss = useCallback((): void => {
-    setDenial(null);
+  useEffect(() => {
+    if (!afterFirstSave || outcome !== null) return;
+    let cancelled = false;
+    void requestPersistentStorage().then((answer) => {
+      writeSetting(persistenceAskedKey, answer);
+      if (!cancelled) setOutcome(answer);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [afterFirstSave, outcome]);
+
+  const close = useCallback((): void => {
+    writeSetting(persistenceNoticeClosedKey, 'closed');
+    setClosed(true);
   }, []);
 
-  return { denial, dismiss };
+  return {
+    notice: persistenceNotice({ outcome, closed, unsentWork, sending }),
+    close,
+  };
 }

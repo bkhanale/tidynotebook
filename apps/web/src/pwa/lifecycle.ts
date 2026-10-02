@@ -28,6 +28,7 @@ import {
   type RecoveryReason,
   type RecoveryRecord,
 } from '@notesapp/sync';
+import type { PersistenceRequest } from './persistence.ts';
 
 /** What offline launch of one workspace needs. */
 export type OfflineReadiness = {
@@ -80,14 +81,11 @@ export function downloadProgress(
   };
 }
 
-/** The outcome of a persistent storage request. */
-export type PersistenceRequest = 'granted' | 'denied' | 'unsupported';
-
 /**
  * Asks the browser to retain local data across eviction pressure.
  *
- * A denial does not discard drafts: the caller keeps the in-memory buffer
- * with clipboard access and stops claiming durable offline editing.
+ * A denial does not discard drafts. What the frame says about it is decided
+ * in `./persistence.ts`.
  */
 export function requestPersistentStorage(): Promise<PersistenceRequest> {
   if (
@@ -102,15 +100,6 @@ export function requestPersistentStorage(): Promise<PersistenceRequest> {
     .catch(() => 'denied');
 }
 
-/** The message shown when persistence is denied or storage is evicted. */
-export function persistenceDenialMessage(): string {
-  return (
-    'This browser refused persistent storage, so offline work is not durable here. ' +
-    'Keep this tab open, copy important text with the clipboard, and free device space. ' +
-    'No draft is discarded by this warning.'
-  );
-}
-
 /**
  * Turns a local failure into one readable sentence for a status region.
  *
@@ -120,7 +109,8 @@ export function describeStorageFailure(error: unknown): string {
   if (!isLocalStorageError(error)) return 'Local storage failed unexpectedly.';
   if (error.kind === 'quota')
     return 'Local storage is full. Free device space; drafts stay in memory.';
-  if (error.kind === 'unavailable') return persistenceDenialMessage();
+  if (error.kind === 'unavailable')
+    return 'This browser does not let Notesapp keep data on this device. Keep this tab open and copy important text.';
   if (error.kind === 'corrupt' && isBlockedUpgradeError(error))
     return blockedUpgradeInstructions;
   if (error.kind === 'corrupt')
