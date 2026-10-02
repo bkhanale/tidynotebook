@@ -100,8 +100,8 @@ the quote in the same way.
 Type three backticks or three tildes, with a language if you want one, and
 press Enter. The editor writes the closing fence and puts your cursor on the
 empty line between the two fences. A `$$` line and Enter do the same for a
-formula. When the fence already has a closing fence below it, Enter only
-starts a new line inside the block.
+formula. When the fence already has a closing fence below it, or already
+holds text, Enter only starts a new line inside the block.
 
 On a list line or a quoted line, Home goes to the start of the text after the
 bullet, the box, the number or the quote mark. On a numbered line or a quoted

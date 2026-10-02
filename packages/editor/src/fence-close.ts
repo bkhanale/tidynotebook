@@ -10,8 +10,12 @@
  *
  * The syntax tree decides, so the block is the block that both readers of the
  * note see: a fence that already has its closer below stays as it is, and
- * Enter only opens a line inside it. That keeps every existing document whole,
- * including one where the new opener takes the closer of a later block. The
+ * Enter only opens a line inside it. A fence with no closer that already holds
+ * a line of text stays as it is too, because the opener is then the opener of
+ * code that a person wrote, as when they edit the language of a fence at the
+ * end of a note, and a closer under it would turn that code into prose. That
+ * keeps every existing document whole, including one where the new opener
+ * takes the closer of a later block. The
  * new lines repeat the container of the opener: the quote marks stay, and a
  * list marker becomes the spaces of its width, so the block stays inside the
  * item or the quote.
@@ -19,7 +23,8 @@
 import { ensureSyntaxTree } from '@codemirror/language';
 import type { EditorState, Line, TransactionSpec } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
-import { mathBlockNode, mathMarkNode } from './math-syntax.ts';
+import { openingDisplayMathFence } from '@notesapp/markdown';
+import { mathBlockNode, mathMarkNode, mathTextNode } from './math-syntax.ts';
 
 /**
  * How long one Enter may parse the note to find the end of the block, in
@@ -34,6 +39,38 @@ const fenceMarks: Readonly<Record<string, string>> = {
   FencedCode: 'CodeMark',
   [mathBlockNode]: mathMarkNode,
 };
+
+/** The text node of each fenced block node. */
+const fenceTexts: Readonly<Record<string, string>> = {
+  FencedCode: 'CodeText',
+  [mathBlockNode]: mathTextNode,
+};
+
+/**
+ * The quote marks and the list markers at the start of a line, which hold
+ * the container of a block and not the block.
+ */
+const containerPrefix = /^(?:[ \t]*(?:>[ \t]?|(?:[-+*]|\d{1,9}[.)])[ \t]+))*/;
+
+/** A code fence opener, whose backtick run takes no backtick after it. */
+const codeOpener = /^ {0,3}(?:`{3,}[^`]*|~{3,}.*)$/;
+
+/**
+ * Whether the text of a line can open a fenced block, read from the text
+ * alone, so that Enter on any other line parses nothing.
+ */
+function mayOpenFence(text: string): boolean {
+  const body = text.slice(containerPrefix.exec(text)?.[0].length ?? 0);
+  return codeOpener.test(body) || openingDisplayMathFence(body) !== null;
+}
+
+/** Whether a fenced block holds a line of text after its opener. */
+function holdsText(state: EditorState, block: SyntaxNode): boolean {
+  const name = fenceTexts[block.name] ?? '';
+  return block
+    .getChildren(name)
+    .some((node) => state.doc.sliceString(node.from, node.to).trim() !== '');
+}
 
 /** The fenced block that starts on one line, or null. */
 function blockOpenedOn(state: EditorState, line: Line): SyntaxNode | null {
@@ -86,20 +123,23 @@ function continuationPrefix(
  * with no closer, or null.
  *
  * The command declines for a selection that is not one caret, for a caret
- * that is not at the end of the line, for a line that opens nothing, and for
- * a block that already has its closer.
+ * that is not at the end of the line, for a line that opens nothing, for a
+ * block that already has its closer, and for a block that already holds text.
+ * The text of the line is read first, so Enter on a line that cannot open a
+ * fence never parses the note.
  */
 export function closeFenceSpec(state: EditorState): TransactionSpec | null {
   const range = state.selection.main;
   if (state.selection.ranges.length !== 1 || !range.empty) return null;
   const line = state.doc.lineAt(range.head);
-  if (range.head !== line.to) return null;
+  if (range.head !== line.to || !mayOpenFence(line.text)) return null;
   const block = blockOpenedOn(state, line);
   if (block === null) return null;
   const markName = fenceMarks[block.name] ?? '';
   const marks = block.getChildren(markName);
   const opening = marks[0];
   if (opening === undefined || marks.length > 1) return null;
+  if (holdsText(state, block)) return null;
   const prefix = continuationPrefix(state, line, opening.from);
   const closer = state.doc.sliceString(opening.from, opening.to);
   const insert = `\n${prefix}\n${prefix}${closer}`;

@@ -60,7 +60,8 @@ of a line reads the tree. `packages/editor/src/keymaps.ts` holds the keys.
   the published page then showed the next words inside the last item. An empty
   nested item moves out one level instead.
 - Enter at the end of a line that opens a fence or display math writes the
-  closer, unless the tree already closes that block.
+  closer, unless the tree already closes that block or the block already
+  holds text. Only a line whose text can open a fence is parsed.
   `packages/editor/src/fence-close.ts` holds the rule.
 - Home is a smart Home. On a list or a quoted line it goes to the start of the
   text after the markers, and a second press goes to the start of the line,

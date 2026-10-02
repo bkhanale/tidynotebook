@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { closeFenceSpec } from './fence-close.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
@@ -45,7 +45,8 @@ await test('Enter after a typed fence writes its closer', () => {
     ['~~~‸', '~~~\n‸\n~~~'],
     ['~~~ python‸', '~~~ python\n‸\n~~~'],
     ['````md‸', '````md\n‸\n````'],
-    ['Text\n\n```‸\nBelow', 'Text\n\n```\n‸\n```\nBelow'],
+    ['Text\n\n```‸', 'Text\n\n```\n‸\n```'],
+    ['Text\n\n```‸\n\n', 'Text\n\n```\n‸\n```\n\n'],
   ] as const)
     assert.equal(entered(source), expected, source);
 });
@@ -58,10 +59,12 @@ await test('Enter after a typed display math fence writes its closer', () => {
 });
 
 await test('the closed block keeps the text below it out of the block', () => {
-  const state = stateOf('```js‸\nBelow');
+  // The quote ends at the line below, so the fence holds no text yet.
+  const state = stateOf('> ```js‸\nBelow');
   const spec = closeFenceSpec(state);
   assert.ok(spec !== null);
   const next = parsedWhole(state.update(spec).state);
+  assert.equal(next.doc.toString(), '> ```js\n> \n> ```\nBelow');
   const names: string[] = [];
   syntaxTree(next).iterate({
     enter: (node) => {
@@ -71,6 +74,32 @@ await test('the closed block keeps the text below it out of the block', () => {
     },
   });
   assert.deepEqual(names, ['FencedCode', 'Paragraph']);
+});
+
+await test('a fence with no closer that holds code stays as it is', () => {
+  // The defect this covers: a note that ends with an open fence of code. A
+  // person edits the language of the fence and presses Enter, and the closer
+  // went under the opener and turned every line of the code into prose.
+  const code = Array.from({ length: 30 }, (_, index) => `const v${String(index)} = ${String(index)};`).join('\n');
+  assert.equal(entered(`Text\n\n\`\`\`ts‸\n${code}`), null);
+  assert.equal(entered('```‸\nBelow'), null);
+  assert.equal(entered('```‸\n\n\nBelow'), null);
+  assert.equal(entered('$$‸\nx^2'), null);
+});
+
+await test('Enter on a line that cannot open a fence parses nothing', () => {
+  // The defect this covers: every Enter at the end of a line parsed the whole
+  // note to look for a fence, which costs a long note a parse per key press.
+  const filler = Array.from({ length: 4000 }, (_, index) => `Line ${String(index)} of a long note.`).join('\n\n');
+  const doc = `Plain text\n\n${filler}`;
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: 'Plain text'.length },
+    extensions: [noteMarkdown()],
+  });
+  assert.equal(syntaxTreeAvailable(state, doc.length), false);
+  assert.equal(closeFenceSpec(state), null);
+  assert.equal(syntaxTreeAvailable(state, doc.length), false);
 });
 
 await test('a fence that already has its closer stays as it is', () => {
