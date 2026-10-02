@@ -10,18 +10,31 @@
  *
  * The syntax tree decides, so the block is the block that both readers of the
  * note see: a fence that already has its closer below stays as it is, and
- * Enter only opens a line inside it. A fence with no closer that already holds
- * a line of text stays as it is too, because the opener is then the opener of
- * code that a person wrote, as when they edit the language of a fence at the
- * end of a note, and a closer under it would turn that code into prose. That
- * keeps every existing document whole, including one where the new opener
- * takes the closer of a later block. The
+ * Enter only opens a line inside it.
+ *
+ * A fence with no closer that already holds text is the hard case, because
+ * the tree cannot tell its two histories apart. When the person has just
+ * typed the fence marks above text they wrote before, the text is not code,
+ * and Enter writes the closer under the new caret line, so the text stays
+ * outside the fence. When the line opened the fence before the person came
+ * to it, as when they edit the language of a fence of code at the end of a
+ * note, the text is code, and a closer under the opener would turn it into
+ * prose. `typedFenceOpeners` keeps the openers that the person typed, so
+ * Enter knows which history a line has. A paste is not typing, so a pasted
+ * opener is not one of them. That keeps every existing document whole,
+ * including one where the new opener takes the closer of a later block. The
  * new lines repeat the container of the opener: the quote marks stay, and a
  * list marker becomes the spaces of its width, so the block stays inside the
  * item or the quote.
  */
 import { ensureSyntaxTree } from '@codemirror/language';
-import type { EditorState, Line, TransactionSpec } from '@codemirror/state';
+import {
+  StateField,
+  type EditorState,
+  type Line,
+  type Transaction,
+  type TransactionSpec,
+} from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import { openingDisplayMathFence } from '@notesapp/markdown';
 import { mathBlockNode, mathMarkNode, mathTextNode } from './math-syntax.ts';
@@ -62,6 +75,52 @@ const codeOpener = /^ {0,3}(?:`{3,}[^`]*|~{3,}.*)$/;
 function mayOpenFence(text: string): boolean {
   const body = text.slice(containerPrefix.exec(text)?.[0].length ?? 0);
   return codeOpener.test(body) || openingDisplayMathFence(body) !== null;
+}
+
+/**
+ * The openers that the person typed, by the start of their line.
+ *
+ * A typing transaction that turns the line of the caret from a line that
+ * opens no fence into one that can open a fence records that line. The
+ * record follows later changes, and it goes when the line stops being an
+ * opener or the caret leaves the line, so it never outlives the moment of
+ * writing the fence.
+ */
+export const typedFenceOpeners = StateField.define<readonly number[]>({
+  create: () => [],
+  update: (openers, transaction) => typedOpenersAfter(openers, transaction),
+});
+
+/** The typed openers after one transaction. */
+function typedOpenersAfter(
+  openers: readonly number[],
+  transaction: Transaction,
+): readonly number[] {
+  const { state, startState, changes } = transaction;
+  const caretLine = state.doc.lineAt(state.selection.main.head).from;
+  const kept = openers
+    .map((from) => changes.mapPos(from, -1))
+    .filter(
+      (from) => from === caretLine && mayOpenFence(state.doc.lineAt(from).text),
+    );
+  if (
+    !transaction.docChanged ||
+    !transaction.isUserEvent('input.type') ||
+    kept.includes(caretLine)
+  )
+    return kept;
+  const line = state.doc.lineAt(caretLine);
+  if (!mayOpenFence(line.text)) return kept;
+  const before = startState.doc.lineAt(
+    changes.invertedDesc.mapPos(line.from, -1),
+  );
+  if (mayOpenFence(before.text)) return kept;
+  return [...kept, line.from];
+}
+
+/** Whether the person typed the opener on the line that starts at `from`. */
+function typedOpenerAt(state: EditorState, from: number): boolean {
+  return state.field(typedFenceOpeners, false)?.includes(from) === true;
 }
 
 /** Whether a fenced block holds a line of text after its opener. */
@@ -124,7 +183,8 @@ function continuationPrefix(
  *
  * The command declines for a selection that is not one caret, for a caret
  * that is not at the end of the line, for a line that opens nothing, for a
- * block that already has its closer, and for a block that already holds text.
+ * block that already has its closer, and for a block that already holds text
+ * when the person did not type its opener.
  * The text of the line is read first, so Enter on a line that cannot open a
  * fence never parses the note.
  */
@@ -139,7 +199,9 @@ export function closeFenceSpec(state: EditorState): TransactionSpec | null {
   const marks = block.getChildren(markName);
   const opening = marks[0];
   if (opening === undefined || marks.length > 1) return null;
-  if (holdsText(state, block)) return null;
+  // A fence that holds text is code that the person wrote, unless they have
+  // just typed its opener above that text.
+  if (holdsText(state, block) && !typedOpenerAt(state, line.from)) return null;
   const prefix = continuationPrefix(state, line, opening.from);
   const closer = state.doc.sliceString(opening.from, opening.to);
   const insert = `\n${prefix}\n${prefix}${closer}`;

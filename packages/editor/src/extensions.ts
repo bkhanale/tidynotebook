@@ -28,6 +28,7 @@ import { orderedListNumbering } from './list-numbering.ts';
 import { markdownPaste } from './paste.ts';
 import { listControls } from './list-controls.ts';
 import { listMarkerCaret } from './list-marker.ts';
+import { typedFenceOpeners } from './fence-close.ts';
 import { tableControls } from './table-controls.ts';
 import { tableGridEditing } from './table-grid.ts';
 
@@ -177,6 +178,9 @@ export function editorCommands(): Extension {
     // filters run from the last one registered, so this one runs before the
     // table filter and a caret it moves into a table still lands in a cell.
     listMarkerCaret(),
+    // The fence openers that the person typed, so Enter closes a fence typed
+    // above text and leaves a fence of code alone.
+    typedFenceOpeners,
     // A table carries a handle for each row and column, which opens its menu
     // and drags it to a new place (records 0097 and 0098).
     tableControls(),

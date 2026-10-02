@@ -8,8 +8,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
-import { EditorState } from '@codemirror/state';
-import { closeFenceSpec } from './fence-close.ts';
+import { history, undo } from '@codemirror/commands';
+import { EditorSelection, EditorState } from '@codemirror/state';
+import { closeFenceSpec, typedFenceOpeners } from './fence-close.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
 
 /** A parsed state of `source`, whose caret is the `‸`. */
@@ -145,4 +146,110 @@ await test('a selection or a second caret declines', () => {
     extensions: [noteMarkdown()],
   });
   assert.equal(closeFenceSpec(ranged), null);
+});
+
+/**
+ * A state of `source` whose caret is the `‸`, after a person typed `typing`
+ * there one key at a time, or pasted it when `event` says so.
+ */
+function afterTyping(
+  source: string,
+  typing: string,
+  event = 'input.type',
+): EditorState {
+  const caret = source.indexOf('‸');
+  let state = EditorState.create({
+    doc: source.replace('‸', ''),
+    selection: { anchor: caret },
+    extensions: [noteMarkdown(), typedFenceOpeners, history()],
+  });
+  const keys = event === 'input.type' ? typing.split('') : [typing];
+  for (const key of keys) {
+    const at = state.selection.main.head;
+    state = state.update({
+      changes: { from: at, insert: key },
+      selection: EditorSelection.cursor(at + key.length),
+      userEvent: event,
+    }).state;
+  }
+  return parsedWhole(state);
+}
+
+/** The document after Enter on a state, with its caret, or null. */
+function enteredOn(state: EditorState): string | null {
+  const spec = closeFenceSpec(state);
+  if (spec === null) return null;
+  const next = state.update(spec).state;
+  const head = next.selection.main.head;
+  const text = next.doc.toString();
+  return `${text.slice(0, head)}‸${text.slice(head)}`;
+}
+
+await test('a fence typed above text closes, and the text stays outside it', () => {
+  // The defect this covers: a person typed a fence above their prose, and
+  // Enter left it open, so every line below read as code.
+  const state = afterTyping('‸\nSome prose.\nMore prose.', '```js');
+  assert.equal(enteredOn(state), '```js\n‸\n```\nSome prose.\nMore prose.');
+  const spec = closeFenceSpec(state);
+  assert.ok(spec !== null);
+  const next = parsedWhole(state.update(spec).state);
+  const blocks: string[] = [];
+  syntaxTree(next).iterate({
+    enter: (node) => {
+      if (node.name === 'FencedCode' || node.name === 'Paragraph')
+        blocks.push(`${node.name}:${next.doc.sliceString(node.from, node.to)}`);
+      return node.name !== 'FencedCode' && node.name !== 'Paragraph';
+    },
+  });
+  assert.deepEqual(blocks, [
+    'FencedCode:```js\n\n```',
+    'Paragraph:Some prose.\nMore prose.',
+  ]);
+  // A typed math fence above text closes the same way.
+  assert.equal(
+    enteredOn(afterTyping('‸\nA line.', '$$')),
+    '$$\n‸\n$$\nA line.',
+  );
+});
+
+await test('editing the language of a fence of code does not close it', () => {
+  // The line opened the fence before the person came to it, so the lines
+  // below are code.
+  const state = afterTyping('Text\n\n```‸\nconst a = 1;\nconst b = 2;', 'ts');
+  assert.equal(enteredOn(state), null);
+});
+
+await test('a fence typed in an empty note closes', () => {
+  assert.equal(enteredOn(afterTyping('‸', '```')), '```\n‸\n```');
+  assert.equal(enteredOn(afterTyping('‸', '~~~ py')), '~~~ py\n‸\n~~~');
+});
+
+await test('a pasted opener, or one the caret left, is not a typed opener', () => {
+  const pasted = afterTyping('‸\nSome prose.', '```', 'input.paste');
+  assert.equal(enteredOn(pasted), null);
+  const typed = afterTyping('‸\nSome prose.', '```');
+  const away = typed.update({
+    selection: EditorSelection.cursor(typed.doc.length),
+    userEvent: 'select',
+  }).state;
+  const back = away.update({
+    selection: EditorSelection.cursor(3),
+    userEvent: 'select',
+  }).state;
+  assert.equal(enteredOn(back), null);
+});
+
+await test('one undo removes the closer and the new line together', () => {
+  const state = afterTyping('‸\nSome prose.', '```');
+  const spec = closeFenceSpec(state);
+  assert.ok(spec !== null);
+  let next = state.update({ ...spec, userEvent: 'input' }).state;
+  assert.equal(next.doc.toString(), '```\n\n```\nSome prose.');
+  undo({
+    state: next,
+    dispatch: (transaction) => {
+      next = transaction.state;
+    },
+  });
+  assert.equal(next.doc.toString(), '```\nSome prose.');
 });
