@@ -91,6 +91,12 @@ or out of it. Press Enter twice to start a new paragraph.
 In a list, Enter starts a new item. Press Shift and Enter to start a new line
 in the same item. In a quote, Shift and Enter keep the quote marks.
 
+Press Enter on an empty item to end the list. The editor removes the empty
+item and puts a blank line after the list, so the text that you type next is
+a new paragraph in every Markdown tool. On an empty item inside another item,
+Enter moves the item out by one level. Enter on an empty line of a quote ends
+the quote in the same way.
+
 Other Markdown tools can join two lines of one paragraph into one line. Put a
 blank line between the two lines if they must stay apart in those tools too.
 

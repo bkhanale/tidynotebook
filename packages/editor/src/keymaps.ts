@@ -27,6 +27,10 @@ import {
 } from '@codemirror/state';
 import { moveLineDown, moveLineUp } from '@codemirror/commands';
 import { EditorView, type Command, type KeyBinding } from '@codemirror/view';
+import {
+  closingDisplayMathFence,
+  openingDisplayMathFence,
+} from '@notesapp/markdown';
 import { editingTransaction } from './commands.ts';
 import {
   addColumnEdit,
@@ -80,33 +84,77 @@ const quoteLinePattern = /^([ \t]*)((?:>[ \t]?)+)/;
 /** Matches a code fence opener or closer with its indentation. */
 const fenceLinePattern = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
+/** A fenced block that is open at the start of a line. */
+type OpenFence =
+  | { readonly kind: 'code'; readonly marker: string }
+  | { readonly kind: 'math'; readonly length: number };
+
+/** The fenced block that one line opens, or null. */
+function fenceOpenedBy(text: string): OpenFence | null {
+  const match = fenceLinePattern.exec(text);
+  if (match !== null) {
+    const marker = match[1] ?? '';
+    // A backtick fence takes no backtick in its info string, so `` ```a` ``
+    // is text and opens nothing.
+    if (!(marker.startsWith('`') && (match[2] ?? '').includes('`')))
+      return { kind: 'code', marker };
+  }
+  const math = openingDisplayMathFence(text);
+  if (math !== null)
+    return { kind: 'math', length: math.markTo - math.markFrom };
+  return null;
+}
+
+/** Whether one line closes the fenced block that is open above it. */
+function closesFence(open: OpenFence, text: string): boolean {
+  if (open.kind === 'math')
+    return closingDisplayMathFence(text, open.length) >= 0;
+  const match = fenceLinePattern.exec(text);
+  if (match === null) return false;
+  const marker = match[1] ?? '';
+  return (
+    marker[0] === open.marker[0] &&
+    marker.length >= open.marker.length &&
+    (match[2] ?? '').trim() === ''
+  );
+}
+
 /**
- * Reports whether the given line sits inside an open fenced code block.
+ * The fenced code block or the display math block that is open at the start
+ * of the given line, or null.
  *
  * The scan starts at the first line, because a fence is only defined by the
  * lines above it. Twenty thousand lines cost one pass of small string tests,
- * which is well inside one key press.
+ * which is well inside one key press. A code fence inside display math is
+ * formula text and a `$$` line inside code is code, so one walk reads both.
  */
+function openFenceAt(state: EditorState, lineNumber: number): OpenFence | null {
+  let open: OpenFence | null = null;
+  for (let number = 1; number < lineNumber; number += 1) {
+    const text = state.doc.line(number).text;
+    if (open === null) open = fenceOpenedBy(text);
+    else if (closesFence(open, text)) open = null;
+  }
+  return open;
+}
+
+/** Reports whether the given line sits inside an open fenced code block. */
 export function insideCodeFence(
   state: EditorState,
   lineNumber: number,
 ): boolean {
-  let open: string | null = null;
-  for (let number = 1; number < lineNumber; number += 1) {
-    const text = state.doc.line(number).text;
-    const match = fenceLinePattern.exec(text);
-    if (match === null) continue;
-    const marker = match[1] ?? '';
-    const rest = match[2] ?? '';
-    if (open === null) {
-      open = marker;
-      continue;
-    }
-    const sameKind = marker[0] === open[0];
-    if (sameKind && marker.length >= open.length && rest.trim() === '')
-      open = null;
-  }
-  return open !== null;
+  return openFenceAt(state, lineNumber)?.kind === 'code';
+}
+
+/**
+ * Reports whether the given line sits inside a fenced code block or a
+ * display math block, where a list marker or a quote mark is content.
+ */
+export function insideFencedBlock(
+  state: EditorState,
+  lineNumber: number,
+): boolean {
+  return openFenceAt(state, lineNumber) !== null;
 }
 
 /** Reports whether the cursor sits on a list item line. */
@@ -547,53 +595,165 @@ export function outdentListSpec(state: EditorState): TransactionSpec | null {
   });
 }
 
+/** The marker that the item after one list line starts with. */
+function nextItemMarker(parsed: ListLine): string {
+  if (parsed.task !== '') return `${parsed.bullet}${parsed.gap}[ ] `;
+  if (parsed.kind === 'ordered')
+    return `${String((parsed.value ?? 0) + 1)}${parsed.bullet.slice(-1)}${parsed.gap}`;
+  return `${parsed.bullet}${parsed.gap}`;
+}
+
+/** The indentation and the quote marks at the start of one line. */
+function quotePrefixOf(lineText: string): string {
+  return quoteLinePattern.exec(lineText)?.[0] ?? '';
+}
+
+/**
+ * The text of one line inside a quote prefix, or null when the line is not
+ * inside that quote. A quoted line with no text can drop the space after its
+ * last mark, so it still counts as a line of the quote.
+ */
+function textInsideQuote(lineText: string, prefix: string): string | null {
+  if (lineText.startsWith(prefix)) return lineText.slice(prefix.length);
+  if (lineText.trimEnd() === prefix.trimEnd()) return '';
+  return null;
+}
+
+/** Whether a line holds nothing but white space and quote marks. */
+function blankLine(lineText: string): boolean {
+  return /^[\s>]*$/.test(lineText);
+}
+
+/**
+ * The item that holds the item of one list line, inside the same quote.
+ *
+ * The walk goes up past blank lines and deeper lines, and stops at the first
+ * line with less indentation. That line holds the item when it is a list
+ * line. Returns null for an item at the left edge of its list.
+ */
+function holdingItem(
+  state: EditorState,
+  number: number,
+  quote: string,
+  indent: string,
+): ListLine | null {
+  if (indent === '' || indent.includes('\t')) return null;
+  for (let at = number - 1; at >= 1; at -= 1) {
+    const inner = textInsideQuote(state.doc.line(at).text, quote);
+    if (inner === null) return null;
+    if (inner.trim() === '') continue;
+    const above = indentOf(inner);
+    if (above.length >= indent.length) continue;
+    if (above.includes('\t')) return null;
+    return parseListLine(inner);
+  }
+  return null;
+}
+
+/**
+ * Leaves a block with Enter on an empty line of it.
+ *
+ * The line becomes `prefix`, the line of the block around it, and a blank
+ * line of that block separates it from the text above and from the text
+ * below. CommonMark joins a line of text that follows a paragraph as a lazy
+ * continuation, so without the blank line the next words became part of the
+ * last item or the last quoted paragraph on the published page, while the
+ * editor showed them apart. Obsidian and Typora write the same blank line.
+ */
+function leaveBlockSpec(
+  state: EditorState,
+  lineNumber: number,
+  prefix: string,
+): TransactionSpec {
+  const line = state.doc.line(lineNumber);
+  const separator = prefix.trimEnd();
+  const above = lineNumber > 1 ? state.doc.line(lineNumber - 1).text : null;
+  const below =
+    lineNumber < state.doc.lines ? state.doc.line(lineNumber + 1).text : null;
+  const before = above !== null && !blankLine(above) ? `${separator}\n` : '';
+  const after = below !== null && !blankLine(below) ? `\n${separator}` : '';
+  return {
+    changes: {
+      from: line.from,
+      to: line.to,
+      insert: `${before}${prefix}${after}`,
+    },
+    selection: { anchor: line.from + before.length + prefix.length },
+  };
+}
+
+/**
+ * Enter on a list item that holds no text.
+ *
+ * A nested item moves out to the list of the item that holds it, as Obsidian,
+ * Typora and Notion do, so a person climbs out of a nested list one level for
+ * each Enter. An item at the left edge of its list ends the list, and the
+ * caret stays inside the quote that holds the list.
+ */
+function emptyItemSpec(
+  state: EditorState,
+  lineNumber: number,
+  quote: string,
+  parsed: ListLine,
+): TransactionSpec {
+  const line = state.doc.line(lineNumber);
+  const holder = holdingItem(state, lineNumber, quote, parsed.indent);
+  if (holder !== null) {
+    const insert = `${quote}${holder.indent}${nextItemMarker(holder)}`;
+    return {
+      changes: { from: line.from, to: line.to, insert },
+      selection: { anchor: line.from + insert.length },
+    };
+  }
+  return leaveBlockSpec(state, lineNumber, quote);
+}
+
+/**
+ * The prefix of the quote one level out from `quote`.
+ *
+ * The indentation stays, so a quote inside a list item leaves for the item.
+ */
+function outerQuote(quote: string): string {
+  const match = quoteLinePattern.exec(quote);
+  const indent = match?.[1] ?? '';
+  const marks = (match?.[2] ?? '').match(/>[ \t]?/g) ?? [];
+  return `${indent}${marks.slice(0, -1).join('')}`;
+}
+
 /**
  * Continues the list item or the block quote the cursor sits in.
  *
- * An item that holds no content ends the list instead of repeating itself.
- * Inside a fenced code block the command declines, so the default newline
- * applies and the fence stays open around the new line. A selection that is
- * not empty also declines, because replacing a range is the plain newline
- * behaviour.
+ * An item that holds no content ends the list instead of repeating itself,
+ * and an empty quoted line leaves one level of the quote, each with the blank
+ * line that keeps the next text out of the block. A list inside a quote keeps
+ * both its marker and the quote. Inside a fenced code block and inside display
+ * math the command declines, so the default newline applies and the block
+ * stays open around the new line. A selection that is not empty also declines,
+ * because replacing a range is the plain newline behaviour.
  */
 export function continueBlockSpec(state: EditorState): TransactionSpec | null {
   const range = state.selection.main;
   if (state.selection.ranges.length !== 1 || !range.empty) return null;
   const line = state.doc.lineAt(range.head);
-  if (insideCodeFence(state, line.number)) return null;
+  if (insideFencedBlock(state, line.number)) return null;
 
-  const parsed = parseListLine(line.text);
+  const quote = quotePrefixOf(line.text);
+  const body = line.text.slice(quote.length);
+  const parsed = parseListLine(body);
   if (parsed !== null) {
-    const content = line.text.slice(parsed.prefixLength);
-    if (content.trim() === '')
-      return {
-        changes: { from: line.from, to: line.to, insert: '' },
-        selection: { anchor: line.from },
-      };
-    const next =
-      parsed.task !== ''
-        ? `${parsed.bullet}${parsed.gap}[ ] `
-        : parsed.kind === 'ordered'
-          ? `${String((parsed.value ?? 0) + 1)}${parsed.bullet.slice(-1)}${parsed.gap}`
-          : `${parsed.bullet}${parsed.gap}`;
-    const insert = `\n${parsed.indent}${next}`;
+    if (body.slice(parsed.prefixLength).trim() === '')
+      return emptyItemSpec(state, line.number, quote, parsed);
+    const insert = `\n${quote}${parsed.indent}${nextItemMarker(parsed)}`;
     return {
       changes: { from: range.head, insert },
       selection: { anchor: range.head + insert.length },
     };
   }
 
-  const quote = quoteLinePattern.exec(line.text);
-  if (quote !== null) {
-    const indent = quote[1] ?? '';
-    const marker = quote[2] ?? '';
-    const content = line.text.slice(indent.length + marker.length);
-    if (content.trim() === '')
-      return {
-        changes: { from: line.from, to: line.to, insert: '' },
-        selection: { anchor: line.from },
-      };
-    const insert = `\n${indent}${marker}`;
+  if (quote !== '') {
+    if (body.trim() === '')
+      return leaveBlockSpec(state, line.number, outerQuote(quote));
+    const insert = `\n${quote}`;
     return {
       changes: { from: range.head, insert },
       selection: { anchor: range.head + insert.length },
@@ -632,7 +792,7 @@ export function lineBreakSpec(state: EditorState): TransactionSpec | null {
   if (state.selection.ranges.some((range) => inTableCell(state, range.from)))
     return null;
   const insideFence = state.selection.ranges.some((range) =>
-    insideCodeFence(state, state.doc.lineAt(range.from).number),
+    insideFencedBlock(state, state.doc.lineAt(range.from).number),
   );
   if (insideFence) return null;
   return state.changeByRange((range) => {
@@ -673,7 +833,7 @@ export function tableSpec(state: EditorState): TransactionSpec | null {
   const range = state.selection.main;
   const startLine = state.doc.lineAt(range.from);
   const endLine = state.doc.lineAt(range.to);
-  if (insideCodeFence(state, startLine.number)) return null;
+  if (insideFencedBlock(state, startLine.number)) return null;
   if (tableAt(state, range.from) !== null || tableAt(state, range.to) !== null)
     return null;
   const selected = tableCellText(state.doc.sliceString(range.from, range.to));

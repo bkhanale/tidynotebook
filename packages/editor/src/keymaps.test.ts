@@ -10,8 +10,10 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { syntaxTree } from '@codemirror/language';
 import { EditorState, type TransactionSpec } from '@codemirror/state';
-import { noteMarkdownExtensions } from './language.ts';
+import { parseMarkdown } from '@notesapp/markdown';
+import { noteMarkdownExtensions, parsedWhole } from './language.ts';
 import { parseListLine } from './list-line.ts';
 import { moveListItemDownSpec, moveListItemUpSpec } from './list-move.ts';
 import { plainTextContext, type FormatContext } from './format-context.ts';
@@ -327,16 +329,99 @@ await test('Enter continues a task list with an empty box', () => {
   assert.equal(applied(state, continueBlockSpec(state)), '- [x] one\n- [ ] ‸');
 });
 
-await test('Enter on an empty list item ends the list', () => {
-  const state = stateOf('- one\n- ‸');
-  assert.equal(applied(state, continueBlockSpec(state)), '- one\n‸');
+await test('Enter on an empty list item ends the list with a blank line', () => {
+  // The defect this covers: the item became an empty line with no blank line
+  // above it, so the next words were a lazy continuation of the last item on
+  // the published page, while the editor showed them apart.
+  for (const [source, expected] of [
+    ['- one\n- ‸', '- one\n\n‸'],
+    ['1. one\n2. ‸', '1. one\n\n‸'],
+    ['- [x] one\n- [ ] ‸', '- [x] one\n\n‸'],
+    ['* one\n* ‸', '* one\n\n‸'],
+  ] as const) {
+    const state = stateOf(source);
+    assert.equal(applied(state, continueBlockSpec(state)), expected, source);
+  }
+});
+
+await test('the text after a list that Enter ended stays out of the list', () => {
+  for (const source of ['- one\n- ‸', '1. one\n2. ‸', '- [ ] one\n- [ ] ‸']) {
+    const state = stateOf(source);
+    const spec = continueBlockSpec(state);
+    assert.ok(spec !== null);
+    const ended = state.update(spec).state;
+    const typed = ended.update({
+      changes: { from: ended.selection.main.head, insert: 'After list' },
+    }).state;
+    const text = typed.doc.toString();
+    // The editor grammar and CommonMark read the same two blocks.
+    const blocks: string[] = [];
+    syntaxTree(parsedWhole(typed)).iterate({
+      enter: (node) => {
+        const container = node.name === 'Document' || node.name === 'Body';
+        if (!container && node.node.parent?.name === 'Document')
+          blocks.push(node.name);
+        return container;
+      },
+    });
+    assert.deepEqual(blocks.slice(-2).map((name) => name.endsWith('List') ? 'list' : name), ['list', 'Paragraph'], text);
+    const root = parseMarkdown(text);
+    assert.deepEqual(
+      root.children.map((child) => child.type),
+      ['list', 'paragraph'],
+      text,
+    );
+  }
+});
+
+await test('Enter on an empty nested item moves it out one level', () => {
+  for (const [source, expected] of [
+    ['- one\n  - two\n  - ‸', '- one\n  - two\n- ‸'],
+    ['1. one\n   - a\n   - ‸', '1. one\n   - a\n2. ‸'],
+    ['- [x] one\n  - [ ] ‸', '- [x] one\n- [ ] ‸'],
+    ['- one\n  text\n  - two\n  - ‸', '- one\n  text\n  - two\n- ‸'],
+  ] as const) {
+    const state = stateOf(source);
+    assert.equal(applied(state, continueBlockSpec(state)), expected, source);
+  }
+});
+
+await test('an empty item amid a list splits it with blank lines', () => {
+  const middle = stateOf('- one\n- ‸\n- three');
+  assert.equal(
+    applied(middle, continueBlockSpec(middle)),
+    '- one\n\n‸\n\n- three',
+  );
+  // A blank line that is already there is not doubled.
+  const loose = stateOf('- one\n\n- ‸');
+  assert.equal(applied(loose, continueBlockSpec(loose)), '- one\n\n‸');
+  // A lone empty item on the first line becomes an empty line.
+  const alone = stateOf('- ‸');
+  assert.equal(applied(alone, continueBlockSpec(alone)), '‸');
 });
 
 await test('Enter continues and then ends a block quote', () => {
   const quoted = stateOf('> one‸');
   assert.equal(applied(quoted, continueBlockSpec(quoted)), '> one\n> ‸');
   const empty = stateOf('> one\n> ‸');
-  assert.equal(applied(empty, continueBlockSpec(empty)), '> one\n‸');
+  assert.equal(applied(empty, continueBlockSpec(empty)), '> one\n\n‸');
+  // A nested quote leaves one level, with a quoted blank line, because a
+  // line under a quoted paragraph is a lazy continuation of it.
+  const nested = stateOf('> > one\n> > ‸');
+  assert.equal(applied(nested, continueBlockSpec(nested)), '> > one\n>\n> ‸');
+});
+
+await test('a list inside a quote keeps its marker and its quote', () => {
+  // The defect this covers: Enter in a quoted item wrote the quote mark only,
+  // so the item lost its list.
+  const item = stateOf('> - one‸');
+  assert.equal(applied(item, continueBlockSpec(item)), '> - one\n> - ‸');
+  const ordered = stateOf('> 1. one‸');
+  assert.equal(applied(ordered, continueBlockSpec(ordered)), '> 1. one\n> 2. ‸');
+  const empty = stateOf('> - one\n> - ‸');
+  assert.equal(applied(empty, continueBlockSpec(empty)), '> - one\n>\n> ‸');
+  const nested = stateOf('> - one\n>   - ‸');
+  assert.equal(applied(nested, continueBlockSpec(nested)), '> - one\n> - ‸');
 });
 
 await test('Enter inside a code fence keeps the fence and adds no marker', () => {
@@ -344,6 +429,17 @@ await test('Enter inside a code fence keeps the fence and adds no marker', () =>
   assert.equal(continueBlockSpec(state), null);
   assert.ok(insideCodeFence(state, 2));
   assert.ok(!insideCodeFence(state, 4));
+});
+
+await test('Enter inside display math adds no marker', () => {
+  // A `- ` line inside a formula is formula text, so neither key writes a
+  // marker there, and a fence inside the formula opens no code block.
+  const state = stateOf('$$\n- one‸\n$$\n');
+  assert.equal(continueBlockSpec(state), null);
+  assert.equal(lineBreakSpec(state), null);
+  const fenced = stateOf('$$\n```\n$$\n\n- one‸');
+  assert.ok(!insideCodeFence(fenced, 5));
+  assert.equal(applied(fenced, continueBlockSpec(fenced)), '$$\n```\n$$\n\n- one\n- ‸');
 });
 
 await test('a closed fence does not swallow the text after it', () => {
