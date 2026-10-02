@@ -7,9 +7,11 @@
  * typed adapter draws as a menu of the design: an accessible listbox whose
  * row the arrow keys move, which Enter and Tab choose and Escape closes, and
  * which a pointer chooses with one press. Choosing a block removes the typed
- * slash and its words and runs the format action of that block, the command
- * that its tool and its key run (record 0094), so the menu holds no rule of
- * its own.
+ * slash and its words and makes the change of the format action of that
+ * block, the change that its tool and its key make (record 0094), so the
+ * menu holds no rule of its own. The removal and the block are one
+ * transaction, so one undo takes the choice back whole, and a choice during
+ * an IME composition does nothing, as a tool does (record 0082).
  *
  * The list of the blocks is not here. `apps/web/src/lib/format-toolbar.ts` is
  * the one list of the tools, and the note screen gives the block tools of it
@@ -21,13 +23,19 @@ import type {
   CompletionResult,
   CompletionSource,
 } from '@codemirror/autocomplete';
-import { Facet, type EditorState, type Extension } from '@codemirror/state';
+import {
+  Facet,
+  type EditorState,
+  type Extension,
+  type TransactionSpec,
+} from '@codemirror/state';
+import type { EditorView } from '@codemirror/view';
+import { editingTransaction } from './commands.ts';
 import { formatContextOf } from './format-context.ts';
 import { insideLiteral } from './literal-context.ts';
 import {
   formatActionApplies,
   formatActionOf,
-  runFormatAction,
   type FormatActionId,
 } from './keymaps.ts';
 
@@ -102,6 +110,56 @@ export function slashMenuAt(
   return commands.length === 0 ? null : { from, commands };
 }
 
+/**
+ * The one transaction of a choice in the slash menu: the typed slash and its
+ * words from `from` to `to` leave, and the block takes its line.
+ *
+ * The change of the block is made on the state without the slash, and both
+ * changes go out as one, so the history holds one step. A block whose change
+ * does not apply there only removes the slash.
+ */
+export function slashChoiceSpec(
+  state: EditorState,
+  from: number,
+  to: number,
+  id: FormatActionId,
+): TransactionSpec {
+  const removal = state.update({ changes: { from, to, insert: '' } });
+  const build = formatActionOf(id).spec;
+  const block = build === null ? null : build(removal.state);
+  if (block === null) return editingTransaction({ changes: removal.changes });
+  const made = removal.state.update(block);
+  return editingTransaction({
+    changes: removal.changes.compose(made.changes),
+    selection: made.newSelection,
+    effects: made.effects,
+  });
+}
+
+/** What a choice in the slash menu needs of the view. */
+export type SlashView = Pick<
+  EditorView,
+  'composing' | 'state' | 'dispatch' | 'focus'
+>;
+
+/**
+ * Makes one choice of the slash menu on the view, and answers whether it ran.
+ *
+ * A change inside an IME composition loses the composed characters, so the
+ * choice checks the composition first and waits for it to end (record 0082).
+ */
+export function chooseSlashBlock(
+  view: SlashView,
+  from: number,
+  to: number,
+  id: FormatActionId,
+): boolean {
+  if (view.composing || view.state.readOnly) return false;
+  view.dispatch(slashChoiceSpec(view.state, from, to, id));
+  view.focus();
+  return true;
+}
+
 /** The completion source of the slash menu. */
 export const slashMenuCompletion: CompletionSource = (
   context: CompletionContext,
@@ -117,12 +175,7 @@ export const slashMenuCompletion: CompletionSource = (
       ...(command.hint === null ? {} : { detail: command.hint }),
       type: 'text',
       apply: (view, _completion, from, to): void => {
-        // The typed slash and its words leave, and the block takes its line.
-        view.dispatch({
-          changes: { from, to, insert: '' },
-          userEvent: 'delete.slash',
-        });
-        runFormatAction(view, command.id);
+        chooseSlashBlock(view, from, to, command.id);
       },
     })),
   };

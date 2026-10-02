@@ -3,9 +3,12 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { history, redo, undo, undoDepth } from '@codemirror/commands';
 import { EditorState } from '@codemirror/state';
 import { noteMarkdown, parsedWhole } from './language.ts';
 import {
+  chooseSlashBlock,
+  slashChoiceSpec,
   slashCommands,
   slashMatches,
   slashMenuAt,
@@ -83,4 +86,70 @@ await test('a block matches the start of a word of its name or its words', () =>
   assert.equal(slashMatches(quote, 'blo'), true);
   assert.equal(slashMatches(quote, 'quo'), true);
   assert.equal(slashMatches(quote, 'uote'), false);
+});
+
+/** A state of `text` with the caret at `‸` and a history. */
+function stateWithHistory(text: string): EditorState {
+  const at = text.indexOf('‸');
+  return parsedWhole(
+    EditorState.create({
+      doc: text.replace('‸', ''),
+      selection: { anchor: at },
+      extensions: [noteMarkdown(), slashCommands(blocks), history()],
+    }),
+  );
+}
+
+/** Runs one history command on a state and answers the state after it. */
+function afterCommand(state: EditorState, command: typeof undo): EditorState {
+  let next = state;
+  command({
+    state,
+    dispatch: (transaction) => {
+      next = transaction.state;
+    },
+  });
+  return next;
+}
+
+await test('a choice of a block is one transaction and one step of undo', () => {
+  // Review of issue 259: the removal of the slash and the block were two
+  // transactions, so one undo left the note between them.
+  const typed = stateWithHistory('Intro\n\n/hea‸');
+  const caret = typed.selection.main.head;
+  const menu = slashMenuAt(typed, caret);
+  assert.ok(menu !== null);
+  const chosen = typed.update(
+    slashChoiceSpec(typed, menu.from, caret, 'heading-2'),
+  ).state;
+  assert.equal(chosen.doc.toString(), 'Intro\n\n## ');
+  assert.equal(chosen.selection.main.head, chosen.doc.length);
+  assert.equal(undoDepth(chosen), 1);
+  const undone = afterCommand(chosen, undo);
+  assert.equal(undone.doc.toString(), 'Intro\n\n/hea');
+  assert.equal(afterCommand(undone, redo).doc.toString(), 'Intro\n\n## ');
+  const table = typed.update(
+    slashChoiceSpec(typed, menu.from, caret, 'table'),
+  ).state;
+  assert.equal(undoDepth(table), 1);
+  assert.equal(afterCommand(table, undo).doc.toString(), 'Intro\n\n/hea');
+});
+
+await test('a choice waits while the view composes', () => {
+  // Review of issue 259: the choice ran inside an IME composition, which
+  // loses the composed characters (record 0082).
+  const sent: unknown[] = [];
+  const view = {
+    composing: true,
+    state: stateWithHistory('/bul‸'),
+    dispatch: (...specs: unknown[]): void => {
+      sent.push(...specs);
+    },
+    focus: (): void => undefined,
+  };
+  assert.equal(chooseSlashBlock(view, 0, 4, 'bullet-list'), false);
+  assert.equal(sent.length, 0);
+  view.composing = false;
+  assert.equal(chooseSlashBlock(view, 0, 4, 'bullet-list'), true);
+  assert.equal(sent.length, 1);
 });

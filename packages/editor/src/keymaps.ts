@@ -1247,6 +1247,13 @@ export type FormatAction = {
   /** The key line for a reader, as the shortcut table writes it. */
   readonly keys: string | null;
   readonly command: Command;
+  /**
+   * The change of the action as a state answers it, or null for an action
+   * that is more than one change, such as a link that reads the clipboard.
+   * The slash menu joins it to the removal of the typed slash, so the choice
+   * is one transaction and one step of undo.
+   */
+  readonly spec: FormatSpec | null;
   readonly scope: FormatScope;
   /** Keeps the key from the window, as the link key must (record 0028). */
   readonly stopPropagation?: true | undefined;
@@ -1283,12 +1290,18 @@ const headingActionIds = [
   'heading-6',
 ] as const satisfies readonly FormatActionId[];
 
-/** One row of the format action table. */
+/** The change of one format action, from the state it applies to. */
+export type FormatSpec = (state: EditorState) => TransactionSpec | null;
+
+/**
+ * One row of the format action table: its command, or the change that its
+ * command dispatches.
+ */
 function formatAction(
   id: FormatActionId,
   label: string,
   key: string | null,
-  command: Command,
+  run: { readonly command: Command } | { readonly spec: FormatSpec },
   scope: FormatScope,
   stopPropagation?: true,
 ): FormatAction {
@@ -1297,7 +1310,9 @@ function formatAction(
     label,
     key,
     keys: key === null ? null : shortcutKeys(key),
-    command,
+    ...('spec' in run
+      ? { command: dispatching(run.spec), spec: run.spec }
+      : { command: run.command, spec: null }),
     scope,
     stopPropagation,
   };
@@ -1316,62 +1331,81 @@ export const formatActions: readonly FormatAction[] = [
       id,
       `Heading ${String(index + 1)}`,
       `Mod-${String(index + 1)}`,
-      setHeadingLevel(index + 1),
+      { spec: (state) => headingLevelSpec(state, index + 1) },
       'block',
     ),
   ),
-  formatAction('bold', 'Bold', 'Mod-b', toggleBold, 'inline'),
-  formatAction('italic', 'Italic', 'Mod-i', toggleItalic, 'inline'),
+  formatAction('bold', 'Bold', 'Mod-b', { command: toggleBold }, 'inline'),
+  formatAction(
+    'italic',
+    'Italic',
+    'Mod-i',
+    { command: toggleItalic },
+    'inline',
+  ),
   formatAction(
     'strikethrough',
     'Strike through',
     'Mod-Shift-x',
-    toggleStrikethrough,
+    { command: toggleStrikethrough },
     'inline',
   ),
   formatAction(
     'inline-code',
     'Inline code',
     'Mod-e',
-    toggleInlineCode,
+    { command: toggleInlineCode },
     'inline',
   ),
-  formatAction('link', 'Link', 'Mod-k', insertLink, 'inline', true),
+  formatAction(
+    'link',
+    'Link',
+    'Mod-k',
+    { command: insertLink },
+    'inline',
+    true,
+  ),
   formatAction(
     'bullet-list',
     'Bullet list',
     'Mod-Shift-8',
-    toggleBulletList,
+    { spec: (state) => toggleListSpec(state, 'bullet') },
     'block',
   ),
   formatAction(
     'ordered-list',
     'Ordered list',
     'Mod-Shift-7',
-    toggleOrderedList,
+    { spec: (state) => toggleListSpec(state, 'ordered') },
     'block',
   ),
   formatAction(
     'task-list',
     'Task list',
     'Mod-Shift-9',
-    toggleTaskList,
+    { spec: (state) => toggleListSpec(state, 'task') },
     'block',
   ),
-  formatAction('quote', 'Block quote', 'Mod-Shift-.', toggleQuote, 'block'),
-  formatAction('table', 'Table', null, insertTable, 'block'),
+  formatAction(
+    'quote',
+    'Block quote',
+    'Mod-Shift-.',
+    { spec: toggleQuoteSpec },
+    'block',
+  ),
+  formatAction('table', 'Table', null, { spec: tableSpec }, 'block'),
   formatAction(
     'move-item-up',
     'Move item up',
     'Alt-ArrowUp',
-    moveItemUp,
+    { command: moveItemUp },
     'item',
   ),
   formatAction(
     'move-item-down',
     'Move item down',
     'Alt-ArrowDown',
-    moveItemDown,
+    { command: moveItemDown },
     'item',
   ),
   ...tableActionRows.map((row) =>
@@ -1379,7 +1413,7 @@ export const formatActions: readonly FormatAction[] = [
       row.id,
       row.label,
       null,
-      dispatching((state) => row.spec(state)),
+      { spec: (state) => row.spec(state) },
       'table',
     ),
   ),
