@@ -43,9 +43,9 @@ pnpm docs:serve
 ```
 
 `pnpm docs:build` runs `pnpm build`, which builds the web application first
-and then the site into `apps/docs/dist/site`. `NOTESAPP_DOCS_BASE` names the
-base path and `NOTESAPP_DOCS_ORIGIN` the origin, so the build for this project
-is:
+and then the site into the `dist/site` folder of `apps/docs`.
+`NOTESAPP_DOCS_BASE` names the base path and `NOTESAPP_DOCS_ORIGIN` the
+origin, so the build for this project is:
 
 ```sh
 NOTESAPP_DOCS_BASE=/notesapp/ NOTESAPP_DOCS_ORIGIN=https://docs.bhu.sh pnpm docs:build
