@@ -1,0 +1,49 @@
+# 0160. An archive job is bounded in number, in disk and in time
+
+- Status: Accepted
+- Date: 2026-10-02
+
+## Context
+
+An import and an export of a workspace take every archive up to the bounds of
+the zip format, 4 GiB and 65534 files, from `packages/core/src/files/archive.ts`
+([issue 243](https://github.com/bkhanale/notesapp/issues/243)). Nothing bounded
+how many ran at once, or the disk that they used. The export wrote the whole
+archive before its first byte, so a proxy that waits 60 seconds for it answered
+504. An import that stopped after some batches left them committed. Record 0121
+puts every limit of the server in PostgreSQL.
+
+## Decision
+
+- An import and an export each hold one reservation of `archive_jobs` while
+  they run, across every process: `archiveJobsPerAccount` for one account and
+  `archiveJobsPerInstallation` for the installation, in
+  `apps/server/src/routes/archive-jobs.ts`. A refused job answers 429
+  `archive_job_running` or 503 `archive_jobs_busy`, with `Retry-After`. Both
+  operations also count in the attempt group `archive`.
+- An export plans its archive from the live heads before its first byte: the
+  path and the size of each file. A workspace past a bound answers 422
+  `export_too_large` at once. Otherwise the answer states its exact length and
+  streams the planned revisions, which never change, with no file on the disk.
+  `HEAD` plans and sends no body.
+- An import refuses a body longer than its bound from `Content-Length` before
+  it reads it, and a body that the free space of the storage volume, less
+  `archiveDiskReserveBytes`, cannot hold with 507 `storage_full`. A body that
+  stops ends the import and closes its file.
+- An import checks every entry before its first commit: the paths in NFC and
+  free, each note under the limits of the grammar, each image, and the room of
+  the owner. Only a failure of the service stops it after its first commit,
+  and that answer, 503 `import_incomplete`, states how many files came in. An
+  import of the same archive again refuses the files that are there, so no
+  file comes in twice.
+
+This excludes a job queue. A refused job asks the person to try again, which
+needs no state beyond the reservation.
+
+## Consequences
+
+- One account runs one archive job, and an installation a few, so the disk and
+  the memory of the jobs stay bounded.
+- A large export starts its download at once and needs no disk of the server.
+- `tests/integration/export.test.ts` proves the plan, the refusals, the stop of
+  a body and the checks before the first commit.
