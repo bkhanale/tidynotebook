@@ -1812,7 +1812,7 @@ export type RevisionInput = {
 export type Role = 'owner';
 
 /**
- * One part of a search excerpt. A part with `marked` true is a word that the query matched. The excerpt carries no markup, so a reader renders every part as text and decides itself how a marked part looks.
+ * One part of a search excerpt. A part with `marked` true is a word that the query matched. The excerpt quotes the text that a reader sees, with no Markdown mark and no link address, and it carries no markup, so a reader renders every part as text and decides itself how a marked part looks.
  */
 export type SearchExcerptPart = {
     readonly text: string;
@@ -2981,7 +2981,7 @@ export type IfNoneMatch = EntityTagCondition;
 export type HistoryLimit = number;
 
 /**
- * Words to find in accepted note paths and Markdown content.
+ * Words to find in accepted note names and in the text that a reader of a note sees.
  */
 export type SearchQuery = string;
 
@@ -7258,7 +7258,7 @@ export type SearchFilesData = {
     };
     query: {
         /**
-         * Words to find in accepted note paths and Markdown content.
+         * Words to find in accepted note names and in the text that a reader of a note sees.
          */
         query: string;
         /**

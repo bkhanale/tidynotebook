@@ -22,7 +22,9 @@ identity store, the attachment bytes, and provisioning.
   rest. `coordination.ts` holds what every process shares (0121, 0129), and
   `sync-listener.ts` and `sync-hints.ts` the hints (0125, 0144).
 - `src/migrate.ts` runs the migrations and exports `requiredSchemaVersion`.
-- No domain rule and no HTTP route live here. A rule lives in `packages/core`.
+  `src/search-text.ts` writes the text of a search row and `searchTextRule`;
+  a raised rule makes `src/search-index-migration.ts` redo each row (0167).
+  No domain rule and no HTTP route live here. A rule lives in `packages/core`.
 
 ## The one lock order
 
@@ -33,10 +35,9 @@ An installation transaction starts with the installation lock.
 
 ## Allowed imports
 
-`@notesapp/core` and `@notesapp/markdown`, plus `drizzle-orm` and `pg`.
-`@notesapp/markdown` is allowed because an accepted index update and a
-published read both parse Markdown. This package is Node only. A browser
-package cannot import it.
+`@notesapp/core` and `@notesapp/markdown`, plus `drizzle-orm` and `pg`. An
+index update, the search text and a published read parse Markdown. This
+package is Node only, so a browser package cannot import it.
 
 ## How to add a common thing here
 
@@ -52,12 +53,11 @@ package cannot import it.
 
 ## Testing conventions here
 
-A pure module such as `excerpt.ts` or `publication-row.ts` has a `*.test.ts`
-next to it and runs under `pnpm test:unit`. Everything that needs a database is
-an integration test in `tests/integration/`, which makes one disposable database
-per file against the service of `compose.test.yaml`; start it with
-`tools/test-database/ensure-postgres.sh`. Such a test proves the row access rule
-as well as the result: `row-access.test.ts` is the pattern.
+A pure module such as `excerpt.ts` or `search-text.ts` has a `*.test.ts` next
+to it under `pnpm test:unit`. Everything that needs a database is an
+integration test in `tests/integration/`, with one disposable database per file
+against the service that `tools/test-database/ensure-postgres.sh` starts. Such
+a test proves the row access rule as well: `row-access.test.ts` is the pattern.
 
 ## Forbidden here
 

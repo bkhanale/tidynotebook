@@ -15,6 +15,7 @@ import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createDocumentService,
   openWorkspaceStore,
+  runMigrations,
 } from '@notesapp/storage-server';
 import { searchLocal } from '@notesapp/sync';
 import {
@@ -23,6 +24,8 @@ import {
   revision,
   seedWorkspace,
   createDisposableDatabase,
+  testIdentityPassword,
+  testPassword,
 } from './support/database.ts';
 
 const database = await createDisposableDatabase();
@@ -92,7 +95,7 @@ await test('search includes accepted titles and content but not deleted notes', 
   if (afterDelete.ok) assert.deepEqual(afterDelete.value, []);
 });
 
-await test('the index stems, so one word form finds another', async () => {
+await test('each word matches as a prefix, so a short word form finds a longer one', async () => {
   const fileId = randomUUID();
   await accept([
     revision({
@@ -200,6 +203,97 @@ await test('the excerpt is the plain text of the note, with no Markdown', async 
   assert.deepEqual(
     hit.excerpt.filter((part) => part.marked).map((part) => part.text),
     ['portage'],
+await test('a note in another language matches by its own words', async () => {
+  // Issue 246. The English configuration dropped `will` as a stop word, so
+  // the German verb could never be found.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'reisen/Plan.md',
+      text: '# Plan\nEr will morgen nach Hause fahren.\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'will');
+  assert.equal(found.ok, true);
+  if (found.ok)
+    assert.deepEqual(
+      found.value.map((hit) => hit.fileId),
+      [fileId],
+    );
+});
+
+await test('a letter with an accent matches the same letter without one', async () => {
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'reisen/Kaffee.md',
+      text: '# Kaffee\nEin kleines Café in München.\n',
+    }),
+  ]);
+  for (const query of ['cafe munchen', 'café münchen']) {
+    const found = await searchFiles(store, actor, workspaceId, query);
+    assert.equal(found.ok, true);
+    if (!found.ok) return;
+    const hit = found.value.find((entry) => entry.fileId === fileId);
+    assert.ok(hit !== undefined, `the query "${query}" finds the note`);
+    assert.deepEqual(
+      hit.excerpt.filter((part) => part.marked).map((part) => part.text),
+      ['Café', 'München'],
+    );
+  }
+});
+
+await test('the excerpt quotes the text that a reader sees', async () => {
+  // Issue 253. The index held the raw Markdown, so an excerpt showed the
+  // marks of emphasis and the address of a link.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'gear/Paddles.md',
+      text: '# Paddles\nA **carbon** paddle from [the shop](https://example.com/private/order) weighs little.\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'carbon');
+  assert.equal(found.ok, true);
+  if (!found.ok) return;
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined);
+  const whole = hit.excerpt.map((part) => part.text).join('');
+  assert.match(whole, /A carbon paddle from the shop weighs little/);
+  assert.ok(!whole.includes('**'), 'the excerpt holds no mark of emphasis');
+  assert.ok(!whole.includes('example.com'), 'the excerpt holds no address');
+  const address = await searchFiles(store, actor, workspaceId, 'private order');
+  assert.equal(address.ok, true);
+  if (address.ok)
+    assert.ok(
+      !address.value.some((entry) => entry.fileId === fileId),
+      'the address of a link is not a word of the note',
+    );
+});
+
+await test('a match deep in a long note is the excerpt of that note', async () => {
+  // Issue 265. The excerpt reads a window of the text around the first
+  // match, so a long note costs no more than a short one, and the window
+  // still holds the match.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'long/Logbook.md',
+      text: `# Logbook\n${'Calm water and a steady wind. '.repeat(8000)}The anchor chain broke at dawn.\n`,
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'anchor chain');
+  assert.equal(found.ok, true);
+  if (!found.ok) return;
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined);
+  assert.deepEqual(
+    hit.excerpt.filter((part) => part.marked).map((part) => part.text),
+    ['anchor', 'chain'],
   );
 });
 
@@ -261,6 +355,67 @@ await test('the search reads the stored vector of a note', async () => {
   } finally {
     await client.end();
   }
+});
+
+await test('the excerpt reads a window of the text and never the whole body', async () => {
+  // Issue 265. A headline over the whole body of a long note cost most of a
+  // search for a common word, so the function hands the headline a window.
+  const client = new pg.Client({ connectionString: database.migrationUrl });
+  await client.connect();
+  try {
+    const definition = await client.query<{ source: string }>(
+      "select pg_get_functiondef('public.notesapp_search(uuid, text, integer)'::regprocedure) as source",
+    );
+    const source = definition.rows[0]?.source ?? '';
+    assert.match(source, /translate\(windowed\.source,/);
+    assert.doesNotMatch(source, /translate\(page\.body,/);
+    assert.match(source, /'public\.notesapp_text'/);
+    assert.doesNotMatch(source, /'english'/);
+  } finally {
+    await client.end();
+  }
+});
+
+await test('the migration makes a row of an earlier rule again', async () => {
+  // Record 0167. A row that release 0.12 wrote holds the raw Markdown and
+  // rule 0. The data migration writes the readable text, and search then
+  // reads it.
+  const fileId = randomUUID();
+  const markdown =
+    '# Canals\nThe **lock** keeper waves at [boats](https://example.com/boats).\n';
+  await accept([revision({ fileId, path: 'water/Canals.md', text: markdown })]);
+  const client = new pg.Client({ connectionString: database.migrationUrl });
+  await client.connect();
+  try {
+    await client.query(
+      'update search_index set body = $3, text_rule = 0 where workspace_id = $1 and file_id = $2',
+      [workspaceId, fileId, markdown],
+    );
+    await runMigrations({
+      documents: createDocumentService(),
+      databaseUrl: database.migrationUrl,
+      runtimePassword: testPassword(),
+      authPassword: testIdentityPassword(),
+    });
+    const row = await client.query<{ body: string; text_rule: number }>(
+      'select body, text_rule from search_index where workspace_id = $1 and file_id = $2',
+      [workspaceId, fileId],
+    );
+    assert.deepEqual(row.rows, [
+      {
+        body: 'Canals\nThe lock keeper waves at boats.',
+        text_rule: 1,
+      },
+    ]);
+  } finally {
+    await client.end();
+  }
+  const found = await searchFiles(store, actor, workspaceId, 'lock keeper');
+  assert.equal(found.ok, true);
+  if (!found.ok) return;
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined);
+  assert.ok(!hit.excerpt.some((part) => part.text.includes('**')));
 });
 
 await test('search requires the current role and a read grant', async () => {

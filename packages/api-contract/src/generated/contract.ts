@@ -12200,7 +12200,7 @@ export const operations: readonly OperationEntry[] = [
                     "maxItems": 128,
                     "items": {
                       "type": "object",
-                      "description": "One part of a search excerpt. A part with `marked` true is a word that the query matched. The excerpt carries no markup, so a reader renders every part as text and decides itself how a marked part looks.",
+                      "description": "One part of a search excerpt. A part with `marked` true is a word that the query matched. The excerpt quotes the text that a reader sees, with no Markdown mark and no link address, and it carries no markup, so a reader renders every part as text and decides itself how a marked part looks.",
                       "additionalProperties": false,
                       "required": [
                         "text",

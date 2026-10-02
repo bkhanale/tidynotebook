@@ -816,14 +816,23 @@ export const searchIndex = pgTable(
     revisionId: uuid('revision_id').notNull(),
     path: text('path').notNull(),
     title: text('title').notNull(),
+    // The readable text of the note, from `readableText` of
+    // `@notesapp/markdown`: the words a reader sees, with no mark and no link
+    // address (record 0167).
     body: text('body').notNull(),
+    // The version of the rule that made `body`. A row of an earlier rule is
+    // made again by `src/search-index-migration.ts`, so a change of the rule
+    // reaches every note and not only the notes that a person saves again.
+    textRule: integer('text_rule').notNull().default(0),
     // The weighted vector of the title and the body, stored when the row is
     // written. A search matches, ranks and tests the title on it, so no
-    // query parses the text of every match again (issue 207).
+    // query parses the text of every match again (issue 207). The one text
+    // configuration of record 0167 has no language rule and no accent, and
+    // the search function names the same one.
     document: tsvector('document')
       .notNull()
       .generatedAlwaysAs(
-        sql`setweight(to_tsvector('english', title), 'A') || setweight(to_tsvector('english', body), 'B')`,
+        sql`setweight(to_tsvector('public.notesapp_text'::regconfig, title), 'A') || setweight(to_tsvector('public.notesapp_text'::regconfig, body), 'B')`,
       ),
   },
   (table) => [

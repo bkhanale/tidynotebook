@@ -118,6 +118,11 @@ Notes whose name matches come first, then notes whose text matches, with a
 short excerpt around the match. An empty box lists the notes you changed most
 recently.
 
+Search works the same in every language. Each word also finds the longer words
+that start with it, so `plan` finds `planning`. A letter with an accent finds
+the same letter without one, so `cafe` finds `café`. Search reads the text as
+you see it in Read mode, so a link address and a Markdown mark do not count.
+
 To search inside the note you have open, use **Ctrl + F** in the editor.
 
 ## Link one note to another

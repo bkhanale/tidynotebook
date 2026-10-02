@@ -25,6 +25,7 @@ import {
 } from './profiles.ts';
 import { migratePortableMarkdown } from './portable-markdown-migration.ts';
 import { migrateNoteDocuments } from './note-document-migration.ts';
+import { migrateSearchIndex } from './search-index-migration.ts';
 
 /** The name of the runtime role that the migration creates. */
 export const runtimeRole = 'notesapp_app';
@@ -45,7 +46,7 @@ export const authRole = 'notesapp_auth';
  * `migrations/meta/_journal.json`. The readiness probe compares its answer
  * with this constant, so one value describes the required set.
  */
-export const requiredSchemaVersion = 27;
+export const requiredSchemaVersion = 28;
 
 /**
  * One PostgreSQL advisory lock serializes every migration run.
@@ -178,6 +179,7 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
       }
       await migratePortableMarkdown(run.databaseUrl, run.documents);
       await migrateNoteDocuments(run.databaseUrl, run.documents);
+      await migrateSearchIndex(run.databaseUrl);
     } finally {
       await client.query('select pg_advisory_unlock($1::bigint)', [
         migrationLockKey,

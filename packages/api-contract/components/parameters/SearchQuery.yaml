@@ -3,7 +3,7 @@ in: query
 required: true
 style: form
 explode: true
-description: Words to find in accepted note paths and Markdown content.
+description: Words to find in accepted note names and in the text that a reader of a note sees.
 schema:
   type: string
   minLength: 1

@@ -73,12 +73,12 @@ export function testServerUrl(): string {
 }
 
 /** The runtime role password of the test service. */
-function testPassword(): string {
+export function testPassword(): string {
   return process.env['NOTESAPP_RUNTIME_PASSWORD'] ?? testRuntimePassword;
 }
 
 /** The identity role password of the test service. */
-function testIdentityPassword(): string {
+export function testIdentityPassword(): string {
   return process.env['NOTESAPP_AUTH_DATABASE_PASSWORD'] ?? testAuthPassword;
 }
 

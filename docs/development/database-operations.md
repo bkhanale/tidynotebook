@@ -47,23 +47,32 @@ statements are written and reviewed by hand.
   command at an operator database. The deployment profile reads protected
   operator files rather than environment values, so a URL and a password never
   reach a process list or a shell history.
-- Two data migrations run after the SQL, under the same lock:
-  `src/portable-markdown-migration.ts` and `src/note-document-migration.ts`.
-  The second starts the document of every note that has none, from its last
-  live text, so no device starts an existing note from Markdown (record 0084).
-  Each one writes only what is missing, so a second run changes nothing.
+- Three data migrations run after the SQL, under the same lock:
+  `src/portable-markdown-migration.ts`, `src/note-document-migration.ts` and
+  `src/search-index-migration.ts`. The second starts the document of every
+  note that has none, from its last live text, so no device starts an existing
+  note from Markdown (record 0084). The third makes each search row of an
+  earlier text rule again (record 0167). Each one writes only what is missing
+  or old, so a second run changes nothing.
 
 ## Search
 
-One row holds the name and the body of each live note, and the name weighs more
-than the body. The index holds the workspace identifier ahead of the document,
-so a search of one workspace never reads the postings of another. The index
-expression and the search function have to stay identical, or the planner
-cannot use the index. The function builds its query from the words of the typed
-text and keeps letters and digits only, so no part of the text reaches the
-parser as an operator. The last word also matches as a prefix, which is what
-makes search as you type work. An excerpt arrives with control characters
-around each match, so no markup reaches a reader.
+One row holds the name and the readable text of each live note, and the name
+weighs more than the text. The text comes from `readableText` of
+`packages/markdown` through `src/search-text.ts`, so search matches and quotes
+what a reader sees, and `text_rule` names the version of that rule. One text
+configuration, `notesapp_text`, has no language rule and no accent, and the
+stored vector, the query and the excerpt all name it (record 0167). The index
+holds the workspace identifier ahead of the document, so a search of one
+workspace never reads the postings of another. The index expression and the
+search function have to stay identical, or the planner cannot use the index.
+The function builds its query from the words of the typed text and keeps
+letters and digits only, so no part of the text reaches the parser as an
+operator. Every word matches as a prefix, which is what makes search as you
+type work. The page is ranked and cut before any excerpt, and an excerpt reads
+a bounded window around the first match, so a long note costs no more than a
+short one. An excerpt arrives with control characters around each match, so
+no markup reaches a reader.
 
 ## Attachment bytes and the reclaim
 

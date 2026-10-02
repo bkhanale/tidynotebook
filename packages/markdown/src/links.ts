@@ -14,11 +14,12 @@
  * the parser removes the mark before it assigns offsets, so its length is
  * added back here.
  */
-import type { Nodes } from 'mdast';
+import type { Nodes, Root } from 'mdast';
 import { toString } from 'mdast-util-to-string';
 import { visit } from 'unist-util-visit';
 import { parseMarkdown } from './parse.ts';
 import { classifyUrl, isIdentifier } from './policy.ts';
+import { readableTextOf } from './readable-text.ts';
 
 /** A half-open offset range into the parsed source string. */
 export type SourceRange = { readonly from: number; readonly to: number };
@@ -89,7 +90,32 @@ export function extractLinks(
   source: string,
   sourcePath = '',
 ): readonly NoteLink[] {
+  return linksOf(parseMarkdown(source), source, sourcePath);
+}
+
+/**
+ * The note links and the readable text of one note, from one parse.
+ *
+ * The server index needs both for every accepted note, and a parse of a long
+ * note costs more than the two walks of its tree together.
+ */
+export function indexNote(
+  source: string,
+  sourcePath = '',
+): { readonly links: readonly NoteLink[]; readonly text: string } {
   const tree = parseMarkdown(source);
+  return {
+    links: linksOf(tree, source, sourcePath),
+    text: readableTextOf(tree),
+  };
+}
+
+/** The note links of a parsed tree of `source`, in source order. */
+function linksOf(
+  tree: Root,
+  source: string,
+  sourcePath: string,
+): readonly NoteLink[] {
   const shift = markLength(source);
   const links: NoteLink[] = [];
   visit(tree, (node) => {

@@ -1122,7 +1122,7 @@ export const getRevision = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Search accepted live notes in a workspace.
  *
- * Searches accepted titles and Markdown content with the PostgreSQL simple text configuration. Deleted files and historic revisions are excluded.
+ * Searches the accepted names of notes and the text that a reader of each note sees, with no Markdown mark and no link address. One text configuration serves every language: it is the PostgreSQL simple configuration with the unaccent filter, so it has no stemming and no stop words, and a letter with an accent matches the same letter without one. Each word of the query matches as a prefix. Deleted files and historic revisions are excluded.
  */
 export const searchFiles = <ThrowOnError extends boolean = false>(options: Options<SearchFilesData, ThrowOnError>): RequestResult<SearchFilesResponses, SearchFilesErrors, ThrowOnError> => (options.client ?? client).get<SearchFilesResponses, SearchFilesErrors, ThrowOnError>({
     security: [{

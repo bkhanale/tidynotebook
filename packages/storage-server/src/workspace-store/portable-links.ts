@@ -10,7 +10,8 @@ import {
   ok,
   type Result,
 } from '@notesapp/core';
-import { extractLinks, rewriteRelativeReferences } from '@notesapp/markdown';
+import { rewriteRelativeReferences } from '@notesapp/markdown';
+import { noteTitle, searchableNote, searchTextRule } from '../search-text.ts';
 import {
   contents,
   files,
@@ -28,11 +29,6 @@ function tips(input: AcceptedInput): ReadonlyMap<string, StoredRevisionInput> {
   const result = new Map<string, StoredRevisionInput>();
   for (const revision of input.revisions) result.set(revision.fileId, revision);
   return result;
-}
-
-function noteTitle(path: string): string {
-  const name = path.slice(path.lastIndexOf('/') + 1);
-  return name.endsWith('.md') ? name.slice(0, -'.md'.length) : name;
 }
 
 /** Replaces search and link rows for every accepted head in one write. */
@@ -63,26 +59,29 @@ export async function updateAcceptedIndexes(
     (tip) => !tip.deleted && tip.content.kind === 'markdown',
   );
   if (searchable.length === 0) return;
-  // One parse of each note. `extractLinks` parses under the limits of the
-  // one grammar, so a note that the renderer refuses fails here, before any
-  // row is written, and no second parse repeats the check (issue 207).
+  // One parse of each note gives its links and its readable text. The parse
+  // runs under the limits of the one grammar, so a note that the renderer
+  // refuses fails here, before any row is written, and no second parse
+  // repeats the check (issue 207, record 0167).
   const linked = searchable.map((tip) => {
     const text = tip.content.kind === 'markdown' ? tip.content.text : '';
+    const indexed = searchableNote(text, tip.path);
     const targets = new Set(
-      extractLinks(text, tip.path).flatMap((link) =>
+      indexed.links.flatMap((link) =>
         link.targetPath === null ? [] : [link.targetPath],
       ),
     );
-    return { tip, text, targets };
+    return { tip, body: indexed.body, targets };
   });
   await db.insert(searchIndex).values(
-    linked.map(({ tip, text }) => ({
+    linked.map(({ tip, body }) => ({
       workspaceId,
       fileId: tip.fileId,
       revisionId: tip.id,
       path: tip.path,
       title: noteTitle(tip.path),
-      body: text,
+      body,
+      textRule: searchTextRule,
     })),
   );
   const links = linked.flatMap(({ tip, targets }) =>
