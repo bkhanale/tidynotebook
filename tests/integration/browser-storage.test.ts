@@ -1454,6 +1454,62 @@ await test('one snapshot of many files announces one change of the workspace', a
   await store.close();
 });
 
+await test('a new staging keeps the revisions that an earlier one stored', async () => {
+  // Record 0176. A reload during a first sync, or a save that went first,
+  // staged a new snapshot that read every revision again.
+  const backend = createBackend('staging-reuse');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const files = [randomUUID(), randomUUID(), randomUUID()];
+  const revision = async (index: number, token: string) => {
+    const text = `# ${String(index)}\n`;
+    await store.storeSnapshotRevision(account, workspace, {
+      token,
+      revisionId: `rev-${String(index)}`,
+      fileId: files[index] ?? '',
+      path: `notes/${String(index)}.md`,
+      kind: 'note',
+      deleted: false,
+      digest: await contentDigest(text),
+      text,
+      document: startDocument(text),
+      epoch: 1,
+      serverTime: null,
+    });
+  };
+  assert.deepEqual(
+    await store.stageSnapshot(
+      account,
+      workspace,
+      'first',
+      ['rev-0', 'rev-1'],
+      '4',
+    ),
+    ['rev-0', 'rev-1'],
+  );
+  await revision(0, 'first');
+  const missing = await store.stageSnapshot(
+    account,
+    workspace,
+    'second',
+    ['rev-0', 'rev-1', 'rev-2'],
+    '5',
+  );
+  assert.deepEqual(missing, ['rev-1', 'rev-2']);
+  await revision(1, 'second');
+  await revision(2, 'second');
+  await store.activateSnapshot('second');
+  assert.equal(await store.readCursor(account, workspace), '5');
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['notes/0.md', 'notes/1.md', 'notes/2.md'],
+  );
+  // The first plan went with the move of its revision.
+  await assert.rejects(store.activateSnapshot('first'));
+  await store.close();
+});
+
 await test('a feed page of many files announces one change and each purge', async () => {
   const backend = createBackend('feed-one-change');
   const store = await openLocalStore(origin, backend.options());

@@ -62,7 +62,6 @@ declare global {
 /** A trial over this many milliseconds is an outlier of the run. */
 const outlierMs = 2000;
 
-
 /** Reads `--name <n>` as a positive whole number, or the default. */
 function countArgument(name: string, fallback: number): number {
   const at = process.argv.indexOf(name);
@@ -176,7 +175,15 @@ async function openNote(device: Device, fileId: string): Promise<void> {
   await device.page.goto(
     new URL(`/w/${device.workspaceId}/notes/${fileId}`, device.page.url()).href,
   );
-  await device.page.locator('.cm-content').waitFor({ timeout: 60_000 });
+  try {
+    await device.page.locator('.cm-content').waitFor({ timeout: 60_000 });
+  } catch (failure: unknown) {
+    if (shotsDirectory !== null)
+      await device.page.screenshot({
+        path: `${shotsDirectory}/open-${String(Date.now())}.png`,
+      });
+    throw failure;
+  }
 }
 
 /** One save trial and what each clock saw. */

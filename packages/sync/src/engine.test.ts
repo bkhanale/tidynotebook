@@ -555,16 +555,30 @@ class FakeStore implements LocalStore {
     token: string,
     revisionIds: readonly string[],
     cursor: string,
-  ): Promise<void> {
+  ): Promise<readonly string[]> {
+    // As the browser store does, an earlier plan of the workspace gives this
+    // one the revisions it stored, and goes (record 0176).
+    const items = new Map<string, SnapshotRevision>();
+    for (const [earlierToken, earlier] of [...this.staged]) {
+      if (
+        earlier.state !== 'staging' ||
+        earlier.accountId !== account ||
+        earlier.workspaceId !== workspace
+      )
+        continue;
+      for (const [id, item] of earlier.items)
+        if (revisionIds.includes(id)) items.set(id, { ...item, token });
+      if (earlierToken !== token) this.staged.delete(earlierToken);
+    }
     this.staged.set(token, {
       accountId: account,
       workspaceId: workspace,
       revisionIds: [...revisionIds],
       cursor,
-      items: new Map(),
+      items,
       state: 'staging',
     });
-    return Promise.resolve();
+    return Promise.resolve(revisionIds.filter((id) => !items.has(id)));
   }
 
   storeSnapshotRevision(
@@ -2996,4 +3010,100 @@ await test('a snapshot that one revision refuses stops every reader', async () =
   assert.equal(outcome, 'paused');
   assert.equal(asked.length, snapshotFetchConcurrency);
   assert.notEqual(store.staged.get('token-stop')?.state, 'active');
+});
+
+await test('a save during a snapshot goes first, and the snapshot reads on', async () => {
+  // Record 0176. A save of a device in its first sync waited for the whole
+  // snapshot, about 19 s for a thousand notes. Now the reads stop for it, and
+  // the next staging keeps every revision that they read.
+  const store = new FakeStore();
+  const ids = Array.from({ length: 9 }, (_, index) => `rev-${String(index)}`);
+  const asked: string[] = [];
+  let starts = 0;
+  let commitAt: number | null = null;
+  let engine: ReturnType<typeof createSyncEngine> | null = null;
+  const item = (revisionId: string) => {
+    const index = ids.indexOf(revisionId);
+    return {
+      fileId: `file-${String(index)}`,
+      revisionId,
+      path: `notes/${String(index)}.md`,
+      fileKind: 'note' as const,
+      deleted: false,
+    };
+  };
+  const ops = stubOperations({
+    start: () => {
+      starts += 1;
+      const token = `token-${String(starts)}`;
+      return Promise.resolve({
+        ok: true as const,
+        value: { token, cursor: '50', itemCount: ids.length },
+      });
+    },
+    page: (token) =>
+      Promise.resolve({
+        ok: true as const,
+        value: {
+          token,
+          cursor: '50',
+          items: ids.map(item),
+          nextPosition: null,
+        },
+      }),
+    revision: async (revisionId) => {
+      asked.push(revisionId);
+      if (asked.length === 4) {
+        store.enqueue(
+          queuedEntry('file-new', 'rev-new', '# New\n', null, 'mutation-new'),
+        );
+        engine?.requestSync();
+      }
+      await new Promise((resolve) => setImmediate(resolve));
+      return {
+        ok: true as const,
+        value: {
+          ...item(revisionId),
+          digest: `digest-${revisionId}`,
+          text: '# Note\n',
+          document: 'AAEC',
+          epoch: 1,
+          serverTime: '2026-10-02T10:00:00.000Z',
+        },
+      };
+    },
+    changes: (cursor) =>
+      Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      }),
+    commit: () => {
+      commitAt = asked.length;
+      return Promise.resolve({
+        ok: true as const,
+        value: accepted('mutation-new', ['rev-new'], '51'),
+      });
+    },
+  });
+  engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-snapshot-yield',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(
+    () => store.cursors.get(`${accountId}/${workspaceId}`) === '50',
+  );
+  // The save went before the rest of the snapshot.
+  assert.ok(commitAt !== null && commitAt < ids.length, String(commitAt));
+  // The second plan read only what the first one had not: no revision twice.
+  assert.equal(new Set(asked).size, asked.length);
+  assert.equal(asked.length, ids.length);
+  assert.equal(starts, 2);
+  controller.abort();
+  engine.stop();
+  await running;
 });

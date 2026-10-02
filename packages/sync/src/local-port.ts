@@ -1194,6 +1194,11 @@ export type LocalStore = {
    * The plan sketch names only the token, the revisions, and the cursor. The
    * account and the workspace travel explicitly because every port method is
    * partition bound: the token alone cannot place the staged row.
+   *
+   * An earlier plan of the workspace that never activated gives this plan the
+   * revisions that it already stored, because a revision is immutable, and
+   * goes. The answer names the revisions that still need a read (record
+   * 0176).
    */
   stageSnapshot(
     accountId: string,
@@ -1201,7 +1206,7 @@ export type LocalStore = {
     token: string,
     revisionIds: readonly string[],
     cursor: string,
-  ): Promise<void>;
+  ): Promise<readonly string[]>;
 
   /**
    * Stores one downloaded snapshot revision in the staging area.

@@ -116,10 +116,13 @@ export type SnapshotNetwork = {
 /** How one pull run ended. `deferred` means transport failed; retry later. */
 export type PullOutcome = 'done' | 'deferred' | 'paused' | 'access-lost';
 
-/** A fresh snapshot and the cursor it captured. */
+/**
+ * A fresh snapshot and the cursor it captured. `yield` states that a save
+ * waits: the reads stopped, and the next staging keeps what they stored.
+ */
 type FreshSnapshot =
   | { readonly status: 'ready'; readonly cursor: string }
-  | { readonly status: 'deferred' | 'paused' | 'access-lost' };
+  | { readonly status: 'deferred' | 'paused' | 'access-lost' | 'yield' };
 
 /**
  * Brings one workspace down to the current server state.
@@ -169,7 +172,14 @@ export async function pullPages(
   saveWaits: () => Promise<boolean> = () => Promise.resolve(false),
 ): Promise<{ readonly outcome: PullOutcome; readonly more: boolean }> {
   for (let page = 0; page < maxPages; page += 1) {
-    const read = await pullPage(local, accountId, workspaceId, net, ctx);
+    const read = await pullPage(
+      local,
+      accountId,
+      workspaceId,
+      net,
+      ctx,
+      saveWaits,
+    );
     if (read.outcome !== 'done' || !read.more)
       return { outcome: read.outcome, more: false };
     // A save that waits goes first: the turn ends between two pages, and
@@ -186,6 +196,7 @@ async function pullPage(
   workspaceId: string,
   net: SnapshotNetwork,
   ctx: SyncContext,
+  saveWaits: () => Promise<boolean> = () => Promise.resolve(false),
 ): Promise<{ readonly outcome: PullOutcome; readonly more: boolean }> {
   let cursor = await local.readCursor(accountId, workspaceId);
   for (let round = 0; round < 2; round += 1) {
@@ -197,7 +208,11 @@ async function pullPage(
           workspaceId,
           net,
           ctx,
+          saveWaits,
         );
+        // A save that waits goes first, and a later pass stages a new plan
+        // that keeps every revision this one read (record 0176).
+        if (fresh.status === 'yield') return { outcome: 'done', more: true };
         if (fresh.status !== 'ready')
           return { outcome: fresh.status, more: false };
         cursor = fresh.cursor;
@@ -235,6 +250,7 @@ async function fullSnapshot(
   workspaceId: string,
   net: SnapshotNetwork,
   ctx: SyncContext,
+  saveWaits: () => Promise<boolean>,
 ): Promise<FreshSnapshot> {
   const started = await sendWithRetry(ctx, (signal) => net.start(signal));
   if (started === null) return { status: 'deferred' };
@@ -264,7 +280,7 @@ async function fullSnapshot(
     if (page.value.nextPosition === null) break;
     position = page.value.nextPosition;
   }
-  await local.stageSnapshot(
+  const missing = await local.stageSnapshot(
     accountId,
     workspaceId,
     token,
@@ -273,15 +289,19 @@ async function fullSnapshot(
   );
   // The revisions are immutable and independent, so a few are read at a
   // time. One at a time, a workspace of a thousand notes took most of the
-  // time of a first sync, and a save of the device waited for all of it
-  // (record 0176). The first stop of a reader stops the others at their
-  // next revision.
+  // time of a first sync, and a save of the device waited for all of it. A
+  // save that waits stops the reads at the next revision (record 0176). The
+  // first stop of a reader stops the others at their next revision.
   let next = 0;
   let stop: FreshSnapshot | null = null;
   let failure: unknown = null;
   const reader = async (): Promise<void> => {
-    while (stop === null && failure === null && next < revisionIds.length) {
-      const revisionId = revisionIds[next];
+    while (stop === null && failure === null && next < missing.length) {
+      if (await saveWaits()) {
+        stop ??= { status: 'yield' };
+        return;
+      }
+      const revisionId = missing[next];
       next += 1;
       if (revisionId === undefined) return;
       try {
@@ -333,7 +353,7 @@ async function fullSnapshot(
   };
   await Promise.all(
     Array.from(
-      { length: Math.min(snapshotFetchConcurrency, revisionIds.length) },
+      { length: Math.min(snapshotFetchConcurrency, missing.length) },
       reader,
     ),
   );

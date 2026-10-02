@@ -33,8 +33,11 @@ the engine found these causes:
   nothing before both answer (records 0086, 0113).
 - A pull turn ends between two feed pages when a save waits, so the next
   pass pushes first. A snapshot reads `snapshotFetchConcurrency` revisions
-  at a time. It still runs to its activation, because a push inside it
-  could move the accepted head of a note back to the snapshot.
+  at a time, and a save that waits stops its reads before the next one. The
+  snapshot never activates after such a push, which could move an accepted
+  head back: the next pass stages a new snapshot, and `stageSnapshot` gives
+  it every revision that an earlier staging stored, so no revision is read
+  twice. A reload during a first sync resumes the same way.
 - One transaction of many files announces one change with `fileId: null`.
   A purge stays a change of its file. A screen that reads again on a change
   runs one read at a time and one more after it (`lib/coalesced-read.ts`).
@@ -46,7 +49,6 @@ an explicit save.
 
 ## Consequences
 
-- A save waits at most for one feed page, or for the snapshot of a device
-  that has no cursor yet.
+- A save waits at most for one feed page or a few snapshot revisions.
 - `engine.test.ts`, `notice-coordinator.test.ts`, `coalesced-read.test.ts`
   and `tests/integration/browser-storage.test.ts` hold each rule.

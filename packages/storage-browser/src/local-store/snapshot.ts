@@ -182,12 +182,53 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
       token: string,
       revisionIds: readonly string[],
       cursor: string,
-    ): Promise<void> {
+    ): Promise<readonly string[]> {
       return guard('staging a snapshot', () =>
         db.transaction(
           'rw',
           [tables.stagedSnapshots, tables.snapshotItems],
-          async () => {
+          async (): Promise<readonly string[]> => {
+            const range = partitionRange(serverOrigin, accountId, workspaceId);
+            // A revision is immutable, so a body that an earlier staging of
+            // this workspace stored serves this one too. A reload during a
+            // first sync, and a save that went first (record 0176), then
+            // read only what is still missing.
+            const earlier = (
+              await tables.stagedSnapshots
+                .where('[serverOrigin+accountId+workspaceId+token]')
+                .between(range.lower, range.upper, true, true)
+                .toArray()
+            )
+              .map((row: unknown) => validateSnapshot(row))
+              .filter((plan) => plan.state === 'staging');
+            const wanted = new Set(revisionIds);
+            const kept = new Set<string>();
+            for (const plan of earlier) {
+              const key = [serverOrigin, accountId, workspaceId, plan.token];
+              const items = (
+                await tables.snapshotItems
+                  .where('[serverOrigin+accountId+workspaceId+token]')
+                  .equals(key)
+                  .toArray()
+              ).map((row: unknown) => validateSnapshotItem(row));
+              await tables.snapshotItems
+                .where('[serverOrigin+accountId+workspaceId+token]')
+                .equals(key)
+                .delete();
+              for (const item of items) {
+                if (!wanted.has(item.revisionId) || kept.has(item.revisionId))
+                  continue;
+                await tables.snapshotItems.put({ ...item, token });
+                kept.add(item.revisionId);
+              }
+              if (plan.token !== token)
+                await tables.stagedSnapshots.delete([
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  plan.token,
+                ]);
+            }
             await tables.stagedSnapshots.put({
               serverOrigin,
               accountId,
@@ -198,12 +239,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               state: 'staging',
               createdAt: nowIso(),
             });
-            // A restarted download under the same token drops the items of
-            // the previous attempt before new ones arrive.
-            await tables.snapshotItems
-              .where('[serverOrigin+accountId+workspaceId+token]')
-              .equals([serverOrigin, accountId, workspaceId, token])
-              .delete();
+            return revisionIds.filter((revisionId) => !kept.has(revisionId));
           },
         ),
       );
