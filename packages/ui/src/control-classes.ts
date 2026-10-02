@@ -408,6 +408,38 @@ export function sidebarViewClassName(options: {
 }
 
 /**
+ * The appearance of one tab of a set of views, as classes.
+ *
+ * A tab chooses which view of one thing a panel shows, such as the changes
+ * of a version or its preview in History (record 0166). It reads as a chip:
+ * the text of a control at the medium weight, `rounded-md`, the hover fill at
+ * rest and the fill of a chosen row when its view shows, so the tab that is
+ * open is the one mark of the set and no line is drawn under it. It is 28 px
+ * on a desktop and 44 px under touch, like a row.
+ */
+export function tabClassName(options: { readonly selected: boolean }): string {
+  return [
+    `inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-md px-2.5 text-control font-medium ${transitionSurface} ${focusOutline} md:min-h-7`,
+    options.selected
+      ? 'bg-active text-strong'
+      : 'text-muted hover:bg-hover hover:text-strong',
+  ].join(' ');
+}
+
+/**
+ * The appearance of a field inside a row, as classes.
+ *
+ * A row of the tree turns its name into this field while a person renames
+ * it (record 0164). The field takes the height of the text inside the row,
+ * so the row keeps its own height and the rows below it do not move. It has
+ * the fill of a field and the resting edge, and the focus edge of every
+ * field.
+ */
+export function inlineFieldClassName(): string {
+  return `min-w-0 flex-1 rounded-sm border bg-app px-1 text-control ${touchFieldText} text-strong outline-none ${transitionField} border-edge-line focus-visible:border-focus`;
+}
+
+/**
  * The text step of a field under touch.
  *
  * Safari on iOS zooms the page into a field whose text is under 16 px when

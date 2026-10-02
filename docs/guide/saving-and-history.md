@@ -21,19 +21,24 @@ the bottom of the sidebar tells you where your work is:
 
 ## History
 
-Open the note menu in the header and select **History**. Each row says when that
-version was saved and what changed, for example `3 lines added, 1 line removed`.
-A row that ends with `with changes from another device` is a version that holds
-the work of two devices.
+Open the note menu in the header and select **History**. The versions are
+grouped by day, newest first. Each row says when that version was saved, for
+example `Saved at 14:32`, and what changed, for example
+`3 lines added, 1 line removed`. When two versions of one day were saved in
+the same minute, their rows show the seconds too. A row that ends with
+`with changes from another device` is a version that holds the work of two
+devices. The newest version is marked **Current version**.
 
-Select a row to open it. You get the difference between that version and the
-newest one, line by line, and the whole text of that version under **Whole text
-of this version**. If the note is an image you see the picture of that version.
+Select a row to open it. **Changes** shows the difference between that
+version and the current version, line by line. **Preview** shows the version
+as the note looked then, with its headings, task boxes, tables and pictures.
+Use the arrow keys to move between the two. If the note is an image you see
+the picture of that version.
 
 ## Restore
 
-Select **Restore** on any row. The old text comes back as a **new** newest
-version. Nothing is rewound and no version is removed, so you can always go
+Select **Restore** on any row but the current version. The old text comes back
+as a **new** newest version. Nothing is rewound and no version is removed, so you can always go
 back again. History needs a connection.
 
 ## When two devices change the same note

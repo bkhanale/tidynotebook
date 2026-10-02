@@ -29,7 +29,9 @@ import {
   kbdClassName,
   rowClassName,
   selectClassName,
+  inlineFieldClassName,
   sidebarViewClassName,
+  tabClassName,
   textAreaClassName,
   touchFieldText,
   type ButtonSize,
@@ -79,6 +81,9 @@ const recipes: readonly (readonly [string, string])[] = [
   ['invalid text area field', textAreaClassName({ invalid: true })],
   ['sidebar view', sidebarViewClassName({ current: false })],
   ['current sidebar view', sidebarViewClassName({ current: true })],
+  ['tab', tabClassName({ selected: false })],
+  ['open tab', tabClassName({ selected: true })],
+  ['field inside a row', inlineFieldClassName()],
   ['key cap', kbdClassName()],
   ['badge', badgeClassName()],
   ['avatar', avatarClassName()],
@@ -748,4 +753,30 @@ await test('the view that shows takes the mark of a current row', () => {
     assert.ok(view.includes(focusOutline), 'the one focus treatment');
     assert.ok(view.includes('size-11'), 'the touch target');
   }
+});
+
+await test('the open tab takes the fill of a chosen row and the others rest', () => {
+  // Record 0166: a tab is a chip, so the open view is one fill and no line.
+  const open = tabClassName({ selected: true });
+  const rest = tabClassName({ selected: false });
+  assert.ok(open.includes('bg-active'));
+  assert.ok(open.includes('text-strong'));
+  assert.ok(!rest.includes('bg-active'));
+  assert.ok(rest.includes('hover:bg-hover'));
+  for (const tab of [open, rest]) {
+    assert.ok(tab.includes('min-h-11'));
+    assert.ok(tab.includes('md:min-h-7'));
+    assert.ok(tab.includes('rounded-md'));
+    assert.ok(!tab.includes('border-b'));
+  }
+});
+
+await test('a field inside a row keeps the height of the row', () => {
+  // Record 0164: the name of a tree row turns into this field, and the rows
+  // below it must not move.
+  const field = inlineFieldClassName();
+  assert.ok(!/(?:^| )(?:md:)?min-h-/u.test(field));
+  assert.ok(field.includes('border-edge-line'));
+  assert.ok(field.includes('focus-visible:border-focus'));
+  assert.ok(field.includes(touchFieldText));
 });
