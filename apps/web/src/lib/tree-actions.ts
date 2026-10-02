@@ -108,3 +108,41 @@ export function treeMenu(targets: readonly TreeTarget[]): TreeMenu {
 export function selectionLabel(count: number): string {
   return `${itemCount(count)} selected`;
 }
+
+/** The names that one row of the tree and its two controls state. */
+export type TreeRowControls = {
+  /** The name of the treeitem: the name of the row and its one fact. */
+  readonly label: string;
+  /** The name of the chevron of a folder, or `null` for a note. */
+  readonly toggle: string | null;
+  /** The name of the action button, which opens the menu of the row. */
+  readonly actions: string;
+};
+
+/**
+ * The accessible names of one row and of its chevron and action button.
+ *
+ * A screen reader on a touch screen has no Shift + F10 and no Menu key, and
+ * a double tap on a folder row selects the folder and does not close it. It
+ * reaches the menu and the chevron by a swipe, so both controls are in the
+ * accessibility tree with these names, out of the tab order of the keys.
+ * The treeitem states its own name, so the names of the two controls do not
+ * become a part of the name of the row.
+ */
+export function treeRowControls(row: {
+  readonly kind: 'note' | 'folder';
+  readonly name: string;
+  readonly expanded?: boolean | undefined;
+  /** The note is on this device only. */
+  readonly local?: boolean | undefined;
+}): TreeRowControls {
+  const label =
+    row.local === true ? `${row.name}, on this device only` : row.name;
+  if (row.kind === 'note')
+    return { label, toggle: null, actions: `Actions for the note ${row.name}` };
+  return {
+    label,
+    toggle: `${row.expanded === true ? 'Collapse' : 'Expand'} folder ${row.name}`,
+    actions: `Actions for the folder ${row.name}`,
+  };
+}

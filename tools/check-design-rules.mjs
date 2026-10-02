@@ -47,6 +47,9 @@
  *   0054.
  * - `jsx-text`: a `.md` path suffix or a UUID inside text that a person
  *   reads.
+ * - `hidden-control`: `aria-hidden` on a button, a link or a
+ *   select. A control that a screen reader cannot reach is out of reach on a
+ *   touch screen, so a control that leaves the tab order keeps its name.
  * - `trash-label`: a Delete label, title or button text in the web
  *   application, and the glyph of a bin outside the module that owns its
  *   words. The move to Trash is named Move to Trash from
@@ -353,6 +356,13 @@ export function jsxTextRule(text) {
   return null;
 }
 
+/**
+ * The elements that a person acts on. One of them hidden from assistive
+ * software is out of reach of a screen reader on a touch screen, which has no
+ * keys to reach the same action another way (record 0164).
+ */
+const hiddenControlElements = new Set(['button', 'a', 'select']);
+
 /** The one module that names the move to Trash and draws its glyph. */
 export const trashLabelModule = 'apps/web/src/lib/note-menu.ts';
 
@@ -530,6 +540,13 @@ export function scanSource(path, text, context) {
     const type = String(node.type);
     if (type === 'JSXAttribute') {
       const name = attributeName(node);
+      const element = parent === null ? '' : attributeName(parent);
+      if (name === 'aria-hidden' && hiddenControlElements.has(element))
+        report(
+          'hidden-control',
+          `A ${element} hidden from assistive software is a control that a screen reader on a touch screen cannot reach. Take it out of the tab order with tabIndex -1 and keep its name.`,
+          node.start,
+        );
       if (name === 'style')
         report(
           'inline-style',

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { moveToTrashLabel } from './note-menu.ts';
 import { actionIconNames } from './palette-items.ts';
-import { selectionLabel, treeMenu } from './tree-actions.ts';
+import { selectionLabel, treeMenu, treeRowControls } from './tree-actions.ts';
 
 const noteTarget = {
   kind: 'note',
@@ -76,4 +76,35 @@ await test('every row names a glyph and one term in sentence case', () => {
 await test('a selection names its count with the whole phrase', () => {
   assert.equal(selectionLabel(1), '1 item selected');
   assert.equal(selectionLabel(3), '3 items selected');
+});
+
+await test('a touch screen reader reaches the menu and the chevron of a row', () => {
+  // The review of the merged branch: the action button and the chevron were
+  // hidden from assistive software, so VoiceOver and TalkBack could not
+  // rename, move or trash a folder, nor close one.
+  const folder = treeRowControls({
+    kind: 'folder',
+    name: 'Work',
+    expanded: true,
+  });
+  assert.deepEqual(folder, {
+    label: 'Work',
+    toggle: 'Collapse folder Work',
+    actions: 'Actions for the folder Work',
+  });
+  assert.equal(
+    treeRowControls({ kind: 'folder', name: 'Work' }).toggle,
+    'Expand folder Work',
+  );
+  const note = treeRowControls({ kind: 'note', name: 'Plan', local: true });
+  assert.equal(note.toggle, null);
+  assert.equal(
+    note.actions,
+    treeMenu([{ kind: 'note', fileId: 'n', path: 'Plan.md' }]).label,
+  );
+  assert.equal(note.label, 'Plan, on this device only');
+  assert.equal(
+    folder.actions,
+    treeMenu([{ kind: 'folder', path: 'Work' }]).label,
+  );
 });

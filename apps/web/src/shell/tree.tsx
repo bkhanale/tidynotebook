@@ -69,6 +69,7 @@ import { copyNoteLink, noteAddress } from '../lib/copy-link.ts';
 import { copyText } from '../platform.ts';
 import {
   treeMenu,
+  treeRowControls,
   type TreeAction,
   type TreeTarget,
 } from '../lib/tree-actions.ts';
@@ -952,6 +953,15 @@ function TreeRow({
 }): ReactNode {
   const isFolder = row.kind === 'folder';
   const isTarget = isFolder && drag.over === row.path;
+  const controls = treeRowControls(
+    row.kind === 'folder'
+      ? { kind: 'folder', name: row.name, expanded: row.expanded }
+      : {
+          kind: 'note',
+          name: row.name,
+          local: row.note.localOnly || row.note.unsent,
+        },
+  );
   const icon = (
     <span className="inline-flex shrink-0 items-center" aria-hidden="true">
       {row.kind === 'note' ? (
@@ -1024,6 +1034,7 @@ function TreeRow({
       aria-selected={picked || (!selecting && open)}
       aria-expanded={isFolder ? row.expanded : undefined}
       aria-current={open ? 'page' : undefined}
+      aria-label={controls.label}
       aria-haspopup="menu"
       tabIndex={tabbable ? 0 : -1}
       className={`${treeIndentClassName(row.level)} ${treeItemClassName}`}
@@ -1081,22 +1092,22 @@ function TreeRow({
       >
         <div className={treeRowLeadingClassName}>
           {isFolder ? (
-            // The chevron is for a pointer. The keys open and close a folder
-            // with Right and Left on the row, so the chevron is no stop of
-            // the keys and no part of the row a screen reader reads.
+            // The keys open and close a folder with Right and Left on the
+            // row, so the chevron is no stop of the keys. A screen reader on
+            // a touch screen reaches it by a swipe, by its name.
             <button
               type="button"
               tabIndex={-1}
-              aria-hidden="true"
+              aria-label={controls.toggle ?? undefined}
               className={rowActionClassName}
               onMouseDown={keepFocus}
               onClick={(event) => {
                 event.stopPropagation();
                 onToggle();
               }}
-              title={`${row.expanded ? 'Collapse' : 'Expand'} folder ${row.name}`}
+              title={controls.toggle ?? undefined}
             >
-              <span className="inline-flex text-muted">
+              <span className="inline-flex text-muted" aria-hidden="true">
                 {row.expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
               </span>
             </button>
@@ -1111,26 +1122,24 @@ function TreeRow({
         </div>
         {/*
           The action button opens the menu that a right click, Shift + F10
-          and the Menu key open. The row states that it has a menu, so the
-          button is for a pointer and a touch screen alone.
+          and the Menu key open. It is no stop of the keys, and a screen
+          reader on a touch screen, which has neither key, reaches it by a
+          swipe, by its name.
         */}
         <button
           type="button"
           tabIndex={-1}
-          aria-hidden="true"
+          aria-label={controls.actions}
+          aria-haspopup="menu"
           className={rowActionClassName}
-          title={
-            isFolder
-              ? `Actions for the folder ${row.name}`
-              : `Actions for the note ${row.name}`
-          }
+          title={controls.actions}
           onMouseDown={keepFocus}
           onClick={(event) => {
             event.stopPropagation();
             onMenu(anchorOf(event.currentTarget));
           }}
         >
-          <span className="inline-flex text-muted">
+          <span className="inline-flex text-muted" aria-hidden="true">
             <MoreIcon />
           </span>
         </button>

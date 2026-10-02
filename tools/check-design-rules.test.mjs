@@ -753,3 +753,19 @@ await test('a removal for good may read Delete from its one module', () => {
     1,
   );
 });
+
+await test('a control hidden from assistive software fails', () => {
+  // The review of the merged branch: the action button and the chevron of a
+  // tree row were hidden, so VoiceOver and TalkBack could not reach the
+  // menu of a folder at all.
+  assert.ok(
+    rulesOf(
+      '<button type="button" tabIndex={-1} aria-hidden="true">x</button>',
+    ).includes('hidden-control'),
+  );
+  assert.ok(
+    !rulesOf(
+      '<button type="button" tabIndex={-1} aria-label="Actions"><span aria-hidden="true">x</span></button>',
+    ).includes('hidden-control'),
+  );
+});
