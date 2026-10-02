@@ -184,7 +184,8 @@ const unclosed = true;
  * (record 0155). This note holds each block that the editor grammar knows,
  * at the top level, inside a quote and inside a list item, next to the
  * blocks it can be confused with: display math beside fences, a fence and a
- * `$$` line inside each other, a table and an alert in a quote, footnote
+ * `$$` line inside each other, fences of JavaScript, CSS and HTML whose
+ * languages parse inside them, a table and an alert in a quote, footnote
  * definitions in a quote, in a list item and near the end, HTML blocks and
  * inline HTML of record 0157 beside a fence and in a quote, and an unclosed
  * display math block at the end. The corpus above holds one of each, and this
@@ -271,6 +272,22 @@ inside the folded block
 \`\`\`
 
 </details>
+
+\`\`\`css
+.note > p {
+  color: red;
+}
+\`\`\`
+
+\`\`\`html
+<p class="lead">A page with <b>code</b>.</p>
+<script>
+  const ready = true;
+</script>
+<style>
+  p { margin: 0; }
+</style>
+\`\`\`
 
 Inline HTML: <kbd>Ctrl</kbd>, H<sub>2</sub>O and one<br>two.
 

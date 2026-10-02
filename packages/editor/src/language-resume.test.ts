@@ -13,25 +13,61 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
-import { TreeFragment, type PartialParse, type Tree } from '@lezer/common';
+import {
+  NodeProp,
+  TreeFragment,
+  type PartialParse,
+  type Tree,
+} from '@lezer/common';
 import {
   blockSyntaxMarkdown,
   corpusMarkdown,
 } from '../../markdown/test-data/content.ts';
-import { noteMarkdown, parsedWhole } from './language.ts';
+import { codeLanguages, noteMarkdown, parsedWhole } from './language.ts';
+
+// Each fence language loads first, so the tree of a fence holds the tree of
+// its language and a stop inside JavaScript, CSS or HTML is a stop inside a
+// mounted tree, as it is in a view that has loaded the language.
+await Promise.all(codeLanguages.map((description) => description.load()));
 
 const support = noteMarkdown();
 const parser = support.language.parser;
 
-/** Every node of a tree with its range, in document order. */
-function shapeOf(tree: Tree): string {
+/**
+ * Every node of a tree in document order, the nodes of its mounted trees
+ * included, each with its name and its range.
+ *
+ * A fence language and the HTML of an HTML block mount their tree as an
+ * overlay of the Markdown node, and a walk of the tree never enters an
+ * overlay, so each one is walked here on its own, with the ranges it
+ * covers.
+ */
+function nodesOf(tree: Tree, offset = 0): readonly string[] {
   const nodes: string[] = [];
   tree.iterate({
     enter: (node) => {
-      nodes.push(`${node.name}:${String(node.from)}-${String(node.to)}`);
+      const from = offset + node.from;
+      const to = offset + node.to;
+      nodes.push(`${node.name}:${String(from)}-${String(to)}`);
+      const mounted = node.tree?.prop(NodeProp.mounted);
+      if (mounted === undefined || mounted.overlay === null) return;
+      const ranges = mounted.overlay
+        .map(
+          (range) => `${String(from + range.from)}-${String(from + range.to)}`,
+        )
+        .join(',');
+      nodes.push(
+        `[${ranges}]`,
+        ...nodesOf(mounted.tree, from + (mounted.overlay[0]?.from ?? 0)),
+      );
     },
   });
-  return nodes.join(' ');
+  return nodes;
+}
+
+/** The shape of a tree as one string, which two trees can compare. */
+function shapeOf(tree: Tree): string {
+  return nodesOf(tree).join(' ');
 }
 
 /** Runs a parse to its end. */
@@ -84,16 +120,20 @@ const blockNodes = [
   'HTMLBlock',
   'HTMLTag',
   'CommentBlock',
+  // The mounted trees: JavaScript and CSS and HTML fences, a script and a
+  // style inside the HTML fence, an attribute of the HTML fence, and the
+  // elements of an HTML block.
+  'VariableDeclaration',
+  'RuleSet',
+  'Element',
+  'Attribute',
 ] as const;
 
 await test('the notes of the resume set hold every block syntax', () => {
   const found = new Set<string>();
   for (const doc of [corpusMarkdown, blockSyntaxMarkdown])
-    parser.parse(doc).iterate({
-      enter: (node) => {
-        found.add(node.name);
-      },
-    });
+    for (const node of nodesOf(parser.parse(doc)))
+      found.add(node.replace(/:.*$/, ''));
   for (const name of blockNodes) assert.ok(found.has(name), name);
 });
 
