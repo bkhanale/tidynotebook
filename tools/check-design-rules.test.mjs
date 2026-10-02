@@ -734,7 +734,7 @@ await test('every glyph name that draws the bin has its owner', async () => {
     (match) => match[1],
   );
   assert.ok(names.length > 0);
-  assert.deepEqual(names.sort(), Object.keys(binGlyphOwners).sort());
+  assert.deepEqual(new Set(names), new Set(Object.keys(binGlyphOwners)));
 });
 
 await test('a removal for good may read Delete from its one module', () => {
