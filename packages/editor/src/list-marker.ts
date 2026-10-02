@@ -24,12 +24,7 @@ import {
   type Transaction,
   type TransactionSpec,
 } from '@codemirror/state';
-import {
-  EditorView,
-  ViewPlugin,
-  keymap,
-  type Command,
-} from '@codemirror/view';
+import { EditorView, ViewPlugin, keymap, type Command } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 
 /** The class of the shell of a task box, which owns its own events. */

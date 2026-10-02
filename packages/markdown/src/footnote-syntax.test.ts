@@ -26,7 +26,9 @@ function typesOf(node: Nodes): readonly string[] {
 /** Whether remark reads a reference and a definition with this label. */
 function remarkReads(label: string): boolean {
   const types = typesOf(parseMarkdown(`ref[^${label}]\n\n[^${label}]: def\n`));
-  return types.includes('footnoteReference') && types.includes('footnoteDefinition');
+  return (
+    types.includes('footnoteReference') && types.includes('footnoteDefinition')
+  );
 }
 
 /** Whether the shared rule reads the whole of `[^label]` as one label. */

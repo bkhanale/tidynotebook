@@ -53,7 +53,10 @@ function definitionLabelEnd(line: Line): number {
   if (line.indent - line.baseIndent >= definitionIndent) return -1;
   if (line.next !== openBracket) return -1;
   if (line.text.charCodeAt(line.pos + 1) !== caret) return -1;
-  const close = footnoteLabelEnd(line.text, line.pos + footnoteLabelOpen.length);
+  const close = footnoteLabelEnd(
+    line.text,
+    line.pos + footnoteLabelOpen.length,
+  );
   if (close < 0 || line.text.charCodeAt(close + 1) !== colon) return -1;
   return close;
 }

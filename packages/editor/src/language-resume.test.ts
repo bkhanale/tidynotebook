@@ -119,6 +119,10 @@ await test('a note typed up to any offset and then completed parses the same', (
     const completed = parsedWhole(
       typed.update({ changes: { from: at, insert: doc.slice(at) } }).state,
     );
-    assert.equal(shapeOf(syntaxTree(completed)), whole, `typed up to ${String(at)}`);
+    assert.equal(
+      shapeOf(syntaxTree(completed)),
+      whole,
+      `typed up to ${String(at)}`,
+    );
   }
 });

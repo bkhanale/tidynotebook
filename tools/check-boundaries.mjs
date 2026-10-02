@@ -380,7 +380,8 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     // The shared Markdown corpus is test data that every reader of a note
     // checks itself against (record 0155), so a test file may read it from
     // the package that owns it. Production source never may.
-    const sharedTestData = isTest && targetPath.startsWith(sharedTestDataPrefix);
+    const sharedTestData =
+      isTest && targetPath.startsWith(sharedTestDataPrefix);
     if (owner(target) !== item && !sharedTestData)
       fail(file, 'Relative or absolute imports cannot leave a package.');
     // A lib helper is pure, so it never reaches back into a screen.

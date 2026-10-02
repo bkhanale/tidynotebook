@@ -365,7 +365,11 @@ await test('the text after a list that Enter ended stays out of the list', () =>
         return container;
       },
     });
-    assert.deepEqual(blocks.slice(-2).map((name) => name.endsWith('List') ? 'list' : name), ['list', 'Paragraph'], text);
+    assert.deepEqual(
+      blocks.slice(-2).map((name) => (name.endsWith('List') ? 'list' : name)),
+      ['list', 'Paragraph'],
+      text,
+    );
     const root = parseMarkdown(text);
     assert.deepEqual(
       root.children.map((child) => child.type),
@@ -418,7 +422,10 @@ await test('a list inside a quote keeps its marker and its quote', () => {
   const item = stateOf('> - one‸');
   assert.equal(applied(item, continueBlockSpec(item)), '> - one\n> - ‸');
   const ordered = stateOf('> 1. one‸');
-  assert.equal(applied(ordered, continueBlockSpec(ordered)), '> 1. one\n> 2. ‸');
+  assert.equal(
+    applied(ordered, continueBlockSpec(ordered)),
+    '> 1. one\n> 2. ‸',
+  );
   const empty = stateOf('> - one\n> - ‸');
   assert.equal(applied(empty, continueBlockSpec(empty)), '> - one\n>\n> ‸');
   const nested = stateOf('> - one\n>   - ‸');
@@ -447,7 +454,10 @@ await test('Enter inside display math adds no marker', () => {
   assert.equal(lineBreakSpec(state), null);
   const fenced = stateOf('$$\n```\n$$\n\n- one‸');
   assert.ok(!insideCodeFence(fenced, 5));
-  assert.equal(applied(fenced, continueBlockSpec(fenced)), '$$\n```\n$$\n\n- one\n- ‸');
+  assert.equal(
+    applied(fenced, continueBlockSpec(fenced)),
+    '$$\n```\n$$\n\n- one\n- ‸',
+  );
 });
 
 await test('a closed fence does not swallow the text after it', () => {

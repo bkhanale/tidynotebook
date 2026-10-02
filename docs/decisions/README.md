@@ -189,7 +189,7 @@ and needs no record.
 | [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
 | [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 | [0155](0155-the-editor-grammar-parses-the-same-in-slices.md)                          | The editor grammar parses the same in slices                                    |
-| [0156](0156-the-editor-reads-gfm-footnotes.md)                                       | The editor reads GFM footnotes                                                  |
+| [0156](0156-the-editor-reads-gfm-footnotes.md)                                        | The editor reads GFM footnotes                                                  |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

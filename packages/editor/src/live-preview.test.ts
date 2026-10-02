@@ -905,10 +905,18 @@ await test('a footnote reference and its definition are drawn as a footnote', ()
 await test('a footnote shows its source under the selection', () => {
   const doc = 'text[^one] more\n\n[^one]: the note\n';
   // A caret inside the reference shows its brackets, dimmed.
-  assert.equal(visibleText(doc, { from: 7, to: 7 }), 'text[^one] more\n\none the note\n');
-  assert.ok(has(describe(doc, { from: 7, to: 7 }), 'mark', 'cm-np-marker', 4, 6));
+  assert.equal(
+    visibleText(doc, { from: 7, to: 7 }),
+    'text[^one] more\n\none the note\n',
+  );
+  assert.ok(
+    has(describe(doc, { from: 7, to: 7 }), 'mark', 'cm-np-marker', 4, 6),
+  );
   // A caret on the line of the definition shows its marker.
-  assert.equal(visibleText(doc, { from: 25, to: 25 }), 'textone more\n\n[^one]: the note\n');
+  assert.equal(
+    visibleText(doc, { from: 25, to: 25 }),
+    'textone more\n\n[^one]: the note\n',
+  );
 });
 
 await test('a reference to a label that the note does not define stays text', () => {
@@ -935,9 +943,7 @@ await test('a footnote reports its label and its own structure', () => {
     {
       kind: 'footnote-definition',
       label: 'b',
-      structure: [
-        { kind: 'list-item', depth: 1, ordered: false, value: null },
-      ],
+      structure: [{ kind: 'list-item', depth: 1, ordered: false, value: null }],
     },
   ]);
 });
