@@ -206,6 +206,9 @@ and needs no record.
 | [0172](0172-a-wiki-link-becomes-a-standard-link-at-the-border.md)                     | A wiki link becomes a standard link at the border                               |
 | [0173](0173-a-fence-language-is-a-codemirror-language-of-the-one-list.md)             | A fence language is a CodeMirror language of the one list                       |
 | [0174](0174-a-code-block-carries-its-language-and-a-copy-action.md)                   | A code block carries its language and a copy action                             |
+| [0175](0175-a-key-changes-only-the-editor.md)                                         | A key changes only the editor                                                   |
+| [0176](0176-a-save-waits-for-no-read.md)                                              | A save waits for no read                                                        |
+| [0177](0177-the-first-screen-loads-no-editor.md)                                      | The first screen loads no editor                                                |
 | [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
@@ -715,6 +718,17 @@ Record 0170 answers the review of
 export hold one reservation each across the processes, an export plans its
 archive and streams it with its length, and an import checks the free space
 and every entry before its first commit.
+
+Records 0175 to 0177 answer the performance audit of 2026-10-02, with the
+measurements of `tools/performance/`. Record 0175 makes a key change only
+the editor: the note screen holds the work of a burst and writes it after a
+pause, and a new change kind names local document work (issue 262). Record
+0176 makes a save wait for no read: an explicit save checkpoints at once, a
+pull gives way to a waiting save, one transaction announces one change, and
+a closed stream returns the engines to the poll (issues 263 and 267). It
+refines records 0085, 0124 and 0130. Record 0177 keeps the editor out of
+the first screen and makes the budget of record 0136 hold the whole first
+screen (issue 266).
 
 Record 0178 follows record 0170. The code generator writes a typed address
 for an operation that a browser reads itself, and the export of a workspace
