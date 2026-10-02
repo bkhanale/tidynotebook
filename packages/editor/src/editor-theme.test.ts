@@ -178,7 +178,8 @@ await test('a subscript, a superscript and small text read the named note steps'
   for (const [selector, declarations] of Object.entries(noteSurfaceStyle()))
     if (selector.startsWith('.cm-np-html'))
       for (const value of Object.values(declarations))
-        assert.doesNotMatch(String(value), /^-?[0-9.]+(?:%|em)$/, selector);
+        if (typeof value === 'string')
+          assert.doesNotMatch(value, /^-?[0-9.]+(?:%|em)$/, selector);
 });
 
 await test('an HTML tag reads as a quiet mark and never in the code colours', () => {
