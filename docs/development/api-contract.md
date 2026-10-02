@@ -143,3 +143,6 @@ a duplicate response interface. `packages/api-client/src/configure.ts` is the
 one handwritten file that may set the base URL, the cookie behaviour, and the
 shared error normalization. See [Toolchain](toolchain.md) for the compiler
 relaxation that the generated transport needs and the test that contains it.
+A download that a browser reads itself states `x-notesapp-browser-address`,
+and the generator writes its address to `addresses.gen.ts`
+([record 0178](../decisions/0178-the-generator-writes-the-address-of-a-browser-download.md)).

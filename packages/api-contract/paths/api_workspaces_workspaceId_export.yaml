@@ -12,9 +12,13 @@ get:
     or bytes than one zip archive holds without ZIP64 answers 422 with the
     code export_too_large. One import or export of an account runs at once
     (429 archive_job_running) and a few of the installation (503
-    archive_jobs_busy, with Retry-After). HEAD plans and sends no body.
-    Every archive that this operation answers is an archive that
-    importWorkspace takes.
+    archive_jobs_busy, with Retry-After). A request that states
+    Sec-Fetch-Site cross-site is refused, so a page of another site cannot
+    start an export of the account. A browser reads this address itself to
+    save a large archive to its disk, so it holds no required query or
+    header parameter (record 0178). Every archive that this operation
+    answers is an archive that importWorkspace takes.
+  x-notesapp-browser-address: true
   tags:
     - files
   parameters:
@@ -39,3 +43,36 @@ get:
       $ref: '../components/responses/ServerError.yaml'
     '503':
       $ref: '../components/responses/ServiceBusy.yaml'
+head:
+  operationId: inspectWorkspaceExport
+  summary: Check that the workspace can be exported now.
+  description: >-
+    Plans the archive of exportWorkspace and answers its headers with no
+    body: the exact length and the download name. It runs no export job,
+    so it costs one read of the live heads. A client checks it before it
+    hands the address of exportWorkspace to the browser, so a workspace
+    that one archive cannot hold, a missing workspace and a missing
+    session reach the person as a sentence (record 0178). A HEAD answer
+    has no body, so the status names the cause.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/WorkspaceArchivePlanned.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

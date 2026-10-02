@@ -15,8 +15,9 @@ the contract in `packages/api-contract/`.
 
 - `src/generated/` holds the operations, the serializers, and the one fetch
   transport. `src/generated/socket.gen.ts` holds the address, the subprotocol,
-  the message types, and the frame text of each channel. Never edit a file
-  there.
+  the message types, and the frame text of each channel, and
+  `src/generated/addresses.gen.ts` the address of each download that a
+  browser reads itself (0178). Never edit a file there.
 - `src/configure.ts` sets the base URL, the cookie behaviour, the token
   provider, and it normalizes a problem answer. `src/socket.ts` is the one
   browser transport of the notice stream over PartySocket (0130).

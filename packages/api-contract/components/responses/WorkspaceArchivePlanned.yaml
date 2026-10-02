@@ -1,0 +1,14 @@
+description: >-
+  The workspace can be exported now. The answer states the exact length of
+  its archive and its download name, and carries no body.
+headers:
+  content-length:
+    description: The exact length of the archive in bytes.
+    schema:
+      type: string
+      maxLength: 16
+  content-disposition:
+    description: The download name of the archive.
+    schema:
+      type: string
+      maxLength: 1024

@@ -14,11 +14,13 @@
  * while it is written, one note or one image in memory at a time, from the
  * planned revisions, which never change. No file of the server holds it, and
  * the first byte leaves at once, so a proxy that waits for it does not give
- * up. `HEAD` plans and sends no body.
+ * up. `inspectWorkspaceExport`, the HEAD of the same address, plans and sends
+ * no body, so a client checks it before the browser reads the address
+ * itself (record 0178).
  */
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Actor, WorkspaceStore } from '@notesapp/core';
 import {
   archiveBytesAllowed,
@@ -33,6 +35,7 @@ import { requireActor } from '../auth/actor.ts';
 import { readText } from './files.ts';
 import {
   ExportTooLargeError,
+  ForbiddenError,
   NotFoundError,
   unwrapDomain,
 } from '../plugins/problem.ts';
@@ -41,7 +44,11 @@ import {
   dispositionKind,
   downloadName,
 } from '../plugins/content-disposition.ts';
-import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import {
+  noContent,
+  type HandlerMap,
+  type HandlerResult,
+} from '../plugins/register.ts';
 import { reserveArchiveJob, type ArchiveJobs } from './archive-jobs.ts';
 import { archiveLength, zipArchive, type ZipEntry } from './zip.ts';
 
@@ -94,6 +101,39 @@ export function exportRefusal(
       `One zip archive holds ${String(Math.floor(maxArchiveBytes / (1024 * 1024)))} MiB at the most. Move some notes to another workspace, then export each workspace.`,
     );
   return null;
+}
+
+/**
+ * Refuses an export that a page of another site asked for (record 0178).
+ *
+ * The browser reads the export address itself, with the session cookie, and
+ * a GET changes nothing but the job of the account. The cookie is
+ * `SameSite=Lax`, so a request of a page of another site carries it only as
+ * the navigation of a whole window, and the browser states that navigation in
+ * `Sec-Fetch-Site`. Such a request starts no job. A caller that is not a
+ * browser states no such header and is answered as before.
+ */
+function refuseCrossSite(request: FastifyRequest): void {
+  if (request.headers['sec-fetch-site'] === 'cross-site')
+    throw new ForbiddenError(
+      'An export starts from a page of this installation only.',
+    );
+}
+
+/** The headers of an archive answer and of its check. */
+function archiveHeaders(length: number): [string, string][] {
+  return [
+    [
+      'content-disposition',
+      exportDisposition({
+        path: archiveName,
+        mediaType: archiveMediaType,
+        fallback: archiveName,
+      }),
+    ],
+    ['content-length', String(length)],
+    ['cache-control', 'no-store'],
+  ];
 }
 
 /** The whole content of one readable stream. */
@@ -208,40 +248,39 @@ export function createExportHandlers(
       };
     },
 
-    exportWorkspace: async (request, reply): Promise<HandlerResult> => {
+    inspectWorkspaceExport: async (request): Promise<HandlerResult> => {
+      refuseCrossSite(request);
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
       const plan = await planArchive(actor, workspaceId);
       const refusal = exportRefusal(plan);
       if (refusal !== null) throw refusal;
-      const length = archiveLength(plan);
-      const headers: [string, string][] = [
-        [
-          'content-disposition',
-          exportDisposition({
-            path: archiveName,
-            mediaType: archiveMediaType,
-            fallback: archiveName,
-          }),
-        ],
-        ['content-length', String(length)],
-        ['cache-control', 'no-store'],
-      ];
       // A HEAD asks for the headers only, so it plans and runs no job.
-      if (request.method === 'HEAD')
-        return {
-          status: 200,
-          mediaType: archiveMediaType,
-          body: Readable.from([]),
-          headers,
-        };
+      return {
+        ...noContent(200),
+        headers: archiveHeaders(archiveLength(plan)),
+      };
+    },
+
+    exportWorkspace: async (request, reply): Promise<HandlerResult> => {
+      refuseCrossSite(request);
+      const actor = requireActor(request).actor;
+      const workspaceId = readText(request.params, 'workspaceId');
+      const plan = await planArchive(actor, workspaceId);
+      const refusal = exportRefusal(plan);
+      if (refusal !== null) throw refusal;
       const lease = await reserveJob(reply, actor.accountId);
       const body = zipArchive(plannedEntries(actor, workspaceId, plan));
       // The job ends when the archive ends, fails, or the caller leaves.
       body.once('close', () => {
         void lease.release().catch(() => undefined);
       });
-      return { status: 200, mediaType: archiveMediaType, body, headers };
+      return {
+        status: 200,
+        mediaType: archiveMediaType,
+        body,
+        headers: archiveHeaders(archiveLength(plan)),
+      };
     },
   };
 }

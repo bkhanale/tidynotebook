@@ -11,12 +11,12 @@
  */
 import {
   exportNote,
-  exportWorkspace,
+  exportWorkspaceAddress,
   importWorkspace,
+  inspectWorkspaceExport,
 } from '@notesapp/api-client';
 import { applicationName } from '../../shell/document-title.ts';
 import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';
-import { pickSaveTarget } from './save-stream.ts';
 
 /** The byte bound of one archive, in whole MiB, as a person reads it. */
 const archiveMiB = Math.floor(maxArchiveBytes / (1024 * 1024));
@@ -191,42 +191,47 @@ export async function downloadNote(
 }
 
 /**
+ * The message of an export that its check refused, by the status alone.
+ *
+ * The check is a HEAD, whose answer has no body, so the status names the
+ * cause (record 0178).
+ */
+export function exportCheckMessage(status: number): string {
+  if (status === 401) return 'Sign in again to download your notes.';
+  if (status === 403)
+    return 'Your role in this workspace does not allow an export.';
+  if (status === 404) return 'This workspace is not on the server any more.';
+  if (status === 422)
+    return downloadRefusalMessage({ code: 'export_too_large' });
+  if (status === 429)
+    return downloadRefusalMessage({ code: 'archive_job_running' });
+  if (status === 0)
+    return 'The server could not be reached. Connect to the network and try again.';
+  return 'The download did not start. Try again.';
+}
+
+/**
  * Saves every live note of the workspace as one zip archive.
  *
- * A browser with a save picker writes the archive into the file that the
- * person picks as it arrives, so a large export needs no memory of its size.
- * The picker opens first, on the click of the person. Another browser saves a
- * blob (record 0170).
+ * The browser reads the export address itself, so it saves the archive to
+ * the disk of the device as it arrives, in every browser and at any size
+ * (record 0178). The address comes from the generated builder, so no code
+ * here writes it. The check before it plans the archive and runs no job, so
+ * a refusal reaches the person as a sentence instead of a failed download.
  */
-export async function downloadAll(
-  workspaceId: string,
-  scope: object = window,
-): Promise<void> {
-  const target = await pickSaveTarget(scope, 'notes.zip');
-  if (target.kind === 'cancelled') return;
-  if (target.kind === 'stream') {
-    const answer = await exportWorkspace({
-      path: { workspaceId },
-      parseAs: 'stream',
-    });
-    const body: unknown = answer.data;
-    if (answer.error !== undefined || !(body instanceof ReadableStream)) {
-      await target.writable.abort();
-      throw refuse(answer.error);
-    }
-    await body.pipeTo(target.writable);
-    return;
-  }
-  const answer = await exportWorkspace({ path: { workspaceId } });
-  if (answer.error !== undefined || answer.data === undefined)
-    throw refuse(answer.error);
-  save(
-    asBlob(answer.data, 'application/zip'),
-    downloadName(
-      answer.response?.headers.get('content-disposition') ?? null,
-      'notes.zip',
-    ),
-  );
+export async function downloadAll(workspaceId: string): Promise<void> {
+  const checked = await inspectWorkspaceExport({ path: { workspaceId } });
+  const status = checked.response?.status ?? 0;
+  if (checked.error !== undefined || status !== 200)
+    throw new Error(exportCheckMessage(status));
+  const anchor = document.createElement('a');
+  anchor.href = exportWorkspaceAddress({ workspaceId });
+  // An empty name keeps the name that the answer states.
+  anchor.download = '';
+  anchor.rel = 'noopener';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 /** Imports one portable workspace archive without changing its references. */

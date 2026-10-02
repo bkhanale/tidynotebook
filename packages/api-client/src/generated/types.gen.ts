@@ -6105,6 +6105,64 @@ export type ExportWorkspaceResponses = {
 
 export type ExportWorkspaceResponse = ExportWorkspaceResponses[keyof ExportWorkspaceResponses];
 
+export type InspectWorkspaceExportData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/export';
+};
+
+export type InspectWorkspaceExportErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     */
+    422: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type InspectWorkspaceExportError = InspectWorkspaceExportErrors[keyof InspectWorkspaceExportErrors];
+
+export type InspectWorkspaceExportResponses = {
+    /**
+     * The workspace can be exported now. The answer states the exact length of its archive and its download name, and carries no body.
+     */
+    200: unknown;
+};
+
 export type ListFilesData = {
     body?: never;
     headers?: {

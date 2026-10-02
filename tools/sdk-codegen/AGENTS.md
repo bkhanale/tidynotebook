@@ -25,7 +25,10 @@ the HTTP boundary instead of using it.
   read `asyncapi.yaml` as a second root.
 - `src/message-contract.ts` checks the channel address, the subprotocol, and
   the shared payload schemas against `openapi.yaml`, and `src/emit.ts` writes
-  the channel index and `socket.gen.ts` from it (0128).
+  the channel index and `socket.gen.ts` from it (0128). `src/addresses.ts`
+  writes `addresses.gen.ts` for each operation that states
+  `x-notesapp-browser-address`, and refuses the mark where a browser could not
+  send the request (0178).
   `src/dialect.test.ts` proves the shared schema dialect with the pinned lint.
 - No application code lives here. No handler and no screen.
 

@@ -35,8 +35,10 @@ import {
   exportNote,
   exportWorkspace,
   finalizeAttachment,
+  exportWorkspaceAddress,
   getAccount,
   importWorkspace,
+  inspectWorkspaceExport,
   listWorkspaces,
   signInWithPassword,
   updateFile,
@@ -865,13 +867,31 @@ await test('an account runs one archive job, and the installation a few', async 
   assert.equal(responseOf(free.response).status, 200);
 });
 
-await test('a HEAD of an export plans it, runs no job and sends no body', async () => {
-  // Review of issue 243. A HEAD ran the whole export, as a job of its own.
-  const full = await exportWorkspace({
+await test('the check of an export plans it, runs no job and sends no body', async () => {
+  // Review of issue 243, record 0178. A HEAD ran the whole export, and the
+  // browser that reads the export address itself needs a check before it.
+  // The job of the test before ends as its answer ends, so this waits for it.
+  let full = await exportWorkspace({
     headers: browser(cookie),
     path: { workspaceId },
   });
+  await until(async () => {
+    if (responseOf(full.response).status === 200) return true;
+    full = await exportWorkspace({
+      headers: browser(cookie),
+      path: { workspaceId },
+    });
+    return false;
+  }, 'the export of the owner answers');
+  const sent = responseOf(full.response);
   const length = (await archiveBytes(full.data)).length;
+  // The served answer is a download with its exact length.
+  assert.match(
+    sent.headers.get('content-disposition') ?? '',
+    /^attachment; filename="notes\.zip"/,
+  );
+  assert.equal(Number(sent.headers.get('content-length')), length);
+  assert.equal(sent.headers.get('x-content-type-options'), 'nosniff');
   const held = randomUUID();
   const ownerId = account.data?.accountId ?? '';
   await until(
@@ -883,17 +903,56 @@ await test('a HEAD of an export plans it, runs no job and sends no body', async 
     'every earlier archive job of the owner ends',
   );
   try {
-    const head = await server.app.inject({
-      method: 'HEAD',
-      url: `/api/workspaces/${workspaceId}/export`,
+    // The account runs a job now, and the check still answers: it runs none.
+    const checked = await inspectWorkspaceExport({
       headers: browser(cookie),
+      path: { workspaceId },
     });
-    assert.equal(head.statusCode, 200);
-    assert.equal(Number(head.headers['content-length']), length);
-    assert.equal(head.body, '');
+    const answer = responseOf(checked.response);
+    assert.equal(answer.status, 200);
+    assert.equal(Number(answer.headers.get('content-length')), length);
+    assert.match(
+      answer.headers.get('content-disposition') ?? '',
+      /^attachment; filename="notes\.zip"/,
+    );
+    assert.equal(await answer.text(), '');
   } finally {
     await coordination.releaseArchiveJob(held);
   }
+});
+
+await test('an export that a page of another site asks for is refused', async () => {
+  // Record 0178. The browser reads the export address itself with the
+  // session cookie, so a navigation from another site must start no job.
+  for (const ask of [exportWorkspace, inspectWorkspaceExport]) {
+    const refused = await ask({
+      headers: { ...browser(cookie), 'sec-fetch-site': 'cross-site' },
+      path: { workspaceId },
+    });
+    assert.equal(responseOf(refused.response).status, 403);
+  }
+  const own = await inspectWorkspaceExport({
+    headers: { ...browser(cookie), 'sec-fetch-site': 'same-origin' },
+    path: { workspaceId },
+  });
+  assert.equal(responseOf(own.response).status, 200);
+});
+
+await test('the generated address of an export is the address that serves it', async () => {
+  // Record 0178. The address that a browser reads comes from the contract,
+  // so no feature code writes it.
+  const address = exportWorkspaceAddress({ workspaceId });
+  assert.equal(
+    address,
+    `${server.baseUrl}/api/workspaces/${workspaceId}/export`,
+  );
+  const answer = await server.app.inject({
+    method: 'GET',
+    url: new URL(address).pathname,
+    headers: browser(cookie),
+  });
+  assert.equal(answer.statusCode, 200);
+  assert.equal(answer.headers['content-type'], 'application/zip');
 });
 
 /** A stored zip archive of the given files. */

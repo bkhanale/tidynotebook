@@ -4,6 +4,7 @@ import { applicationName } from '../../shell/document-title.ts';
 import {
   downloadName,
   downloadRefusalMessage,
+  exportCheckMessage,
   importRefusalMessage,
   transferFailureMessage,
 } from './export.ts';
@@ -127,5 +128,34 @@ await test('an archive job that waits says when to try again', () => {
       detail: '3 files of 5 came in before the import stopped.',
     }),
     '3 files of 5 came in before the import stopped.',
+  );
+});
+
+await test('the check of an export names its cause by the status of its answer', () => {
+  // Record 0178. The browser reads the export address itself, so the check
+  // before it is the one place where a refusal can reach the person.
+  assert.equal(
+    exportCheckMessage(401),
+    'Sign in again to download your notes.',
+  );
+  assert.equal(
+    exportCheckMessage(422),
+    downloadRefusalMessage({ code: 'export_too_large' }),
+  );
+  assert.equal(
+    exportCheckMessage(429),
+    downloadRefusalMessage({ code: 'archive_job_running' }),
+  );
+  assert.equal(
+    exportCheckMessage(404),
+    'This workspace is not on the server any more.',
+  );
+  assert.equal(
+    exportCheckMessage(0),
+    'The server could not be reached. Connect to the network and try again.',
+  );
+  assert.equal(
+    exportCheckMessage(500),
+    'The download did not start. Try again.',
   );
 });

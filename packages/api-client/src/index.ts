@@ -7,6 +7,7 @@
  */
 export * from './generated/index.ts';
 export * from './generated/socket.gen.ts';
+export * from './generated/addresses.gen.ts';
 export {
   connectSyncNotices,
   policyCloseCode,

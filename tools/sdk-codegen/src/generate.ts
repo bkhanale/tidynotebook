@@ -16,6 +16,7 @@ import { mergeAuthContract } from './auth-contract.ts';
 import { buildContractIndex } from './contract-index.ts';
 import { assertContractLayout } from './contract-layout.ts';
 import { shareDefinitions, type ChannelSchemas } from './definitions.ts';
+import { emitAddressModule, readBrowserAddresses } from './addresses.ts';
 import { emitContractModule, emitSocketModule } from './emit.ts';
 import {
   readMessageContract,
@@ -192,6 +193,12 @@ async function generateFrom(
   await writeFile(
     resolve(directories.client, 'socket.gen.ts'),
     emitSocketModule(messageContract),
+    'utf8',
+  );
+  // The addresses that a browser reads itself (record 0178).
+  await writeFile(
+    resolve(directories.client, 'addresses.gen.ts'),
+    emitAddressModule(readBrowserAddresses(flat)),
     'utf8',
   );
 }

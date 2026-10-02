@@ -28,7 +28,9 @@ Use **Export as Markdown** there.
 Open **Settings** from the header menu and find the **Export** card. Select
 **Export all notes**.
 
-You get one zip file. Inside it:
+Your browser downloads one zip file to its downloads folder, as any other
+download, so a large workspace does not need the memory of the device. Inside
+it:
 
 - every note as a `.md` file, at its folder path, so your folders come out as
   folders;

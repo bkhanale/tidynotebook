@@ -339,6 +339,8 @@ components:
       $ref: './components/responses/RateLimited.yaml'
     ServiceBusy:
       $ref: './components/responses/ServiceBusy.yaml'
+    WorkspaceArchivePlanned:
+      $ref: './components/responses/WorkspaceArchivePlanned.yaml'
     InsufficientStorage:
       $ref: './components/responses/InsufficientStorage.yaml'
     Account:

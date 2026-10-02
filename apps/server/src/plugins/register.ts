@@ -731,6 +731,13 @@ export function registerOperations(
   for (const adapter of protocols)
     registerProtocol(app, adapter, protocolRoutes);
 
+  // A GET whose address the contract also serves as a HEAD of its own leaves
+  // the HEAD to that operation, so the framework adds no second one.
+  const declaredHeads = new Set(
+    served
+      .filter((operation) => operation.method === 'head')
+      .map((operation) => toRoutePath(operation.path)),
+  );
   for (const operation of served) {
     const schema: FastifySchema = {
       params: operation.request.params,
@@ -763,6 +770,10 @@ export function registerOperations(
     app.route({
       method: routeMethods[operation.method],
       url: toRoutePath(operation.path),
+      ...(operation.method === 'get' &&
+      declaredHeads.has(toRoutePath(operation.path))
+        ? { exposeHeadRoute: false }
+        : {}),
       config: {
         operationId: operation.id,
         ...(throttleGroup(operation.id) === null
