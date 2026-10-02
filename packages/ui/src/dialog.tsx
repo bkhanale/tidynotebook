@@ -11,23 +11,25 @@
  * subtle edge and the modal elevation step. Its three parts separate by space
  * and not by a rule: three rules across one small panel is the look of a
  * generated form, and the title, the body and the footer already differ in
- * type and in alignment. See
+ * type and in alignment. A dialog never grows past the screen: the panel
+ * scrolls between its title and its action row, which `dialog-classes.ts`
+ * states and tests. See
  * [decision 0063](../../../docs/decisions/0063-the-resting-edge-of-a-control-is-the-divider.md)
  * and
  * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
 import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  dialogFooterClassName,
+  dialogPanelClassName,
+  dialogRootClassName,
+  dialogTitleClassName,
+  type DialogAlign,
+  type DialogWidth,
+} from './dialog-classes.ts';
 import { transitionRaise } from './motion.ts';
 
-/**
- * How wide a dialog panel is.
- *
- * `screen` is no panel at all: the content fills the screen over a deeper
- * scrim, with no fill, edge or radius of its own. It is for content that a
- * person looks at rather than reads, such as a picture in the image viewer
- * (record 0145), and that content draws its own raised controls.
- */
-export type DialogWidth = 'small' | 'medium' | 'large' | 'screen';
+export type { DialogWidth } from './dialog-classes.ts';
 
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -75,7 +77,7 @@ export function Dialog({
   /** Keeps the title for assistive technology only. */
   readonly hideTitle?: boolean | undefined;
   readonly width?: DialogWidth | undefined;
-  readonly align?: 'top' | 'center' | undefined;
+  readonly align?: DialogAlign | undefined;
   readonly children: ReactNode;
   readonly describedBy?: string | undefined;
 }): ReactNode {
@@ -146,20 +148,8 @@ export function Dialog({
   if (!open) return null;
 
   const screen = width === 'screen';
-  const measure =
-    width === 'small'
-      ? 'max-w-md'
-      : width === 'large'
-        ? 'max-w-3xl'
-        : 'max-w-xl';
-  const position =
-    align === 'center' ? 'items-center py-6' : 'items-start pb-6 pt-20';
-  const root = screen
-    ? 'bg-scrim/80'
-    : `overflow-y-auto bg-scrim/40 px-gutter ${position}`;
-  const panel = screen
-    ? 'relative h-full w-full text-ink outline-none'
-    : `w-full ${measure} overflow-hidden rounded-xl border border-edge-subtle bg-card text-ink shadow-modal outline-none`;
+  const root = dialogRootClassName(width, align);
+  const panel = dialogPanelClassName(width);
 
   return (
     <div
@@ -179,14 +169,7 @@ export function Dialog({
         aria-describedby={describedBy}
         tabIndex={-1}
       >
-        <h2
-          className={
-            hideTitle || screen
-              ? 'sr-only'
-              : 'm-0 px-5 pb-1 pt-4 text-ui font-semibold text-strong'
-          }
-          id={titleId}
-        >
+        <h2 className={dialogTitleClassName(hideTitle || screen)} id={titleId}>
           {title}
         </h2>
         {children}
@@ -216,9 +199,5 @@ export function DialogFooter({
 }: {
   readonly children: ReactNode;
 }): ReactNode {
-  return (
-    <div className="flex flex-wrap justify-end gap-cluster px-5 pb-4 pt-2">
-      {children}
-    </div>
-  );
+  return <div className={dialogFooterClassName()}>{children}</div>;
 }

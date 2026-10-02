@@ -56,7 +56,7 @@ Node only package, no server only package.
 `node --test` through `pnpm test:unit`. `src/theme.test.ts` holds the registry
 to `themeProblems`, so a new theme needs no new test. Node loads no `.tsx` file, so a rule a test must
 read lives in a `.ts` module: `control-classes.ts`, `icon-grid.ts`,
-`overlay-position.ts`. `src/icons.test.ts` reads `src/icons.tsx` as text, the
+`overlay-position.ts`, `dialog-classes.ts`. `src/icons.test.ts` reads `src/icons.tsx` as text, the
 only way to see an attribute an icon states for itself, and
 `tests/integration/theme-variables.test.ts` holds the built page, the editor
 and the stylesheet fallbacks to one registry.

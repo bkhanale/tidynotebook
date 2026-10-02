@@ -26,8 +26,7 @@ face. No module names a family. Record 0061.
 The named steps live in `apps/web/src/tailwind.css`. Use no other size.
 
 - `text-kbd` is a keyboard hint and nothing else.
-- `text-control` is a control, a row, a label, a hint, a caption and the text
-  of a menu.
+- `text-control` is a control, a row, a label, a hint, a caption and a menu.
 - `text-ui` is body text outside a note, a list row title and a dialog title.
 - `text-base` is the title of a card or a section.
 - `text-xl` is the title of a page.
@@ -41,8 +40,7 @@ Large type takes `tracking-heading` or `tracking-display`.
 ## The planes and the edges
 
 Three planes (record 0052): `bg-surface` is chrome, `bg-app` is the page,
-`bg-card` is raised. `bg-hover` and `bg-active` are the two states of a row and
-a chip.
+`bg-card` is raised. `bg-hover` and `bg-active` are the states of a row or chip.
 
 Three edges (records 0053 and 0063): `edge-line` is the resting edge of a
 control and the one divider. `edge-subtle` is the edge of a raised surface and
@@ -54,8 +52,8 @@ count. Separate everything else with space or fill.
 ## Elevation, radius and space
 
 Elevation is `shadow-raised`, `shadow-overlay` and `shadow-modal`, from the
-scrim of the palette (record 0052). A raised surface is `bg-card`, `edge-subtle`
-and one step.
+scrim of the palette (record 0052). A raised surface is `bg-card`,
+`edge-subtle` and one step.
 
 Radius: `rounded-sm` for a keyboard hint and a task box, `rounded-md` for a
 control and a row, `rounded-lg` for a card, a menu, a toast and a code block,
@@ -77,9 +75,7 @@ no screen writes its own (record 0065).
   destructive confirmation, and a quiet button that starts one takes the
   danger tone from the recipe. `md` is 32 px, `sm` is 28 px, and `compact`
   keeps the touch target and draws a smaller surface inside it. A disabled
-  button takes the muted text, and a filled one gives up its fill for
-  `bg-hover`, so it never reads as the action. No control fades with an
-  opacity.
+  button is `text-muted`, a filled one on `bg-hover`, and nothing fades.
 - `rowClassName`: every clickable row, in the tree, a list, a menu, the palette
   and the sidebar footer. 28 px on a desktop, `rounded-md`, `hover:bg-hover`.
   The open or chosen row is `bg-active text-strong font-medium`. No ring. A row
@@ -95,8 +91,7 @@ no screen writes its own (record 0065).
   decides the cap of the device. A screen reader gets the full key name.
 
 Focus is one treatment: a two pixel outline in the focus colour, offset outward
-on a control and inward on a row inside a scroller. Never `focus:`, always
-`focus-visible:`.
+on a control and inward on a row in a scroller. Always `focus-visible:`.
 
 A primary button appears once on a screen, inside the route and not in the
 sidebar. A hover changes the fill to the derived hover of the palette and
@@ -136,6 +131,7 @@ the one list that the row and the command palette read.
 - A menu and a dialog are raised surfaces of `packages/ui`, but the image
   viewer is a picture on the scrim (0145). A dialog title is `text-ui`, Cancel
   is `ghost`, and the confirming action at the end is `primary` or `danger`.
+  A dialog scrolls between its title and its action row, inside the screen.
 
 ## Copy
 
