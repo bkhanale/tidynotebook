@@ -9,6 +9,7 @@
  * of the one grammar gives, so a word matches and shows as a reader sees it,
  * and both excerpts follow one plain text rule (records 0162, 0167).
  */
+import { defaultSearchLimit } from '@notesapp/core';
 import type { ExcerptPart, SearchHit } from '@notesapp/core';
 import { MarkdownLimitError, readableText } from '@notesapp/markdown';
 
@@ -86,42 +87,84 @@ function excerpt(
   return parts;
 }
 
-/** How many readable texts the device keeps between two searches. */
-const readableCacheSize = 2048;
+/** How many readable texts one cache keeps, the least recent going first. */
+export const readableCacheSize = 10_000;
 
 /**
- * The readable texts of the last searches, by the Markdown they came from.
+ * How many notes one query reads that the cache does not hold.
  *
- * A person types a query one key at a time, and each key searches the same
- * notes again. A text that the device already read is not parsed again.
+ * A read parses the note, on the main thread. A first query in a large
+ * workspace would parse every note, so it reads this many and the queries
+ * that follow read the rest, one bounded step at a time. A note that a query
+ * did not reach yet is not in its answer; the server answers it online.
  */
-const readableCache = new Map<string, string>();
+export const maxParsesPerQuery = 256;
+
+/** The most hits of one query, as the server answers at the most. */
+export const localSearchLimit = defaultSearchLimit;
 
 /**
- * The readable text of one note, under its name.
+ * The readable text of each note that the device read, by file and revision.
  *
- * A text that the grammar refuses, by its size or its depth, is searched as
- * it is, so the device still finds it.
+ * An accepted revision never changes, and a draft keeps the revision it
+ * leads from, so the key alone could name an older text of a draft. The
+ * entry keeps the Markdown that it read, and a different Markdown is read
+ * again. The cache is least recently used: a hit moves its entry to the end.
  */
-function readableOf(file: LocalSearchFile): string {
-  const title = noteTitle(file.path);
-  const key = `${title}\n${file.text}`;
-  const known = readableCache.get(key);
-  if (known !== undefined) return known;
-  let text: string;
-  try {
-    text = readableText(file.text, { title });
-  } catch (failure) {
-    if (!(failure instanceof MarkdownLimitError)) throw failure;
-    text = file.text;
-  }
-  if (readableCache.size >= readableCacheSize) {
-    const oldest = readableCache.keys().next().value;
-    if (oldest !== undefined) readableCache.delete(oldest);
-  }
-  readableCache.set(key, text);
-  return text;
+export type ReadableCache = {
+  /** How many notes this cache has parsed. */
+  readonly parses: () => number;
+  /** The cached readable text of a file, or `null` when it holds none. */
+  readonly cached: (file: LocalSearchFile) => string | null;
+  /** Parses one note and keeps its readable text. */
+  readonly read: (file: LocalSearchFile) => string;
+};
+
+/** A new cache of readable texts. */
+export function createReadableCache(
+  capacity: number = readableCacheSize,
+): ReadableCache {
+  const entries = new Map<string, { source: string; text: string }>();
+  let parses = 0;
+  const keyOf = (file: LocalSearchFile): string =>
+    `${file.fileId}\u0000${file.revisionId}`;
+  return {
+    parses: () => parses,
+    cached: (file) => {
+      const key = keyOf(file);
+      const entry = entries.get(key);
+      if (entry === undefined || entry.source !== file.text) return null;
+      entries.delete(key);
+      entries.set(key, entry);
+      return entry.text;
+    },
+    read: (file) => {
+      parses += 1;
+      const title = noteTitle(file.path);
+      let text: string;
+      try {
+        text = readableText(file.text, { title });
+      } catch (failure) {
+        // A text that the grammar refuses, by its size or its depth, is
+        // searched as it is, so the device still finds it.
+        if (!(failure instanceof MarkdownLimitError)) throw failure;
+        text = file.text;
+      }
+      const key = keyOf(file);
+      entries.delete(key);
+      entries.set(key, { source: file.text, text });
+      while (entries.size > capacity) {
+        const oldest = entries.keys().next().value;
+        if (oldest === undefined) break;
+        entries.delete(oldest);
+      }
+      return text;
+    },
+  };
 }
+
+/** The cache of this device. */
+const deviceCache = createReadableCache();
 
 /**
  * Searches already partitioned local files without network access.
@@ -129,27 +172,25 @@ function readableOf(file: LocalSearchFile): string {
  * If the input contains more than one state for a file, the last state wins.
  * The browser store places drafts after accepted states, so a current draft
  * replaces the downloaded accepted body for that file.
+ *
+ * Every word is matched in the readable text of a note, as the server index
+ * holds it, so a word that the Markdown writes with an entity, an escape or a
+ * mark inside it is found here as it is there. The notes are read in the
+ * order of the answer, a note whose name matches first and then by path, and
+ * the read stops at `localSearchLimit` hits. A note that the cache does not
+ * hold costs a parse, and one query makes `maxParsesPerQuery` of them at the
+ * most.
  */
 export function searchLocal(
   query: string,
   files: readonly LocalSearchFile[],
+  cache: ReadableCache = deviceCache,
 ): readonly SearchHit[] {
   const queryWords = words(query);
   if (queryWords.length === 0) return [];
   const latest = new Map<string, LocalSearchFile>();
   for (const file of files) latest.set(file.fileId, file);
-  return [...latest.values()]
-    .filter((file) => {
-      // The Markdown holds every word of its readable text, so a note that
-      // fails here needs no parse.
-      const haystack = `${file.path}\n${file.text}`.toLocaleLowerCase('en-US');
-      return queryWords.every((word) => haystack.includes(word));
-    })
-    .map((file) => ({ ...file, text: readableOf(file) }))
-    .filter((file) => {
-      const haystack = `${file.path}\n${file.text}`.toLocaleLowerCase('en-US');
-      return queryWords.every((word) => haystack.includes(word));
-    })
+  const ordered = [...latest.values()]
     .map((file) => {
       const title = noteTitle(file.path).toLocaleLowerCase('en-US');
       return { file, named: queryWords.some((word) => title.includes(word)) };
@@ -160,11 +201,25 @@ export function searchLocal(
         : left.file.path < right.file.path
           ? -1
           : 1,
-    )
-    .map(({ file }) => ({
+    );
+  const hits: SearchHit[] = [];
+  let parses = 0;
+  for (const { file } of ordered) {
+    if (hits.length >= localSearchLimit) break;
+    let text = cache.cached(file);
+    if (text === null) {
+      if (parses >= maxParsesPerQuery) continue;
+      parses += 1;
+      text = cache.read(file);
+    }
+    const haystack = `${file.path}\n${text}`.toLocaleLowerCase('en-US');
+    if (!queryWords.every((word) => haystack.includes(word))) continue;
+    hits.push({
       fileId: file.fileId,
       path: file.path,
       revisionId: file.revisionId,
-      excerpt: excerpt(file.text, queryWords),
-    }));
+      excerpt: excerpt(text, queryWords),
+    });
+  }
+  return hits;
 }

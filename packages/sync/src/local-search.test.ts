@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { searchLocal } from './local-search.ts';
+import {
+  createReadableCache,
+  localSearchLimit,
+  maxParsesPerQuery,
+  searchLocal,
+  type LocalSearchFile,
+} from './local-search.ts';
 
 /** The excerpt as one string, for a readable assertion. */
 function excerptText(excerpt: readonly { readonly text: string }[]): string {
@@ -152,4 +158,94 @@ await test('a word only in a link address finds nothing, as on the server', () =
     },
   ]);
   assert.deepEqual(hits, []);
+});
+
+await test('a word that the Markdown writes in parts is found as a reader reads it', () => {
+  // Review of records 0162 and 0167. A filter over the raw Markdown dropped a
+  // note before its readable text was read, so an entity, an escape and a
+  // mark inside a word were found by the server index and not here.
+  const files = [
+    {
+      fileId: 'one',
+      path: 'a/One.md',
+      revisionId: 'r1',
+      text: 'AT&amp;T bought it.\n',
+    },
+    {
+      fileId: 'two',
+      path: 'a/Two.md',
+      revisionId: 'r2',
+      text: 'Call foo\\_bar first.\n',
+    },
+    {
+      fileId: 'three',
+      path: 'a/Three.md',
+      revisionId: 'r3',
+      text: 'It was un**believ**able.\n',
+    },
+  ];
+  const cache = createReadableCache();
+  assert.deepEqual(
+    searchLocal('at&t', files, cache).map((hit) => hit.fileId),
+    ['one'],
+  );
+  assert.deepEqual(
+    searchLocal('foo_bar', files, cache).map((hit) => hit.fileId),
+    ['two'],
+  );
+  assert.deepEqual(
+    searchLocal('unbelievable', files, cache).map((hit) => hit.fileId),
+    ['three'],
+  );
+});
+
+/** A workspace of `count` short notes that no query word below matches. */
+function workspace(count: number): readonly LocalSearchFile[] {
+  return Array.from({ length: count }, (_, index) => ({
+    fileId: `file-${String(index)}`,
+    path: `notes/note-${String(index).padStart(5, '0')}.md`,
+    revisionId: `revision-${String(index)}`,
+    text: `# Note ${String(index)}\n\nA line of text.\n`,
+  }));
+}
+
+await test('a query parses a bounded number of notes and each revision once', () => {
+  // Review of records 0162 and 0167. Each key parsed every note that passed
+  // the filter, on the main thread, with no bound: 5000 parses for a query
+  // over 5000 notes, and as many again for the next key.
+  const files = workspace(5000);
+  const cache = createReadableCache();
+  assert.deepEqual(searchLocal('zebra', files, cache), []);
+  assert.equal(cache.parses(), maxParsesPerQuery);
+  // The next keys read the next notes and none of the notes already read.
+  for (let key = 1; key * maxParsesPerQuery < 5000; key += 1)
+    searchLocal('zebra', files, cache);
+  assert.equal(cache.parses(), 5000);
+  // Once every revision is read, a query parses nothing.
+  searchLocal('line', files, cache);
+  searchLocal('zebra', files, cache);
+  assert.equal(cache.parses(), 5000);
+});
+
+await test('a query that matches every note stops at the limit of its answer', () => {
+  const files = workspace(5000);
+  const cache = createReadableCache();
+  assert.equal(searchLocal('line', files, cache).length, localSearchLimit);
+  assert.equal(cache.parses(), localSearchLimit);
+});
+
+await test('a changed draft is read again and a hit keeps its entry', () => {
+  const cache = createReadableCache(2);
+  const first = { fileId: 'a', path: 'A.md', revisionId: 'r', text: 'alpha' };
+  const second = { fileId: 'b', path: 'B.md', revisionId: 'r', text: 'beta' };
+  const third = { fileId: 'c', path: 'C.md', revisionId: 'r', text: 'gamma' };
+  searchLocal('x', [first, second], cache);
+  assert.equal(cache.parses(), 2);
+  // A hit on the first moves it to the end, so the second goes for the third.
+  assert.equal(cache.cached(first), 'alpha');
+  cache.read(third);
+  assert.equal(cache.cached(first), 'alpha');
+  assert.equal(cache.cached(second), null);
+  // A draft keeps its revision and changes its text, so it is read again.
+  assert.equal(cache.cached({ ...first, text: 'alpha two' }), null);
 });
