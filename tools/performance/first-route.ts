@@ -3,9 +3,10 @@
  *
  * The first route is every script and every module preload that the built
  * `index.html` names. A deferred chunk, such as the editor or the math module,
- * stays out of it. `bundle-budget.mjs` measures this list, and
- * `tests/integration/web-build.test.ts` holds what it must not contain, so the
- * two read one definition of the first route.
+ * stays out of it. `firstScreenScripts` adds the lazy chunks of the frame and
+ * All notes, which a cold start also loads. `bundle-budget.mjs` measures the
+ * first screen, and `tests/integration/web-build.test.ts` holds what it must
+ * not contain, so the two read one definition of it.
  */
 import { readdir, readFile, realpath } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
@@ -23,7 +24,19 @@ export type BuiltScript = {
  */
 export const deferredLibraries = [
   { name: 'KaTeX', marker: 'KaTeX parse error' },
+  // The editor engine loads with the note, never with the frame (record
+  // 0177). The class names a node of the view of CodeMirror.
+  { name: 'CodeMirror', marker: 'cm-scroller' },
+  // The HTML reader under the Markdown renderer and the device search.
+  { name: 'parse5', marker: 'abandoned-head-element-child' },
 ] as const;
+
+/**
+ * The lazy modules that the workspace address renders before All notes
+ * states its count: the frame and All notes. The build names a lazy chunk by
+ * its module, so the chunk of `shell/shell.tsx` starts with `shell-`.
+ */
+export const firstScreenChunks = ['shell', 'notes-home'] as const;
 
 /** Reads one script of the build, refusing a path outside of it. */
 async function readScript(
@@ -68,5 +81,64 @@ export async function builtScripts(
       .filter((name) => name.endsWith('.js'))
       .sort((left, right) => left.localeCompare(right))
       .map((name) => readScript(dist, `assets/${name}`)),
+  );
+}
+
+/** The chunks that one script imports statically, by their file names. */
+function staticImports(script: BuiltScript): readonly string[] {
+  const text = script.bytes.toString('utf8');
+  const found = new Set<string>();
+  // A static import names its chunk right after `import` or `from`. A
+  // dynamic import is `import(`, which this pattern does not take.
+  for (const match of text.matchAll(
+    /(?:\bimport\s*|\bfrom\s*)["']\.\/([^"']+\.js)["']/g,
+  )) {
+    const name = match[1];
+    if (name !== undefined) found.add(name);
+  }
+  return [...found];
+}
+
+/**
+ * The scripts of the first screen: the first route, the lazy chunks of the
+ * frame and All notes, and every chunk that those import statically. A cold
+ * start loads all of them before the list states its count (record 0177).
+ */
+export async function firstScreenScripts(
+  dist: string,
+): Promise<readonly BuiltScript[]> {
+  const every = await builtScripts(dist);
+  const byName = new Map(
+    every.map((script) => [script.file.replace(/^assets\//, ''), script]),
+  );
+  const start = [
+    ...(await firstRouteScripts(dist)),
+    ...firstScreenChunks.map((chunk) => {
+      const found = every.find((script) =>
+        new RegExp(`^assets/${chunk}-[^/]+\\.js$`).test(script.file),
+      );
+      if (found === undefined)
+        throw new Error(`The build has no chunk of ${chunk}.`);
+      return found;
+    }),
+  ];
+  const seen = new Map<string, BuiltScript>();
+  const queue = [...start];
+  for (
+    let script = queue.shift();
+    script !== undefined;
+    script = queue.shift()
+  ) {
+    if (seen.has(script.file)) continue;
+    seen.set(script.file, script);
+    for (const name of staticImports(script)) {
+      const next = byName.get(name);
+      if (next === undefined)
+        throw new Error(`${script.file} imports a chunk the build lacks.`);
+      queue.push(next);
+    }
+  }
+  return [...seen.values()].sort((left, right) =>
+    left.file.localeCompare(right.file),
   );
 }

@@ -34,9 +34,7 @@ if (kind === 'integration') {
   if (cwd === resolve(root))
     candidates.push(
       ...(await filesIn(resolve(root, 'tools'))).filter(
-        (file) =>
-          dirname(file) === resolve(root, 'tools') ||
-          dirname(file) === resolve(root, 'tools/performance'),
+        (file) => dirname(file) === resolve(root, 'tools'),
       ),
     );
 }

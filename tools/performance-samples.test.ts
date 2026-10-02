@@ -8,7 +8,7 @@ import {
   markdownOfSize,
   outliers,
   percentile,
-} from './samples.ts';
+} from './performance/samples.ts';
 
 await test('the corpus holds the notes and folders of the audit', () => {
   const plan = corpusPlan();

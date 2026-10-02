@@ -35,7 +35,7 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router';
 import { searchFiles as searchRemote } from '@notesapp/api-client';
-import { searchLocal, type LocalStore } from '@notesapp/sync';
+import type { LocalStore } from '@notesapp/sync';
 import {
   bareFieldClassName,
   Button,
@@ -63,6 +63,17 @@ import {
   type PaletteHit,
   type PaletteNote,
 } from '../lib/palette-items.ts';
+
+/**
+ * The search of the device reads the plain text of each note through the
+ * Markdown parser, which the first screen does not need, so it loads with
+ * the first search (record 0177).
+ */
+function loadDeviceSearch(): Promise<
+  (typeof import('./device-search.ts'))['searchLocal']
+> {
+  return import('./device-search.ts').then((module) => module.searchLocal);
+}
 
 /** How many notes the list can hold at once. */
 const noteLimit = 12;
@@ -111,9 +122,10 @@ function useContentHits(
         const localPromise =
           store === null || accountId === null
             ? Promise.resolve([])
-            : store
-                .listSearchFiles(accountId, workspaceId)
-                .then((files) => searchLocal(needle, files));
+            : Promise.all([
+                store.listSearchFiles(accountId, workspaceId),
+                loadDeviceSearch(),
+              ]).then(([files, searchLocal]) => searchLocal(needle, files));
         const remotePromise = navigator.onLine
           ? searchRemote({
               path: { workspaceId },

@@ -1,0 +1,92 @@
+/**
+ * The save facts of the open note, which change no render (record 0175).
+ *
+ * They decide three things that the screen writes when one of them changes:
+ * the save state on the root of the note, for automation; the facts of the
+ * frame, through the store of `save-status.tsx`; and the reload guard. Each
+ * reads references only, so a call from the first render stays right, and an
+ * unchanged value writes nothing to the page.
+ */
+import { useRef, useState, type RefObject } from 'react';
+import type { FileSaveSnapshot, LocalStorageErrorKind } from '@notesapp/sync';
+import {
+  noteSaveReport,
+  resolveSaveState,
+  useNoteSavePublisher,
+  useUnsafeReloadGuard,
+} from './save-status.tsx';
+
+/** The save facts of one open note and the call that states them. */
+export type NoteSaveFacts = {
+  readonly saveSnapshotRef: { current: FileSaveSnapshot | null };
+  readonly lastSavedAtRef: { current: string | null };
+  /** The sequence that the store holds, to tell text that no write took. */
+  readonly writtenSequenceRef: { current: number };
+  /** The cause of a failed local write, which the note states. */
+  readonly storageError: LocalStorageErrorKind | null;
+  readonly setStorageError: (kind: LocalStorageErrorKind | null) => void;
+  readonly rootRef: RefObject<HTMLDivElement | null>;
+  /** States the facts after one of them changed. */
+  readonly showSaveFacts: { readonly current: () => void };
+};
+
+/** Holds the save facts of the note whose sequence `sequenceRef` counts. */
+export function useNoteSaveFacts(
+  sequenceRef: { readonly current: number },
+  initialSequence: number,
+): NoteSaveFacts {
+  const saveSnapshotRef = useRef<FileSaveSnapshot | null>(null);
+  const lastSavedAtRef = useRef<string | null>(null);
+  const writtenSequenceRef = useRef(initialSequence);
+  const [storageError, setStorageErrorState] =
+    useState<LocalStorageErrorKind | null>(null);
+  const storageErrorRef = useRef<LocalStorageErrorKind | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const publishSave = useNoteSavePublisher();
+  const guardReload = useUnsafeReloadGuard();
+
+  const showSaveFacts = useRef((): void => {});
+  showSaveFacts.current = (): void => {
+    const snapshot = saveSnapshotRef.current;
+    const state = resolveSaveState({
+      queueState: snapshot?.queueState ?? null,
+      storageError: storageErrorRef.current,
+      hasUncheckpointedDraft: snapshot?.hasUncheckpointedDraft ?? true,
+      acceptedHeadRevisionId: snapshot?.acceptedHeadRevisionId ?? null,
+      localHeadRevisionId: snapshot?.localHeadRevisionId ?? null,
+    });
+    const root = rootRef.current;
+    if (root !== null && root.dataset.saveState !== state)
+      root.dataset.saveState = state;
+    publishSave(
+      noteSaveReport({
+        storageError: storageErrorRef.current,
+        lastSavedAt: lastSavedAtRef.current,
+      }),
+    );
+    // The text is the only copy until a write takes it, and it is the only
+    // copy again when storage fails. Both cases block an unsafe reload. A
+    // queued save is durable on this device, so it never blocks one.
+    guardReload(
+      sequenceRef.current !== writtenSequenceRef.current ||
+        storageErrorRef.current !== null,
+    );
+  };
+
+  const setStorageError = useRef((kind: LocalStorageErrorKind | null): void => {
+    if (storageErrorRef.current === kind) return;
+    storageErrorRef.current = kind;
+    setStorageErrorState(kind);
+    showSaveFacts.current();
+  }).current;
+
+  return {
+    saveSnapshotRef,
+    lastSavedAtRef,
+    writtenSequenceRef,
+    storageError,
+    setStorageError,
+    rootRef,
+    showSaveFacts,
+  };
+}

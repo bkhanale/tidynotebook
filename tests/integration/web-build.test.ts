@@ -28,7 +28,7 @@ import { appIcons, iconHashLength } from '../../apps/web/src/pwa/icons.ts';
 import {
   builtScripts,
   deferredLibraries,
-  firstRouteScripts,
+  firstScreenScripts,
 } from '../../tools/performance/first-route.ts';
 import {
   derivePrecache,
@@ -153,9 +153,12 @@ await test('no icon keeps a fixed address of its own', async () => {
   for (const icon of appIcons) assert.ok(!root.includes(icon.file), icon.file);
 });
 
-await test('the first route loads no library that only a note needs', async () => {
+await test('the first screen loads no library that only a note needs', async () => {
+  // Record 0177. The frame imported the shortcut list and the format rows
+  // of the editor package, and the palette the device search, so a cold
+  // start of All notes read CodeMirror and the HTML reader of the renderer.
   await readWorker();
-  const first = await firstRouteScripts(distribution);
+  const first = await firstScreenScripts(distribution);
   const every = await builtScripts(distribution);
   for (const library of deferredLibraries) {
     // The marker must name the library in the build at all, or the check
@@ -167,7 +170,7 @@ await test('the first route loads no library that only a note needs', async () =
     const holders = first
       .filter((script) => script.bytes.includes(library.marker))
       .map((script) => script.file);
-    assert.deepEqual(holders, [], `${library.name} is on the first route`);
+    assert.deepEqual(holders, [], `${library.name} is on the first screen`);
   }
 });
 
@@ -189,4 +192,20 @@ await test('the build writes one self-contained diagram script for a published p
   assert.equal(publishedDiagramFrameHref, diagramFramePath);
   assert.ok(script.includes(diagramFramePath));
   await readFile(join(distribution, publishedDiagramFrameHref));
+});
+
+await test('the first screen reads every chunk that its scripts import', async () => {
+  const screen = await firstScreenScripts(distribution);
+  const files = screen.map((script) => script.file);
+  // The frame and All notes are on it, and the editor is not.
+  assert.ok(
+    files.some((file) => /^assets\/shell-/.test(file)),
+    'no frame',
+  );
+  assert.ok(
+    files.some((file) => /^assets\/notes-home-/.test(file)),
+    'no list',
+  );
+  assert.ok(!files.some((file) => /^assets\/editor-/.test(file)), 'editor');
+  assert.equal(new Set(files).size, files.length);
 });

@@ -16,7 +16,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import {
   createFile,
   listFiles,
@@ -212,12 +213,14 @@ export async function awaitQuiet(device: Device): Promise<void> {
 
 /** Launches the headless Chromium of the skill. */
 export async function launchChromium(): Promise<Browser> {
-  const entry = join(root, '.local-app/node_modules/playwright/index.mjs');
-  if (!existsSync(entry))
+  const manifest = join(root, '.local-app/package.json');
+  if (!existsSync(join(root, '.local-app/node_modules/playwright')))
     throw new Error(
       'Playwright is not installed. Run node .agents/skills/testing-changes-end-to-end/scripts/browser.mjs first.',
     );
-  const loaded: unknown = await import(pathToFileURL(entry).href);
+  // The Playwright of `.local-app/` resolves from its own manifest, which a
+  // static import of this file cannot name.
+  const loaded: unknown = createRequire(manifest)('playwright');
   if (!hasChromium(loaded))
     throw new Error('The installed Playwright has no Chromium launcher.');
   return loaded.chromium.launch();

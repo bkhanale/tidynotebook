@@ -24,29 +24,23 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router';
-import { finalizeAttachment, uploadAttachment } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
-import { classifyUrl, portableRelativePath } from '@notesapp/markdown';
+import { classifyUrl } from '@notesapp/markdown';
 import {
   isLocalStorageError,
   saveCheckpointMessage,
   type Draft,
-  type FileSaveSnapshot,
-  type LocalChange,
   type LocalStore,
-  type LocalStorageErrorKind,
   type QueueEntry,
 } from '@notesapp/sync';
 import {
   createEditor,
-  insertText,
   openBoundNote,
   plainTextContext,
   runFormatAction,
   setEditorRich,
   setEditorSpellCheck,
   setEditorTheme,
-  setNoteLinkSource,
   takeMarginTaps,
   type EditorView,
   type LinkTarget,
@@ -58,20 +52,11 @@ import {
   type TableMenuRequest,
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, pageGutter } from '@notesapp/ui';
-import {
-  problemMessage,
-  useRequestSync,
-  useSpellCheck,
-  useTheme,
-} from '../../app.tsx';
+import { useSpellCheck, useTheme } from '../../app.tsx';
 import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
 import { downloadNote, transferFailureMessage } from '../export/export.ts';
 import { useFiles, type FilesValue } from '../../shell/files.tsx';
-import {
-  maxPastedBytes,
-  sanitizeAttachmentName,
-  useAttachmentUrls,
-} from './note-editor-attachments.ts';
+import { useAttachmentUrls } from './note-editor-attachments.ts';
 import {
   useRegisterNoteActions,
   type NoteScreenActions,
@@ -89,6 +74,9 @@ import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
 import { useInsertTemplate } from './insert-template.ts';
+import { useImageUpload } from './image-upload.ts';
+import { useNoteLinkSource } from './note-link-source.ts';
+import { useNoteSaveFacts } from './note-save-facts.ts';
 import { useCopyNote } from './copy-note.tsx';
 import {
   baseNameOf,
@@ -106,13 +94,7 @@ import { duplicateNote as makeCopy } from '../notes/duplicate-note.ts';
 import { OutlinePanel } from './outline.tsx';
 import { useDeleteNotice } from '../trash/trash.tsx';
 import { createDiagramFrame, diagramFramePath } from '../../diagram/frame.ts';
-import {
-  noteSaveReport,
-  resolveSaveState,
-  useNoteSavePublisher,
-  useRegisterNoteDraftFlush,
-  useUnsafeReloadGuard,
-} from './save-status.tsx';
+import { useRegisterNoteDraftFlush } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
 import { createWriteSchedule } from './write-schedule.ts';
 import { createCoalescedRead } from '../../lib/coalesced-read.ts';
@@ -151,26 +133,6 @@ const versionPauseMs = 2500;
 
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
-
-/**
- * Whether a change of the store can change the file list of the area. A
- * write of document work, a Review and a cursor cannot.
- */
-function fileListChange(change: LocalChange): boolean {
-  return (
-    change.kind === 'draft' ||
-    change.kind === 'queue' ||
-    change.kind === 'file' ||
-    change.kind === 'purge' ||
-    change.kind === 'reset'
-  );
-}
-
-/** What one attachment upload is doing right now. */
-type AttachState =
-  | { readonly kind: 'idle' }
-  | { readonly kind: 'uploading'; readonly name: string }
-  | { readonly kind: 'failed'; readonly message: string };
 
 /** Props of the editing surface. `initialText` is read once at mount. */
 export type NoteEditorProps = {
@@ -379,61 +341,16 @@ const NoteEditorBody = memo(function NoteEditorBody({
   sessionRef.current = liveDocument;
   const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
   const [pathError, setPathError] = useState('');
-  // The save facts of the note change no render. They decide the state on
-  // the root, the facts of the frame and the reload guard, which the screen
-  // writes when one changes (record 0175).
-  const saveSnapshotRef = useRef<FileSaveSnapshot | null>(null);
-  const lastSavedAtRef = useRef<string | null>(null);
-  // The sequence that the store holds, so the screen knows when it holds
-  // text that no write took yet.
-  const writtenSequenceRef = useRef(initialSequence);
-  const [storageError, setStorageErrorState] =
-    useState<LocalStorageErrorKind | null>(null);
-  const storageErrorRef = useRef<LocalStorageErrorKind | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const publishSave = useNoteSavePublisher();
-  const guardReload = useUnsafeReloadGuard();
-
-  /**
-   * States the save state on the root, for automation, and the facts of the
-   * frame. Each reads references only, so a call from the first render stays
-   * right, and an unchanged value writes nothing to the page.
-   */
-  const showSaveFacts = useRef((): void => {});
-  showSaveFacts.current = (): void => {
-    const snapshot = saveSnapshotRef.current;
-    const state = resolveSaveState({
-      queueState: snapshot?.queueState ?? null,
-      storageError: storageErrorRef.current,
-      hasUncheckpointedDraft: snapshot?.hasUncheckpointedDraft ?? true,
-      acceptedHeadRevisionId: snapshot?.acceptedHeadRevisionId ?? null,
-      localHeadRevisionId: snapshot?.localHeadRevisionId ?? null,
-    });
-    const root = rootRef.current;
-    if (root !== null && root.dataset.saveState !== state)
-      root.dataset.saveState = state;
-    publishSave(
-      noteSaveReport({
-        storageError: storageErrorRef.current,
-        lastSavedAt: lastSavedAtRef.current,
-      }),
-    );
-    // The text is the only copy until a write takes it, and it is the only
-    // copy again when storage fails. Both cases block an unsafe reload. A
-    // queued save is durable on this device, so it never blocks one.
-    guardReload(
-      sequenceRef.current !== writtenSequenceRef.current ||
-        storageErrorRef.current !== null,
-    );
-  };
-
-  /** Keeps the cause of a failed local write, which the note states. */
-  const setStorageError = useRef((kind: LocalStorageErrorKind | null): void => {
-    if (storageErrorRef.current === kind) return;
-    storageErrorRef.current = kind;
-    setStorageErrorState(kind);
-    showSaveFacts.current();
-  }).current;
+  // The save facts of the note change no render (record 0175).
+  const {
+    saveSnapshotRef,
+    lastSavedAtRef,
+    writtenSequenceRef,
+    storageError,
+    setStorageError,
+    rootRef,
+    showSaveFacts,
+  } = useNoteSaveFacts(sequenceRef, initialSequence);
   // Where the caret stands, which decides the tools of the formatting row.
   const [formatContext, setFormatContext] =
     useState<FormatContext>(plainTextContext);
@@ -448,13 +365,19 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // The one problem line of the editor: an attachment, a paste, or an action
   // that the store refused. It states one cause at a time.
   const [editorNotice, setEditorNotice] = useState('');
-  const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
-  const [recentAttachments, setRecentAttachments] = useState<
-    ReadonlyMap<string, string>
-  >(new Map());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const lastFilesRef = useRef<readonly File[]>([]);
-  const requestSync = useRequestSync();
+  const {
+    attachState,
+    recentAttachments,
+    upload: uploadPastedFiles,
+    retry: retryUpload,
+  } = useImageUpload({
+    store,
+    workspaceId,
+    viewRef,
+    pathRef: validPathRef,
+    setNotice: setEditorNotice,
+  });
   const attachments = useAttachmentUrls(
     store,
     accountId,
@@ -1162,48 +1085,14 @@ const NoteEditorBody = memo(function NoteEditorBody({
     if (view !== null) setEditorSpellCheck(view, spellCheck);
   }, [spellCheck]);
 
-  // The note list feeds the link completion. It travels through one
-  // compartment, so a refreshed list never replaces the document. Only a
-  // change of the file list reads it again, one read at a time (record 0176).
-  useEffect(() => {
-    let cancelled = false;
-    // The list the view holds, so an unchanged list reconfigures nothing.
-    let shown: string | null = null;
-    const read = createCoalescedRead(async (): Promise<void> => {
-      try {
-        const files = await store.listLocalFiles(accountId, workspaceId);
-        const view = viewRef.current;
-        if (cancelled || view === null) return;
-        const notes = files
-          .filter((file) => file.kind === 'note' && !file.deleted)
-          .map((file) => ({ path: file.path }));
-        const key = JSON.stringify([validPathRef.current, notes]);
-        if (key === shown) return;
-        shown = key;
-        setNoteLinkSource(view, {
-          currentPath: validPathRef.current,
-          notes,
-        });
-      } catch {
-        // Completion is an aid. Without the list the person still types a
-        // link by hand, so a failed read changes nothing else.
-      }
-    });
-    read.ask();
-    const unsubscribe = store.subscribe((change) => {
-      if (
-        change.accountId === accountId &&
-        change.workspaceId === workspaceId &&
-        fileListChange(change)
-      )
-        read.ask();
-    });
-    return () => {
-      cancelled = true;
-      read.stop();
-      unsubscribe();
-    };
-  }, [store, accountId, workspaceId, workingCopyId]);
+  useNoteLinkSource(
+    store,
+    accountId,
+    workspaceId,
+    workingCopyId,
+    viewRef,
+    validPathRef,
+  );
 
   // The note saves itself, so Cmd or Ctrl + S is only an accelerator that
   // creates a version at once. It is window level, so it works while focus
@@ -1299,92 +1188,6 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // The note saves itself, so this is the one place that states a failed
   // local write, and the sidebar footer stops claiming that it is saved.
   const writeFailure = localWriteFailureMessage(storageError);
-
-  /** Inserts Markdown at the current cursor through an editor transaction. */
-  const insertAtCursor = (text: string): void => {
-    const view = viewRef.current;
-    if (view !== null) insertText(view, text);
-  };
-
-  /**
-   * Uploads pasted or dropped image files with user supplied bytes.
-   *
-   * Each file is read locally first, uploaded through the generated
-   * operation, finalized as an immutable attachment revision, and embedded
-   * as a relative path. No external URL is ever fetched through
-   * the server: importing an external image means the user supplies its bytes
-   * here. A failure keeps the buffer and reports a notice.
-   */
-  const uploadPastedFiles = (files: readonly File[]): void => {
-    const images = files.filter((file) => file.type.startsWith('image/'));
-    if (images.length === 0) return;
-    lastFilesRef.current = images;
-    void (async (): Promise<void> => {
-      const current = live.current;
-      for (const file of images) {
-        setAttachState({ kind: 'uploading', name: file.name });
-        if (file.size > maxPastedBytes) {
-          setAttachState({
-            kind: 'failed',
-            message: `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
-          });
-          setEditorNotice(
-            `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
-          );
-          continue;
-        }
-        try {
-          const uploaded = await uploadAttachment({
-            path: { workspaceId: current.workspaceId },
-            body: { file },
-          });
-          if (uploaded.error !== undefined || uploaded.data === undefined) {
-            const message = `The image ${file.name} did not upload: ${problemMessage(uploaded.error)}`;
-            setAttachState({ kind: 'failed', message });
-            setEditorNotice(message);
-            continue;
-          }
-          const fileId = generateUUID();
-          const revisionId = generateUUID();
-          const safeName = sanitizeAttachmentName(file.name);
-          const finalized = await finalizeAttachment({
-            path: {
-              workspaceId: current.workspaceId,
-              objectId: uploaded.data.objectId,
-            },
-            body: {
-              fileId,
-              revisionId,
-              mutationId: generateUUID(),
-              deviceId: current.store.deviceId,
-              path: `attachments/${fileId}-${safeName}`,
-              digest: uploaded.data.digest,
-            },
-          });
-          if (finalized.error !== undefined) {
-            const message = `The image ${file.name} did not finalize: ${problemMessage(finalized.error)}`;
-            setAttachState({ kind: 'failed', message });
-            setEditorNotice(message);
-            continue;
-          }
-          const attachmentPath = `attachments/${fileId}-${safeName}`;
-          setRecentAttachments((currentAttachments) =>
-            new Map(currentAttachments).set(attachmentPath, revisionId),
-          );
-          requestSync();
-          insertAtCursor(
-            `![${safeName}](${portableRelativePath(validPathRef.current, attachmentPath)})`,
-          );
-          setAttachState({ kind: 'idle' });
-          setEditorNotice('');
-        } catch {
-          const message = `The image ${file.name} could not be read on this device.`;
-          setAttachState({ kind: 'failed', message });
-          setEditorNotice(message);
-        }
-      }
-    })();
-  };
 
   /**
    * Keeps the typed name, or states why it cannot be kept.
@@ -1681,7 +1484,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  uploadPastedFiles(lastFilesRef.current);
+                  retryUpload();
                 }}
               >
                 Try again

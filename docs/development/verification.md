@@ -97,12 +97,15 @@ here.
   load uses one workspace per active user, because accepted changes in one
   workspace have a required total order. Search load uses one shared workspace.
 - `pnpm perf:bundle` builds the production web application and measures the
-  compressed JavaScript that the first route actually loads. A deferred
-  chunk, such as the editor, stays out of the measure. The budget follows
+  compressed JavaScript of the first screen: the first route, the frame, All
+  notes and every chunk they import. A deferred chunk, such as the editor,
+  stays out of it. The budget follows
+  [record 0177](../decisions/0177-the-first-screen-loads-no-editor.md) under
+  the ceiling of
   [record 0136](../decisions/0136-the-initial-javascript-budget-follows-the-inequality-gap.md).
   `tools/performance/first-route.ts` is the one definition of the first
-  route, and `tests/integration/web-build.test.ts` fails when a library that
-  only a note needs, such as KaTeX, returns to it.
+  screen, and `tests/integration/web-build.test.ts` fails when a library that
+  only a note needs, such as CodeMirror or KaTeX, returns to it.
 
 `pnpm perf:reads` holds no budget. It starts the built server on a
 disposable database with the workspace of the audit of 2026-10-02 and prints

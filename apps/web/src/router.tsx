@@ -19,14 +19,15 @@
  * under one of them.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
-import { RouterProvider, createBrowserRouter } from 'react-router';
+import {
+  RouterProvider,
+  createBrowserRouter,
+  matchRoutes,
+  type RouteObject,
+} from 'react-router';
 import { LoadingState, Page } from '@notesapp/ui';
 import { RouteError } from './shell/route-error.tsx';
-import {
-  AccountSettingsPage,
-  LoginPage,
-  RequireSession,
-} from './features/accounts/accounts.tsx';
+import { LoginPage, RequireSession } from './features/accounts/accounts.tsx';
 import type { FrameHandle } from './lib/breadcrumb.ts';
 import {
   forgotPasswordRoute,
@@ -35,14 +36,19 @@ import {
   signUpRoute,
   verificationRoute,
 } from './lib/accounts.ts';
-const Shell = lazy(async () => ({
-  default: (await import('./shell/shell.tsx')).Shell,
-}));
+const loadShell = () => import('./shell/shell.tsx');
+const loadNoteView = () => import('./features/notes/note-view.tsx');
+const loadNotesHome = () => import('./features/notes/notes-home.tsx');
+const Shell = lazy(async () => ({ default: (await loadShell()).Shell }));
 const NoteView = lazy(async () => ({
-  default: (await import('./features/notes/note-view.tsx')).NoteView,
+  default: (await loadNoteView()).NoteView,
 }));
 const NotesHomeView = lazy(async () => ({
-  default: (await import('./features/notes/notes-home.tsx')).NotesHomeView,
+  default: (await loadNotesHome()).NotesHomeView,
+}));
+const AccountSettingsPage = lazy(async () => ({
+  default: (await import('./features/accounts/account-settings.tsx'))
+    .AccountSettingsPage,
 }));
 const WorkspaceHome = lazy(async () => ({
   default: (await import('./shell/workspaces.tsx')).WorkspaceHome,
@@ -88,6 +94,25 @@ const NotFoundView = lazy(async () => ({
   default: (await import('./shell/not-found.tsx')).NotFoundView,
 }));
 
+/**
+ * The modules of a route that the first address can start at once.
+ *
+ * A lazy screen starts its module only when it renders, and it renders after
+ * the session check and after the screen above it. The first address starts
+ * the modules of every route it matches while the session check runs, so a
+ * note address loads the editor with the frame and its list (record 0177).
+ */
+const routeModules = new WeakMap<RouteObject, () => Promise<unknown>>();
+
+/** A route whose module the first address starts at once. */
+function startsEarly(
+  route: RouteObject,
+  load: () => Promise<unknown>,
+): RouteObject {
+  routeModules.set(route, load);
+  return route;
+}
+
 /** Holds a route while its deferred module loads. */
 function deferred(element: ReactNode): ReactNode {
   return (
@@ -108,7 +133,7 @@ function page(name: FrameHandle['page']): FrameHandle {
   return { page: name };
 }
 
-const router = createBrowserRouter([
+const routes: RouteObject[] = [
   {
     // The application boundary: it holds every route below it.
     errorElement: <RouteError scope="application" />,
@@ -125,68 +150,77 @@ const router = createBrowserRouter([
       // every reset message.
       { path: forgotPasswordRoute, element: deferred(<ForgotPasswordPage />) },
       { path: resetPasswordRoute, element: deferred(<ResetPasswordPage />) },
-      {
-        path: '/w/:workspaceId',
-        element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
-        children: [
-          {
-            // The page boundary: a page that fails leaves the frame.
-            errorElement: <RouteError scope="page" />,
-            children: [
-              {
-                index: true,
-                element: deferred(<NotesHomeView />),
-                handle: page('notes'),
-              },
-              {
-                path: 'notes/:fileId',
-                element: deferred(<NoteView />),
-                handle: page('note'),
-              },
-              {
-                path: 'notes/:fileId/history',
-                element: deferred(<HistoryView />),
-                handle: page('history'),
-              },
-              {
-                path: 'notes/:fileId/review',
-                element: deferred(<ReviewView />),
-                handle: page('review'),
-              },
-              {
-                path: 'trash',
-                element: deferred(<TrashView />),
-                handle: page('trash'),
-              },
-              {
-                path: 'published',
-                element: deferred(<PublishedLinksView />),
-                handle: page('published'),
-              },
-              {
-                path: 'accounts',
-                element: deferred(<AccountsView />),
-                handle: page('accounts'),
-              },
-              {
-                path: 'attention',
-                element: deferred(<AttentionRoute />),
-                handle: page('attention'),
-              },
-              {
-                path: 'settings',
-                element: <AccountSettingsPage />,
-                handle: page('settings'),
-              },
-              {
-                path: '*',
-                element: deferred(<NotFoundView />),
-                handle: page('not-found'),
-              },
-            ],
-          },
-        ],
-      },
+      startsEarly(
+        {
+          path: '/w/:workspaceId',
+          element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
+          children: [
+            {
+              // The page boundary: a page that fails leaves the frame.
+              errorElement: <RouteError scope="page" />,
+              children: [
+                startsEarly(
+                  {
+                    index: true,
+                    element: deferred(<NotesHomeView />),
+                    handle: page('notes'),
+                  },
+                  loadNotesHome,
+                ),
+                startsEarly(
+                  {
+                    path: 'notes/:fileId',
+                    element: deferred(<NoteView />),
+                    handle: page('note'),
+                  },
+                  loadNoteView,
+                ),
+                {
+                  path: 'notes/:fileId/history',
+                  element: deferred(<HistoryView />),
+                  handle: page('history'),
+                },
+                {
+                  path: 'notes/:fileId/review',
+                  element: deferred(<ReviewView />),
+                  handle: page('review'),
+                },
+                {
+                  path: 'trash',
+                  element: deferred(<TrashView />),
+                  handle: page('trash'),
+                },
+                {
+                  path: 'published',
+                  element: deferred(<PublishedLinksView />),
+                  handle: page('published'),
+                },
+                {
+                  path: 'accounts',
+                  element: deferred(<AccountsView />),
+                  handle: page('accounts'),
+                },
+                {
+                  path: 'attention',
+                  element: deferred(<AttentionRoute />),
+                  handle: page('attention'),
+                },
+                {
+                  path: 'settings',
+                  element: deferred(<AccountSettingsPage />),
+                  handle: page('settings'),
+                },
+                {
+                  path: '*',
+                  element: deferred(<NotFoundView />),
+                  handle: page('not-found'),
+                },
+              ],
+            },
+          ],
+        },
+        loadShell,
+      ),
       // The root address, `/settings` from before record 0091 and every unknown
       // address name no workspace. Each one opens under the chosen workspace.
       {
@@ -195,7 +229,13 @@ const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+// The first address starts the modules of the routes that it matches.
+for (const match of matchRoutes(routes, window.location) ?? [])
+  void routeModules.get(match.route)?.();
+
+const router = createBrowserRouter(routes);
 
 /** The routed application. */
 export function AppRouter(): ReactNode {
