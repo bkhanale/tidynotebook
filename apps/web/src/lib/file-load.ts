@@ -5,14 +5,24 @@
  * list asks page after page. A workspace can hold more notes than a screen
  * can show, so the loop needs a stop. `loadBoundedFiles` collects pages until
  * it holds the bound, and then it stops and says that it stopped. The bound
- * arrives as an argument, because `maxListedFiles` in `@notesapp/core` holds
- * the one value that the server and this device share.
+ * arrives as an argument, and `loadNoteList` passes `maxNoteListFiles` of
+ * `@notesapp/core`, the one value that the server and this device share.
  *
  * The module knows nothing about the transport and nothing about React. It
  * calls the page reader that it is given, which is a generated operation in
  * the application and a small fake in the test.
  */
-import { maxNoteListFiles } from '@notesapp/core';
+import { maxNoteListFiles, maxPageSize } from '@notesapp/core';
+
+/**
+ * The number of rows that one list call of the area asks for.
+ *
+ * The largest page that the server serves, so the list of a workspace of
+ * 1000 notes arrives in two calls. Each call costs a round trip and a
+ * transaction, and a page of 100 made it ten calls one after the other
+ * (issue 264). `maxNoteListFiles` is the one bound of the whole list.
+ */
+export const fileListPageSize = maxPageSize;
 
 /** One page of a file listing, whatever the row type is. */
 export type FilePageResult<Row> = {

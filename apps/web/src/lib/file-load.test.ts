@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { maxPageSize } from '@notesapp/core';
 import {
   fileListLimitNotice,
+  fileListPageSize,
   loadBoundedFiles,
   loadNoteList,
   notePhrase,
@@ -143,4 +145,26 @@ await test('the list of a notes area still stops a server that never ends', asyn
   assert.equal(loaded.reachedLimit, true);
   assert.equal(loaded.files.length, 100_000);
   assert.equal(pages.calls(), 200);
+});
+
+await test('the list asks for the largest page, so 1010 notes take three calls', async () => {
+  // Issue 264. A page of 100 rows made the list of 1010 notes eleven calls
+  // one after the other.
+  assert.equal(fileListPageSize, maxPageSize);
+  const total = 1010;
+  let calls = 0;
+  const read = (cursor: string | null): Promise<FilePageResult<string>> => {
+    calls += 1;
+    const start = cursor === null ? 0 : Number(cursor);
+    const end = Math.min(start + fileListPageSize, total);
+    return Promise.resolve({
+      files: Array.from({ length: end - start }, (_unused, index) =>
+        String(start + index),
+      ),
+      nextCursor: end < total ? String(end) : null,
+    });
+  };
+  const loaded = await loadNoteList(read);
+  assert.equal(loaded.files.length, total);
+  assert.equal(calls, 3);
 });

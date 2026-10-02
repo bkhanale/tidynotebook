@@ -10,6 +10,7 @@ import {
   createAttachmentChangeset,
   createFileChangeset,
   listFiles,
+  maxPageSize,
   workspaceText,
   normalizePath,
   type Actor,
@@ -149,7 +150,7 @@ async function livePaths(
   for (;;) {
     const page = await listFiles(store, actor, workspaceId, {
       cursor,
-      limit: 500,
+      limit: maxPageSize,
       sort: 'path',
     });
     if (!page.ok) throw new DomainProblemError(page.error);

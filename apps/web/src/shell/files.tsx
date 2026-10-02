@@ -32,6 +32,7 @@ import {
 } from '../lib/empty-folders.ts';
 import {
   fileListLimitNotice,
+  fileListPageSize,
   loadNoteList,
   type BoundedFiles,
 } from '../lib/file-load.ts';
@@ -93,9 +94,6 @@ export function useFiles(): FilesValue {
   return useContext(FilesContext);
 }
 
-/** The number of rows that one list call asks for. */
-const listPageSize = 100;
-
 /**
  * The live notes of the area, in the order of the folder tree, up to the
  * bound.
@@ -116,7 +114,7 @@ function loadFiles(
       cursor === null ? {} : { cursor };
     const result = await listFiles({
       path: { workspaceId },
-      query: { ...page, limit: listPageSize, sort: 'path' },
+      query: { ...page, limit: fileListPageSize, sort: 'path' },
     });
     if (result.error !== undefined || result.data === undefined)
       throw new Error(problemMessage(result.error));
