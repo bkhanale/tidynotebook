@@ -41,6 +41,10 @@ export type ProblemCode =
   | 'archive_too_many_files'
   | 'archive_too_large'
   | 'export_too_large'
+  | 'archive_job_running'
+  | 'archive_jobs_busy'
+  | 'storage_full'
+  | 'import_incomplete'
   | 'too_many_files'
   | 'unrenderable_note'
   | 'epoch_mismatch'
@@ -136,6 +140,11 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   archive_too_large:
     'The files of the archive are larger than one import can take.',
   export_too_large: 'The workspace holds more than one zip archive can take.',
+  archive_job_running: 'An import or an export of this account runs now.',
+  archive_jobs_busy:
+    'The server runs as many imports and exports as it can now.',
+  storage_full: 'The server has no room for this file now.',
+  import_incomplete: 'The import stopped before every file came in.',
   too_many_files: 'The change rewrites more files than one request may hold.',
   unrenderable_note: 'The note cannot be read as Markdown.',
   quota_exceeded: 'The account has no room left for new content.',
@@ -315,6 +324,45 @@ export class ArchiveRefusedError extends Error {
     super(detail);
     this.name = 'ArchiveRefusedError';
     this.refusal = refusal;
+  }
+}
+
+/** The kind of an archive job that the server does not start now. */
+export type ArchiveJobRefusal = 'archive_job_running' | 'archive_jobs_busy';
+
+/**
+ * An import or an export that waits for another one (record 0160).
+ *
+ * The account runs its limit of archive jobs, which answers 429, or the
+ * installation runs its limit, which answers 503. Both answers carry
+ * `Retry-After`.
+ */
+export class ArchiveJobRefusedError extends Error {
+  readonly refusal: ArchiveJobRefusal;
+
+  constructor(refusal: ArchiveJobRefusal, detail: string) {
+    super(detail);
+    this.name = 'ArchiveJobRefusedError';
+    this.refusal = refusal;
+  }
+}
+
+/** A file that the storage volume has no room for now (record 0160). */
+export class StorageFullError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = 'StorageFullError';
+  }
+}
+
+/**
+ * An import that a failure of the service stopped after its first commit
+ * (record 0160). The detail states how many files came in.
+ */
+export class ImportIncompleteError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = 'ImportIncompleteError';
   }
 }
 
@@ -770,6 +818,27 @@ export function classifyError(error: unknown): {
     return {
       status: 408,
       code: 'request_timeout',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof ArchiveJobRefusedError)
+    return {
+      status: error.refusal === 'archive_job_running' ? 429 : 503,
+      code: error.refusal,
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof StorageFullError)
+    return {
+      status: 507,
+      code: 'storage_full',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof ImportIncompleteError)
+    return {
+      status: 503,
+      code: 'import_incomplete',
       detail: error.message,
       issues: [],
     };

@@ -6,3 +6,4 @@ description: >-
 enum:
   - text
   - full
+default: full

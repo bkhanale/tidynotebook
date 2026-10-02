@@ -123,6 +123,25 @@ function endRecord(count: number, size: number, offset: number): Buffer {
   return record;
 }
 
+/**
+ * The exact length of the archive of the given entries, in bytes.
+ *
+ * Every entry is stored, so its bytes take their own size, after a local
+ * header of 30 bytes and its name, and the central directory holds a record
+ * of 46 bytes and the name of each, before the end record of 22. An export
+ * states this length before its first byte (record 0160).
+ */
+export function archiveLength(
+  entries: Iterable<{ readonly path: string; readonly size: number }>,
+): number {
+  let length = 22;
+  for (const entry of entries) {
+    const name = Buffer.byteLength(entry.path, 'utf8');
+    length += 30 + name + entry.size + 46 + name;
+  }
+  return length;
+}
+
 /** Produces the archive bytes, one entry at a time. */
 async function* archiveChunks(
   entries: AsyncIterable<ZipEntry>,

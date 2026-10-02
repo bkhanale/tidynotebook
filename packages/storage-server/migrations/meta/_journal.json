@@ -197,6 +197,13 @@
       "when": 1790904564388,
       "tag": "0027_search_text",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790947548609,
+      "tag": "0028_archive_jobs",
+      "breakpoints": true
     }
   ]
 }

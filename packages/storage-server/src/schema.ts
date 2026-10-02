@@ -1261,6 +1261,28 @@ export const streamReservations = pgTable(
 );
 
 /**
+ * The import and export jobs that run now, across every process (record 0160).
+ *
+ * An archive job holds one row while it runs and renews its expiry, so a
+ * process that stops leaves a row that expires. The functions of migration
+ * 0028 count the rows of an account and of the installation under one lock.
+ */
+export const archiveJobs = pgTable(
+  'archive_jobs',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('archive_jobs_account_idx').on(table.accountId),
+    index('archive_jobs_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+/**
  * The map from a Better Auth user to an application account.
  *
  * The application identifies an account by a UUID that never changes, so the

@@ -9,14 +9,32 @@
  * Such an archive does not fit in memory, so the import keeps it in a file of
  * the server. The file is removed from its folder as soon as it is open, so it
  * leaves nothing behind when the import ends, fails, or the process stops.
- * The central directory is read and every entry checked before any file is
- * written to the workspace. Then one entry at a time expands, and the notes
- * go in batches that `maxFilesPerChangeset` and `noteBatchBytes` bound, so the
- * memory of an import is one batch of notes or one image.
+ * Record 0160 bounds the rest:
+ *
+ * - One import of an account and a few of the installation run at once.
+ * - A body longer than the bound is refused from `Content-Length`, and a body
+ *   that the free space less `archiveDiskReserveBytes` cannot hold is refused
+ *   with 507, before a byte of it is read.
+ * - A body that stops ends the import, and its file closes.
+ * - Every entry is checked before the first commit: the paths in NFC, each
+ *   free and each once, each note under the limits of the grammar, each
+ *   image, and the room of the owner. Only a failure of the service stops the
+ *   import after its first commit, and the answer states what came in.
+ *
+ * Then one entry at a time expands, and the notes go in batches that
+ * `maxFilesPerChangeset` and `noteBatchBytes` bound, so the memory of an
+ * import is one batch of notes or one image.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile, type FileHandle } from 'node:fs/promises';
+import {
+  mkdir,
+  statfs,
+  unlink,
+  writeFile,
+  type FileHandle,
+} from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { Busboy } from '@fastify/busboy';
 import type { FastifyRequest } from 'fastify';
 import {
@@ -30,11 +48,19 @@ import {
   workspaceText,
   normalizePath,
   type Actor,
+  type AttachmentMediaType,
   type ChangesetInput,
   type WorkspaceStore,
 } from '@notesapp/core';
-import { markdownLimits } from '@notesapp/markdown';
-import type { AttachmentStore } from '@notesapp/storage-server';
+import {
+  MarkdownLimitError,
+  markdownLimits,
+  parseMarkdown,
+} from '@notesapp/markdown';
+import {
+  writeChargeBytes,
+  type AttachmentStore,
+} from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { inspectImage } from '../jobs/inspect-image.ts';
 import { watchBodyIdle } from '../plugins/body-idle-timeout.ts';
@@ -42,15 +68,18 @@ import {
   ArchiveRefusedError,
   DomainProblemError,
   ForbiddenError,
+  ImportIncompleteError,
   InvalidContentError,
   PayloadTooLargeError,
   RequestContractError,
   RequestTimeoutError,
+  StorageFullError,
   UnsupportedMediaTypeError,
 } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { mebibyte } from '../config.ts';
 import { openArchiveFile, writeArchiveFile } from './archive-file.ts';
+import { reserveArchiveJob, type ArchiveJobs } from './archive-jobs.ts';
 import { readText } from './files.ts';
 import {
   fileSource,
@@ -76,11 +105,67 @@ const imageTypes = new Map([
  */
 const noteBatchBytes = 32 * mebibyte;
 
+/**
+ * The free space that an import leaves on the storage volume.
+ *
+ * The volume also holds the attachments and, on a small installation, the
+ * database, so an import never fills it.
+ */
+export const archiveDiskReserveBytes = 512 * mebibyte;
+
+/** The sentence of a body past the bound of one archive. */
+function archiveTooLarge(): PayloadTooLargeError {
+  return new PayloadTooLargeError(
+    `The workspace archive is larger than ${String(Math.floor(maxArchiveBytes / mebibyte))} MiB.`,
+  );
+}
+
 function busboyHeaders(request: FastifyRequest): { 'content-type': string } {
   const value = request.headers['content-type'];
   if (typeof value !== 'string')
     throw new UnsupportedMediaTypeError('The import needs a multipart body.');
   return { 'content-type': value };
+}
+
+/**
+ * Why a body is refused before it is read, or `null` (record 0160).
+ *
+ * A body longer than the bound is too large. A body that the storage volume,
+ * less `archiveDiskReserveBytes`, cannot hold has no room. A body with no
+ * length could be as long as the bound, so the volume must hold the bound for
+ * it.
+ */
+export function bodyRoomRefusal(
+  statedBytes: number | null,
+  bodyBytes: number,
+  freeBytes: number,
+): 'too_large' | 'no_room' | null {
+  if (statedBytes !== null && statedBytes > bodyBytes) return 'too_large';
+  const wanted = (statedBytes ?? bodyBytes) + archiveDiskReserveBytes;
+  return freeBytes < wanted ? 'no_room' : null;
+}
+
+/** Refuses a body before it is read, by the rule of `bodyRoomRefusal`. */
+async function checkBodyRoom(
+  request: FastifyRequest,
+  folder: string,
+  bodyBytes: number,
+): Promise<void> {
+  const stated = Number(request.headers['content-length']);
+  const known = Number.isSafeInteger(stated) && stated >= 0 ? stated : null;
+  if (known !== null && known > bodyBytes) throw archiveTooLarge();
+  await mkdir(folder, { recursive: true });
+  const volume = await statfs(folder);
+  const refusal = bodyRoomRefusal(
+    known,
+    bodyBytes,
+    volume.bavail * volume.bsize,
+  );
+  if (refusal === 'too_large') throw archiveTooLarge();
+  if (refusal === 'no_room')
+    throw new StorageFullError(
+      'The server has no room for this zip file now. Try again later, or ask the administrator for more room.',
+    );
 }
 
 /**
@@ -90,7 +175,10 @@ function busboyHeaders(request: FastifyRequest): { 'content-type': string } {
  * The gap between two chunks is bounded, as it is for an upload. A sender
  * that stops in the middle used to hold its slot until the total receive
  * bound fired. `plugins/body-idle-timeout.ts` states why the bound is the gap
- * and not the whole: a big archive over a slow link is not an attack.
+ * and not the whole: a big archive over a slow link is not an attack. A body
+ * that ends before it is whole, because the sender closed its connection,
+ * ends the read through `pipeline`, which destroys the parser, so the import
+ * ends and its file closes.
  */
 async function receiveArchive(
   request: FastifyRequest,
@@ -112,9 +200,7 @@ async function receiveArchive(
     }
     received = true;
     stream.on('limit', () => {
-      failure = new PayloadTooLargeError(
-        `The workspace archive is larger than ${String(Math.floor(maxArchiveBytes / mebibyte))} MiB.`,
-      );
+      failure = archiveTooLarge();
     });
     const written = writeArchiveFile(handle, stream).then((bytes) => {
       size = bytes;
@@ -135,10 +221,11 @@ async function receiveArchive(
   const idle = new Promise<never>((_resolve, reject) => {
     idleReject = reject;
   });
+  idle.catch(() => undefined);
   const parsed = new Promise<void>((resolve, reject) => {
     parser.on('finish', resolve);
     parser.on('error', reject);
-    request.raw.pipe(parser);
+    pipeline(request.raw, parser).catch(reject);
   });
   // The bound is armed after the pipe, so no chunk of the body is lost to the
   // watch, and it is stopped in every exit of the read below.
@@ -156,6 +243,11 @@ async function receiveArchive(
   try {
     await Promise.race([parsed, idle]);
     await Promise.race([Promise.all(writes), idle]);
+  } catch {
+    if (failure !== null) throw failure;
+    throw new RequestTimeoutError(
+      'The import stopped before the whole archive came. Send the archive again.',
+    );
   } finally {
     watch.stop();
   }
@@ -213,32 +305,81 @@ function checkEntrySize(entry: ArchiveEntry, attachmentBytes: number): void {
   );
 }
 
-async function importAttachment(
-  entry: ArchiveEntry,
-  bytes: Buffer,
+/** One file of the archive that passed every check, at its stored path. */
+type CheckedEntry = {
+  readonly entry: ArchiveEntry;
+  /** The path in NFC, as the workspace stores it. */
+  readonly path: string;
+};
+
+/** One image that passed its inspection, with what the store needs of it. */
+type CheckedImage = CheckedEntry & {
+  readonly digest: string;
+  readonly mediaType: AttachmentMediaType;
+  readonly width: number;
+  readonly height: number;
+};
+
+/** The path of an entry in NFC, or a refusal that names the kind. */
+function storedPath(entry: ArchiveEntry, kind: 'note' | 'attachment'): string {
+  const normalized = normalizePath(entry.path, kind);
+  if (!normalized.ok)
+    throw new InvalidContentError(
+      kind === 'note'
+        ? 'The archive has an invalid note path.'
+        : 'The archive has an invalid attachment path.',
+    );
+  return normalized.value;
+}
+
+/** Inspects one image of the archive in a file of its own, then removes it. */
+async function inspectEntry(
+  source: ArchiveSource,
+  checked: CheckedEntry,
   declaredType: string,
-  actor: Actor,
-  workspaceId: string,
-  store: WorkspaceStore,
   attachments: AttachmentStore,
+): Promise<CheckedImage> {
+  const bytes = await readArchiveEntry(source, checked.entry);
+  const path = attachments.temporaryPath(`inspect-${randomUUID()}`);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, bytes);
+  try {
+    const inspection = await inspectImage(path, declaredType);
+    if (!inspection.ok) throw new InvalidContentError(inspection.reason);
+    return {
+      ...checked,
+      digest: createHash('sha256').update(bytes).digest('hex'),
+      mediaType: inspection.mediaType,
+      width: inspection.width,
+      height: inspection.height,
+    };
+  } finally {
+    await unlink(path).catch(() => undefined);
+  }
+}
+
+/** Commits one checked image of the archive. */
+async function importAttachment(
+  source: ArchiveSource,
+  image: CheckedImage,
+  context: ImportContext,
 ): Promise<void> {
+  const { actor, workspaceId, store, attachments } = context;
+  const bytes = await readArchiveEntry(source, image.entry);
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  if (digest !== image.digest)
+    throw new Error('notesapp: an image of the import changed in its file.');
   const objectId = randomUUID();
   const temporaryPath = attachments.temporaryPath(objectId);
   await mkdir(dirname(temporaryPath), { recursive: true });
   await writeFile(temporaryPath, bytes);
-  const inspection = await inspectImage(temporaryPath, declaredType);
-  if (!inspection.ok) {
-    await unlink(temporaryPath).catch(() => undefined);
-    throw new InvalidContentError(inspection.reason);
-  }
-  const digest = createHash('sha256').update(bytes).digest('hex');
   await attachments.saveTemporaryAttachment(actor, workspaceId, {
     id: objectId,
     digest,
     size: BigInt(bytes.length),
-    mediaType: inspection.mediaType,
-    width: inspection.width,
-    height: inspection.height,
+    mediaType: image.mediaType,
+    width: image.width,
+    height: image.height,
   });
   const finalized = await attachments.finalizeAttachmentObject(
     actor,
@@ -252,7 +393,7 @@ async function importAttachment(
     workspaceId,
     fileId: randomUUID(),
     revisionId: randomUUID(),
-    path: entry.path,
+    path: image.path,
     objectId,
     digest,
     expectedHead: null,
@@ -272,50 +413,40 @@ async function importAttachment(
   if (!accepted.ok) throw new DomainProblemError(accepted.error);
 }
 
-/**
- * Commits the notes of an archive, in changesets of bounded size.
- *
- * `maxFilesPerChangeset` bounds every changeset, and an archive can hold up
- * to `maxArchiveEntries` files, so the notes go in batches (issue 243). A
- * batch also ends at `noteBatchBytes`, so it holds a bounded memory. The
- * paths were checked free before the first batch, so a batch fails only for
- * a cause that the answer names, such as the room of the account.
- */
-async function importNotes(
-  source: ArchiveSource,
-  entries: readonly ArchiveEntry[],
-  actor: Actor,
-  workspaceId: string,
-  store: WorkspaceStore,
-): Promise<void> {
-  let batch: { readonly path: string; readonly text: string }[] = [];
+/** The batches of notes that the commits take, in archive order. */
+function noteBatches(
+  notes: readonly CheckedEntry[],
+): readonly (readonly CheckedEntry[])[] {
+  const batches: CheckedEntry[][] = [];
+  let batch: CheckedEntry[] = [];
   let bytes = 0;
-  for (const entry of entries) {
+  for (const note of notes) {
     if (
       batch.length === maxFilesPerChangeset ||
-      (batch.length > 0 && bytes + entry.size > noteBatchBytes)
+      (batch.length > 0 && bytes + note.entry.size > noteBatchBytes)
     ) {
-      await importNoteBatch(batch, actor, workspaceId, store);
+      batches.push(batch);
       batch = [];
       bytes = 0;
     }
-    const content = await readArchiveEntry(source, entry);
-    batch.push({ path: entry.path, text: content.toString('utf8') });
-    bytes += entry.size;
+    batch.push(note);
+    bytes += note.entry.size;
   }
-  if (batch.length > 0) await importNoteBatch(batch, actor, workspaceId, store);
+  if (batch.length > 0) batches.push(batch);
+  return batches;
 }
 
 /** Commits one batch of notes as one changeset. */
 async function importNoteBatch(
-  notes: readonly { readonly path: string; readonly text: string }[],
-  actor: Actor,
-  workspaceId: string,
-  store: WorkspaceStore,
+  source: ArchiveSource,
+  notes: readonly CheckedEntry[],
+  context: ImportContext,
 ): Promise<void> {
+  const { actor, workspaceId, store } = context;
   const revisions: ChangesetInput['revisions'][number][] = [];
   const expectedHeads: Record<string, null> = {};
   for (const note of notes) {
+    const text = (await readArchiveEntry(source, note.entry)).toString('utf8');
     const fileId = randomUUID();
     const built = createFileChangeset({
       workspaceId,
@@ -323,7 +454,7 @@ async function importNoteBatch(
       revisionId: randomUUID(),
       path: note.path,
       // An import starts the document of the note on the server (record 0084).
-      content: workspaceText(note.text, 1),
+      content: workspaceText(text, 1),
       message: 'Import note.',
       ids: {
         mutationId: randomUUID(),
@@ -368,25 +499,154 @@ async function readDirectory(
   }
 }
 
+/** What one import works on. */
+type ImportContext = {
+  readonly actor: Actor;
+  readonly workspaceId: string;
+  readonly store: WorkspaceStore;
+  readonly attachments: AttachmentStore;
+};
+
+/** What one import commits, after every check passed. */
+type ImportPlan = {
+  readonly notes: readonly CheckedEntry[];
+  readonly images: readonly CheckedImage[];
+};
+
+/**
+ * Checks every entry of an archive before the first commit (record 0160).
+ *
+ * A refusal here leaves the workspace as it was. Each note is read and parsed
+ * once under the limits of the grammar, as the commit parses it, and each
+ * image is inspected, so a commit later fails only for a cause of the service.
+ */
+async function checkArchive(
+  source: ArchiveSource,
+  entries: readonly ArchiveEntry[],
+  context: ImportContext,
+  attachmentBytes: number,
+): Promise<ImportPlan> {
+  const notes: CheckedEntry[] = [];
+  const imageEntries: { checked: CheckedEntry; type: string }[] = [];
+  for (const entry of entries) {
+    const type = mediaType(entry.path);
+    if (!entry.path.endsWith('.md') && type === null)
+      throw new UnsupportedMediaTypeError(
+        'The archive can contain Markdown and image files only.',
+      );
+    if (type !== null && !entry.path.startsWith('attachments/'))
+      throw new InvalidContentError(
+        'An imported image must be in the attachments folder.',
+      );
+    checkEntrySize(entry, attachmentBytes);
+    const path = storedPath(entry, type === null ? 'note' : 'attachment');
+    if (type === null) notes.push({ entry, path });
+    else imageEntries.push({ checked: { entry, path }, type });
+  }
+  // The workspace stores a path in NFC, so two names of one path in another
+  // form are one file, and a name in another form of a live file is that file.
+  const seen = new Set<string>();
+  for (const checked of [
+    ...notes,
+    ...imageEntries.map((item) => item.checked),
+  ]) {
+    if (seen.has(checked.path))
+      throw new InvalidContentError('The archive holds one path twice.');
+    seen.add(checked.path);
+  }
+  const taken = await livePaths(
+    context.store,
+    context.actor,
+    context.workspaceId,
+  );
+  if ([...seen].some((path) => taken.has(path)))
+    throw new DomainProblemError({ code: 'path_conflict', fileIds: [] });
+  for (const note of notes) {
+    const text = (await readArchiveEntry(source, note.entry)).toString('utf8');
+    try {
+      parseMarkdown(text);
+    } catch (error) {
+      if (error instanceof MarkdownLimitError)
+        throw new DomainProblemError({ code: 'note_too_large', fileIds: [] });
+      throw error;
+    }
+  }
+  const images: CheckedImage[] = [];
+  for (const { checked, type } of imageEntries)
+    images.push(await inspectEntry(source, checked, type, context.attachments));
+  const contentBytes = [...notes, ...images].reduce(
+    (total, item) => total + BigInt(item.entry.size),
+    0n,
+  );
+  const charge = writeChargeBytes(
+    contentBytes,
+    notes.length + images.length,
+    noteBatches(notes).length + images.length,
+  );
+  const room = await context.attachments.workspaceRoom(
+    context.actor,
+    context.workspaceId,
+  );
+  if (charge > room)
+    throw new DomainProblemError({ code: 'quota', fileIds: [] });
+  return { notes, images };
+}
+
+/** The phrase of a count of files, for example `1 file` and `3 files`. */
+function filePhrase(count: number): string {
+  return count === 1 ? '1 file' : `${String(count)} files`;
+}
+
+/**
+ * Commits a checked archive, and names what came in when the service stops
+ * it on the way.
+ */
+async function commitArchive(
+  source: ArchiveSource,
+  plan: ImportPlan,
+  context: ImportContext,
+): Promise<void> {
+  const total = plan.notes.length + plan.images.length;
+  let done = 0;
+  try {
+    for (const batch of noteBatches(plan.notes)) {
+      await importNoteBatch(source, batch, context);
+      done += batch.length;
+    }
+    for (const image of plan.images) {
+      await importAttachment(source, image, context);
+      done += 1;
+    }
+  } catch (error) {
+    if (done === 0) throw error;
+    throw new ImportIncompleteError(
+      `${filePhrase(done)} of ${String(total)} came in before the import stopped, and they stay in the workspace. Import a zip file of the other files to finish.`,
+    );
+  }
+}
+
 /**
  * Builds the portable workspace import handler.
  *
  * @param limits the largest image of one upload, from
  * `config.limits.attachmentBytes`, which bounds an image of an archive too,
- * and the longest gap between two chunks of the archive body, from
+ * the largest body of one import, from `config.limits.importBodyBytes`, and
+ * the longest gap between two chunks of the archive body, from
  * `config.limits.uploadIdleTimeoutMs`. One idle bound serves both bodies that
  * this server streams, so a deployment states it once.
  */
 export function createImportHandlers(
   store: WorkspaceStore,
   attachments: AttachmentStore,
+  jobs: ArchiveJobs,
   limits: {
     readonly attachmentBytes: number;
+    readonly importBodyBytes: number;
     readonly uploadIdleTimeoutMs: number;
   },
 ): HandlerMap {
   return {
-    importWorkspace: async (request): Promise<HandlerResult> => {
+    importWorkspace: async (request, reply): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
       const grant = actor.grants.find(
@@ -394,66 +654,40 @@ export function createImportHandlers(
       );
       if (grant === undefined || !grant.actions.includes('write'))
         throw new ForbiddenError();
-      const handle = await openArchiveFile(attachments, 'import');
+      await checkBodyRoom(
+        request,
+        dirname(attachments.temporaryPath('import')),
+        limits.importBodyBytes,
+      );
+      const lease = await reserveArchiveJob(jobs, reply, actor.accountId);
       try {
-        const size = await receiveArchive(
-          request,
-          handle,
-          limits.uploadIdleTimeoutMs,
-        );
-        const source = fileSource(handle, size);
-        const entries = await readDirectory(source);
-        const notes = entries.filter((entry) => entry.path.endsWith('.md'));
-        const images = entries.filter(
-          (entry) => mediaType(entry.path) !== null,
-        );
-        if (notes.length + images.length !== entries.length)
-          throw new UnsupportedMediaTypeError(
-            'The archive can contain Markdown and image files only.',
+        const handle = await openArchiveFile(attachments, 'import');
+        try {
+          const size = await receiveArchive(
+            request,
+            handle,
+            limits.uploadIdleTimeoutMs,
           );
-        if (images.some((entry) => !entry.path.startsWith('attachments/')))
-          throw new InvalidContentError(
-            'An imported image must be in the attachments folder.',
+          const source = fileSource(handle, size);
+          const entries = await readDirectory(source);
+          const context = { actor, workspaceId, store, attachments };
+          const plan = await checkArchive(
+            source,
+            entries,
+            context,
+            limits.attachmentBytes,
           );
-        for (const entry of notes) {
-          if (!normalizePath(entry.path, 'note').ok)
-            throw new InvalidContentError(
-              'The archive has an invalid note path.',
-            );
+          await commitArchive(source, plan, context);
+          return {
+            status: 200,
+            mediaType: 'application/json',
+            body: { notes: plan.notes.length, attachments: plan.images.length },
+          };
+        } finally {
+          await handle.close();
         }
-        for (const entry of images) {
-          if (!normalizePath(entry.path, 'attachment').ok)
-            throw new InvalidContentError(
-              'The archive has an invalid attachment path.',
-            );
-        }
-        for (const entry of entries)
-          checkEntrySize(entry, limits.attachmentBytes);
-        const taken = await livePaths(store, actor, workspaceId);
-        const conflicts = entries.filter((entry) => taken.has(entry.path));
-        if (conflicts.length > 0)
-          throw new DomainProblemError({ code: 'path_conflict', fileIds: [] });
-        await importNotes(source, notes, actor, workspaceId, store);
-        for (const entry of images) {
-          const type = mediaType(entry.path);
-          if (type === null) continue;
-          await importAttachment(
-            entry,
-            await readArchiveEntry(source, entry),
-            type,
-            actor,
-            workspaceId,
-            store,
-            attachments,
-          );
-        }
-        return {
-          status: 200,
-          mediaType: 'application/json',
-          body: { notes: notes.length, attachments: images.length },
-        };
       } finally {
-        await handle.close();
+        await lease.release();
       }
     },
   };

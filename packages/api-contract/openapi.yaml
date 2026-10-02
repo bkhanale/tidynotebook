@@ -337,6 +337,10 @@ components:
       $ref: './components/responses/UnsupportedMediaType.yaml'
     RateLimited:
       $ref: './components/responses/RateLimited.yaml'
+    ServiceBusy:
+      $ref: './components/responses/ServiceBusy.yaml'
+    InsufficientStorage:
+      $ref: './components/responses/InsufficientStorage.yaml'
     Account:
       $ref: './components/responses/Account.yaml'
     Preferences:

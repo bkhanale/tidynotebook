@@ -140,6 +140,7 @@ import {
 import { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
 import { createNoticeGateway } from './notices/gateway.ts';
 import { registerWebSocket } from './plugins/websocket.ts';
+import { coordinatedArchiveJobs } from './routes/archive-jobs.ts';
 
 /**
  * How many messages one address takes in an hour from a person with no
@@ -803,6 +804,7 @@ async function composeApp(
           passwordMatches(auth.auth, authUserId, password),
         content,
         attachments,
+        archiveJobs: coordinatedArchiveJobs(coordination),
         publications: {
           store: content,
           attachments,

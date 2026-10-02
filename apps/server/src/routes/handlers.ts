@@ -38,6 +38,7 @@ import { createHistoryHandlers } from './history.ts';
 import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
 import { createImportHandlers } from './import.ts';
+import type { ArchiveJobs } from './archive-jobs.ts';
 import { createBacklinkHandlers } from './backlinks.ts';
 import { createDailyNoteHandlers } from './daily-notes.ts';
 import { createTemplateHandlers } from './templates.ts';
@@ -75,9 +76,20 @@ function missingAttachmentStore(): AttachmentStore {
     finalizeAttachmentObject: fail,
     readAttachmentRevision: fail,
     readPublishedAttachmentRevision: fail,
+    archivePlan: fail,
+    workspaceRoom: fail,
     reclaimAttachments: fail,
     temporaryPath: fail,
     immutablePath: fail,
+  };
+}
+
+function missingArchiveJobs(): ArchiveJobs {
+  return {
+    reserve: () =>
+      Promise.reject(
+        new Error('notesapp: the server was built without archive jobs.'),
+      ),
   };
 }
 
@@ -135,6 +147,12 @@ export type HandlerDependencies = {
   readonly content?: WorkspaceStore;
   /** The attachment store of the deployment. */
   readonly attachments?: AttachmentStore;
+  /**
+   * The archive jobs of the installation (record 0160). A test that checks
+   * the service operations leaves it out, and an import or an export then
+   * answers a server error.
+   */
+  readonly archiveJobs?: ArchiveJobs;
   /**
    * The lifecycle state of the process, which the readiness answer reads.
    *
@@ -217,10 +235,12 @@ export function createHandlers(
     ...createExportHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
+      dependencies.archiveJobs ?? missingArchiveJobs(),
     ),
     ...createImportHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
+      dependencies.archiveJobs ?? missingArchiveJobs(),
       config.limits,
     ),
     ...createWorkspaceHandlers(store),

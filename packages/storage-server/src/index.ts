@@ -43,6 +43,7 @@ export { markdownLimitCode } from './markdown-limits.ts';
 export {
   openAttachmentStore,
   type AttachmentBytes,
+  type ArchivePlanRow,
   type AttachmentStore,
   type AttachmentStoreHandle,
   type AttachmentStoreOptions,
@@ -96,6 +97,7 @@ export {
 export {
   maxAttemptKeyLength,
   openCoordination,
+  type ArchiveJobReservation,
   type AttemptCount,
   type CoordinationHandle,
 } from './coordination.ts';
@@ -105,3 +107,4 @@ export {
   type AccountSeed,
   type WorkspaceSeed,
 } from './provision.ts';
+export { writeChargeBytes } from './workspace-store/sync-repository.ts';

@@ -21,7 +21,7 @@ import {
 } from './support/documents.ts';
 import { Buffer } from 'node:buffer';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -43,7 +43,9 @@ import {
   uploadAttachment,
 } from '@notesapp/api-client';
 import {
+  archiveJobsPerInstallation,
   bootstrapOwner,
+  coordinatedArchiveJobs,
   createAuth,
   createAuthPool,
   createAuthProtocol,
@@ -56,7 +58,9 @@ import {
 import {
   createDocumentService,
   openAttachmentStore,
+  openCoordination,
   openIdentityStore,
+  provisionAccounts,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
 import {
@@ -141,6 +145,7 @@ const content = openWorkspaceStore(
 const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
   poolSize: 4,
 });
+const coordination = openCoordination(database.runtimeUrl, { poolSize: 2 });
 
 /** Reads one property of an unknown value without asserting its shape. */
 function readProperty(value: unknown, key: string): unknown {
@@ -189,6 +194,7 @@ const server = await startTestServer({
       store: identity,
       content,
       attachments,
+      archiveJobs: coordinatedArchiveJobs(coordination),
     }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
@@ -739,11 +745,303 @@ await test('an import refusal names its real cause', async () => {
     assert.doesNotMatch(String(readProperty(problem, 'title')), /digest/);
 });
 
+/** The archive files of the imports of this process that are still open. */
+async function openArchiveFiles(): Promise<number> {
+  let open = 0;
+  for (const fd of await readdir('/proc/self/fd')) {
+    const target = await readlink(`/proc/self/fd/${fd}`).catch(() => '');
+    if (target.startsWith(storageRoot) && target.includes('/import-'))
+      open += 1;
+  }
+  return open;
+}
+
+/** Waits for a state of the server that no answer states. */
+async function until(
+  check: () => Promise<boolean>,
+  what: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 400; attempt += 1) {
+    if (await check()) return;
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`The server never reached the state: ${what}.`);
+}
+
+await test(
+  'a body that ends before it is whole ends the import and frees its file',
+  { timeout: 30_000 },
+  async () => {
+    // Review of issue 243. A body that ended early never finished the parser,
+    // so the import waited for ever and its file kept its bytes.
+    const body = new PassThrough();
+    body.write(
+      [
+        `--${importBoundary}`,
+        'Content-Disposition: form-data; name="file"; filename="cut.zip"',
+        'Content-Type: application/zip',
+        '',
+        '',
+      ].join('\r\n'),
+    );
+    body.write(Buffer.alloc(64 * 1024, 0x50));
+    const answered = server.app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${workspaceId}/import`,
+      headers: {
+        ...browser(cookie),
+        'content-type': `multipart/form-data; boundary=${importBoundary}`,
+      },
+      payload: body,
+    });
+    await until(
+      async () => (await openArchiveFiles()) > 0,
+      'the import opens its file',
+    );
+    // The sender is gone, so nobody reads an answer. The injected request
+    // reports the closed connection as its failure.
+    body.destroy(new Error('The connection of the sender closed.'));
+    await assert.rejects(answered, /The connection of the sender closed/);
+    await until(
+      async () => (await openArchiveFiles()) === 0,
+      'the import closes its file',
+    );
+  },
+);
+
+await test('an account runs one archive job, and the installation a few', async () => {
+  // Review of issue 243, record 0160. Nothing bounded how many imports and
+  // exports ran at once, so their disk and their database work had no bound.
+  const held = randomUUID();
+  const ownerId = account.data?.accountId ?? '';
+  // The job of the test before ends as its answer ends, so this waits for its
+  // release, and a job that never ends fails here.
+  await until(
+    async () =>
+      (await coordination.reserveArchiveJob(held, ownerId, 60_000, {
+        account: 1,
+        installation: archiveJobsPerInstallation,
+      })) === 'reserved',
+    'every earlier archive job of the owner ends',
+  );
+  try {
+    const refused = await exportWorkspace({
+      headers: browser(cookie),
+      path: { workspaceId },
+    });
+    assert.equal(responseOf(refused.response).status, 429);
+    assert.equal(readProperty(refused.error, 'code'), 'archive_job_running');
+    assert.equal(responseOf(refused.response).headers.get('retry-after'), '30');
+  } finally {
+    await coordination.releaseArchiveJob(held);
+  }
+  const others = Array.from({ length: archiveJobsPerInstallation }, () =>
+    randomUUID(),
+  );
+  await provisionAccounts(database.migrationUrl, others);
+  const jobs = others.map(() => randomUUID());
+  for (const [index, job] of jobs.entries())
+    await coordination.reserveArchiveJob(job, others[index] ?? '', 60_000, {
+      account: 1,
+      installation: archiveJobsPerInstallation,
+    });
+  try {
+    const busy = await exportWorkspace({
+      headers: browser(cookie),
+      path: { workspaceId },
+    });
+    assert.equal(responseOf(busy.response).status, 503);
+    assert.equal(readProperty(busy.error, 'code'), 'archive_jobs_busy');
+    assert.equal(responseOf(busy.response).headers.get('retry-after'), '30');
+  } finally {
+    for (const job of jobs) await coordination.releaseArchiveJob(job);
+  }
+  // A job that ended frees its place.
+  const free = await exportWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId },
+  });
+  assert.equal(responseOf(free.response).status, 200);
+});
+
+await test('a HEAD of an export plans it, runs no job and sends no body', async () => {
+  // Review of issue 243. A HEAD ran the whole export, as a job of its own.
+  const full = await exportWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId },
+  });
+  const length = (await archiveBytes(full.data)).length;
+  const held = randomUUID();
+  const ownerId = account.data?.accountId ?? '';
+  await until(
+    async () =>
+      (await coordination.reserveArchiveJob(held, ownerId, 60_000, {
+        account: 1,
+        installation: archiveJobsPerInstallation,
+      })) === 'reserved',
+    'every earlier archive job of the owner ends',
+  );
+  try {
+    const head = await server.app.inject({
+      method: 'HEAD',
+      url: `/api/workspaces/${workspaceId}/export`,
+      headers: browser(cookie),
+    });
+    assert.equal(head.statusCode, 200);
+    assert.equal(Number(head.headers['content-length']), length);
+    assert.equal(head.body, '');
+  } finally {
+    await coordination.releaseArchiveJob(held);
+  }
+});
+
+/** A stored zip archive of the given files. */
+function storedArchive(
+  files: readonly (readonly [string, string])[],
+): Buffer<ArrayBuffer> {
+  const bodies: Buffer[] = [];
+  const directory: Buffer[] = [];
+  let offset = 0;
+  for (const [path, text] of files) {
+    const name = Buffer.from(path);
+    const data = Buffer.from(text);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x0403_4b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt32LE(crc32(data), 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x0201_4b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt32LE(crc32(data), 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    const body = Buffer.concat([local, name, data]);
+    bodies.push(body);
+    directory.push(Buffer.concat([central, name]));
+    offset += body.length;
+  }
+  const central = Buffer.concat(directory);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x0605_4b50, 0);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...bodies, central, end]);
+}
+
+await test('a name in another Unicode form of a live note is that note', async () => {
+  // Review of issue 243. The checks compared the paths of the archive as
+  // they came, and the commit stored them in NFC.
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Forms' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const nfc = 'Café.md';
+  const created = await createFile({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      fileId: randomUUID(),
+      path: nfc,
+      document: firstSave('# Café\n'),
+      ...ids(),
+    },
+  });
+  assert.equal(created.error, undefined, JSON.stringify(created.error));
+  const refused = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File(
+        [
+          storedArchive([
+            ...Array.from(
+              { length: maxFilesPerChangeset },
+              (_, index): [string, string] => [
+                `first/note-${String(index)}.md`,
+                '# Early\n',
+              ],
+            ),
+            [nfc.normalize('NFD'), '# Again\n'],
+          ]),
+        ],
+        'forms.zip',
+        { type: 'application/zip' },
+      ),
+    },
+  });
+  assert.equal(responseOf(refused.response).status, 409);
+  assert.equal(readProperty(refused.error, 'code'), 'path_conflict');
+  const exported = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.deepEqual([...exported.keys()], [nfc]);
+});
+
+await test('a note that a late batch refuses stops the import before any commit', async () => {
+  // Review of issue 243. A note that the grammar refuses in a late batch left
+  // the earlier batches committed.
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Late refusal' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const files: [string, string][] = Array.from(
+    { length: maxFilesPerChangeset + 10 },
+    (_, index) => [
+      `many/note-${String(index)}.md`,
+      `# Note ${String(index)}\n`,
+    ],
+  );
+  files.push(['many/deep.md', `${'> '.repeat(200)}deep\n`]);
+  const refused = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File([storedArchive(files)], 'late.zip', {
+        type: 'application/zip',
+      }),
+    },
+  });
+  assert.equal(responseOf(refused.response).status, 422);
+  assert.equal(readProperty(refused.error, 'code'), 'unrenderable_note');
+  const exported = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.equal(exported.size, 0);
+});
+
 // Teardown
 await server.close();
 await auth.close();
 await authPool.end();
 await attachments.close();
+await coordination.close();
 await content.close();
 await identity.close();
 await rm(storageRoot, { recursive: true, force: true });

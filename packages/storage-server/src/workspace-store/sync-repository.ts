@@ -80,6 +80,27 @@ const receiptOverheadBytes = 512n;
  */
 const controlReserveBytes = 1n << 20n;
 
+/**
+ * The bytes that `changesets` changesets of `revisions` new revisions and
+ * `contentBytes` new content charge to the owner, by the rule of the write
+ * below. An import reads it to check the room of the owner before its first
+ * commit (record 0160).
+ */
+export function writeChargeBytes(
+  contentBytes: bigint,
+  revisions: number,
+  changesets: number,
+): bigint {
+  return (
+    contentBytes +
+    BigInt(revisions) * revisionOverheadBytes +
+    BigInt(changesets) * receiptOverheadBytes
+  );
+}
+
+/** The headroom of the owner that a write of new content must leave. */
+export const contentWriteReserveBytes = controlReserveBytes;
+
 /** The SHA-256 digest of UTF-8 Markdown, in lower case hexadecimal. */
 function markdownDigest(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');

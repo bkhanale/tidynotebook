@@ -104,3 +104,28 @@ await test('an export past the bounds of one zip file says what to do', () => {
     'The download did not start. Try again.',
   );
 });
+
+await test('an archive job that waits says when to try again', () => {
+  // Record 0160. One import or export of an account runs at once, and a few
+  // of the installation.
+  assert.equal(
+    importRefusalMessage({ code: 'archive_job_running' }),
+    'An import or an export of your account runs now. Wait until it ends, then try again.',
+  );
+  assert.equal(
+    downloadRefusalMessage({ code: 'archive_jobs_busy' }),
+    'The server runs as many imports and exports as it can now. Try again in a minute.',
+  );
+  assert.equal(
+    importRefusalMessage({ code: 'storage_full' }),
+    'The server has no room for this zip file now. Try again later, or ask the administrator for more room.',
+  );
+  // Only the server knows how many files of a stopped import came in.
+  assert.equal(
+    importRefusalMessage({
+      code: 'import_incomplete',
+      detail: '3 files of 5 came in before the import stopped.',
+    }),
+    '3 files of 5 came in before the import stopped.',
+  );
+});

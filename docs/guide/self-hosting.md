@@ -460,9 +460,15 @@ is not, and it names both values. `.env.example` holds both.
 
 An import takes a zip file of up to 4 GiB, and the whole file must arrive within
 `NOTESAPP_REQUEST_TIMEOUT_MS`. To import a large workspace over a slow link,
-raise the value for the time of the import. An export and an import each keep
-their zip file on the storage volume while they run, so leave room there for
-the largest workspace. The file goes when the request ends.
+raise the value for the time of the import. An import keeps its zip file on the
+storage volume while it runs, and the file goes when the request ends, also
+when the sender stops. The server refuses an import that the free space of the
+volume, less 512 MiB, cannot hold. An export writes no file on the server: it
+streams the zip file as it reads the notes.
+
+One account runs one import or export at a time, and the server runs two at a
+time for all accounts. A person who starts another one reads that the server is
+busy and tries again a minute later.
 
 ## Live updates
 

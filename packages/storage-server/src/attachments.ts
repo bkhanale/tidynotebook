@@ -21,6 +21,7 @@ import type {
 import { OperationalError } from '@notesapp/core';
 import { storedAttachmentState, storedMediaType } from './attachment-row.ts';
 import { attachmentObjects } from './schema.ts';
+import { contentWriteReserveBytes } from './workspace-store/sync-repository.ts';
 import {
   defaultConnectionTimeoutMs,
   WorkspaceUnavailableError,
@@ -40,6 +41,24 @@ export type AttachmentStore = {
       readonly height: number;
     },
   ): Promise<void>;
+
+  /**
+   * One page of the live files of a workspace, in path order, after `after`,
+   * with the size of the content of each head. An export plans its archive
+   * from them before its first byte (record 0160).
+   */
+  archivePlan(
+    actor: Actor,
+    workspaceId: string,
+    after: string | null,
+    limit: number,
+  ): Promise<readonly ArchivePlanRow[]>;
+
+  /**
+   * The bytes of new content that the owner of the workspace can still take,
+   * after the headroom that a write of new content must leave.
+   */
+  workspaceRoom(actor: Actor, workspaceId: string): Promise<bigint>;
 
   /** Reads metadata of one attachment object in a workspace. */
   getAttachmentObject(
@@ -125,6 +144,16 @@ export type AttachmentBytes = {
   readonly digest: string;
   readonly revisionId: string;
   readonly path: string;
+};
+
+/** One live file of a workspace with the size of its head (record 0160). */
+export type ArchivePlanRow = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: 'note' | 'attachment';
+  readonly headRevisionId: string;
+  readonly size: number;
+  readonly updatedAt: Date;
 };
 
 export type AttachmentStoreHandle = AttachmentStore & {
@@ -488,6 +517,61 @@ export function openAttachmentStore(
             finalizedAt: (row.finalized_at ?? row.created_at).toISOString(),
           },
         };
+      });
+    },
+
+    async archivePlan(actor, workspaceId, after, limit) {
+      return withClient(actor, workspaceId, async (client) => {
+        const rows = await client.query<{
+          id: string;
+          path: string;
+          kind: string;
+          head_revision_id: string;
+          size: string;
+          updated_at: Date;
+        }>(
+          `SELECT f.id, f.path, f.kind, f.head_revision_id, c.size, f.updated_at
+           FROM files f
+           JOIN revisions r
+             ON r.workspace_id = f.workspace_id AND r.id = f.head_revision_id
+           JOIN contents c
+             ON c.workspace_id = r.workspace_id AND c.digest = r.content_digest
+           WHERE f.workspace_id = $1 AND NOT f.deleted AND NOT r.deleted
+             AND ($2::text IS NULL OR f.path > $2::text)
+           ORDER BY f.path
+           LIMIT $3`,
+          [workspaceId, after, Math.max(1, Math.trunc(limit))],
+        );
+        return rows.rows.map((row) => ({
+          fileId: row.id,
+          path: row.path,
+          kind: row.kind === 'attachment' ? 'attachment' : 'note',
+          headRevisionId: row.head_revision_id,
+          size: Number(row.size),
+          updatedAt: row.updated_at,
+        }));
+      });
+    },
+
+    async workspaceRoom(actor, workspaceId) {
+      return withClient(actor, workspaceId, async (client) => {
+        const rows = await client.query<{
+          used_bytes: string;
+          limit_bytes: string;
+        }>('select used_bytes, limit_bytes from notesapp_account_usage($1)', [
+          workspaceId,
+        ]);
+        const row = rows.rows[0];
+        if (row === undefined)
+          throw new OperationalError(
+            'unexpected',
+            'notesapp: the workspace has no owner account.',
+          );
+        const room =
+          BigInt(row.limit_bytes) -
+          contentWriteReserveBytes -
+          BigInt(row.used_bytes);
+        return room > 0n ? room : 0n;
       });
     },
 

@@ -39,6 +39,12 @@ export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers } from './app.ts';
 export type { HandlerDependencies } from './routes/handlers.ts';
 export { createHandlers } from './routes/handlers.ts';
+export {
+  archiveJobsPerAccount,
+  archiveJobsPerInstallation,
+  coordinatedArchiveJobs,
+  type ArchiveJobs,
+} from './routes/archive-jobs.ts';
 export type {
   DatabaseRead,
   ProbeRequest,

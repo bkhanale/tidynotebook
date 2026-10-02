@@ -16,6 +16,7 @@ import {
 } from '@notesapp/api-client';
 import { applicationName } from '../../shell/document-title.ts';
 import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';
+import { pickSaveTarget } from './save-stream.ts';
 
 /** The byte bound of one archive, in whole MiB, as a person reads it. */
 const archiveMiB = Math.floor(maxArchiveBytes / (1024 * 1024));
@@ -25,6 +26,22 @@ function problemCode(error: unknown): string {
   if (error === null || typeof error !== 'object') return '';
   const code: unknown = Object.fromEntries(Object.entries(error))['code'];
   return typeof code === 'string' ? code : '';
+}
+
+/** The message of an archive job that waits for another one, or `null`. */
+function archiveJobMessage(code: string): string | null {
+  if (code === 'archive_job_running')
+    return 'An import or an export of your account runs now. Wait until it ends, then try again.';
+  if (code === 'archive_jobs_busy')
+    return 'The server runs as many imports and exports as it can now. Try again in a minute.';
+  return null;
+}
+
+/** The detail of a problem, which states the counts of an import. */
+function problemDetail(error: unknown): string {
+  if (error === null || typeof error !== 'object') return '';
+  const detail: unknown = Object.fromEntries(Object.entries(error))['detail'];
+  return typeof detail === 'string' ? detail : '';
 }
 
 /** The message of a refused download. */
@@ -37,6 +54,8 @@ export function downloadRefusalMessage(error: unknown): string {
   // reads too, so every zip file that it writes comes back.
   if (code === 'export_too_large')
     return `This workspace holds more than one zip file can take: ${String(maxArchiveEntries)} files or ${String(archiveMiB)} MiB. Move some notes to another workspace, then export each workspace.`;
+  const busy = archiveJobMessage(code);
+  if (busy !== null) return busy;
   return 'The download did not start. Try again.';
 }
 
@@ -63,14 +82,21 @@ const importRefusals: Readonly<Record<string, string>> = {
   archive_invalid: `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
   unsupported_media_type:
     'The zip file can hold only Markdown files and images. Remove the other files and import again.',
+  storage_full:
+    'The server has no room for this zip file now. Try again later, or ask the administrator for more room.',
   quota_exceeded:
     'Your account has no room for these files. Delete some notes or images, then import again.',
 };
 
 /** The message of a refused import. */
 export function importRefusalMessage(error: unknown): string {
+  const code = problemCode(error);
+  // The server states how many files came in, which only it knows.
+  if (code === 'import_incomplete' && problemDetail(error) !== '')
+    return problemDetail(error);
   return (
-    importRefusals[problemCode(error)] ??
+    archiveJobMessage(code) ??
+    importRefusals[code] ??
     'The import did not finish. Check the zip file and try again.'
   );
 }
@@ -164,8 +190,33 @@ export async function downloadNote(
   );
 }
 
-/** Saves every live note of the workspace as one zip archive. */
-export async function downloadAll(workspaceId: string): Promise<void> {
+/**
+ * Saves every live note of the workspace as one zip archive.
+ *
+ * A browser with a save picker writes the archive into the file that the
+ * person picks as it arrives, so a large export needs no memory of its size.
+ * The picker opens first, on the click of the person. Another browser saves a
+ * blob (record 0160).
+ */
+export async function downloadAll(
+  workspaceId: string,
+  scope: object = window,
+): Promise<void> {
+  const target = await pickSaveTarget(scope, 'notes.zip');
+  if (target.kind === 'cancelled') return;
+  if (target.kind === 'stream') {
+    const answer = await exportWorkspace({
+      path: { workspaceId },
+      parseAs: 'stream',
+    });
+    const body: unknown = answer.data;
+    if (answer.error !== undefined || !(body instanceof ReadableStream)) {
+      await target.writable.abort();
+      throw refuse(answer.error);
+    }
+    await body.pipeTo(target.writable);
+    return;
+  }
   const answer = await exportWorkspace({ path: { workspaceId } });
   if (answer.error !== undefined || answer.data === undefined)
     throw refuse(answer.error);

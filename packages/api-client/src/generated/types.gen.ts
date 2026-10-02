@@ -6081,9 +6081,17 @@ export type ExportWorkspaceErrors = {
      */
     422: ProblemDetails;
     /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, or a failure of the service stopped the work. The code names the cause.
+     */
+    503: ProblemDetails;
 };
 
 export type ExportWorkspaceError = ExportWorkspaceErrors[keyof ExportWorkspaceErrors];
@@ -6819,9 +6827,21 @@ export type ImportWorkspaceErrors = {
      */
     422: ProblemDetails;
     /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, or a failure of the service stopped the work. The code names the cause.
+     */
+    503: ProblemDetails;
+    /**
+     * The storage of the server has no room for this request body now.
+     */
+    507: ProblemDetails;
 };
 
 export type ImportWorkspaceError = ImportWorkspaceErrors[keyof ImportWorkspaceErrors];

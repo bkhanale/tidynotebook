@@ -1,0 +1,6 @@
+description: >-
+  The storage of the server has no room for this request body now.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

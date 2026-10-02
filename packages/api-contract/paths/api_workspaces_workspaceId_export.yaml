@@ -6,11 +6,15 @@ get:
     Markdown file at its stored path, plus every live image at its stored
     path. A deleted file is not in the
     archive. Nothing in the archive needs this application to be read
-    again, so it is also the cheapest disaster recovery. The server writes
-    the whole archive before it answers, so the answer states its length.
-    A workspace of more files or bytes than one zip archive holds without
-    ZIP64 answers 422 with the code export_too_large. Every archive that
-    this operation answers is an archive that importWorkspace takes.
+    again, so it is also the cheapest disaster recovery. The server plans
+    the archive from the live heads before its first byte, so the answer
+    states its exact length and streams at once. A workspace of more files
+    or bytes than one zip archive holds without ZIP64 answers 422 with the
+    code export_too_large. One import or export of an account runs at once
+    (429 archive_job_running) and a few of the installation (503
+    archive_jobs_busy, with Retry-After). HEAD plans and sends no body.
+    Every archive that this operation answers is an archive that
+    importWorkspace takes.
   tags:
     - files
   parameters:
@@ -29,5 +33,9 @@ get:
       $ref: '../components/responses/NotFound.yaml'
     '422':
       $ref: '../components/responses/UnprocessableContent.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/ServiceBusy.yaml'

@@ -1,8 +1,8 @@
 /**
  * What every server process of one installation shares besides the data
  * (record 0121): the attempt counters of the limited routes, the right to
- * run one maintenance job, and the reservations of the open notice streams
- * (record 0129).
+ * run one maintenance job, the reservations of the open notice streams
+ * (record 0129), and the archive jobs that run (record 0160).
  *
  * PostgreSQL already holds every other shared fact of the product, so it
  * holds these too. The counters live in `attempt_counters` and change through
@@ -50,9 +50,36 @@ export type CoordinationHandle = {
   releaseStream(id: string): Promise<void>;
   /** Deletes the reservations that expired, and answers how many. */
   pruneStreams(): Promise<number>;
+  /**
+   * Reserves one archive job of an account, and answers `reserved`, or the
+   * limit that refused it: `account` or `installation` (record 0160).
+   */
+  reserveArchiveJob(
+    id: string,
+    accountId: string,
+    ttlMs: number,
+    limits: { readonly account: number; readonly installation: number },
+  ): Promise<ArchiveJobReservation>;
+  /** Moves the expiry of a job, and answers false when it expired. */
+  renewArchiveJob(id: string, ttlMs: number): Promise<boolean>;
+  /** Ends a job. Ending one that is gone does nothing. */
+  releaseArchiveJob(id: string): Promise<void>;
   /** Closes every pooled connection. */
   close(): Promise<void>;
 };
+
+/** The answer of one reservation of an archive job. */
+export type ArchiveJobReservation = 'reserved' | 'account' | 'installation';
+
+/** Reads the answer of `notesapp_reserve_archive_job`. */
+function archiveReservation(value: unknown): ArchiveJobReservation {
+  if (value === 'reserved' || value === 'account' || value === 'installation')
+    return value;
+  throw new OperationalError(
+    'unexpected',
+    'notesapp: the archive job reservation answered an unknown state.',
+  );
+}
 
 /** The longest key that the counter table stores. */
 export const maxAttemptKeyLength = 512;
@@ -177,6 +204,32 @@ export function openCoordination(
         'select notesapp_prune_streams() as removed',
       );
       return result.rows[0]?.removed ?? 0;
+    },
+
+    async reserveArchiveJob(id, accountId, ttlMs, limits) {
+      const result = await pool.query<{ state: unknown }>(
+        'select notesapp_reserve_archive_job($1, $2, $3, $4, $5) as state',
+        [
+          id,
+          accountId,
+          Math.max(1, Math.round(ttlMs)),
+          limits.account,
+          limits.installation,
+        ],
+      );
+      return archiveReservation(result.rows[0]?.state);
+    },
+
+    async renewArchiveJob(id, ttlMs) {
+      const result = await pool.query<{ renewed: boolean }>(
+        'select notesapp_renew_archive_job($1, $2) as renewed',
+        [id, Math.max(1, Math.round(ttlMs))],
+      );
+      return result.rows[0]?.renewed === true;
+    },
+
+    async releaseArchiveJob(id) {
+      await pool.query('select notesapp_release_archive_job($1)', [id]);
     },
 
     async close() {
