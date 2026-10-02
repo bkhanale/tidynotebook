@@ -198,7 +198,9 @@ await test('the excerpt is the plain text of the note, with no Markdown', async 
   const hit = found.value.find((entry) => entry.fileId === fileId);
   assert.ok(hit !== undefined);
   const whole = hit.excerpt.map((part) => part.text).join('');
-  assert.match(whole, /The portage route is in the trip plan\./);
+  // The first heading repeats the name the result is shown under, so it goes,
+  // and no block runs into the next.
+  assert.equal(whole, 'The portage route is in the trip plan.');
   assert.doesNotMatch(whole, /\*\*|\]\(|https:|maps\.example|#/);
   assert.deepEqual(
     hit.excerpt.filter((part) => part.marked).map((part) => part.text),
@@ -294,6 +296,28 @@ await test('a match deep in a long note is the excerpt of that note', async () =
   assert.deepEqual(
     hit.excerpt.filter((part) => part.marked).map((part) => part.text),
     ['anchor', 'chain'],
+  );
+});
+
+await test('the blocks of an excerpt stay apart', async () => {
+  // Review of issue 253: a heading and the paragraph under it read as one
+  // sentence, "Plan The budget is in the sheet."
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'trips/Kettle.md',
+      text: '# Packing\n\nThe **stove** goes in the bag\n\n- fuel\n- lighter\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'stove');
+  assert.equal(found.ok, true);
+  if (!found.ok) return;
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined);
+  assert.equal(
+    hit.excerpt.map((part) => part.text).join(''),
+    'Packing · The stove goes in the bag · fuel · lighter',
   );
 });
 

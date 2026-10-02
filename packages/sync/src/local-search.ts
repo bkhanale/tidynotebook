@@ -120,6 +120,8 @@ export function searchLocal(
       fileId: file.fileId,
       path: file.path,
       revisionId: file.revisionId,
-      excerpt: plainExcerpt(excerpt(file.text, queryWords)),
+      excerpt: plainExcerpt(excerpt(file.text, queryWords), {
+        title: noteTitle(file.path),
+      }),
     }));
 }

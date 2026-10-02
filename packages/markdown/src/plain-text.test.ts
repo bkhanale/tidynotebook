@@ -49,12 +49,27 @@ await test('a link keeps its label and loses its address', () => {
   );
 });
 
-await test('block marks go and every block break reads as one space', () => {
+await test('block marks go and every block break stays visible', () => {
+  // The defect this covers: a heading and the paragraph under it read as one
+  // sentence, "Plan The budget is in the sheet."
+  assert.equal(
+    plain('# Plan\n\nThe [[budget]] is in the sheet.'),
+    'Plan · The [[budget]] is in the sheet.',
+  );
   assert.equal(
     plain('# Plan\n\n- one [[budget]] item\n- two\n\n> a quote\n\n---\n\nend'),
-    'Plan one [[budget]] item two a quote end',
+    'Plan · one [[budget]] item · two · a quote · end',
   );
-  assert.equal(plain('| a | [[b]] |\n| - | - |\n| c | d |'), 'a [[b]] c d');
+  assert.equal(
+    plain('| a | [[b]] |\n| - | - |\n| c | d |'),
+    'a · [[b]] · c · d',
+  );
+  // After the end of a sentence the next block needs only a space.
+  assert.equal(
+    plain('The first one.\n\nThe [[second]] one'),
+    'The first one. The [[second]] one',
+  );
+  // A line break is no block break.
   assert.equal(plain('one  \ntwo\nthree'), 'one two three');
   assert.equal(plain('- [ ] a [[task]]'), 'a [[task]]');
 });
@@ -75,6 +90,10 @@ await test('code, math and the text of an image stay', () => {
 await test('raw HTML and front matter go, and their text stays', () => {
   assert.equal(plain('A <b>[[bold]]</b> word<br>here'), 'A [[bold]] word here');
   assert.equal(plain('---\ntitle: x\n---\n\nBody [[text]]'), 'Body [[text]]');
+  assert.equal(
+    plain('A <b>bold</b> word\n\n<div>x</div>\n\nend'),
+    'A bold word · end',
+  );
 });
 
 await test('a value the parser changed keeps its marked words', () => {
@@ -96,4 +115,55 @@ await test('plain text comes back as it went in', () => {
   const text = parts('No marks at all, only [[words]] and more words.');
   assert.deepEqual(plainExcerpt(text), text);
   assert.deepEqual(plainExcerpt([]), []);
+});
+
+await test('a first block that repeats the note name goes', () => {
+  // The excerpt is shown under the name of the note, so a first heading of
+  // that name said it twice: "Plan" over "Plan The budget is in the sheet."
+  const excerpt = parts('# Plan\n\nThe [[budget]] is in the sheet.');
+  assert.equal(
+    written(plainExcerpt(excerpt, { title: 'Plan' })),
+    'The [[budget]] is in the sheet.',
+  );
+  // The comparison reads the words, not their case or their spaces.
+  assert.equal(
+    written(plainExcerpt(parts('#  my   PLAN\n\nText'), { title: 'My plan' })),
+    'Text',
+  );
+  // The server cuts its headline at a word, after the `#` marks, so the
+  // name is a line of its own there.
+  assert.equal(
+    written(plainExcerpt(parts('Plan\n\nThe [[budget]].'), { title: 'Plan' })),
+    'The [[budget]].',
+  );
+  // A first line that only starts with the name is text of the note.
+  assert.equal(
+    written(plainExcerpt(parts('Plan for May.\n\nText'), { title: 'Plan' })),
+    'Plan for May. Text',
+  );
+  // Front matter before the heading is no text of the note.
+  assert.equal(
+    written(
+      plainExcerpt(parts('---\na: b\n---\n# Plan\n\nText'), { title: 'Plan' }),
+    ),
+    'Text',
+  );
+  // Another heading, a later heading, or no name keeps the heading.
+  assert.equal(
+    written(plainExcerpt(excerpt, { title: 'Budget' })),
+    'Plan · The [[budget]] is in the sheet.',
+  );
+  assert.equal(
+    written(plainExcerpt(parts('Intro.\n\n# Plan\n\nText'), { title: 'Plan' })),
+    'Intro. Plan · Text',
+  );
+  assert.equal(
+    written(plainExcerpt(excerpt)),
+    'Plan · The [[budget]] is in the sheet.',
+  );
+  // A heading that is all the excerpt holds stays.
+  assert.equal(
+    written(plainExcerpt(parts('# [[Plan]]'), { title: 'Plan' })),
+    '[[Plan]]',
+  );
 });

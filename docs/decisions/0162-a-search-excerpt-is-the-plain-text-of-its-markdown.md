@@ -22,8 +22,12 @@ issue 253.
   the one grammar (record 0001), so no second parser decides what a mark is.
 - It keeps text, the label of a link, the text of an image, code and math. It
   drops a link address, an image address, emphasis marks, the marks of a
-  heading, a list, a quote and a table, raw HTML and front matter. A block
-  break and a line break read as one space.
+  heading, a list, a quote and a table, raw HTML and front matter. A line
+  break reads as one space. A block break reads as `·`, or as one space
+  after the end of a sentence, so two blocks never read as one sentence.
+- The caller names the note. A first block that repeats that name goes,
+  because the palette shows the excerpt under the name, unless nothing else
+  is left.
 - A marked word stays marked: the marks are ranges of the source, and the
   plain text keeps the source offset of each character.
 - The search store applies it to the headline of each hit in

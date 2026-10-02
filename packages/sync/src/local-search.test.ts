@@ -58,11 +58,28 @@ await test('the excerpt is the plain text of the note, with no Markdown', () => 
       text: '# Canoe\n\nThe **portage** route is in [the trip plan](https://maps.example.com/routes/trail).\n',
     },
   ]);
+  // The first heading repeats the name the excerpt is shown under, so it
+  // goes.
   assert.deepEqual(hits[0]?.excerpt, [
-    { text: 'Canoe The ', marked: false },
+    { text: 'The ', marked: false },
     { text: 'portage', marked: true },
     { text: ' route is in the trip plan.', marked: false },
   ]);
+});
+
+await test('a heading of another name stays as its own block', () => {
+  const hits = searchLocal('portage', [
+    {
+      fileId: 'one',
+      path: 'trips/Canoe.md',
+      revisionId: 'revision-one',
+      text: '# Routes\n\nThe **portage** route.\n',
+    },
+  ]);
+  assert.equal(
+    (hits[0]?.excerpt ?? []).map((part) => part.text).join(''),
+    'Routes · The portage route.',
+  );
 });
 
 await test('a name match ranks above a match in the text alone', () => {

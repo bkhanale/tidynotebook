@@ -10,8 +10,15 @@
  * - Text, the label of a link, the text of an image, code and math stay.
  * - A link address, an image address, emphasis marks, the marks of a
  *   heading, a list, a quote and a table, raw HTML and front matter go.
- * - A block break and a line break, also a `<br>`, read as one space, and a
- *   run of white space reads as one space.
+ * - A line break, also a `<br>`, reads as one space, and a run of white space
+ *   reads as one space.
+ * - A block break stays visible, so a heading and the paragraph under it never
+ *   read as one sentence. After the end of a sentence it is one space, and
+ *   anywhere else it is ` · `.
+ * - A first block that repeats the name of the note goes, when the caller
+ *   names the note, because the excerpt is shown under that name. That is
+ *   the first heading, and also the line that is left of it when the server
+ *   cuts its headline after the `#` marks. It stays when nothing else is left.
  *
  * A marked word stays marked. The marks are ranges of the source, and each
  * character of the plain text keeps the source offset it came from. A value
@@ -24,6 +31,7 @@
  * grammar refuses, by its size or its depth, comes back as it was.
  */
 import type { Nodes } from 'mdast';
+import { toString } from 'mdast-util-to-string';
 import { MarkdownLimitError } from './limits.ts';
 import { parseMarkdown } from './parse.ts';
 
@@ -36,7 +44,7 @@ export type ExcerptText = {
 /** One character of the plain text and whether it is part of a match. */
 type PlainCharacter = { readonly char: string; readonly marked: boolean };
 
-/** The nodes that end a block, so a space separates them from the next. */
+/** The nodes that end a block, so a separator stands before the next. */
 const blockTypes = new Set<string>([
   'paragraph',
   'heading',
@@ -59,11 +67,27 @@ const hiddenTypes = new Set<string>([
   'thematicBreak',
 ]);
 
+/** The separator between two blocks of an excerpt. */
+export const blockSeparator = ' · ';
+
+/** A character that ends a sentence, after which a space separates blocks. */
+const sentenceEnd = /[.!?:;\u2026]/;
+
+/** A name as a heading and a note name are compared. */
+function comparable(text: string): string {
+  return text
+    .normalize('NFC')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('en-US');
+}
+
 /** Builds the plain characters of one source with its marked ranges. */
 function plainCharacters(
   source: string,
   ranges: readonly (readonly [number, number])[],
   tree: Nodes,
+  skip: Nodes | null,
 ): readonly PlainCharacter[] {
   // The parser removes a leading byte order mark before it assigns offsets.
   const shift = source.startsWith('﻿') ? 1 : 0;
@@ -71,6 +95,8 @@ function plainCharacters(
     .map(([from, to]) => source.slice(from, to))
     .filter((term) => term.trim() !== '');
   const output: PlainCharacter[] = [];
+  // A block ended, and the next character of text starts the next block.
+  let blockEnded = false;
 
   const isMarked = (offset: number): boolean =>
     ranges.some(([from, to]) => offset >= from && offset < to);
@@ -81,6 +107,14 @@ function plainCharacters(
       output.push({ char: ' ', marked: false });
       return;
     }
+    if (blockEnded && output.length > 0) {
+      while (output.at(-1)?.char === ' ') output.pop();
+      const separator = sentenceEnd.test(output.at(-1)?.char ?? '')
+        ? ' '
+        : blockSeparator;
+      for (const part of separator) output.push({ char: part, marked: false });
+    }
+    blockEnded = false;
     output.push({ char, marked });
   };
 
@@ -117,6 +151,7 @@ function plainCharacters(
   };
 
   const walk = (node: Nodes): void => {
+    if (node === skip) return;
     // A line break written in HTML is a line break.
     if (node.type === 'html' && /^<br\s*\/?>$/i.test(node.value)) space();
     if (hiddenTypes.has(node.type)) return;
@@ -132,7 +167,7 @@ function plainCharacters(
       value(node.alt ?? '', node);
     else if (node.type === 'break') space();
     else if ('children' in node) for (const child of node.children) walk(child);
-    if (blockTypes.has(node.type)) space();
+    if (blockTypes.has(node.type)) blockEnded = true;
   };
 
   walk(tree);
@@ -140,14 +175,25 @@ function plainCharacters(
   return output;
 }
 
+/** The first block of a tree when it repeats the name of the note. */
+function repeatedTitle(tree: Nodes, title: string | undefined): Nodes | null {
+  if (title === undefined || !('children' in tree)) return null;
+  const first = tree.children.find((child) => !hiddenTypes.has(child.type));
+  if (first === undefined) return null;
+  if (first.type !== 'heading' && first.type !== 'paragraph') return null;
+  return comparable(toString(first)) === comparable(title) ? first : null;
+}
+
 /**
  * The text a reader sees in one marked excerpt of Markdown.
  *
  * The parts come back in reading order, with the matched words marked and
- * every neighbour of one kind joined into one part.
+ * every neighbour of one kind joined into one part. `title` is the name of
+ * the note that the excerpt is shown under, without its `.md` suffix.
  */
 export function plainExcerpt(
   parts: readonly ExcerptText[],
+  options: { readonly title?: string | undefined } = {},
 ): readonly ExcerptText[] {
   let source = '';
   const ranges: [number, number][] = [];
@@ -163,8 +209,14 @@ export function plainExcerpt(
     if (failure instanceof MarkdownLimitError) return parts;
     throw failure;
   }
+  const skip = repeatedTitle(tree, options.title);
+  const shown = plainCharacters(source, ranges, tree, skip);
+  const characters =
+    skip !== null && shown.length === 0
+      ? plainCharacters(source, ranges, tree, null)
+      : shown;
   const result: { text: string; marked: boolean }[] = [];
-  for (const { char, marked } of plainCharacters(source, ranges, tree)) {
+  for (const { char, marked } of characters) {
     const last = result.at(-1);
     if (last !== undefined && last.marked === marked) last.text += char;
     else result.push({ text: char, marked });

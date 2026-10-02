@@ -10,6 +10,7 @@ import type { Backlink, SearchHit, WorkspaceTransaction } from '@notesapp/core';
 import { plainExcerpt } from '@notesapp/markdown';
 import { noteLinks, searchIndex } from '../schema.ts';
 import { splitExcerpt } from '../excerpt.ts';
+import { noteTitle } from '../search-text.ts';
 import { assertUuid } from './errors.ts';
 import type { RepositoryContext } from './context.ts';
 
@@ -34,8 +35,10 @@ export function searchRepository(
         path: row.path,
         revisionId: row.revision_id,
         // The headline is cut from the Markdown of the note, so the reader
-        // gets its plain text (record 0162).
-        excerpt: plainExcerpt(splitExcerpt(row.excerpt)),
+        // gets its plain text, shown under the name of the note (record 0162).
+        excerpt: plainExcerpt(splitExcerpt(row.excerpt), {
+          title: noteTitle(row.path),
+        }),
       }));
     },
 
