@@ -686,13 +686,6 @@ Record 0166 answers
 [issue 254](https://github.com/bkhanale/notesapp/issues/254). History groups
 its versions by day with a time that differs, marks the current version, and
 opens a version as a difference and as a read-only preview of the note.
-Record 0155 makes the stop and resume of a parse part of the gate: every block
-syntax of the editor grammar parses the same in slices as in one pass, after
-the audit of 2026-10-02 reported a display math block that a resumed parse
-read as two paragraphs.
-Record 0156 adds GFM footnotes to the editor grammar, a container block for a
-definition and an inline reference, with the label rule of the renderer, so a
-footnote has one meaning in the editor and on the published page.
 
 Record 0167 answers
 [issue 246](https://github.com/bkhanale/notesapp/issues/246),
