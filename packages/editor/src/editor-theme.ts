@@ -600,7 +600,11 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderEndEndRadius: 'var(--radius-lg)',
       paddingBlockEnd: 'calc(var(--spacing) * 3)',
     },
-    '.cm-activeLine.cm-np-code-block-line': {
+    // The outline marks the line of the caret, which record 0062 lets the
+    // focus colour mark, so it shows only while the text has the focus and
+    // the caret shows. While the find panel holds the focus, the current
+    // match reads by its tint alone and no box crosses the card.
+    '&.cm-focused .cm-activeLine.cm-np-code-block-line': {
       outline: '1px solid var(--notes-focus)',
       outlineOffset: '-1px',
     },

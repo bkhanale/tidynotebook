@@ -378,10 +378,31 @@ await test('the language of a fence is a value and not a label', () => {
   assert.equal(info.fontFamily, 'var(--font-mono)');
 });
 
-await test('the active code line has a focus outline', () => {
-  const activeCodeLine = rule('.cm-activeLine.cm-np-code-block-line');
+await test('the code line of the caret has a focus outline only while the text has the focus', () => {
+  // The outline marks the caret. While the find panel held the focus, it
+  // drew a box around the line of the current match, which the tint of the
+  // match already states (issue 247, record 0062).
+  const activeCodeLine = rule(
+    '&.cm-focused .cm-activeLine.cm-np-code-block-line',
+  );
   assert.equal(activeCodeLine.outline, '1px solid var(--notes-focus)');
   assert.equal(activeCodeLine.outlineOffset, '-1px');
+  const style = noteSurfaceStyle();
+  for (const [selector, declarations] of Object.entries(style))
+    if (
+      selector.includes('cm-activeLine') &&
+      JSON.stringify(declarations).includes('outline')
+    )
+      assert.ok(selector.startsWith('&.cm-focused'), selector);
+  // A match reads by its tint and draws no edge of its own.
+  for (const selector of [
+    '.cm-searchMatch',
+    '.cm-searchMatch.cm-searchMatch-selected',
+  ]) {
+    const match = rule(selector);
+    assert.equal(match.outline, undefined, selector);
+    assert.equal(match.border, undefined, selector);
+  }
 });
 
 await test('front matter uses the metadata style from the theme', () => {
