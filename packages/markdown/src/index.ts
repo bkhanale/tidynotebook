@@ -78,6 +78,7 @@ export type { CodeLanguage } from './code-languages.ts';
 export {
   codeBlockLabel,
   codeLanguageOf,
+  diagramFence,
   codeLanguages,
   loadCodeLanguage,
   loadCodeParser,

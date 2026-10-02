@@ -22,7 +22,12 @@
 import { syntaxTree } from '@codemirror/language';
 import type { EditorState, Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
-import { codeBlockLabel, parseMarkdown, type Root } from '@notesapp/markdown';
+import {
+  codeBlockLabel,
+  diagramFence,
+  parseMarkdown,
+  type Root,
+} from '@notesapp/markdown';
 import {
   buttonClassName,
   checkParts,
@@ -67,7 +72,7 @@ export function codeBlockBars(
       const info = node.node.getChild('CodeInfo');
       const text =
         info === null ? '' : state.doc.sliceString(info.from, info.to);
-      if (text.trim().toLowerCase() !== 'mermaid')
+      if (!diagramFence(text))
         found.push({
           from: node.from,
           to: node.to,

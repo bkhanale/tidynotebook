@@ -506,3 +506,15 @@ await test('a strike opens on two tildes and never on one', async () => {
   const two = await renderMarkdown('This is ~~struck~~ text.\n');
   assert.ok(two.includes('<del>struck</del>'), two);
 });
+
+await test('a fence is a diagram by the first word of its info string', async () => {
+  // Review of record 0174: one rule decides a diagram on every surface.
+  for (const info of ['Mermaid', 'mermaid title'])
+    assert.equal(
+      await renderMarkdown(`\`\`\`${info}\ngraph\n\`\`\`\n`, {
+        noteHref: () => null,
+      }),
+      '<pre data-diagram="mermaid">graph</pre>',
+      info,
+    );
+});

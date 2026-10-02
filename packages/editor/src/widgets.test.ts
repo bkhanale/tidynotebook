@@ -501,3 +501,16 @@ await test('an image alone on its line still draws as a block', () => {
   const doc = `Top line\n\n${attached(1)}\n\n${attached(2)}\n`;
   assert.deepEqual(drawnWidgets(doc), [attached(1), attached(2)]);
 });
+
+await test('a fence is a diagram by the first word of its info string', () => {
+  // Review of record 0174: the editor read the whole info string, so a
+  // fence of `mermaid title` was code here and a diagram on the page.
+  for (const info of ['Mermaid', 'mermaid title', ' mermaid'])
+    assert.deepEqual(
+      findRichRegions(stateOf(`\`\`\`${info}\ngraph TD;\n\`\`\`\n`, 0)).map(
+        (region) => region.kind,
+      ),
+      ['diagram'],
+      info,
+    );
+});

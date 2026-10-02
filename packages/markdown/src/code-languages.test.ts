@@ -11,6 +11,7 @@ import {
   codeBlockLabel,
   codeLanguageOf,
   codeLanguages,
+  diagramFence,
   loadCodeLanguage,
   loadCodeParser,
 } from './code-languages.ts';
@@ -180,4 +181,13 @@ await test('a code block reads the label of its language or its own word', () =>
   assert.equal(codeBlockLabel('  cobol  '), 'cobol');
   assert.equal(codeBlockLabel(''), null);
   assert.equal(codeBlockLabel('   '), null);
+});
+
+await test('a fence is a diagram by the first word of its info string', () => {
+  // Review of record 0174: the renderer read the first word and the editor
+  // the whole info string, so `mermaid title` was a diagram on one surface.
+  for (const info of ['mermaid', 'Mermaid', ' MERMAID ', 'mermaid title'])
+    assert.equal(diagramFence(info), true, info);
+  for (const info of ['', 'mermaidx', 'js mermaid', 'graph'])
+    assert.equal(diagramFence(info), false, info);
 });

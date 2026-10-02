@@ -49,7 +49,11 @@ import {
   WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
-import { allowsExternalImage, classifyUrl } from '@notesapp/markdown';
+import {
+  allowsExternalImage,
+  classifyUrl,
+  diagramFence,
+} from '@notesapp/markdown';
 
 /** The kinds of region that render as a widget. */
 export type RichWidgetKind =
@@ -305,9 +309,8 @@ export function findRichRegions(state: EditorState): readonly RichWidget[] {
       const name = node.name;
       if (name === 'FencedCode') {
         const info = node.node.getChild('CodeInfo');
-        const language =
-          info === null ? '' : slice(info.from, info.to).trim().toLowerCase();
-        if (language !== 'mermaid') return false;
+        if (!diagramFence(info === null ? '' : slice(info.from, info.to)))
+          return false;
         const text = node.node.getChild('CodeText');
         const range = lineRange(state, node.from, node.to);
         found.push({
@@ -867,11 +870,10 @@ function findCodeFences(state: EditorState): readonly {
       if (node.name !== 'FencedCode') return true;
       const fence = node.node;
       const info = fence.getChild('CodeInfo');
-      const language =
-        info === null
-          ? ''
-          : doc.sliceString(info.from, info.to).trim().toLowerCase();
-      if (language === 'mermaid') return false;
+      if (
+        diagramFence(info === null ? '' : doc.sliceString(info.from, info.to))
+      )
+        return false;
       const marks = fence.getChildren('CodeMark');
       const open = marks[0] ?? null;
       if (open === null) return false;

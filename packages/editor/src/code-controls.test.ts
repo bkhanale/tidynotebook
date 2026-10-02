@@ -61,3 +61,11 @@ await test('a copy takes the code of the block as the renderer reads it', () => 
   // A place outside every block holds no code.
   assert.equal(codeBlockText(text, 0), null);
 });
+
+await test('a fence that is a diagram by its first word carries no bar', () => {
+  // Review of record 0174: one rule decides a diagram on every surface.
+  assert.deepEqual(
+    codeBlockBars(stateOf('```mermaid title\ngraph TD;\n```\n')),
+    [],
+  );
+});

@@ -254,6 +254,19 @@ export function codeLanguageOf(info: string): CodeLanguage | null {
 }
 
 /**
+ * Whether a fence with one info string is a Mermaid diagram.
+ *
+ * The first word of the info string names the language, in any case, as
+ * CommonMark reads it, so `mermaid`, `Mermaid` and `mermaid title` are each
+ * a diagram. The renderer, the bar of a code block and the diagram widget of
+ * the editor read this one rule, so a fence is a diagram on every surface or
+ * on none.
+ */
+export function diagramFence(info: string): boolean {
+  return firstWord(info).toLowerCase() === 'mermaid';
+}
+
+/**
  * The label of a code block with one info string, or `null` (record 0174).
  *
  * A listed language reads its own name, any other info string reads its

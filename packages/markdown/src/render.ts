@@ -62,6 +62,7 @@ import { visit } from 'unist-util-visit';
 import { alertMarkerLength, alertTitle, alertToneOf } from './alerts.ts';
 import {
   codeBlockLabel,
+  diagramFence,
   codeLanguageOf,
   loadCodeParser,
   loadedCodeParser,
@@ -190,9 +191,9 @@ function codeText(node: Code, value: string): ElementContent[] {
  * highlighted when the info string names a known language.
  */
 function codeBlock(node: Code): Element {
-  const language = (node.lang ?? '').toLowerCase();
-  if (language === 'mermaid')
+  if (diagramFence(node.lang ?? ''))
     return textElement('pre', { dataDiagram: 'mermaid' }, node.value);
+  const language = (node.lang ?? '').toLowerCase();
   const code: Element = {
     type: 'element',
     tagName: 'code',
