@@ -189,6 +189,7 @@ and needs no record.
 | [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
 | [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 | [0155](0155-the-editor-grammar-parses-the-same-in-slices.md)                          | The editor grammar parses the same in slices                                    |
+| [0156](0156-the-editor-reads-gfm-footnotes.md)                                       | The editor reads GFM footnotes                                                  |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -642,3 +643,6 @@ Record 0155 makes the stop and resume of a parse part of the gate: every block
 syntax of the editor grammar parses the same in slices as in one pass, after
 the audit of 2026-10-02 reported a display math block that a resumed parse
 read as two paragraphs.
+Record 0156 adds GFM footnotes to the editor grammar, a container block for a
+definition and an inline reference, with the label rule of the renderer, so a
+footnote has one meaning in the editor and on the published page.
