@@ -55,11 +55,24 @@ Open **Settings** from the header menu and find the **Import** card. Select
 **Import workspace**, then select a zip file that contains Markdown files and
 images. The import keeps each file path and each relative link.
 
-You can import an Obsidian vault as a zip file. The import leaves out the
-`.obsidian` folder and other hidden files. It puts each image that is not in
-the `attachments` folder into that folder, and the links to the image follow
-it. A wiki link such as `[[Plan]]` or `![[photo.png]]` becomes a normal
-Markdown link when the archive holds its note or its image. A wiki link to
+The import takes the Markdown files and the images of the zip file. A hidden
+file, such as `.ideas/plan.md`, is a note like any other, so a zip file of an
+export comes back whole. The import leaves out two kinds of file:
+
+- The settings of an app: the `.obsidian`, `.trash`, `.git` and `__MACOSX`
+  folders, a `.DS_Store` file and a file whose name starts with `._`.
+- Every file that is not a note or an image, such as a `.canvas` or a `.pdf`
+  file.
+
+When the import is done, the **Import** card counts the notes and the images
+that came in. It also counts the files that it left out and names their kinds.
+
+You can import an Obsidian vault as a zip file. The import puts each image that
+is not in the `attachments` folder into that folder, and the links to the image
+follow it. When that folder already holds an image with the same name, the
+moved image gets a number after its name. A wiki link such as `[[Plan]]` or
+`![[photo.png]]` becomes a normal Markdown link when the archive holds its note
+or its image. The image in the folder of the note comes first. A wiki link to
 something that is not in the archive stays as text.
 
 An imported path must not be in use. If a path is in use, rename or remove that

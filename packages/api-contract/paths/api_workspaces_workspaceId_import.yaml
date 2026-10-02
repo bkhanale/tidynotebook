@@ -2,9 +2,11 @@ post:
   operationId: importWorkspace
   summary: Import a portable workspace zip archive.
   description: >-
-    Reads Markdown files and image files at their archive paths. The
-    operation does not rewrite a Markdown reference. Every imported path
-    must be free in the workspace. The gap between two chunks of the
+    Reads Markdown files and image files at their archive paths. An image
+    outside the attachments folder moves into it, and a wiki link whose
+    target is in the archive becomes a standard link (record 0172). The
+    settings of a tool and every other kind of file are left out, and the
+    answer counts them. Every imported path must be free in the workspace. The gap between two chunks of the
     archive is bounded, so a sender that stops in the middle is answered
     and does not hold its slot. The operation takes every archive that
     exportWorkspace answers: up to 65534 files and 4 GiB without ZIP64. A

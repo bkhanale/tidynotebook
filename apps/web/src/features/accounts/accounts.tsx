@@ -89,6 +89,7 @@ import {
   otherSessionsEndedText,
   sessionFacts,
 } from '../../lib/sessions.ts';
+import { importResultSentence } from '../../lib/import-result.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import {
   signOut as endSession,
@@ -1203,9 +1204,7 @@ export function AccountSettingsPage(): ReactNode {
             setImportError('');
             void importAll(workspaceId, file)
               .then((result) => {
-                setImportNotice(
-                  `Imported ${String(result.notes)} ${result.notes === 1 ? 'note' : 'notes'} and ${String(result.attachments)} ${result.attachments === 1 ? 'image' : 'images'}.`,
-                );
+                setImportNotice(importResultSentence(result));
                 requestSync();
               })
               .catch((failure: unknown) => {

@@ -26,9 +26,11 @@
  * import is one batch of notes or one image.
  *
  * An Obsidian vault imports as well (record 0172). `import-layout.ts` leaves
- * out its hidden entries, moves a picture beside a note into `attachments/`,
- * and turns each wiki link whose target is in the archive into a standard
- * link. The check parses each note as the commit writes it.
+ * out the settings of a tool and every file that is neither a note nor a
+ * picture, and the answer names them. It moves a picture beside a note into
+ * `attachments/`, and turns each wiki link whose target is in the archive
+ * into a standard link. The check parses each note, and counts its size, as
+ * the commit writes it.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -88,10 +90,13 @@ import { openArchiveFile, writeArchiveFile } from './archive-file.ts';
 import { reserveArchiveJob, type ArchiveJobs } from './archive-jobs.ts';
 import {
   archiveLinks,
-  hiddenEntry,
+  entryRole,
   importedNoteText,
-  importedPicturePath,
+  placedPictures,
+  skippedFiles,
+  utf8Bytes,
   type ArchiveLinks,
+  type SkippedFiles,
 } from './import-layout.ts';
 import { readText } from './files.ts';
 import {
@@ -313,6 +318,12 @@ type CheckedEntry = {
   readonly entry: ArchiveEntry;
   /** The path in NFC, as the workspace stores it. */
   readonly path: string;
+  /**
+   * The bytes that the workspace stores: the text after its links are
+   * rewritten for a note (record 0172), the bytes of the archive for an
+   * image.
+   */
+  readonly bytes: number;
 };
 
 /** One image that passed its inspection, with what the store needs of it. */
@@ -323,17 +334,9 @@ type CheckedImage = CheckedEntry & {
   readonly height: number;
 };
 
-/**
- * The path that an entry takes in NFC, or a refusal that names the kind.
- *
- * A picture outside the attachments folder goes into it, under its own path,
- * as an Obsidian vault keeps its pictures beside its notes (record 0172).
- */
-function storedPath(entry: ArchiveEntry, kind: 'note' | 'attachment'): string {
-  const normalized = normalizePath(
-    kind === 'note' ? entry.path : importedPicturePath(entry.path),
-    kind,
-  );
+/** A path in NFC, or a refusal that names the kind. */
+function storedPath(path: string, kind: 'note' | 'attachment'): string {
+  const normalized = normalizePath(path, kind);
   if (!normalized.ok)
     throw new InvalidContentError(
       kind === 'note'
@@ -434,14 +437,14 @@ function noteBatches(
   for (const note of notes) {
     if (
       batch.length === maxFilesPerChangeset ||
-      (batch.length > 0 && bytes + note.entry.size > noteBatchBytes)
+      (batch.length > 0 && bytes + note.bytes > noteBatchBytes)
     ) {
       batches.push(batch);
       batch = [];
       bytes = 0;
     }
     batch.push(note);
-    bytes += note.entry.size;
+    bytes += note.bytes;
   }
   if (batch.length > 0) batches.push(batch);
   return batches;
@@ -529,6 +532,8 @@ type ImportPlan = {
   readonly images: readonly CheckedImage[];
   /** The pictures that move and the wiki links of the archive (record 0172). */
   readonly links: ArchiveLinks;
+  /** The files of the archive that the import leaves out (record 0172). */
+  readonly skipped: SkippedFiles;
 };
 
 /**
@@ -544,29 +549,51 @@ async function checkArchive(
   context: ImportContext,
   attachmentBytes: number,
 ): Promise<ImportPlan> {
-  const notes: CheckedEntry[] = [];
-  const imageEntries: { checked: CheckedEntry; type: string }[] = [];
+  const noteEntries: { entry: ArchiveEntry; path: string }[] = [];
+  const imageEntries: { entry: ArchiveEntry; type: string }[] = [];
+  const left: string[] = [];
+  // A note and a picture come in. The settings of a tool and every other
+  // kind of file stay out, and the answer names them (record 0172).
   for (const entry of entries) {
-    const type = mediaType(entry.path);
-    if (!entry.path.endsWith('.md') && type === null)
-      throw new UnsupportedMediaTypeError(
-        'The archive can contain Markdown and image files only.',
-      );
+    const role = entryRole(entry.path);
+    if (role === 'skipped') {
+      left.push(entry.path);
+      continue;
+    }
     checkEntrySize(entry, attachmentBytes);
-    const path = storedPath(entry, type === null ? 'note' : 'attachment');
-    if (type === null) notes.push({ entry, path });
-    else imageEntries.push({ checked: { entry, path }, type });
+    // A note has no media type and a picture has one, as the role reads it.
+    const type = mediaType(entry.path);
+    if (type === null)
+      noteEntries.push({ entry, path: storedPath(entry.path, 'note') });
+    else imageEntries.push({ entry, type });
   }
+  // A picture beside a note takes its place in the attachments folder, under
+  // a free name when that place is taken.
+  const placed = placedPictures(
+    imageEntries.map((item) => item.entry.path.normalize('NFC')),
+    noteEntries.map((note) => note.path),
+  );
+  const imageChecks = imageEntries.map((item) => ({
+    checked: {
+      entry: item.entry,
+      path: storedPath(
+        placed.get(item.entry.path.normalize('NFC')) ?? item.entry.path,
+        'attachment',
+      ),
+      bytes: item.entry.size,
+    },
+    type: item.type,
+  }));
   // The workspace stores a path in NFC, so two names of one path in another
   // form are one file, and a name in another form of a live file is that file.
   const seen = new Set<string>();
-  for (const checked of [
-    ...notes,
-    ...imageEntries.map((item) => item.checked),
+  for (const path of [
+    ...noteEntries.map((note) => note.path),
+    ...imageChecks.map((item) => item.checked.path),
   ]) {
-    if (seen.has(checked.path))
+    if (seen.has(path))
       throw new InvalidContentError('The archive holds one path twice.');
-    seen.add(checked.path);
+    seen.add(path);
   }
   const taken = await livePaths(
     context.store,
@@ -576,11 +603,13 @@ async function checkArchive(
   if ([...seen].some((path) => taken.has(path)))
     throw new DomainProblemError({ code: 'path_conflict', fileIds: [] });
   const links = archiveLinks(
-    notes.map((note) => note.path),
-    imageEntries.map((item) => item.checked.entry.path.normalize('NFC')),
+    noteEntries.map((note) => note.path),
+    placed,
   );
-  for (const note of notes) {
-    // The text that the commit takes is the text that this check parses.
+  const notes: CheckedEntry[] = [];
+  for (const note of noteEntries) {
+    // The text that the commit takes is the text that this check parses and
+    // the room of the workspace counts.
     const text = importedNoteText(
       (await readArchiveEntry(source, note.entry)).toString('utf8'),
       note.path,
@@ -593,12 +622,13 @@ async function checkArchive(
         throw new DomainProblemError({ code: 'note_too_large', fileIds: [] });
       throw error;
     }
+    notes.push({ ...note, bytes: utf8Bytes(text) });
   }
   const images: CheckedImage[] = [];
-  for (const { checked, type } of imageEntries)
+  for (const { checked, type } of imageChecks)
     images.push(await inspectEntry(source, checked, type, context.attachments));
   const contentBytes = [...notes, ...images].reduce(
-    (total, item) => total + BigInt(item.entry.size),
+    (total, item) => total + BigInt(item.bytes),
     0n,
   );
   const charge = writeChargeBytes(
@@ -612,7 +642,7 @@ async function checkArchive(
   );
   if (charge > room)
     throw new DomainProblemError({ code: 'quota', fileIds: [] });
-  return { notes, images, links };
+  return { notes, images, links, skipped: skippedFiles(left) };
 }
 
 /** The phrase of a count of files, for example `1 file` and `3 files`. */
@@ -692,11 +722,7 @@ export function createImportHandlers(
             limits.uploadIdleTimeoutMs,
           );
           const source = fileSource(handle, size);
-          // The settings of a vault and the hidden files of a system are
-          // not notes, so they never reach the checks (record 0172).
-          const entries = (await readDirectory(source)).filter(
-            (entry) => !hiddenEntry(entry.path),
-          );
+          const entries = await readDirectory(source);
           const context = { actor, workspaceId, store, attachments };
           const plan = await checkArchive(
             source,
@@ -708,7 +734,11 @@ export function createImportHandlers(
           return {
             status: 200,
             mediaType: 'application/json',
-            body: { notes: plan.notes.length, attachments: plan.images.length },
+            body: {
+              notes: plan.notes.length,
+              attachments: plan.images.length,
+              skipped: plan.skipped,
+            },
           };
         } finally {
           await handle.close();

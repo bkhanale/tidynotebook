@@ -962,11 +962,21 @@ export type ImportWorkspaceInput = {
 };
 
 /**
- * Counts of files imported without reference translation.
+ * Counts of the files that one import wrote, and of the files of the archive that it left out: the settings of a tool, such as the .obsidian folder, and every file that is neither a note nor an image (record 0172).
  */
 export type ImportWorkspaceResult = {
     notes: number;
     attachments: number;
+    /**
+     * The files of the archive that the import left out.
+     */
+    skipped: {
+        files: number;
+        /**
+         * The kinds of the files left out, in name order: the file extension in lower case, `settings` for the settings of a tool, and `file` for a file with no extension.
+         */
+        kinds: Array<string>;
+    };
 };
 
 /**

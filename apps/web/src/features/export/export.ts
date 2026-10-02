@@ -9,6 +9,7 @@
  * The download name comes from the answer. The server states it in the
  * content disposition, which is the one place that knows the stored path.
  */
+import type { ImportResult } from '../../lib/import-result.ts';
 import {
   exportNote,
   exportWorkspaceAddress,
@@ -234,11 +235,15 @@ export async function downloadAll(workspaceId: string): Promise<void> {
   anchor.remove();
 }
 
-/** Imports one portable workspace archive without changing its references. */
+/**
+ * Imports one portable workspace archive. The server moves a picture into
+ * the attachments folder and turns a wiki link into a standard link, and
+ * names the files that it left out (record 0172).
+ */
 export async function importAll(
   workspaceId: string,
   file: File,
-): Promise<{ readonly notes: number; readonly attachments: number }> {
+): Promise<ImportResult> {
   const answer = await importWorkspace({
     path: { workspaceId },
     body: { file },

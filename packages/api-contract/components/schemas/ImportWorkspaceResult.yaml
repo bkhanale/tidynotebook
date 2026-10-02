@@ -1,9 +1,13 @@
 type: object
-description: Counts of files imported without reference translation.
+description: >-
+  Counts of the files that one import wrote, and of the files of the archive
+  that it left out: the settings of a tool, such as the .obsidian folder, and
+  every file that is neither a note nor an image (record 0172).
 additionalProperties: false
 required:
   - notes
   - attachments
+  - skipped
 properties:
   notes:
     type: integer
@@ -11,3 +15,25 @@ properties:
   attachments:
     type: integer
     minimum: 0
+  skipped:
+    type: object
+    description: The files of the archive that the import left out.
+    additionalProperties: false
+    required:
+      - files
+      - kinds
+    properties:
+      files:
+        type: integer
+        minimum: 0
+      kinds:
+        type: array
+        description: >-
+          The kinds of the files left out, in name order: the file extension
+          in lower case, `settings` for the settings of a tool, and `file`
+          for a file with no extension.
+        maxItems: 50
+        items:
+          type: string
+          minLength: 1
+          maxLength: 40

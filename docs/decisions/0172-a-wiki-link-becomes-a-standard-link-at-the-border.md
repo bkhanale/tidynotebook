@@ -24,16 +24,24 @@ where a vault keeps none. See
 - A target resolves as in Obsidian: a path from the folder of the note, then
   from the root, then the end of a longer path, and a bare name among all
   files, case aside. Of several matches, the one in the folder of the note
-  wins, then the one of the fewest folders. A tie stays text.
+  wins, then the one of the fewest folders. A tie stays text. An import
+  resolves among the paths of the archive, and only then takes the path that
+  a moved picture goes to.
 - The destination is `portableRelativePath` of `rewrite.ts`, which encodes
-  `%`, a space, `(`, `)`, `#`, `?`, `<` and `>`. `noteLinkLabel` escapes the
+  `%`, a space, `(`, `)`, `#`, `?`, `<`, `>` and `:`, so a name such as
+  `https:x.md` stays a relative path. `noteLinkLabel` escapes the
   label. The list after `[[` writes the same link.
 - The border is four places: the list after `[[`, the closing brackets that a
   person types, a paste of text (with the notes of the device), and an import.
-- An import leaves out every entry with a segment that starts with a dot, and
-  `__MACOSX`. A picture outside `attachments/` moves to
-  `attachments/<its path>`, and the standard links to it follow. A note whose
-  conversion grows past `markdownLimits` keeps its text.
+- An import takes the notes and the pictures of the archive, a hidden name
+  included, so an export comes back whole. It leaves out the settings of a
+  tool (the folders `.obsidian`, `.trash`, `.git` and `__MACOSX`, a
+  `.DS_Store` and a `._` file) and every other type of file, and its answer
+  counts what it left out and names the kinds. A picture outside
+  `attachments/` moves to `attachments/<its path>`, under a numbered name
+  when that path is taken, and the standard links to it follow. The limits of
+  an import count the converted text. A note whose conversion grows past
+  `markdownLimits` keeps its text.
 
 This refines records 0004 and 0009.
 

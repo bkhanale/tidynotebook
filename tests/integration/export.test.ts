@@ -74,6 +74,7 @@ import {
 import sharp from 'sharp';
 import {
   createDisposableDatabase,
+  limitAccountTo,
   memberActor,
   seedWorkspace,
 } from './support/database.ts';
@@ -410,6 +411,7 @@ await test('the archive holds every live note and the images they use', async ()
   assert.deepEqual(imported.data, {
     notes: paths.filter((path) => path.endsWith('.md')).length,
     attachments: 1,
+    skipped: { files: 0, kinds: [] },
   });
   const roundTrip = await exportWorkspace({
     headers: browser(cookie),
@@ -585,7 +587,11 @@ await test('an export of more than 1000 notes imports back whole', async () => {
     },
   });
   assert.equal(imported.error, undefined, JSON.stringify(imported.error));
-  assert.deepEqual(imported.data, { notes: count, attachments: 0 });
+  assert.deepEqual(imported.data, {
+    notes: count,
+    attachments: 0,
+    skipped: { files: 0, kinds: [] },
+  });
   const roundTrip = readArchive(
     await archiveBytes(
       (
@@ -675,7 +681,11 @@ await test('an export of more than 100 MiB imports back whole', async () => {
     },
   });
   assert.equal(imported.error, undefined, JSON.stringify(imported.error));
-  assert.deepEqual(imported.data, { notes: 0, attachments: images });
+  assert.deepEqual(imported.data, {
+    notes: 0,
+    attachments: images,
+    skipped: { files: 0, kinds: [] },
+  });
   const back = readArchive(
     await archiveBytes(
       (
@@ -784,7 +794,11 @@ await test('an Obsidian vault imports with its links and its pictures', async ()
     },
   });
   assert.equal(imported.error, undefined, JSON.stringify(imported.error));
-  assert.deepEqual(imported.data, { notes: 2, attachments: 2 });
+  assert.deepEqual(imported.data, {
+    notes: 2,
+    attachments: 2,
+    skipped: { files: 2, kinds: ['settings'] },
+  });
   const back = readArchive(
     await archiveBytes(
       (
@@ -816,6 +830,192 @@ await test('an Obsidian vault imports with its links and its pictures', async ()
     ),
     0,
   );
+});
+
+await test('a backup with hidden notes comes back whole', async () => {
+  // Review of record 0172: the import dropped every name that starts with a
+  // dot, and an export writes such a note, so a backup lost it in silence.
+  const source = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Hidden notes' },
+  });
+  const sourceId = source.data?.workspaceId ?? '';
+  const owner = memberActor(account.data?.accountId ?? '', sourceId);
+  const expectedHeads: Record<string, null> = {};
+  const revisions = ['.ideas/plan.md', '.todo.md', 'shown.md'].map((path) => {
+    const fileId = randomUUID();
+    expectedHeads[fileId] = null;
+    return {
+      id: randomUUID(),
+      fileId,
+      parents: [],
+      path,
+      deleted: false,
+      content: workspaceText(`# ${path}\n`, 1),
+      clientTime: '2026-10-03T00:00:00.000Z',
+      message: null,
+      restoredFrom: null,
+    };
+  });
+  const input = {
+    workspaceId: sourceId,
+    mutationId: randomUUID(),
+    deviceId: 'integration-seed',
+    expectedHeads,
+    revisions,
+  };
+  assert.equal(
+    (await commitChangeset(content, owner, input, `hidden-${input.mutationId}`))
+      .ok,
+    true,
+  );
+  const archive = await archiveBytes(
+    (
+      await exportWorkspace({
+        headers: browser(cookie),
+        path: { workspaceId: sourceId },
+      })
+    ).data,
+  );
+  const entries = readArchive(archive);
+  assert.deepEqual([...entries.keys()].sort(), [
+    '.ideas/plan.md',
+    '.todo.md',
+    'shown.md',
+  ]);
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Hidden notes back' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File([archive], 'notes.zip', { type: 'application/zip' }),
+    },
+  });
+  assert.equal(imported.error, undefined, JSON.stringify(imported.error));
+  assert.deepEqual(imported.data, {
+    notes: 3,
+    attachments: 0,
+    skipped: { files: 0, kinds: [] },
+  });
+  const back = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  for (const [path, bytes] of entries)
+    assert.equal(
+      Buffer.compare(back.get(path) ?? Buffer.alloc(0), bytes),
+      0,
+      path,
+    );
+});
+
+await test('a vault with other files imports its notes and its pictures and names the rest', async () => {
+  // Review of record 0172: a canvas or a PDF refused the whole vault, and a
+  // picture beside `attachments/` of the same name refused it as one path
+  // twice.
+  const vault = vaultArchive([
+    ['Vault/Board.canvas', '{}'],
+    ['Vault/paper.pdf', '%PDF-1.4'],
+    ['Vault/.obsidian/app.json', '{}'],
+    ['Vault/Home.md', '![[x.png]] and ![b](attachments/x.png)\n'],
+    ['x.png', pngBytes],
+    ['attachments/x.png', pngBytes],
+  ]);
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Vault of other files' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: { file: new File([vault], 'vault.zip', { type: 'application/zip' }) },
+  });
+  assert.equal(imported.error, undefined, JSON.stringify(imported.error));
+  assert.deepEqual(imported.data, {
+    notes: 1,
+    attachments: 2,
+    skipped: { files: 3, kinds: ['canvas', 'pdf', 'settings'] },
+  });
+  const back = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.deepEqual([...back.keys()].sort(), [
+    'Vault/Home.md',
+    'attachments/x 2.png',
+    'attachments/x.png',
+  ]);
+});
+
+await test('the room of an import counts the notes as their links convert', async (t) => {
+  // Review of record 0172: the room and the batches counted the size of a
+  // note in the archive, before its wiki links grew into standard links. The
+  // check let the import start, the first batch went in, and the store
+  // refused a later one, so half of the vault came in.
+  const unit = '[[a b c d]] ';
+  const links = 30_000;
+  const small: [string, string][] = Array.from(
+    { length: maxFilesPerChangeset },
+    (_, index) => [`Vault/note-${String(index)}.md`, '# A\n'],
+  );
+  const vault = vaultArchive([
+    ['Vault/a b c d.md', '# A\n'],
+    ...small,
+    ['Vault/Home.md', unit.repeat(links)],
+  ]);
+  const archived = unit.length * links;
+  const converted = '[a b c d](a%20b%20c%20d.md) '.length * links;
+  assert.ok(converted > archived * 2);
+  const notes = small.length + 2;
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Vault that grows' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  // The room holds the reserve of the owner, the overhead of each revision
+  // and each changeset, the small notes, and the large note as the archive
+  // holds it, but not as it converts.
+  const room =
+    (1n << 20n) +
+    BigInt(notes) * 1024n +
+    2n * 512n +
+    BigInt(notes * 4) +
+    BigInt(Math.floor((archived + converted) / 2));
+  t.after(await limitAccountTo(database, account.data?.accountId ?? '', room));
+  const refused = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: { file: new File([vault], 'vault.zip', { type: 'application/zip' }) },
+  });
+  assert.equal(readProperty(refused.error, 'code'), 'quota_exceeded');
+  const exported = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.equal(exported.size, 0);
 });
 
 await test('an import refusal names its real cause', async () => {
