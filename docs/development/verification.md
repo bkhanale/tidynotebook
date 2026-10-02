@@ -104,6 +104,12 @@ here.
   route, and `tests/integration/web-build.test.ts` fails when a library that
   only a note needs, such as KaTeX, returns to it.
 
+`pnpm perf:reads` holds no budget. It starts the built server on a
+disposable database with the workspace of the audit of 2026-10-02 and prints
+the time and the size of the file list, of a note read and of search, so a
+change of a read path states its numbers before and after. The numbers go to
+the issue and not to a document.
+
 The local interaction checks bound the typing transaction, the local draft
 save, and a cached note read, using the Node adapters. They do not include
 browser paint, real storage durability, device scheduling, or input method
