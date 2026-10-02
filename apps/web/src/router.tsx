@@ -11,10 +11,17 @@
  * page in its `handle`, which is how the frame names the last breadcrumb part.
  * An address that names no workspace, the root address among them, opens the
  * same path under the chosen workspace, and that step has no sidebar.
+ *
+ * Two boundaries hold a render failure (record 0161). The application
+ * boundary is the pathless route above every route. The page boundary is the
+ * pathless route that holds every page of the frame, so a failure in a page,
+ * the note among them, leaves the sidebar and the header. A new route goes
+ * under one of them.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { RouterProvider, createBrowserRouter } from 'react-router';
 import { LoadingState, Page } from '@notesapp/ui';
+import { RouteError } from './shell/route-error.tsx';
 import {
   AccountSettingsPage,
   LoginPage,
@@ -102,79 +109,91 @@ function page(name: FrameHandle['page']): FrameHandle {
 }
 
 const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
-  // The page that an invitation link opens. It needs no session, and the
-  // server writes the same path into every link.
-  { path: invitationRoute, element: deferred(<InvitationPage />) },
-  // Open registration (record 0114). The server writes the verification path
-  // into every link.
-  { path: signUpRoute, element: deferred(<SignUpPage />) },
-  { path: verificationRoute, element: deferred(<VerifyPage />) },
-  // A password reset (record 0141). The server writes the reset path into
-  // every reset message.
-  { path: forgotPasswordRoute, element: deferred(<ForgotPasswordPage />) },
-  { path: resetPasswordRoute, element: deferred(<ResetPasswordPage />) },
   {
-    path: '/w/:workspaceId',
-    element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
+    // The application boundary: it holds every route below it.
+    errorElement: <RouteError scope="application" />,
     children: [
+      { path: '/login', element: <LoginPage /> },
+      // The page that an invitation link opens. It needs no session, and the
+      // server writes the same path into every link.
+      { path: invitationRoute, element: deferred(<InvitationPage />) },
+      // Open registration (record 0114). The server writes the verification path
+      // into every link.
+      { path: signUpRoute, element: deferred(<SignUpPage />) },
+      { path: verificationRoute, element: deferred(<VerifyPage />) },
+      // A password reset (record 0141). The server writes the reset path into
+      // every reset message.
+      { path: forgotPasswordRoute, element: deferred(<ForgotPasswordPage />) },
+      { path: resetPasswordRoute, element: deferred(<ResetPasswordPage />) },
       {
-        index: true,
-        element: deferred(<NotesHomeView />),
-        handle: page('notes'),
+        path: '/w/:workspaceId',
+        element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
+        children: [
+          {
+            // The page boundary: a page that fails leaves the frame.
+            errorElement: <RouteError scope="page" />,
+            children: [
+              {
+                index: true,
+                element: deferred(<NotesHomeView />),
+                handle: page('notes'),
+              },
+              {
+                path: 'notes/:fileId',
+                element: deferred(<NoteView />),
+                handle: page('note'),
+              },
+              {
+                path: 'notes/:fileId/history',
+                element: deferred(<HistoryView />),
+                handle: page('history'),
+              },
+              {
+                path: 'notes/:fileId/review',
+                element: deferred(<ReviewView />),
+                handle: page('review'),
+              },
+              {
+                path: 'trash',
+                element: deferred(<TrashView />),
+                handle: page('trash'),
+              },
+              {
+                path: 'published',
+                element: deferred(<PublishedLinksView />),
+                handle: page('published'),
+              },
+              {
+                path: 'accounts',
+                element: deferred(<AccountsView />),
+                handle: page('accounts'),
+              },
+              {
+                path: 'attention',
+                element: deferred(<AttentionRoute />),
+                handle: page('attention'),
+              },
+              {
+                path: 'settings',
+                element: <AccountSettingsPage />,
+                handle: page('settings'),
+              },
+              {
+                path: '*',
+                element: deferred(<NotFoundView />),
+                handle: page('not-found'),
+              },
+            ],
+          },
+        ],
       },
-      {
-        path: 'notes/:fileId',
-        element: deferred(<NoteView />),
-        handle: page('note'),
-      },
-      {
-        path: 'notes/:fileId/history',
-        element: deferred(<HistoryView />),
-        handle: page('history'),
-      },
-      {
-        path: 'notes/:fileId/review',
-        element: deferred(<ReviewView />),
-        handle: page('review'),
-      },
-      {
-        path: 'trash',
-        element: deferred(<TrashView />),
-        handle: page('trash'),
-      },
-      {
-        path: 'published',
-        element: deferred(<PublishedLinksView />),
-        handle: page('published'),
-      },
-      {
-        path: 'accounts',
-        element: deferred(<AccountsView />),
-        handle: page('accounts'),
-      },
-      {
-        path: 'attention',
-        element: deferred(<AttentionRoute />),
-        handle: page('attention'),
-      },
-      {
-        path: 'settings',
-        element: <AccountSettingsPage />,
-        handle: page('settings'),
-      },
+      // The root address, `/settings` from before record 0091 and every unknown
+      // address name no workspace. Each one opens under the chosen workspace.
       {
         path: '*',
-        element: deferred(<NotFoundView />),
-        handle: page('not-found'),
+        element: <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>,
       },
     ],
-  },
-  // The root address, `/settings` from before record 0091 and every unknown
-  // address name no workspace. Each one opens under the chosen workspace.
-  {
-    path: '*',
-    element: <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>,
   },
 ]);
 

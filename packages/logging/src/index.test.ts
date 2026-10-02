@@ -43,3 +43,27 @@ await test('the catalog has no secret-shaped field', () => {
       assert.doesNotMatch(field, forbidden, `${event}.${field}`);
   }
 });
+
+await test('a render failure names its boundary and never its message', () => {
+  const memory = createMemorySink();
+  const logger = createLogger(memory.sink, () => '2026-10-02T10:00:00.000Z');
+  const fields = {
+    scope: 'page',
+    cause: 'stop',
+    errorName: 'TypeError',
+    message: 'Cannot read the text of My private note',
+  } as const;
+
+  logger.emit('web.render_failed', fields);
+
+  assert.deepEqual(memory.records, [
+    {
+      event: 'web.render_failed',
+      level: 'error',
+      time: '2026-10-02T10:00:00.000Z',
+      scope: 'page',
+      cause: 'stop',
+      errorName: 'TypeError',
+    },
+  ]);
+});

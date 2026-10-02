@@ -83,6 +83,8 @@ on each rule below.
 | File                                          | Purpose                           |
 | --------------------------------------------- | --------------------------------- |
 | `src/app.tsx`                                 | Application shell and stores      |
+| `src/router.tsx`                              | Routes and the two boundaries     |
+| `src/lib/route-error.ts`                      | What a boundary says (0161)       |
 | `src/tailwind.css`                            | CSS source and the named scales   |
 | `src/shell/shell.tsx`                         | Frame, tree, sidebar size         |
 | `src/shell/header-slot.tsx`                   | Where a route fills the header    |

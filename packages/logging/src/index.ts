@@ -61,6 +61,16 @@ export type LogEventFields = {
   readonly 'auth.breach_check_unavailable': Record<string, never>;
   readonly 'auth.failed': { readonly source: 'better-auth' };
   readonly 'web.problem': { readonly problemCode: string };
+  /**
+   * A route boundary of the web application held a render failure
+   * (record 0161). The record names the boundary and the name of the error
+   * only: the message of an error can hold the text of a note.
+   */
+  readonly 'web.render_failed': {
+    readonly scope: 'application' | 'page';
+    readonly cause: 'load' | 'stop';
+    readonly errorName: string;
+  };
 };
 
 /** One catalogued event name. */
@@ -93,6 +103,10 @@ export const logEventCatalog = {
   'auth.breach_check_unavailable': { level: 'warn', fields: [] },
   'auth.failed': { level: 'error', fields: ['source'] },
   'web.problem': { level: 'warn', fields: ['problemCode'] },
+  'web.render_failed': {
+    level: 'error',
+    fields: ['scope', 'cause', 'errorName'],
+  },
 } as const satisfies Readonly<
   Record<
     LogEventName,
