@@ -21,6 +21,11 @@ export type SaveTarget =
   /** The browser has no picker, so the download becomes a blob. */
   | { readonly kind: 'blob' };
 
+/** Whether a value is a stream that a download can write into. */
+function isWritableStream(value: unknown): value is WritableStream<Uint8Array> {
+  return value instanceof WritableStream;
+}
+
 /** Whether a failure is the person closing the picker. */
 function cancelled(failure: unknown): boolean {
   return (
@@ -59,7 +64,7 @@ export async function pickSaveTarget(
     const create: unknown = Reflect.get(handle, 'createWritable');
     if (typeof create !== 'function') return { kind: 'blob' };
     const writable: unknown = await Reflect.apply(create, handle, []);
-    return writable instanceof WritableStream
+    return isWritableStream(writable)
       ? { kind: 'stream', writable }
       : { kind: 'blob' };
   } catch (failure) {
