@@ -110,6 +110,17 @@ the time and the size of the file list, of a note read and of search, so a
 change of a read path states its numbers before and after. The numbers go to
 the issue and not to a document.
 
+`pnpm perf:typing`, `pnpm perf:save` and `pnpm perf:start` hold no budget
+either. Each starts the built application on a disposable database, seeds
+the same workspace, and drives the headless Chromium of the
+`testing-changes-end-to-end` skill, because the repository holds no browser
+dependency (record 0066). `perf:typing` states the time from a key to its
+frame and the changes of the page outside the editor, `perf:save` the time
+from Ctrl + S to the server and to a second device and the time of a move to
+All notes, with every slow trial by its number, and `perf:start` the cold and
+the warm start and the scripts that they load. `tools/performance/browser.ts`
+holds what they share.
+
 The local interaction checks bound the typing transaction, the local draft
 save, and a cached note read, using the Node adapters. They do not include
 browser paint, real storage durability, device scheduling, or input method

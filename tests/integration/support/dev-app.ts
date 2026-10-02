@@ -35,6 +35,7 @@ export function devEnvironment(
 async function serve(
   environment: Record<string, string>,
   onSpawn: (child: ReturnType<typeof spawn>) => void,
+  onLine: (line: string) => void,
 ): Promise<{
   child: ReturnType<typeof spawn>;
   exited: Promise<number | null>;
@@ -58,7 +59,7 @@ async function serve(
   const lines = createInterface({ input: child.stdout });
   const ready = new Promise<void>((resolve, reject) => {
     lines.on('line', (line) => {
-      process.stdout.write(`${line}\n`);
+      onLine(line);
       if (line.startsWith('notesapp: listening on ')) resolve();
     });
     void exited.then(
@@ -68,6 +69,69 @@ async function serve(
   });
   await ready;
   return { child, exited };
+}
+
+/** One running local application and the call that removes it. */
+export type LocalApplication = {
+  readonly origin: string;
+  readonly email: string;
+  readonly password: string;
+  /** Stops the server, then drops its database and its file store. */
+  readonly stop: () => Promise<void>;
+};
+
+/**
+ * Starts the built application on a new database and file store.
+ *
+ * The performance tools of `tools/performance/` drive this application in a
+ * browser, so each run measures a server that holds only what it seeded.
+ * `onLine` takes each line of the server log.
+ */
+export async function startLocalApplication(
+  port: number,
+  onLine: (line: string) => void,
+): Promise<LocalApplication> {
+  const database = await createDisposableDatabase();
+  const storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-dev-'));
+  const remove = async (): Promise<void> => {
+    await database.destroy();
+    await rm(storageRoot, { recursive: true, force: true });
+  };
+  try {
+    const environment = devEnvironment(
+      database,
+      storageRoot,
+      port,
+      randomBytes(32).toString('base64url'),
+    );
+    const email = 'owner@notes.invalid';
+    const password = randomBytes(18).toString('base64url');
+    await bootstrapOwner({
+      config: loadServerConfig(environment),
+      email,
+      name: 'Owner',
+      password,
+    });
+    const server = await serve(environment, () => {}, onLine);
+    return {
+      origin: environment['NOTESAPP_ORIGIN'] ?? '',
+      email,
+      password,
+      stop: async () => {
+        if (
+          server.child.exitCode === null &&
+          server.child.signalCode === null
+        ) {
+          server.child.kill('SIGINT');
+          await server.exited;
+        }
+        await remove();
+      },
+    };
+  } catch (failure: unknown) {
+    await remove();
+    throw failure;
+  }
 }
 
 /** Creates and removes only the state that belongs to this run. */
@@ -101,9 +165,15 @@ export async function main(port: number): Promise<void> {
       password,
     });
     if (interrupted) return;
-    server = await serve(environment, (started) => {
-      child = started;
-    });
+    server = await serve(
+      environment,
+      (started) => {
+        child = started;
+      },
+      (line) => {
+        process.stdout.write(`${line}\n`);
+      },
+    );
     process.stdout.write(
       `Open ${environment['NOTESAPP_ORIGIN']}\nEmail: ${email}\nPassword: ${password}\nPress Ctrl+C to stop and remove this run.\n`,
     );
