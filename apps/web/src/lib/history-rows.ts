@@ -93,3 +93,28 @@ export function rowChangeOf(facts: RowFacts): RowChange {
   if (facts.count === null) return { kind: 'unknown' };
   return { kind: 'edited', count: facts.count };
 }
+
+/**
+ * What the panel of the current version says.
+ *
+ * The current version is the head that the server holds. This device can
+ * hold edits that it did not send yet, so the sentence states what the
+ * server holds and never that the note on the screen holds this text.
+ */
+export const currentVersionText =
+  'This is the newest version that your server holds.';
+
+/**
+ * The `aria-controls` of a row or a tab of History.
+ *
+ * A row names its panel and a tab names its view only while that panel is
+ * in the page, because an `aria-controls` that names no element points a
+ * screen reader at nothing. History renders the panel of an open row and the
+ * view of the open tab alone.
+ */
+export function controlsWhenShown(
+  id: string,
+  shown: boolean,
+): string | undefined {
+  return shown ? id : undefined;
+}

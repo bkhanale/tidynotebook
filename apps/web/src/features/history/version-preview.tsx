@@ -30,16 +30,8 @@ import {
 } from '@notesapp/editor';
 import type { LocalStore } from '@notesapp/sync';
 import { useTheme } from '../../app.tsx';
-import { createDiagramFrame } from '../../diagram/frame.ts';
+import { createDiagramFrame, diagramFramePath } from '../../diagram/frame.ts';
 import { useAttachmentUrls } from '../editor/note-editor-attachments.ts';
-
-/**
- * The built diagram frame document, as the note screen names it.
- *
- * A plain path string on purpose: this names a static Vite entry, not an
- * application API route.
- */
-const diagramFramePath = '/src/diagram/frame.html';
 
 /** No attachment that this screen uploaded itself. */
 const noRecentAttachments: ReadonlyMap<string, string> = new Map();

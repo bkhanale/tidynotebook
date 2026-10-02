@@ -53,7 +53,10 @@ import { useLocalStore, useRequestSync, useSession } from '../app.tsx';
 import { useDeleteNotice } from '../features/trash/trash.tsx';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { applyMoves } from '../features/folders/apply-moves.ts';
-import { downloadNote } from '../features/export/export.ts';
+import {
+  downloadNote,
+  transferFailureMessage,
+} from '../features/export/export.ts';
 import { duplicateNote } from '../features/notes/duplicate-note.ts';
 import { actionIcon } from './action-icons.tsx';
 import { useFiles, type OpenFoldersControl } from './files.tsx';
@@ -563,10 +566,7 @@ export function NoteTree({
             (failure: unknown) => {
               setMessage({
                 tone: 'problem',
-                text:
-                  failure instanceof Error
-                    ? failure.message
-                    : 'The note could not be saved as a file.',
+                text: transferFailureMessage(failure),
               });
             },
           );

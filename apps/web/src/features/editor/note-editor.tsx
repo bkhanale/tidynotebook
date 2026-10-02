@@ -62,7 +62,7 @@ import {
   useTheme,
 } from '../../app.tsx';
 import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
-import { downloadNote } from '../export/export.ts';
+import { downloadNote, transferFailureMessage } from '../export/export.ts';
 import { useFiles } from '../../shell/files.tsx';
 import {
   maxPastedBytes,
@@ -394,7 +394,7 @@ function NoteEditorBody({
   themeRef.current = resolved;
 
   // The path of the open note belongs to the store, not to this screen. Move
-  // to folder, a tree drag, and Rename folder all write it through
+  // to folder, a tree drag, and a rename in the tree all write it through
   // `LocalStore.moveFiles`, which gives every working copy of the file the new
   // path (decision record 0032). The editor reads it back from the save
   // snapshot of its own file and adopts it without a remount and without
@@ -1364,11 +1364,7 @@ function NoteEditorBody({
   /** Saves the open note as one Markdown file on this device. */
   const exportMarkdown = useCallback((): void => {
     void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
-      setEditorNotice(
-        failure instanceof Error
-          ? failure.message
-          : 'The note could not be saved as a file.',
-      );
+      setEditorNotice(transferFailureMessage(failure));
     });
   }, [workspaceId, fileId]);
 

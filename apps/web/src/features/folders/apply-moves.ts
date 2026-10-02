@@ -1,7 +1,7 @@
 /**
  * Running a set of path rewrites, as data.
  *
- * Move to folder, the tree drag, and Rename folder all reach this function, so
+ * Move to folder, the tree drag, and a rename in the tree all reach this function, so
  * the three of them write the same thing. The rewrite itself is one operation
  * of the local store: it gives every working copy of each note the new path in
  * one transaction, so no open editor can write the move back. See decision

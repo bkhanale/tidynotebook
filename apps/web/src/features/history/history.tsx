@@ -75,7 +75,12 @@ import {
   requestDiffSeries,
   type DiffPair,
 } from './diff-worker.ts';
-import { rowChangeOf, rowReading } from '../../lib/history-rows.ts';
+import {
+  controlsWhenShown,
+  currentVersionText,
+  rowChangeOf,
+  rowReading,
+} from '../../lib/history-rows.ts';
 import { countDiffRows, diffBlocks } from '../../lib/diff-rows.ts';
 import { headAfterChangeset } from '../../lib/history-head.ts';
 import { historyDays, savedAtLabel } from '../../lib/history-times.ts';
@@ -610,7 +615,7 @@ function HistoryDetail({
                               className: 'min-w-0 flex-1 py-1',
                             })}
                             aria-expanded={selected}
-                            aria-controls={panelId}
+                            aria-controls={controlsWhenShown(panelId, selected)}
                             onClick={() => {
                               if (selected) {
                                 setSelectedId(null);
@@ -807,7 +812,10 @@ function RevisionPanel({
               role="tab"
               id={`${panelId}-${entry}-tab`}
               aria-selected={entry === view}
-              aria-controls={`${panelId}-${entry}`}
+              aria-controls={controlsWhenShown(
+                `${panelId}-${entry}`,
+                entry === view,
+              )}
               tabIndex={entry === view ? 0 : -1}
               className={tabClassName({ selected: entry === view })}
               onClick={() => setView(entry)}
@@ -819,7 +827,7 @@ function RevisionPanel({
         </div>
       ) : (
         <h3 className="m-0 text-control font-medium text-muted">
-          This is the current version. Your note holds this text now.
+          {currentVersionText}
         </h3>
       )}
       <div

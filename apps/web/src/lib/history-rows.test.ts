@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   changeCountText,
+  controlsWhenShown,
+  currentVersionText,
   rowChangeOf,
   rowChangeText,
   rowReading,
@@ -105,4 +107,18 @@ await test('a merged version says that it holds changes of another device', () =
   // A deletion and a first version keep their one message.
   assert.equal(rowReading({ kind: 'deleted' }, true), 'Note deleted');
   assert.equal(rowReading({ kind: 'first' }, true), 'First version');
+});
+
+await test('the current version states what the server holds', () => {
+  // The review of the merged branch: the panel said that the note holds
+  // this text now, which is false while this device holds unsent edits.
+  assert.ok(currentVersionText.includes('server'));
+  assert.ok(!/holds this text now/u.test(currentVersionText));
+});
+
+await test('a row and a tab name a panel only while it is in the page', () => {
+  // The review of the merged branch: a closed row and an inactive tab named
+  // an id that no element held.
+  assert.equal(controlsWhenShown('history-panel-2', true), 'history-panel-2');
+  assert.equal(controlsWhenShown('history-panel-2', false), undefined);
 });
