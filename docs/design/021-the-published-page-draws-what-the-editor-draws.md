@@ -1,6 +1,6 @@
 # The published page draws what the editor draws
 
-Status: active
+Status: complete
 
 ## The problem
 
