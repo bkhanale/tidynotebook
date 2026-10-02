@@ -47,6 +47,24 @@ await test('the excerpt marks every matched word and nothing else', () => {
   ]);
 });
 
+await test('the excerpt is the plain text of the note, with no Markdown', () => {
+  // Issue 253. The window was cut from the Markdown of the note, so a palette
+  // result showed `**` marks and whole link addresses.
+  const hits = searchLocal('portage', [
+    {
+      fileId: 'one',
+      path: 'trips/Canoe.md',
+      revisionId: 'revision-one',
+      text: '# Canoe\n\nThe **portage** route is in [the trip plan](https://maps.example.com/routes/trail).\n',
+    },
+  ]);
+  assert.deepEqual(hits[0]?.excerpt, [
+    { text: 'Canoe The ', marked: false },
+    { text: 'portage', marked: true },
+    { text: ' route is in the trip plan.', marked: false },
+  ]);
+});
+
 await test('a name match ranks above a match in the text alone', () => {
   const hits = searchLocal('kayak', [
     {

@@ -4,9 +4,12 @@
  * This is the answer the device can give with no connection. It follows the
  * same two rules as the server: a note whose name matches comes before a note
  * that only matches in its text, and the excerpt is the part of the note that
- * matched, split into plain parts with every matched word marked.
+ * matched, split into plain parts with every matched word marked. The window
+ * is cut from the Markdown of the note, and `plainExcerpt` of the one grammar
+ * turns it into the text a reader sees (record 0162).
  */
 import type { ExcerptPart, SearchHit } from '@notesapp/core';
+import { plainExcerpt } from '@notesapp/markdown';
 
 /** One accepted or draft note that is safe to search in the active partition. */
 export type LocalSearchFile = {
@@ -117,6 +120,6 @@ export function searchLocal(
       fileId: file.fileId,
       path: file.path,
       revisionId: file.revisionId,
-      excerpt: excerpt(file.text, queryWords),
+      excerpt: plainExcerpt(excerpt(file.text, queryWords)),
     }));
 }

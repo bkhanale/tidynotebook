@@ -12196,7 +12196,7 @@ export const operations: readonly OperationEntry[] = [
                   "excerpt": {
                     "type": "array",
                     "readOnly": true,
-                    "description": "The matching part of the note, in reading order.",
+                    "description": "The matching part of the note, in reading order, as the plain text that a reader sees: no Markdown mark and no link address.",
                     "maxItems": 128,
                     "items": {
                       "type": "object",

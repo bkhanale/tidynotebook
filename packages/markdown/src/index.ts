@@ -7,7 +7,8 @@
  *
  * `parseMarkdown` gives the tree with source offsets. `extractLinks` and
  * `extractAttachmentRefs` give the references a caller resolves through the
- * generated API operations. `renderMarkdown` gives sanitized HTML. Every one
+ * generated API operations. `renderMarkdown` gives sanitized HTML, and
+ * `plainExcerpt` the plain text of a search excerpt (record 0162). Every one
  * of them refuses a document that is larger or deeper than `markdownLimits`
  * allows by throwing `MarkdownLimitError`. Nothing in this package performs
  * input or output of any kind.
@@ -60,5 +61,7 @@ export {
   MathRenderError,
   renderMath,
 } from './math.ts';
+export type { ExcerptText } from './plain-text.ts';
+export { plainExcerpt } from './plain-text.ts';
 export type { NoteTarget, RenderMarkdownOptions } from './render.ts';
 export { headingSlug, renderMarkdown } from './render.ts';

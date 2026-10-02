@@ -14,6 +14,7 @@ The editor, the server index, and Read mode all read a note through it.
 
 - `parse.ts` gives the mdast tree with source offsets. `render.ts` gives
   sanitized HTML. `links.ts` extracts note links and attachment references.
+  `plain-text.ts` gives the plain text of a search excerpt (0162).
 - `policy.ts` classifies a URL. `limits.ts` holds the size and depth limits
   and `MarkdownLimitError`. `math.ts` and `math-syntax.ts` hold the math
   rules and delimiters. `alerts.ts` holds the alert marker of a block quote,

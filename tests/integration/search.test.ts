@@ -178,6 +178,31 @@ await test('the excerpt is the matching part of the note, with the word marked',
   );
 });
 
+await test('the excerpt is the plain text of the note, with no Markdown', async () => {
+  // Issue 253. The headline was cut from the Markdown of the note, so a
+  // palette result showed `**` marks and whole link addresses.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'trips/Canoe.md',
+      text: '# Canoe\n\nThe **portage** route is in [the trip plan](https://maps.example.com/routes/portage-trail).\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'portage');
+  assert.equal(found.ok, true);
+  if (!found.ok) return;
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined);
+  const whole = hit.excerpt.map((part) => part.text).join('');
+  assert.match(whole, /The portage route is in the trip plan\./);
+  assert.doesNotMatch(whole, /\*\*|\]\(|https:|maps\.example|#/);
+  assert.deepEqual(
+    hit.excerpt.filter((part) => part.marked).map((part) => part.text),
+    ['portage'],
+  );
+});
+
 await test('a search of more notes than the limit answers the best ranked page', async () => {
   // Issue 207. The page is ranked and cut before its excerpts, so the cut
   // keeps the name match and the notes that hold the word most often.

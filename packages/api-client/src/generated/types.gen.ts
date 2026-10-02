@@ -1827,7 +1827,7 @@ export type SearchHit = {
     readonly path: FilePath;
     readonly revisionId: Uuid;
     /**
-     * The matching part of the note, in reading order.
+     * The matching part of the note, in reading order, as the plain text that a reader sees: no Markdown mark and no link address.
      */
     readonly excerpt: Array<SearchExcerptPart>;
 };
