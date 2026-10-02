@@ -91,6 +91,19 @@ await test('yesterday holds across a change of the clock', () => {
   assert.equal(days[0]?.label, 'Yesterday');
 });
 
+await test('yesterday holds after the short day of the spring change', () => {
+  // The review of the merged branch: the clocks of London go forward on
+  // Sunday 29 March 2026, so that day is 23 hours long. At 00:30 on Monday,
+  // 24 hours back is Saturday, and Sunday read as a date and not Yesterday.
+  const monday = Date.parse('2026-03-29T23:30:00Z');
+  const days = historyDays(
+    [{ id: 'a', instant: '2026-03-29T12:00:00Z' }],
+    monday,
+    clock,
+  );
+  assert.equal(days[0]?.label, 'Yesterday');
+});
+
 await test('an instant that does not read gets no time and no error', () => {
   const days = historyDays([{ id: 'a', instant: 'not a time' }], now, clock);
   assert.deepEqual(days, [

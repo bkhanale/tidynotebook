@@ -56,3 +56,14 @@ await test('an empty folder moves no note and leaves the tree', () => {
     dropFolders: ['Empty'],
   });
 });
+
+await test('a folder that leaves keeps the folder that holds it', () => {
+  // The review of the merged branch: trashing Work/Deep dropped Work from
+  // the tree when Work held no other note.
+  const plan = trashPlan(
+    [{ kind: 'folder', path: 'Work/Deep' }],
+    [note('b', 'Work/Deep/Q1.md')],
+  );
+  assert.deepEqual(plan.keepFolders, ['Work']);
+  assert.deepEqual(plan.dropFolders, ['Work/Deep']);
+});

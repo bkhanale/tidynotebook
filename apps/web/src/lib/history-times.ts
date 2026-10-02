@@ -64,14 +64,19 @@ function yearOf(at: number, timeZone: string | undefined): string {
   );
 }
 
-/** One day earlier than an instant, on the calendar of one time zone. */
+/**
+ * The calendar day before the day of an instant, in one time zone.
+ *
+ * The step is one day of the calendar and not 24 hours of the clock. A day
+ * that a change of the clock makes 23 or 25 hours long otherwise names the
+ * day before that one, or the same day, as yesterday.
+ */
 function dayBefore(at: number, timeZone: string | undefined): string {
-  // Noon of the day of `at` minus one whole day is inside the day before,
-  // whatever change of the clock lies between the two.
-  const key = dayKey(at, timeZone);
-  let probe = at - 86_400_000;
-  while (dayKey(probe, timeZone) === key) probe -= 3_600_000;
-  return dayKey(probe, timeZone);
+  const [year, month, day] = dayKey(at, timeZone).split('-').map(Number);
+  const previous = new Date(
+    Date.UTC(year ?? 1970, (month ?? 1) - 1, (day ?? 1) - 1),
+  );
+  return previous.toISOString().slice(0, 10);
 }
 
 /** The label of the day of one instant, seen from now. */

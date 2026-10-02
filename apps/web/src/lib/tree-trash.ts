@@ -6,7 +6,7 @@
  * so it is moved once. The folders matter as well: a folder is only a part of
  * a path, so the folder of a note that leaves stays on this device and the
  * tree still shows it, while a folder that a person moved to Trash leaves the
- * tree with its notes.
+ * tree with its notes and its parent stays.
  *
  * The rule is pure, so `tree-trash.test.ts` states it.
  */
@@ -55,13 +55,13 @@ export function trashPlan(
     items.push({ fileId: note.fileId, name: displayNoteName(note.path) });
   };
   for (const target of targets) {
-    if (target.kind === 'folder') {
+    if (target.kind === 'folder')
       for (const note of notesInFolder(notes, target.path)) add(note);
-      continue;
-    }
-    add(target);
-    const folder = folderOf(target.path);
-    if (folder !== '' && !insideAny(target.path, dropFolders)) keep.add(folder);
+    else add(target);
+    // The folder that holds the row stays, a note row and a folder row alike,
+    // unless the same move takes that folder as well.
+    const parent = folderOf(target.path);
+    if (parent !== '' && !insideAny(target.path, dropFolders)) keep.add(parent);
   }
   return { items, keepFolders: [...keep], dropFolders };
 }
