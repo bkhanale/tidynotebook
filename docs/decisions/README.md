@@ -202,6 +202,7 @@ and needs no record.
 | [0168](0168-a-note-read-carries-the-document-only-for-an-editor.md)                   | A note read carries the document only for an editor                             |
 | [0169](0169-the-server-compresses-a-large-json-read.md)                               | The server compresses a large JSON read                                         |
 | [0170](0170-an-archive-job-is-bounded-in-number-in-disk-and-in-time.md)               | An archive job is bounded in number, in disk and in time                        |
+| [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -710,3 +711,7 @@ Record 0170 answers the review of
 export hold one reservation each across the processes, an export plans its
 archive and streams it with its length, and an import checks the free space
 and every entry before its first commit.
+
+Record 0178 follows record 0170. The code generator writes a typed address
+for an operation that a browser reads itself, and the export of a workspace
+downloads through it in every browser, with no blob.
