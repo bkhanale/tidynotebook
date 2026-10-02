@@ -39,7 +39,7 @@ await test('each refusal of an import names its cause and the next step', () => 
   // content failure, and the person read a general sentence.
   assert.equal(
     importRefusalMessage({ code: 'archive_too_many_files' }),
-    'The zip file has more than 65535 files. Put the files in smaller zip files and import each one.',
+    'The zip file has more than 65534 files. Put the files in smaller zip files and import each one.',
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_too_large' }),
@@ -97,7 +97,7 @@ await test('a screen shows the sentence of a refused transfer', () => {
 await test('an export past the bounds of one zip file says what to do', () => {
   assert.equal(
     downloadRefusalMessage({ code: 'export_too_large' }),
-    'This workspace holds more than one zip file can take: 65535 files or 4095 MiB. Move some notes to another workspace, then export each workspace.',
+    'This workspace holds more than one zip file can take: 65534 files or 4095 MiB. Move some notes to another workspace, then export each workspace.',
   );
   assert.equal(
     downloadRefusalMessage({ code: 'internal_error' }),

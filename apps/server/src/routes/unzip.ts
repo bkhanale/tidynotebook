@@ -9,13 +9,25 @@
  * The reader works on an `ArchiveSource`, which reads a range of bytes. The
  * import keeps the archive in a file and reads it through one, so an archive
  * of the largest size never sits in memory. `readArchiveDirectory` reads the
- * central directory and checks every entry before any entry expands, and
- * `readArchiveEntry` expands one entry with its stated size as the most
- * output, so an entry that lies about its size stops at once.
+ * central directory and checks every entry before any entry expands:
+ *
+ * - a stored entry states as many compressed bytes as expanded ones, and a
+ *   deflated one no more than the bound of deflate for its size, so no entry
+ *   asks for more memory than its expanded size allows;
+ * - the data of each entry sits whole between its local header and the
+ *   central directory, and no two entries share a byte;
+ * - the stated sizes together stay under `maxArchiveBytes` and under
+ *   `maxExpansionRatio` times the archive, with a floor for a small archive.
+ *
+ * `readArchiveEntry` expands one entry as a stream, from a bounded range of
+ * the source, and stops as soon as the output passes its stated size, so the
+ * work runs off the event loop and an entry that lies stops at once.
  */
 import { Buffer } from 'node:buffer';
 import type { FileHandle } from 'node:fs/promises';
-import { inflateRawSync } from 'node:zlib';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { createInflateRaw } from 'node:zlib';
 import {
   archiveBytesAllowed,
   archiveEntriesAllowed,
@@ -42,6 +54,8 @@ export type ArchiveEntry = {
   readonly size: number;
   /** The offset of the local header of the entry. */
   readonly offset: number;
+  /** The offset of the first byte of the data of the entry. */
+  readonly dataOffset: number;
 };
 
 /** One expanded file of an archive. */
@@ -62,8 +76,36 @@ const countInZip64 = 0xffff;
 /** The most bytes that the end of an archive takes: its record and comment. */
 const endSearchBytes = 65_557;
 
-/** How many bytes of the directory one read takes. */
+/** How many bytes of the directory, or of one entry, one read takes. */
 const directoryChunkBytes = 1024 * 1024;
+
+/**
+ * How many times its own size the files of an archive may hold together.
+ *
+ * Text deflates to a fraction of its size, and an archive that expands much
+ * further than text does is a bomb. A small archive may hold up to
+ * `minimumExpansionBytes` whatever its ratio.
+ */
+export const maxExpansionRatio = 100;
+const minimumExpansionBytes = 64 * 1024 * 1024;
+
+/**
+ * The most compressed bytes that deflate writes for `size` bytes.
+ *
+ * It is the bound of zlib, `deflateBound`, with room for the header of a
+ * writer of another kind. A writer that cannot compress a block stores it,
+ * so no valid entry passes this.
+ */
+export function deflatedBound(size: number): number {
+  return (
+    size +
+    Math.floor(size / 4096) +
+    Math.floor(size / 16_384) +
+    Math.floor(size / 33_554_432) +
+    13 +
+    1024
+  );
+}
 
 /** A source over bytes in memory, for a small archive and for a test. */
 export function bufferSource(bytes: Buffer): ArchiveSource {
@@ -244,6 +286,10 @@ export async function readArchiveDirectory(
   if (directoryOffset > source.size)
     throw unreadable('The directory of the zip archive is not valid.');
   const take = sequentialReader(source, directoryOffset);
+  const expansionBound = Math.max(
+    minimumExpansionBytes,
+    maxExpansionRatio * source.size,
+  );
   let expanded = 0;
   const entries: ArchiveEntry[] = [];
   const paths = new Set<string>();
@@ -272,49 +318,108 @@ export async function readArchiveDirectory(
       throw unreadable(
         'The zip archive is encrypted or compressed in a way that this server does not read.',
       );
+    const fits =
+      method === 0
+        ? compressedSize === size
+        : compressedSize <= deflatedBound(size);
+    if (!fits)
+      throw unreadable(
+        'A file of the zip archive states sizes that do not fit.',
+      );
     expanded += size;
-    if (!archiveBytesAllowed(expanded)) throw tooLarge();
+    if (!archiveBytesAllowed(expanded) || expanded > expansionBound)
+      throw tooLarge();
     paths.add(path);
-    entries.push({ path, method, compressedSize, size, offset });
+    entries.push({ path, method, compressedSize, size, offset, dataOffset: 0 });
   }
-  return entries;
+  // The data of each entry must sit whole before the central directory, and
+  // no two entries may share a byte: an archive that points two entries at
+  // one deflated stream expands it twice for the cost of once.
+  const placed: ArchiveEntry[] = [];
+  for (const entry of entries) {
+    const local = await readExactly(
+      source,
+      entry.offset,
+      30,
+      'A file of the zip archive is not valid.',
+    );
+    if (local.readUInt32LE(0) !== localSignature)
+      throw unreadable('A file of the zip archive is not valid.');
+    const dataOffset =
+      entry.offset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28);
+    if (dataOffset + entry.compressedSize > directoryOffset)
+      throw unreadable('A file of the zip archive is not complete.');
+    placed.push({ ...entry, dataOffset });
+  }
+  const ordered = [...placed].sort((left, right) => left.offset - right.offset);
+  for (let index = 1; index < ordered.length; index += 1) {
+    const before = ordered[index - 1];
+    const after = ordered[index];
+    if (
+      before !== undefined &&
+      after !== undefined &&
+      after.offset < before.dataOffset + before.compressedSize
+    )
+      throw unreadable('Two files of the zip archive share their bytes.');
+  }
+  return placed;
 }
 
-/** The expanded bytes of one entry, with its stated size as the most. */
+/** The bytes of one range of the source, one bounded read at a time. */
+async function* rangeChunks(
+  source: ArchiveSource,
+  start: number,
+  length: number,
+): AsyncGenerator<Buffer> {
+  let at = start;
+  const end = start + length;
+  while (at < end) {
+    const wanted = Math.min(directoryChunkBytes, end - at);
+    yield await readExactly(
+      source,
+      at,
+      wanted,
+      'A file of the zip archive is not complete.',
+    );
+    at += wanted;
+  }
+}
+
+/**
+ * The expanded bytes of one entry of `readArchiveDirectory`.
+ *
+ * A deflated entry expands as a stream in the thread pool of `node:zlib`, and
+ * the read stops as soon as the output passes the stated size.
+ */
 export async function readArchiveEntry(
   source: ArchiveSource,
   entry: ArchiveEntry,
 ): Promise<Buffer> {
-  const local = await readExactly(
-    source,
-    entry.offset,
-    30,
-    'A file of the zip archive is not valid.',
+  const output: Buffer[] = [];
+  let total = 0;
+  const collect = async (chunks: AsyncIterable<unknown>): Promise<void> => {
+    for await (const chunk of chunks) {
+      if (!Buffer.isBuffer(chunk))
+        throw unreadable('A file of the zip archive is not valid.');
+      total += chunk.length;
+      if (total > entry.size)
+        throw unreadable('A file of the zip archive is not valid.');
+      output.push(chunk);
+    }
+  };
+  const range = Readable.from(
+    rangeChunks(source, entry.dataOffset, entry.compressedSize),
   );
-  if (local.readUInt32LE(0) !== localSignature)
-    throw unreadable('A file of the zip archive is not valid.');
-  const start =
-    entry.offset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28);
-  const content = await readExactly(
-    source,
-    start,
-    entry.compressedSize,
-    'A file of the zip archive is not complete.',
-  );
-  let bytes: Buffer;
   try {
-    // The stated size is the most output, so an entry that expands past
-    // what it states stops here and holds no more memory than it stated.
-    bytes =
-      entry.method === 0
-        ? Buffer.from(content)
-        : inflateRawSync(content, { maxOutputLength: Math.max(1, entry.size) });
-  } catch {
+    if (entry.method === 0) await collect(range);
+    else await pipeline(range, createInflateRaw(), collect);
+  } catch (error) {
+    if (error instanceof ArchiveRefusedError) throw error;
     throw unreadable('A file of the zip archive is not valid.');
   }
-  if (bytes.length !== entry.size)
+  if (total !== entry.size)
     throw unreadable('A file of the zip archive is not valid.');
-  return bytes;
+  return Buffer.concat(output, total);
 }
 
 /** Every file of a small archive in memory, in directory order. */

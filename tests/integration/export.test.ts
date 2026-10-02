@@ -726,7 +726,7 @@ await test('an import refusal names its real cause', async () => {
   );
   assert.match(
     String(readProperty(many.error, 'detail')),
-    /65535 files at the most/,
+    /65534 files at the most/,
   );
   const broken = await send(Buffer.from('this is not a zip archive at all'));
   assert.equal(responseOf(broken.response).status, 422);

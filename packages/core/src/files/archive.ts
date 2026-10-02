@@ -13,8 +13,14 @@
  * of one import is one entry or one batch of notes.
  */
 
-/** The most files that one workspace archive holds. */
-export const maxArchiveEntries = 0xffff;
+/**
+ * The most files that one workspace archive holds.
+ *
+ * The format counts files in 16 bits, and its largest count, 0xffff, is the
+ * mark of an archive that states its count in ZIP64 instead. One less is the
+ * largest count that means itself.
+ */
+export const maxArchiveEntries = 0xfffe;
 
 /**
  * The most bytes of one workspace archive, and of the files that it holds

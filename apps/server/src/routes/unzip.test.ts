@@ -11,6 +11,8 @@ import { ArchiveRefusedError } from '../plugins/problem.ts';
 import { zipArchive } from './zip.ts';
 import {
   bufferSource,
+  deflatedBound,
+  maxExpansionRatio,
   readArchiveDirectory,
   readArchiveEntry,
   unzipArchive,
@@ -226,4 +228,69 @@ await test('a file that is not a zip archive is named as one', async () => {
     'archive_invalid',
   );
   assert.equal(await refusalOf(Buffer.alloc(4)), 'archive_invalid');
+});
+
+await test('a stored entry that states more compressed bytes than its size is refused', async () => {
+  // Review of issue 243. The compressed size of an entry had no bound, and
+  // the reader allocated it whole before it read a byte.
+  async function* entries() {
+    yield { path: 'a.md', bytes: Buffer.from('# A\n'), modified: new Date(0) };
+  }
+  const archive = await readStream(zipArchive(entries()));
+  // The compressed size of the central entry, at offset 20 of its header.
+  const central = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  archive.writeUInt32LE(0xffff_0000, central + 20);
+  assert.equal(await refusalOf(archive), 'archive_invalid');
+});
+
+await test('two entries that share their bytes are refused', async () => {
+  // Review of issue 243. Two directory entries that name one deflated stream
+  // expand it twice for the cost of once.
+  const content = Buffer.alloc(1024 * 1024, 0x61);
+  const archive = deflatedArchive([
+    { path: 'a.md', content, statedSize: content.length },
+    { path: 'b.md', content, statedSize: content.length },
+  ]);
+  // The second central entry points at the local header of the first.
+  const second = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  archive.writeUInt32LE(0, second + 42);
+  assert.equal(await refusalOf(archive), 'archive_invalid');
+});
+
+await test('an entry whose data runs into the central directory is refused', async () => {
+  const content = Buffer.from('# A note\n');
+  const archive = deflatedArchive([
+    { path: 'a.md', content, statedSize: content.length },
+  ]);
+  const central = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  const compressed = archive.readUInt32LE(central + 20);
+  // The local header and the directory both state 64 more compressed bytes.
+  archive.writeUInt32LE(compressed + 64, 18);
+  archive.writeUInt32LE(compressed + 64, central + 20);
+  assert.equal(await refusalOf(archive), 'archive_invalid');
+});
+
+await test('stated sizes past the ratio of a small archive are refused before any entry expands', async () => {
+  // Review of issue 243. A small archive that states a large expansion is a
+  // bomb, whatever bound of the format it keeps.
+  const archive = deflatedArchive([
+    {
+      path: 'a.md',
+      content: Buffer.from('small'),
+      statedSize: 70 * 1024 * 1024,
+    },
+  ]);
+  assert.ok(archive.length * maxExpansionRatio < 64 * 1024 * 1024);
+  assert.equal(await refusalOf(archive), 'archive_too_large');
+});
+
+await test('a large deflated entry expands as a stream to its stated size', async () => {
+  const content = Buffer.alloc(16 * 1024 * 1024, 0x62);
+  const source = bufferSource(
+    deflatedArchive([{ path: 'big.md', content, statedSize: content.length }]),
+  );
+  const [entry] = await readArchiveDirectory(source);
+  assert.ok(entry !== undefined);
+  assert.ok(entry.compressedSize <= deflatedBound(entry.size));
+  assert.deepEqual(await readArchiveEntry(source, entry), content);
 });

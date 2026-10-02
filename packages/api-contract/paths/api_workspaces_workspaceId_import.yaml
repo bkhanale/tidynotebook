@@ -7,7 +7,7 @@ post:
     must be free in the workspace. The gap between two chunks of the
     archive is bounded, so a sender that stops in the middle is answered
     and does not hold its slot. The operation takes every archive that
-    exportWorkspace answers: up to 65535 files and 4 GiB without ZIP64. A
+    exportWorkspace answers: up to 65534 files and 4 GiB without ZIP64. A
     refused archive answers archive_invalid, archive_too_many_files or
     archive_too_large.
   tags:

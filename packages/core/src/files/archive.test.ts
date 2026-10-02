@@ -10,8 +10,9 @@ import {
 import { maxFilesPerChangeset } from './commit.ts';
 
 await test('an archive takes every count that the zip format counts', () => {
-  // The format counts files in 16 bits, so export writes at most 65535.
-  assert.equal(maxArchiveEntries, 65_535);
+  // The format counts files in 16 bits, and 0xffff marks a ZIP64 count, so
+  // export writes at most 65534.
+  assert.equal(maxArchiveEntries, 0xfffe);
   assert.equal(archiveEntriesAllowed(0), true);
   assert.equal(archiveEntriesAllowed(maxFilesPerChangeset + 1), true);
   assert.equal(archiveEntriesAllowed(maxArchiveEntries), true);
