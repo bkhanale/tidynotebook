@@ -21,6 +21,11 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
   One element takes one colour class, a tone is in a recipe, and a class is
   whole, as Tailwind reads the text. `src/icon-grid.ts` is the grid of an icon
   (24, 1.5, 16 and 20); `src/glyph.ts` draws `glyph-parts.ts` in plain DOM.
+  `menuSurfaceStyle` gives the values of the classes of a menu to a typed
+  adapter, from the one table of `menuSurfaceClassName`.
+- `src/copy-action.ts` holds the words of the three states of a copy control
+  (0174), and `src/code-figure.ts` the one recipe of a rendered code figure,
+  which the published page and the documentation site read.
 - `src/layout.tsx` holds the page frame, `pageGutter`, and the row of every
   page from `layout-classes.ts` (0137). `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
