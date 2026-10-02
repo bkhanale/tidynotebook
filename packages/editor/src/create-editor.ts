@@ -87,9 +87,10 @@ export type CreateEditorOptions = {
    *
    * A remote change and a repair reach a bound editor as a transaction of the
    * binding. They are not input of this device, so they never schedule a save
-   * and never enter local undo. The screen reads the new text here.
+   * and never enter local undo. The screen reads the new text through the
+   * reader it receives, when it needs it (record 0175).
    */
-  readonly onRemoteChange?: ((text: string) => void) | undefined;
+  readonly onRemoteChange?: ((readText: () => string) => void) | undefined;
   /**
    * Hears a toggle of a task box, after the change of the toggle.
    *
@@ -162,15 +163,17 @@ export const emptyNoteHint = 'Start writing. Markdown works here.';
 /**
  * Creates the live Markdown editor inside `parent`.
  *
- * `onChange` receives the full text after every document change; all other
- * updates (selection, viewport, decorations, theme) stay silent. The caller
+ * `onChange` receives a reader of the full text after every document change;
+ * all other updates (selection, viewport, decorations, theme) stay silent. The
+ * reader copies the text only when it is called, so a key on a long note costs
+ * no copy of the note (record 0175). The caller
  * destroys the view when the working copy closes and never writes the text
  * back into the document, so undo and composition stay intact.
  */
 export function createEditor(
   parent: HTMLElement,
   initialText: string,
-  onChange: (text: string) => void,
+  onChange: (readText: () => string) => void,
   options: CreateEditorOptions = {},
 ): EditorView {
   const navigation = options.navigation ?? {};
@@ -231,12 +234,14 @@ export function createEditor(
             options.onFormatContext?.(context);
         }
         if (!update.docChanged) return;
-        const text = update.state.doc.toString();
+        const doc = update.state.doc;
+        let text: string | null = null;
+        const readText = (): string => (text ??= doc.toString());
         if (bound !== undefined && isRemoteChange(update)) {
-          options.onRemoteChange?.(text);
+          options.onRemoteChange?.(readText);
           return;
         }
-        onChange(text);
+        onChange(readText);
         if (update.transactions.some(isTaskToggle)) options.onTaskToggle?.();
       }),
       EditorView.domEventHandlers({

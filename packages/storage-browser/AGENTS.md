@@ -25,10 +25,7 @@ area, the Reviews of this device, preferences, and the offline snapshot.
 channel, and composes these area modules behind the one port, each a factory
 over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 
-- `channel.ts`: the message shape of the invalidation channel (0019). A
-  change of this store reaches its own listeners with `sameTab`, a write of
-  an editor is the kind `document` (0175), and one transaction of many files
-  announces one change of the workspace (0176).
+- `channel.ts`: the message shape of the invalidation channel (0019, 0175).
 - `shared.ts`: the context type, the cross-area row helpers, and the one
   precondition rule of a submission, `expectedHeadOfParent` (0073).
 - `drafts.ts`: save, read, rebase, drop a draft; read a cached note.

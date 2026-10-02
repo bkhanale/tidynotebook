@@ -1,12 +1,14 @@
 /**
  * The save state channel of the open note.
  *
- * The note screen publishes what it knows about the open note through
- * `NoteSaveScope`. The note saves itself, so no control reports the result;
- * the note states a failed local write itself (`lib/local-write.ts`). The
- * shell reads the same channel for the facts it needs about the open note. The note screen keeps
- * `data-save-state` on its root, so automation reads the note state without
- * reading copy and only one element carries it.
+ * The note screen publishes what the frame shows about the open note through
+ * `NoteSaveScope`: a failed local write and the time of the last version. The
+ * note saves itself, so no control reports the result; the note states a
+ * failed local write itself (`lib/local-write.ts`). The scope holds one
+ * store, so the context never changes and a reader renders only when the
+ * fact it selects changes. A key changes no such fact (record 0175). The note
+ * screen keeps `data-save-state` on its root, so automation reads the note
+ * state without reading copy and only one element carries it.
  */
 import {
   createContext,
@@ -16,49 +18,52 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import type { NoteSaveFacts } from '../../lib/save-state.ts';
-export { resolveSaveState } from '../../lib/save-state.ts';
-export type { SaveState, SaveStateInput } from '../../lib/save-state.ts';
-
-/** What the open note tells the header about itself. */
-export type NoteSaveReport = NoteSaveFacts & {
-  /** When the last version of this note was created, as an ISO instant. */
-  readonly lastSavedAt: string | null;
-};
+import {
+  createFactStore,
+  sameMembers,
+  type FactStore,
+} from '../../lib/fact-store.ts';
+import type { NoteSaveReport } from '../../lib/save-state.ts';
+export { noteSaveReport, resolveSaveState } from '../../lib/save-state.ts';
+export type {
+  NoteSaveReport,
+  SaveState,
+  SaveStateInput,
+} from '../../lib/save-state.ts';
 
 type NoteSaveChannel = {
-  readonly report: NoteSaveReport | null;
-  readonly publish: (report: NoteSaveReport | null) => void;
+  readonly report: FactStore<NoteSaveReport | null>;
   readonly flushDraft: () => Promise<void>;
   readonly registerDraftFlush: (flush: () => Promise<void>) => () => void;
 };
 
-const NoteSaveContext = createContext<NoteSaveChannel>({
-  report: null,
-  publish: () => {},
+/** The channel outside a scope: no note, and nothing to flush. */
+const noChannel: NoteSaveChannel = {
+  report: createFactStore<NoteSaveReport | null>(null, sameMembers),
   flushDraft: () => Promise.resolve(),
   registerDraftFlush: () => () => {},
-});
+};
+
+const NoteSaveContext = createContext<NoteSaveChannel>(noChannel);
 
 /**
- * Carries the save facts of the open note up to the header.
+ * Carries the save facts of the open note up to the frame.
  *
- * The note screen sits under the header in the tree, so the shell owns the
- * state and the note screen writes into it. The header then shows one chip
- * for the note the person is looking at.
+ * The note screen sits under the header in the tree, so the frame owns the
+ * store and the note screen writes into it.
  */
 export function NoteSaveScope({
   children,
 }: {
   readonly children: ReactNode;
 }): ReactNode {
-  const [report, setReport] = useState<NoteSaveReport | null>(null);
+  const [report] = useState(() =>
+    createFactStore<NoteSaveReport | null>(null, sameMembers),
+  );
   const draftFlush = useRef<() => Promise<void>>(() => Promise.resolve());
-  const publish = useCallback((next: NoteSaveReport | null): void => {
-    setReport(next);
-  }, []);
   const flushDraft = useCallback((): Promise<void> => draftFlush.current(), []);
   const registerDraftFlush = useCallback(
     (flush: () => Promise<void>): (() => void) => {
@@ -71,8 +76,8 @@ export function NoteSaveScope({
     [],
   );
   const value = useMemo<NoteSaveChannel>(
-    () => ({ report, publish, flushDraft, registerDraftFlush }),
-    [report, publish, flushDraft, registerDraftFlush],
+    () => ({ report, flushDraft, registerDraftFlush }),
+    [report, flushDraft, registerDraftFlush],
   );
   return (
     <NoteSaveContext.Provider value={value}>
@@ -81,9 +86,17 @@ export function NoteSaveScope({
   );
 }
 
-/** Reads the save facts of the open note, or `null` on another screen. */
-export function useNoteSave(): NoteSaveReport | null {
-  return useContext(NoteSaveContext).report;
+/**
+ * Reads one fact of the open note, or of no note on another screen.
+ *
+ * `select` must answer a value that compares with `Object.is`, such as a
+ * boolean or a string, so a reader renders only when that value changes.
+ */
+export function useNoteSaveFact<T>(
+  select: (report: NoteSaveReport | null) => T,
+): T {
+  const { report } = useContext(NoteSaveContext);
+  return useSyncExternalStore(report.subscribe, () => select(report.get()));
 }
 
 /** Writes the open editor buffer to the local draft store. */
@@ -97,16 +110,19 @@ export function useRegisterNoteDraftFlush(flush: () => Promise<void>): void {
   useEffect(() => registerDraftFlush(flush), [registerDraftFlush, flush]);
 }
 
-/** Publishes the save facts of the open note while that screen is mounted. */
-export function usePublishNoteSave(report: NoteSaveReport): void {
-  const { publish } = useContext(NoteSaveContext);
-  const { state, hasUnsavedEdits, localWriteFailed, lastSavedAt } = report;
-  useEffect(() => {
-    publish({ state, hasUnsavedEdits, localWriteFailed, lastSavedAt });
-    return () => {
-      publish(null);
-    };
-  }, [publish, state, hasUnsavedEdits, localWriteFailed, lastSavedAt]);
+/**
+ * The writer of the save facts of the open note, for the editor to call when
+ * a fact may have changed. The facts go when the screen goes.
+ */
+export function useNoteSavePublisher(): (report: NoteSaveReport) => void {
+  const { report } = useContext(NoteSaveContext);
+  useEffect(
+    () => () => {
+      report.set(null);
+    },
+    [report],
+  );
+  return report.set;
 }
 
 /**
@@ -114,19 +130,30 @@ export function usePublishNoteSave(report: NoteSaveReport): void {
  *
  * A queued save is durable on this device and survives a reload, so it
  * never blocks. Only text that has not reached local storage yet, and a
- * local write that failed, keep the browser confirmation.
+ * local write that failed, keep the browser confirmation. The answer sets
+ * the guard without a render, because the first key of a burst sets it.
  */
-export function useBlockUnsafeReload(blocked: boolean): void {
-  useEffect(() => {
-    if (!blocked) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
-      event.preventDefault();
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => {
+export function useUnsafeReloadGuard(): (blocked: boolean) => void {
+  const listening = useRef(false);
+  const onBeforeUnload = useCallback((event: BeforeUnloadEvent): void => {
+    event.preventDefault();
+  }, []);
+  useEffect(
+    () => () => {
       window.removeEventListener('beforeunload', onBeforeUnload);
-    };
-  }, [blocked]);
+      listening.current = false;
+    },
+    [onBeforeUnload],
+  );
+  return useCallback(
+    (blocked: boolean): void => {
+      if (blocked === listening.current) return;
+      listening.current = blocked;
+      if (blocked) window.addEventListener('beforeunload', onBeforeUnload);
+      else window.removeEventListener('beforeunload', onBeforeUnload);
+    },
+    [onBeforeUnload],
+  );
 }
 
 /** Follows the connection state of the browser. */

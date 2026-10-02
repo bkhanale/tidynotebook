@@ -2,17 +2,19 @@
  * The one-pane note editor screen.
  *
  * One mounted `NoteEditor` owns exactly one CodeMirror view and one working
- * copy. Editor changes flow into `LocalStore.saveDraft` within about 120 ms.
- * Only an explicit Save creates an immutable revision and sends it to the
- * server. The React tree may rerender and the theme may change as often as it
- * wants. Neither action replaces the editor document, so undo history, IME
- * composition, selection, and clipboard content survive them.
+ * copy. A key changes only the editor: it sets no React state and writes
+ * nothing to the store. One local write takes the work of a burst after a
+ * pause, and a version follows a longer pause, a blur, or Ctrl + S (records
+ * 0022, 0175). The React tree may rerender and the theme may change as often
+ * as it wants. Neither action replaces the editor document, so undo history,
+ * IME composition, selection, and clipboard content survive them.
  *
  * File identity follows the local-first rule. Edits and renames are drafts.
  * Save and Delete create versions that the foreground sync engine submits.
  * This screen never calls `fetch` and never builds a request URL by hand.
  */
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -30,6 +32,7 @@ import {
   saveCheckpointMessage,
   type Draft,
   type FileSaveSnapshot,
+  type LocalChange,
   type LocalStore,
   type LocalStorageErrorKind,
   type QueueEntry,
@@ -63,7 +66,7 @@ import {
 } from '../../app.tsx';
 import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
 import { downloadNote, transferFailureMessage } from '../export/export.ts';
-import { useFiles } from '../../shell/files.tsx';
+import { useFiles, type FilesValue } from '../../shell/files.tsx';
 import {
   maxPastedBytes,
   sanitizeAttachmentName,
@@ -79,10 +82,7 @@ import {
   noteRowClassName,
   noteSideRegionClassName,
 } from '../../lib/note-column.ts';
-import {
-  localWriteFailed,
-  localWriteFailureMessage,
-} from '../../lib/local-write.ts';
+import { localWriteFailureMessage } from '../../lib/local-write.ts';
 import { FormatToolbar, toolSlashCommands } from './format-toolbar.tsx';
 import { TableMenu } from './table-menu.tsx';
 import { NoteFooter } from './note-footer.tsx';
@@ -107,23 +107,36 @@ import { OutlinePanel } from './outline.tsx';
 import { useDeleteNotice } from '../trash/trash.tsx';
 import { createDiagramFrame, diagramFramePath } from '../../diagram/frame.ts';
 import {
+  noteSaveReport,
   resolveSaveState,
-  useBlockUnsafeReload,
-  usePublishNoteSave,
+  useNoteSavePublisher,
   useRegisterNoteDraftFlush,
-  type SaveState,
+  useUnsafeReloadGuard,
 } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
+import { createWriteSchedule } from './write-schedule.ts';
+import { createCoalescedRead } from '../../lib/coalesced-read.ts';
+import { formatPaletteRows } from '../../lib/format-toolbar.ts';
 import { noteHeadWasReplaced } from './head-replaced.ts';
 import { Backlinks } from './backlinks.tsx';
 import { ReviewNoticeBar } from '../review/review-notice.tsx';
 import { ImageViewer } from './image-viewer.tsx';
 import { recordTiming } from './timing.ts';
 
-/** Draft writes trail input by this long, inside the 150 ms target. */
+/** A local write follows a pause in typing this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
 
-/** Delay before work that reads the complete document. */
+/**
+ * The longest time a key waits for its local write while the typing goes on
+ * (record 0175). It bounds what a crash loses and how long another tab of
+ * this note waits for the work.
+ */
+const localWriteMaxWaitMs = 1000;
+
+/**
+ * Delay before work that reads the complete document: the word count, the
+ * outline and the attachment scan. It is not on the path of a save.
+ */
 const documentWorkDelayMs = 200;
 
 /**
@@ -138,6 +151,20 @@ const versionPauseMs = 2500;
 
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
+
+/**
+ * Whether a change of the store can change the file list of the area. A
+ * write of document work, a Review and a cursor cannot.
+ */
+function fileListChange(change: LocalChange): boolean {
+  return (
+    change.kind === 'draft' ||
+    change.kind === 'queue' ||
+    change.kind === 'file' ||
+    change.kind === 'purge' ||
+    change.kind === 'reset'
+  );
+}
 
 /** What one attachment upload is doing right now. */
 type AttachState =
@@ -197,9 +224,50 @@ export type NoteEditorProps = {
  * note route unmounts the scope with the screen.
  */
 export function NoteEditor(props: NoteEditorProps): ReactNode {
+  // The note list changes with every write of the area. The editor reads it
+  // only at a boundary, such as a version or a rename, so it reads it through
+  // a reference and a new list renders no part of the note (record 0175).
+  const files = useFiles();
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  // The screen above passes new callbacks on each of its renders. The body
+  // reads them through stable ones, so a render above renders no part of the
+  // note (record 0175).
+  const propsRef = useRef(props);
+  propsRef.current = props;
+  const stable = useMemo(
+    () => ({
+      onOpenLink: (target: LinkTarget): void => {
+        propsRef.current.onOpenLink?.(target);
+      },
+      onQueued: (entry: QueueEntry | null): void => {
+        propsRef.current.onQueued?.(entry);
+      },
+      onMoveToFolder: (): void => {
+        propsRef.current.onMoveToFolder?.();
+      },
+      onPublish: (): void => {
+        propsRef.current.onPublish?.();
+      },
+      onHeadReplaced: (): void => {
+        propsRef.current.onHeadReplaced?.();
+      },
+    }),
+    [],
+  );
   return (
     <ActiveNoteScope>
-      <NoteEditorBody {...props} />
+      <NoteEditorBody
+        {...props}
+        onOpenLink={stable.onOpenLink}
+        onQueued={stable.onQueued}
+        onMoveToFolder={
+          props.onMoveToFolder === undefined ? undefined : stable.onMoveToFolder
+        }
+        onPublish={props.onPublish === undefined ? undefined : stable.onPublish}
+        onHeadReplaced={stable.onHeadReplaced}
+        filesRef={filesRef}
+      />
     </ActiveNoteScope>
   );
 }
@@ -212,7 +280,7 @@ export function NoteEditor(props: NoteEditorProps): ReactNode {
  * checkpoint through the store, theme changes reconfigure one compartment,
  * and link targets leave through the navigation callback.
  */
-function NoteEditorBody({
+const NoteEditorBody = memo(function NoteEditorBody({
   store,
   accountId,
   workspaceId,
@@ -229,9 +297,11 @@ function NoteEditorBody({
   onMoveToFolder,
   onPublish,
   onHeadReplaced,
-}: NoteEditorProps): ReactNode {
+  filesRef,
+}: NoteEditorProps & {
+  readonly filesRef: { readonly current: FilesValue };
+}): ReactNode {
   const navigate = useNavigate();
-  const noteList = useFiles();
   const { announce: announceDeleted } = useDeleteNotice();
   // The document queue and the editor view are built once for this working
   // copy. They reach the scope of the open note through this ref, so a new
@@ -258,9 +328,19 @@ function NoteEditorBody({
   // The resolvers the view holds, so the view is reconfigured only when they
   // change and never with the ones it was created with.
   const viewRichRef = useRef<RichWidgetResolvers | null>(null);
-  const saveTimerRef = useRef<number | null>(null);
   const versionTimerRef = useRef<number | null>(null);
-  const bufferRef = useRef(initialText);
+  // Reads the text of the editor now. A key hands over a new reader and
+  // copies no text; the text is copied once a write or a panel asks for it
+  // (record 0175).
+  const textReaderRef = useRef<() => string>(() => initialText);
+  const bufferRef = useMemo(
+    () => ({
+      get current(): string {
+        return textReaderRef.current();
+      },
+    }),
+    [],
+  );
   const folderRef = useRef(folderOf(initialPath));
   // The path of the note. The name field holds words the person is still
   // typing, and only a commit of the field moves this path (see
@@ -299,17 +379,66 @@ function NoteEditorBody({
   sessionRef.current = liveDocument;
   const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
   const [pathError, setPathError] = useState('');
-  const [bufferText, setBufferText] = useState(initialText);
-  const [draftPending, setDraftPending] = useState(false);
-  const [saveSnapshot, setSaveSnapshot] = useState<FileSaveSnapshot | null>(
-    null,
-  );
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [storageError, setStorageError] =
+  // The save facts of the note change no render. They decide the state on
+  // the root, the facts of the frame and the reload guard, which the screen
+  // writes when one changes (record 0175).
+  const saveSnapshotRef = useRef<FileSaveSnapshot | null>(null);
+  const lastSavedAtRef = useRef<string | null>(null);
+  // The sequence that the store holds, so the screen knows when it holds
+  // text that no write took yet.
+  const writtenSequenceRef = useRef(initialSequence);
+  const [storageError, setStorageErrorState] =
     useState<LocalStorageErrorKind | null>(null);
+  const storageErrorRef = useRef<LocalStorageErrorKind | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const publishSave = useNoteSavePublisher();
+  const guardReload = useUnsafeReloadGuard();
+
+  /**
+   * States the save state on the root, for automation, and the facts of the
+   * frame. Each reads references only, so a call from the first render stays
+   * right, and an unchanged value writes nothing to the page.
+   */
+  const showSaveFacts = useRef((): void => {});
+  showSaveFacts.current = (): void => {
+    const snapshot = saveSnapshotRef.current;
+    const state = resolveSaveState({
+      queueState: snapshot?.queueState ?? null,
+      storageError: storageErrorRef.current,
+      hasUncheckpointedDraft: snapshot?.hasUncheckpointedDraft ?? true,
+      acceptedHeadRevisionId: snapshot?.acceptedHeadRevisionId ?? null,
+      localHeadRevisionId: snapshot?.localHeadRevisionId ?? null,
+    });
+    const root = rootRef.current;
+    if (root !== null && root.dataset.saveState !== state)
+      root.dataset.saveState = state;
+    publishSave(
+      noteSaveReport({
+        storageError: storageErrorRef.current,
+        lastSavedAt: lastSavedAtRef.current,
+      }),
+    );
+    // The text is the only copy until a write takes it, and it is the only
+    // copy again when storage fails. Both cases block an unsafe reload. A
+    // queued save is durable on this device, so it never blocks one.
+    guardReload(
+      sequenceRef.current !== writtenSequenceRef.current ||
+        storageErrorRef.current !== null,
+    );
+  };
+
+  /** Keeps the cause of a failed local write, which the note states. */
+  const setStorageError = useRef((kind: LocalStorageErrorKind | null): void => {
+    if (storageErrorRef.current === kind) return;
+    storageErrorRef.current = kind;
+    setStorageErrorState(kind);
+    showSaveFacts.current();
+  }).current;
   // Where the caret stands, which decides the tools of the formatting row.
   const [formatContext, setFormatContext] =
     useState<FormatContext>(plainTextContext);
+  const formatContextRef = useRef(formatContext);
+  formatContextRef.current = formatContext;
   // The menu of a row or a column that a handle of a table asked for.
   const [tableMenu, setTableMenu] = useState<TableMenuRequest | null>(null);
   // The picture that a press on an image of the note opened (record 0145).
@@ -326,22 +455,22 @@ function NoteEditorBody({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastFilesRef = useRef<readonly File[]>([]);
   const requestSync = useRequestSync();
-  const { attachmentUrls, attachmentUrlsRef } = useAttachmentUrls(
+  const attachments = useAttachmentUrls(
     store,
     accountId,
     workspaceId,
-    validPathRef.current,
-    bufferText,
+    validPathRef,
+    initialText,
     recentAttachments,
   );
+  const { attachmentUrls, attachmentUrlsRef } = attachments;
+  const scanAttachments = useRef(attachments.scan);
+  scanAttachments.current = attachments.scan;
   const [mathReady, setMathReady] = useState(false);
   // The base moves to each new checkpoint, so the next save names the parent
   // the server just accepted. Until the first save it is the one the loader
   // read.
-  const [baseOverride, setBaseOverride] = useState<string | null | undefined>(
-    undefined,
-  );
-  const openedBase = baseOverride === undefined ? baseRevisionId : baseOverride;
+  const baseRef = useRef<string | null>(baseRevisionId);
   const workingCopyId = useMemo(
     () => initialWorkingCopyId ?? generateUUID(),
     [initialWorkingCopyId],
@@ -349,15 +478,17 @@ function NoteEditorBody({
   const mathRenderRef = useRef<
     ((source: string, display: boolean) => string) | null
   >(null);
+  // The panels around the text read it after a quiet time. They take it
+  // through the scope of the open note, so the note screen does not render.
   const documentWork = useMemo(
     () =>
-      createDocumentWorkQueue({
+      createDocumentWorkQueue<number, () => string>({
         delayMs: documentWorkDelayMs,
         defer: (run, delayMs) => window.setTimeout(run, delayMs),
         cancel: (token) => window.clearTimeout(token),
-        run: (text) => {
-          setBufferText(text);
+        run: (readText) => {
           activeNote.current.announce();
+          scanAttachments.current(readText());
         },
       }),
     [],
@@ -380,7 +511,6 @@ function NoteEditorBody({
     accountId,
     workspaceId,
     fileId,
-    baseRevisionId: openedBase,
     workingCopyId,
   });
   live.current = {
@@ -388,7 +518,6 @@ function NoteEditorBody({
     accountId,
     workspaceId,
     fileId,
-    baseRevisionId: openedBase,
     workingCopyId,
   };
   const callbacks = useRef({ onOpenLink, onQueued, onHeadReplaced });
@@ -418,12 +547,14 @@ function NoteEditorBody({
     setPathError('');
     setName(displayNoteName(baseNameOf(next)));
     headingName.adopt(bufferRef.current);
+    // A relative picture names its file from the folder of the note.
+    scanAttachments.current(bufferRef.current);
   };
 
   /** Gives an automatic name the heading at a version (record 0163). */
   const followHeading = (): void => {
     const next = headingName.next({
-      notes: noteList.notes,
+      notes: filesRef.current.notes,
       fileId,
       typing: nameTypingRef.current,
       edited:
@@ -445,7 +576,7 @@ function NoteEditorBody({
       workspaceId: current.workspaceId,
       workingCopyId: current.workingCopyId,
       fileId: current.fileId,
-      baseRevisionId: current.baseRevisionId,
+      baseRevisionId: baseRef.current,
       text: bufferRef.current,
       path: validPathRef.current,
       deleted,
@@ -493,10 +624,12 @@ function NoteEditorBody({
   };
 
   /** Re-reads the queue so the status reports pending and accepted saves. */
-  const refreshQueue = useRef((): Promise<void> => Promise.resolve());
-  refreshQueue.current = async (): Promise<void> => {
+  const refreshQueue = useRef((_join: boolean): Promise<void> =>
+    Promise.resolve(),
+  );
+  refreshQueue.current = async (join: boolean): Promise<void> => {
     const current = live.current;
-    await joinStoredWork.current();
+    if (join) await joinStoredWork.current();
     try {
       const [snapshot, checkpoints] = await Promise.all([
         current.store.readFileSaveSnapshot(
@@ -510,7 +643,7 @@ function NoteEditorBody({
           current.fileId,
         ),
       ]);
-      setSaveSnapshot(snapshot);
+      saveSnapshotRef.current = snapshot;
       // The note may have moved or reached the trash from the sidebar, from
       // another tab, or from another device. The editor takes both facts from
       // the store, so no later save writes either one back.
@@ -526,7 +659,7 @@ function NoteEditorBody({
           !headReplacedRef.current &&
           noteHeadWasReplaced({
             snapshot,
-            openedBase: live.current.baseRevisionId,
+            openedBase: baseRef.current,
             openedSequence: initialSequence,
             currentSequence: sequenceRef.current,
           })
@@ -540,12 +673,33 @@ function NoteEditorBody({
         .map((entry) => entry.clientTime)
         .sort()
         .at(-1);
-      setLastSavedAt(latest ?? null);
+      lastSavedAtRef.current = latest ?? null;
+      showSaveFacts.current();
     } catch {
       // Queue reads are feedback only. A failure here must not disturb the
       // buffer, the draft, or the draft timer.
     }
   };
+
+  /**
+   * One queue read at a time for a burst of store changes (record 0176). A
+   * change that can bring work into the document asks for a join as well. A
+   * draft never touches the document, so a draft write asks for none.
+   */
+  const joinWantedRef = useRef(false);
+  const queueRead = useMemo(
+    () =>
+      createCoalescedRead(async (): Promise<void> => {
+        const join = joinWantedRef.current;
+        joinWantedRef.current = false;
+        await refreshQueue.current(join);
+      }),
+    [],
+  );
+  const askQueue = useRef((join: boolean): void => {
+    if (join) joinWantedRef.current = true;
+    queueRead.ask();
+  }).current;
 
   /**
    * Writes the current buffer as the working draft.
@@ -558,44 +712,99 @@ function NoteEditorBody({
   saveDraftNow.current = async (): Promise<boolean> => {
     const isDeleting = isDeletedRef.current;
     const current = live.current;
-    const savedSequence = sequenceRef.current;
-    const savedPath = validPathRef.current;
-    setDraftPending(true);
+    const draft = buildDraft(isDeleting);
     const startedAt = performance.now();
     try {
-      await current.store.saveDraft(buildDraft(isDeleting));
+      await current.store.saveDraft(draft);
       recordTiming('notesapp.local-draft-save', startedAt);
-      // A newer keystroke may have arrived while the write ran; only that
-      // newer write clears the pending flag.
-      if (sequenceRef.current === savedSequence) setDraftPending(false);
-      // The store holds the name of this draft. A newer name, such as the
-      // name of a heading that a version gave while this write ran, stays
-      // pending, so the queue read below cannot put the older path back.
-      nameEditPendingRef.current = nameStillPending(savedPath, validPathRef);
+      draftTaken.current(draft);
       setStorageError(null);
-      await refreshQueue.current();
+      askQueue(false);
       return true;
     } catch (failure: unknown) {
-      setDraftPending(false);
       setStorageError(isLocalStorageError(failure) ? failure.kind : 'aborted');
       return false;
     }
   };
 
-  const flushDraftForUpdate = useCallback(async (): Promise<void> => {
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
+  /** States that the store holds a draft: from a draft write or a checkpoint. */
+  const draftTaken = useRef((_draft: Draft): void => {});
+  draftTaken.current = (draft: Draft): void => {
+    writtenSequenceRef.current = Math.max(
+      writtenSequenceRef.current,
+      draft.sequence,
+    );
+    // The store holds the name of this draft. A newer name, such as the name
+    // of a heading that a version gave while this write ran, stays pending,
+    // so a later queue read cannot put the older path back.
+    nameEditPendingRef.current = nameStillPending(draft.path, validPathRef);
+    showSaveFacts.current();
+  };
+
+  /**
+   * Writes the work of the person that the document holds and the store does
+   * not, as one update. A checkpoint freezes the stored document (record
+   * 0133), so it waits for every such write.
+   */
+  const writeLocalWork = useRef((): Promise<void> => Promise.resolve());
+  writeLocalWork.current = (): Promise<void> => {
+    const work = sessionRef.current.takeLocalWork();
+    if (work !== null) {
+      const current = live.current;
+      const written = current.store
+        .mergeNoteWork(
+          current.accountId,
+          current.workspaceId,
+          current.fileId,
+          work,
+        )
+        .then(
+          () => undefined,
+          () => {
+            // The next checkpoint writes the whole document again and
+            // reports the failure when that write fails too.
+            localWorkLostRef.current = true;
+          },
+        );
+      localWorkWrittenRef.current = Promise.all([
+        localWorkWrittenRef.current,
+        written,
+      ]).then(() => undefined);
     }
+    return localWorkWrittenRef.current;
+  };
+
+  // A key writes nothing. One write takes the document work and the draft
+  // of a burst after a pause, and no later than `localWriteMaxWaitMs` after
+  // its first key (record 0175).
+  const localWrite = useMemo(
+    () =>
+      createWriteSchedule<number>({
+        pauseMs: draftSaveDelayMs,
+        maxWaitMs: localWriteMaxWaitMs,
+        now: () => performance.now(),
+        defer: (run, delayMs) => window.setTimeout(run, delayMs),
+        cancel: (token) => window.clearTimeout(token),
+        write: () => {
+          void writeLocalWork.current();
+          void saveDraftNow.current();
+        },
+      }),
+    [],
+  );
+
+  const flushDraftForUpdate = useCallback(async (): Promise<void> => {
+    localWrite.cancel();
     if (versionTimerRef.current !== null) {
       window.clearTimeout(versionTimerRef.current);
       versionTimerRef.current = null;
     }
+    await writeLocalWork.current();
     if (!(await saveDraftNow.current()))
       throw new Error(
         'The open draft could not be stored. Keep this tab open and try again.',
       );
-  }, []);
+  }, [localWrite]);
   useRegisterNoteDraftFlush(flushDraftForUpdate);
 
   /**
@@ -629,7 +838,7 @@ function NoteEditorBody({
     // refuse the save, so the reason stands on the note instead.
     const error = duplicateNameProblem(
       validPathRef.current,
-      noteList.notes,
+      filesRef.current.notes,
       fileId,
     );
     if (error !== null) {
@@ -641,9 +850,14 @@ function NoteEditorBody({
       checkpointAgainRef.current = true;
       return existing;
     }
+    // The checkpoint writes the draft in its own transaction, so the draft
+    // write that waits is not needed first. The document work that waits is
+    // written now, and the checkpoint starts at once: an explicit save waits
+    // for no timer and for no read (record 0176).
+    localWrite.cancel();
     const run = (async (): Promise<boolean> => {
       await startWrittenRef.current;
-      await localWorkWrittenRef.current;
+      await writeLocalWork.current();
       const current = live.current;
       if (localWorkLostRef.current) {
         try {
@@ -661,8 +875,6 @@ function NoteEditorBody({
           return false;
         }
       }
-      const saved = await saveDraftNow.current();
-      if (!saved) return false;
       try {
         // The document holds every change of this editor already, and the
         // buffer can lag remote work that the store took first. The version
@@ -675,23 +887,30 @@ function NoteEditorBody({
           'document',
         );
         versionedSequenceRef.current = draft.sequence;
+        // A checkpoint that wrote no version wrote no draft either, and the
+        // draft is the recovery data of this text.
+        if (entry === null) void saveDraftNow.current();
+        else draftTaken.current(draft);
         // The new checkpoint is the parent of the next one. Holding it here
         // keeps the editor right even when its draft row is removed, so a
         // later save never names a parent the file already passed.
         const created = entry?.input.revisions[0]?.id;
-        if (created !== undefined) setBaseOverride(created);
+        if (created !== undefined) baseRef.current = created;
         callbacks.current.onQueued?.(entry);
         setStorageError(null);
-        await refreshQueue.current();
+        askQueue(true);
         return true;
       } catch (failure: unknown) {
+        // The text stays recovery data of this device whatever the version
+        // did, so the draft is written now.
+        void saveDraftNow.current();
         // A `stale` refusal is not a failed write. The store holds a newer
         // statement of this file than the editor does, for example a deletion
         // that arrived from the sidebar or another device, so nothing was
-        // lost and nothing is for the person to fix. The queue read below
-        // brings the editor to what the store holds.
+        // lost and nothing is for the person to fix. The queue read brings
+        // the editor to what the store holds.
         if (isLocalStorageError(failure) && failure.kind === 'stale') {
-          await refreshQueue.current();
+          askQueue(true);
           return false;
         }
         setStorageError(
@@ -717,10 +936,6 @@ function NoteEditorBody({
   flushVersion.current = (): void => {
     if (isDeletedRef.current) return;
     if (bufferWasReplaced()) return;
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
     if (versionTimerRef.current !== null) {
       window.clearTimeout(versionTimerRef.current);
       versionTimerRef.current = null;
@@ -729,31 +944,35 @@ function NoteEditorBody({
   };
 
   useEffect(() => {
-    void refreshQueue.current();
+    askQueue(true);
     const unsubscribe = live.current.store.subscribe((change) => {
       const current = live.current;
       if (
-        change.accountId === current.accountId &&
-        change.workspaceId === current.workspaceId &&
-        (change.fileId === null || change.fileId === current.fileId)
-      ) {
-        if (change.kind === 'purge') isDeletedRef.current = true;
-        void refreshQueue.current();
+        change.accountId !== current.accountId ||
+        change.workspaceId !== current.workspaceId ||
+        (change.fileId !== null && change.fileId !== current.fileId)
+      )
+        return;
+      if (change.kind === 'purge') isDeletedRef.current = true;
+      // The document work of this editor is already in its document, so its
+      // own announcement asks for nothing. The work of another tab joins
+      // the open document, and a draft never touches it (record 0175).
+      if (change.kind === 'document') {
+        if (change.sameTab !== true) askQueue(true);
+        return;
       }
+      askQueue(change.kind !== 'draft');
     });
     const polling = window.setInterval(() => {
-      void refreshQueue.current();
+      askQueue(true);
     }, saveStateFallbackMs);
     return () => {
       unsubscribe();
       window.clearInterval(polling);
-      if (saveTimerRef.current !== null) {
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
+      queueRead.stop();
       documentWork.cancel();
     };
-  }, [workingCopyId, documentWork]);
+  }, [workingCopyId, documentWork, queueRead, askQueue]);
 
   // KaTeX and its stylesheet load after the first paint. The rich
   // compartment refreshes without changing the editor document, selection,
@@ -826,18 +1045,17 @@ function NoteEditorBody({
     const view = createEditor(
       container,
       bufferRef.current,
-      (text) => {
+      (readText) => {
+        // A key sets no React state and writes nothing to the store. It
+        // keeps a reader of the text, counts the change and moves the
+        // timers (record 0175).
         const startedAt = performance.now();
-        bufferRef.current = text;
-        documentWork.schedule(text);
+        textReaderRef.current = readText;
+        documentWork.schedule(readText);
+        const first = sequenceRef.current === writtenSequenceRef.current;
         sequenceRef.current += 1;
-        setDraftPending(true);
-        if (saveTimerRef.current !== null)
-          window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = window.setTimeout(() => {
-          saveTimerRef.current = null;
-          void saveDraftNow.current();
-        }, draftSaveDelayMs);
+        if (first) showSaveFacts.current();
+        localWrite.touch();
         // A pause in typing creates a version. The timer resets on every
         // keystroke, so a burst becomes one version, not one per key.
         if (versionTimerRef.current !== null)
@@ -855,13 +1073,7 @@ function NoteEditorBody({
           },
         },
         onSave: () => {
-          void (async (): Promise<void> => {
-            if (saveTimerRef.current !== null) {
-              window.clearTimeout(saveTimerRef.current);
-              saveTimerRef.current = null;
-            }
-            await checkpointNow.current();
-          })();
+          flushVersion.current();
         },
         theme: themeRef.current,
         spellCheck: spellCheckRef.current,
@@ -880,10 +1092,9 @@ function NoteEditorBody({
         },
         // Work of another device is not input of this device: the screen
         // shows it and schedules no save of its own (record 0085).
-        onRemoteChange: (text) => {
-          bufferRef.current = text;
-          setBufferText(text);
-          documentWork.schedule(text);
+        onRemoteChange: (readText) => {
+          textReaderRef.current = readText;
+          documentWork.schedule(readText);
           void saveDraftNow.current();
         },
       },
@@ -901,12 +1112,13 @@ function NoteEditorBody({
       activeNote.current.register(null);
       view.destroy();
     };
-  }, [workingCopyId, documentWork]);
+  }, [workingCopyId, documentWork, localWrite]);
 
-  // Every local change of the open document is written to this device at
-  // once, so a reload and a second tab both read the work of this editor
-  // (record 0085). The document is the one source of the text, so the save
-  // path that follows sends exactly the work this device added.
+  // The local changes of the open document are written to this device after
+  // a pause, at most `localWriteMaxWaitMs` after the first, so a reload and a
+  // second tab both read the work of this editor (records 0085, 0175). The
+  // document is the one source of the text, so the save path that follows
+  // sends exactly the work this device added.
   useEffect(() => {
     const bound = sessionRef.current;
     const start = bound.startWork;
@@ -928,33 +1140,14 @@ function NoteEditorBody({
           },
         );
     }
-    const stop = bound.onLocalWork((update) => {
-      const current = live.current;
-      const written = current.store
-        .mergeNoteWork(
-          current.accountId,
-          current.workspaceId,
-          current.fileId,
-          update,
-        )
-        .then(
-          () => undefined,
-          () => {
-            // The next checkpoint writes the whole document again and
-            // reports the failure when that write fails too.
-            localWorkLostRef.current = true;
-          },
-        );
-      localWorkWrittenRef.current = Promise.all([
-        localWorkWrittenRef.current,
-        written,
-      ]).then(() => undefined);
-    });
     return () => {
-      stop();
+      // The work that waits is written before the document closes, so the
+      // version that leaving the note makes holds it.
+      localWrite.flush();
+      void writeLocalWork.current();
       bound.release();
     };
-  }, [workingCopyId]);
+  }, [workingCopyId, localWrite]);
 
   // Theme changes reconfigure one compartment, keeping document, undo,
   // selection, and composition exactly where they are.
@@ -970,32 +1163,44 @@ function NoteEditorBody({
   }, [spellCheck]);
 
   // The note list feeds the link completion. It travels through one
-  // compartment, so a refreshed list never replaces the document.
+  // compartment, so a refreshed list never replaces the document. Only a
+  // change of the file list reads it again, one read at a time (record 0176).
   useEffect(() => {
     let cancelled = false;
-    const publish = async (): Promise<void> => {
+    // The list the view holds, so an unchanged list reconfigures nothing.
+    let shown: string | null = null;
+    const read = createCoalescedRead(async (): Promise<void> => {
       try {
         const files = await store.listLocalFiles(accountId, workspaceId);
         const view = viewRef.current;
         if (cancelled || view === null) return;
+        const notes = files
+          .filter((file) => file.kind === 'note' && !file.deleted)
+          .map((file) => ({ path: file.path }));
+        const key = JSON.stringify([validPathRef.current, notes]);
+        if (key === shown) return;
+        shown = key;
         setNoteLinkSource(view, {
           currentPath: validPathRef.current,
-          notes: files
-            .filter((file) => file.kind === 'note' && !file.deleted)
-            .map((file) => ({ path: file.path })),
+          notes,
         });
       } catch {
         // Completion is an aid. Without the list the person still types a
         // link by hand, so a failed read changes nothing else.
       }
-    };
-    void publish();
+    });
+    read.ask();
     const unsubscribe = store.subscribe((change) => {
-      if (change.accountId === accountId && change.workspaceId === workspaceId)
-        void publish();
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        fileListChange(change)
+      )
+        read.ask();
     });
     return () => {
       cancelled = true;
+      read.stop();
       unsubscribe();
     };
   }, [store, accountId, workspaceId, workingCopyId]);
@@ -1048,10 +1253,7 @@ function NoteEditorBody({
     const existing = deleteInFlightRef.current;
     if (existing !== null) return existing;
     isDeletedRef.current = true;
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
+    localWrite.cancel();
     if (versionTimerRef.current !== null) {
       window.clearTimeout(versionTimerRef.current);
       versionTimerRef.current = null;
@@ -1079,7 +1281,7 @@ function NoteEditorBody({
         return false;
       }
       setEditorNotice('');
-      await refreshQueue.current();
+      askQueue(true);
       return true;
     })();
     deleteInFlightRef.current = run;
@@ -1087,31 +1289,16 @@ function NoteEditorBody({
       if (deleteInFlightRef.current === run) deleteInFlightRef.current = null;
     });
     return run;
-  }, []);
+  }, [localWrite, askQueue, setStorageError]);
 
-  const saveState: SaveState = resolveSaveState({
-    draftWritePending: draftPending,
-    queueState: saveSnapshot?.queueState ?? null,
-    storageError,
-    hasUncheckpointedDraft: saveSnapshot?.hasUncheckpointedDraft ?? true,
-    acceptedHeadRevisionId: saveSnapshot?.acceptedHeadRevisionId ?? null,
-    localHeadRevisionId: saveSnapshot?.localHeadRevisionId ?? null,
-  });
-  // The buffer is the only copy until the draft commits, and it is the only
-  // copy again when storage fails. Both cases block an unsafe reload. A
-  // queued save is durable on this device, so it never blocks one.
-  useBlockUnsafeReload(draftPending || storageError !== null);
-  const hasUnsavedEdits =
-    draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false);
+  // The root states the save state from its first frame on, and later
+  // changes write it through `showSaveFacts`.
+  useLayoutEffect(() => {
+    showSaveFacts.current();
+  }, []);
   // The note saves itself, so this is the one place that states a failed
   // local write, and the sidebar footer stops claiming that it is saved.
   const writeFailure = localWriteFailureMessage(storageError);
-  usePublishNoteSave({
-    state: saveState,
-    hasUnsavedEdits,
-    localWriteFailed: localWriteFailed(storageError),
-    lastSavedAt,
-  });
 
   /** Inserts Markdown at the current cursor through an editor transaction. */
   const insertAtCursor = (text: string): void => {
@@ -1222,7 +1409,7 @@ function NoteEditorBody({
       typed: name,
       folder: folderRef.current,
       currentPath: validPathRef.current,
-      notes: noteList.notes,
+      notes: filesRef.current.notes,
       fileId,
     });
     if (outcome.kind === 'refused') {
@@ -1236,13 +1423,8 @@ function NoteEditorBody({
     validPathRef.current = outcome.path;
     sequenceRef.current += 1;
     nameEditPendingRef.current = true;
-    setDraftPending(true);
-    if (saveTimerRef.current !== null)
-      window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => {
-      saveTimerRef.current = null;
-      void saveDraftNow.current();
-    }, draftSaveDelayMs);
+    showSaveFacts.current();
+    localWrite.touch();
     // A pause after a rename creates a version, as a pause in typing does.
     if (versionTimerRef.current !== null)
       window.clearTimeout(versionTimerRef.current);
@@ -1281,7 +1463,7 @@ function NoteEditorBody({
       ...current,
       path: validPathRef.current,
       text: bufferRef.current,
-      takenPaths: noteList.notes.map((entry) => entry.path),
+      takenPaths: filesRef.current.notes.map((entry) => entry.path),
     }).then(
       (copyId) => navigate(`/w/${current.workspaceId}/notes/${copyId}`),
       (failure: unknown) =>
@@ -1289,13 +1471,13 @@ function NoteEditorBody({
           isLocalStorageError(failure) ? failure.kind : 'aborted',
         ),
     );
-  }, [noteList.notes, navigate]);
+  }, [filesRef.current.notes, navigate]);
 
   /** Deletes the open note, tells the person, and leaves for the note list. */
   const deleteNoteAndLeave = useCallback((): void => {
     const deletedName = displayNoteName(validPathRef.current);
     const deletedFolder = folderOf(validPathRef.current);
-    if (deletedFolder !== '') noteList.addEmptyFolder(deletedFolder);
+    if (deletedFolder !== '') filesRef.current.addEmptyFolder(deletedFolder);
     void (async (): Promise<void> => {
       const moved = await deleteOpenNote();
       if (!moved) return;
@@ -1313,7 +1495,7 @@ function NoteEditorBody({
     workspaceId,
     fileId,
     navigate,
-    noteList,
+    filesRef,
   ]);
 
   /** Opens the Move to folder dialog that the note screen owns. */
@@ -1393,7 +1575,10 @@ function NoteEditorBody({
       copyMarkdown: copyNote.run,
       publish: publishNote,
       format: runFormat,
-      formatContext,
+      // The palette reads the rows when it opens, so a move of the caret
+      // registers nothing, and the frame imports no editor code (record
+      // 0177).
+      formatRows: () => formatPaletteRows(formatContextRef.current),
       insertTemplate,
     }),
     [
@@ -1406,17 +1591,13 @@ function NoteEditorBody({
       copyNote.run,
       publishNote,
       runFormat,
-      formatContext,
       insertTemplate,
     ],
   );
   useRegisterNoteActions(noteScreenActions);
 
   return (
-    <div
-      className="flex h-full min-h-0 min-w-0 flex-col"
-      data-save-state={saveState}
-    >
+    <div className="flex h-full min-h-0 min-w-0 flex-col" ref={rootRef}>
       <NoteHeader
         fileId={fileId}
         name={name}
@@ -1549,7 +1730,7 @@ function NoteEditorBody({
                 }
               }}
             />
-            <NoteFooter text={bufferText} />
+            <NoteFooter initialText={initialText} />
             <ImageViewer
               image={openImage}
               onClose={() => {
@@ -1569,7 +1750,7 @@ function NoteEditorBody({
           >
             <div className={noteOutlineScrollClassName()}>
               <OutlinePanel
-                text={bufferText}
+                text={initialText}
                 open={outlineOpen}
                 onToggle={setOutlineOpen}
               />
@@ -1595,4 +1776,4 @@ function NoteEditorBody({
       {copyNote.toast}
     </div>
   );
-}
+});

@@ -14,6 +14,7 @@ import { editorBinding } from '@notesapp/note-document/editor-bridge';
 import { ySyncAnnotation, ySyncFacet } from 'y-codemirror.next';
 import {
   bindDocument,
+  holdLocalWork,
   isRemoteTransaction,
   openBoundNote,
   remoteWorkGate,
@@ -242,4 +243,38 @@ await test('the work of a note brings a store that missed a write up to the view
   assert.equal(readDocumentText(merged.value.document), note.text());
   assert.equal(note.text(), '- [x] task\nmore\n');
   note.release();
+});
+
+await test('the work of the person waits until it is taken, as one update', () => {
+  // Record 0175. Each key wrote its own update to the store, which decoded
+  // the stored document once for each key.
+  const stored = startDocument('# Note\n');
+  const session = openDocumentSession(stored);
+  const held = holdLocalWork(session);
+  let heard = 0;
+  held.listen(() => {
+    heard += 1;
+  });
+  const text = editorBinding(session).text;
+  text.insert(text.length, 'a');
+  text.insert(text.length, 'b');
+  text.insert(text.length, 'c');
+  assert.equal(heard, 3);
+  const work = held.take();
+  assert.ok(work !== null);
+  const merged = applyDocumentUpdate(stored, work);
+  assert.ok(merged.ok);
+  assert.equal(readDocumentText(merged.value.document), '# Note\nabc');
+  assert.equal(held.take(), null);
+  held.stop();
+  session.destroy();
+});
+
+await test('remote work is never held as work of the person', () => {
+  const session = openDocumentSession(startDocument('# Note\n'));
+  const held = holdLocalWork(session);
+  session.applyRemote(otherWork(session, '# Note\nremote\n'));
+  assert.equal(held.take(), null);
+  held.stop();
+  session.destroy();
 });

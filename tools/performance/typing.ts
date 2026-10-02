@@ -4,7 +4,8 @@
  *
  * Usage: `pnpm perf:typing`, which builds, installs the browser of the
  * `testing-changes-end-to-end` skill and runs this file. Pass `--keys <n>` to
- * type another number of keys per case.
+ * type another number of keys per case, and `--cases <names>` with names such
+ * as `2 KB,500 KB` to run some cases only.
  *
  * The run starts the built application on a new database, seeds the corpus
  * of `samples.ts`, opens one device and waits until it holds every note. Then
@@ -44,6 +45,7 @@ type TypingProbe = {
   readonly latencies: number[];
   readonly outsideByKey: number[];
   readonly targets: Record<string, number>;
+  readonly typingTargets: Record<string, number>;
   readonly longTasks: number[];
   idleOutside: number;
   typing: boolean;
@@ -76,6 +78,7 @@ function installProbe(): void {
     latencies: [],
     outsideByKey: [],
     targets: {},
+    typingTargets: {},
     longTasks: [],
     idleOutside: 0,
     typing: true,
@@ -109,6 +112,8 @@ function installProbe(): void {
       } else probe.idleOutside += 1;
       const key = describe(record.target, record.type, record.attributeName);
       probe.targets[key] = (probe.targets[key] ?? 0) + 1;
+      if (probe.typing)
+        probe.typingTargets[key] = (probe.typingTargets[key] ?? 0) + 1;
     }
   });
   mutations.observe(document.documentElement, {
@@ -180,6 +185,7 @@ function collectProbe(): {
   readonly outsideByKey: readonly number[];
   readonly idleOutside: number;
   readonly targets: Record<string, number>;
+  readonly typingTargets: Record<string, number>;
   readonly slowEvents: number;
   readonly longTasks: readonly number[];
 } {
@@ -192,6 +198,7 @@ function collectProbe(): {
     outsideByKey: probe.outsideByKey,
     idleOutside: probe.idleOutside,
     targets: probe.targets,
+    typingTargets: probe.typingTargets,
     slowEvents: probe.slowEventCount,
     longTasks: probe.longTasks,
   };
@@ -263,6 +270,9 @@ async function runCase(device: Device, item: TypingCase) {
       ),
     },
     topTargets,
+    typingTargets: Object.entries(probe.typingTargets)
+      .sort((left, right) => right[1] - left[1])
+      .map(([target, count]) => ({ target, count })),
   };
 }
 
@@ -287,8 +297,15 @@ try {
       { name: '2 KB at 4x CPU', note: small, cpuRate: 4 },
       { name: '500 KB at 4x CPU', note: huge, cpuRate: 4 },
     ];
+    const casesAt = process.argv.indexOf('--cases');
+    const chosen =
+      casesAt === -1
+        ? cases
+        : cases.filter((item) =>
+            (process.argv[casesAt + 1] ?? '').split(',').includes(item.name),
+          );
     const results = [];
-    for (const item of cases) results.push(await runCase(device, item));
+    for (const item of chosen) results.push(await runCase(device, item));
     report({
       environment: {
         node: process.version,

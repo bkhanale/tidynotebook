@@ -37,7 +37,7 @@ export type HeadingName = {
 export function useHeadingName(
   initialText: string,
   pathRef: RefObject<string>,
-  textRef: RefObject<string>,
+  textRef: { readonly current: string },
 ): HeadingName {
   const [opened] = useState(() => headingNameOf(initialText));
   const lastHeading = useRef(opened);

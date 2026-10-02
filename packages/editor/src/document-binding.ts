@@ -171,6 +171,52 @@ export function bindDocument(session: DocumentSession): DocumentBinding {
   };
 }
 
+/** The local work of one session that no store took yet. */
+export type HeldLocalWork = {
+  /** Runs on every change of the person. */
+  readonly listen: (listener: () => void) => () => void;
+  /** The held work as one update, or `null`, and holds nothing after it. */
+  readonly take: () => Uint8Array | null;
+  /** Stops holding and stops every listener. */
+  readonly stop: () => void;
+};
+
+/**
+ * Holds the updates of the person on one session until a screen takes them
+ * (record 0175). Remote work and repair are never held: the store already
+ * has them. The updates merge on take, so a burst of keys is one write.
+ */
+export function holdLocalWork(session: DocumentSession): HeldLocalWork {
+  let held: Uint8Array[] = [];
+  const listeners = new Set<() => void>();
+  const stopHolding = session.subscribe((change) => {
+    if (change.origin !== 'local') return;
+    held.push(change.update);
+    for (const listener of [...listeners]) listener();
+  });
+  return {
+    listen: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    take: () => {
+      const taken = held;
+      held = [];
+      if (taken.length === 0) return null;
+      return taken.length === 1
+        ? (taken[0] ?? null)
+        : mergeDocumentUpdates(taken);
+    },
+    stop: () => {
+      stopHolding();
+      listeners.clear();
+      held = [];
+    },
+  };
+}
+
 /** One open note, joined to one view, as a screen uses it. */
 export type BoundNote = {
   /** The extensions that join the view to the document. */
@@ -202,8 +248,17 @@ export type BoundNote = {
    * nothing.
    */
   join(stored: Uint8Array): void;
-  /** Runs on every change of the person, with the work that it added. */
-  onLocalWork(listener: (update: Uint8Array) => void): () => void;
+  /**
+   * Runs on every change of the person. The work waits here until the screen
+   * takes it, so a key writes nothing to storage (record 0175).
+   */
+  onLocalWork(listener: () => void): () => void;
+  /**
+   * The work of the person since the last take, as one update, or `null`
+   * when there is none. The screen writes it to the store after a pause in
+   * typing and before every save.
+   */
+  takeLocalWork(): Uint8Array | null;
   /** Releases the binding and ends the note. Every later call throws. */
   release(): void;
 };
@@ -227,6 +282,7 @@ export function openBoundNote(
     written !== null && written.ok ? written.value.document : bytes;
   const session = openDocumentSession(opened);
   const binding = bindDocument(session);
+  const localWork = holdLocalWork(session);
   return {
     startWork:
       opened === bytes
@@ -238,12 +294,10 @@ export function openBoundNote(
     join(document: Uint8Array): void {
       binding.applyRemote(encodeDocumentDelta(document, session.stateVector()));
     },
-    onLocalWork(listener: (update: Uint8Array) => void): () => void {
-      return session.subscribe((change) => {
-        if (change.origin === 'local') listener(change.update);
-      });
-    },
+    onLocalWork: localWork.listen,
+    takeLocalWork: localWork.take,
     release(): void {
+      localWork.stop();
       binding.release();
       session.destroy();
     },

@@ -16,7 +16,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { FormatActionId, FormatContext } from '@notesapp/editor';
+import type { FormatActionId } from '@notesapp/editor';
+import type { FormatPaletteRow } from '../../lib/format-toolbar.ts';
 
 /** What the open note screen can do on request. */
 export type NoteScreenActions = {
@@ -40,8 +41,11 @@ export type NoteScreenActions = {
    * (record 0094).
    */
   readonly format: ((id: FormatActionId) => void) | null;
-  /** Where the caret of the open editor stands, for the palette rows. */
-  readonly formatContext: FormatContext;
+  /**
+   * The formatting rows of the palette for where the caret stands now. The
+   * open note gives them, so the frame loads no editor code (record 0177).
+   */
+  readonly formatRows: () => readonly FormatPaletteRow[];
   /**
    * Fills one template note and writes it over the selection of the open
    * editor (record 0149).

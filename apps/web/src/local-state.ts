@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WorkspaceFileSummary } from '@notesapp/api-client';
 import type { LocalChange, LocalFileSummary, LocalStore } from '@notesapp/sync';
+import { createCoalescedRead } from './lib/coalesced-read.ts';
 
 /** The result of one reactive durable local query. */
 export type LocalQueryState<T> =
@@ -11,6 +12,10 @@ export type LocalQueryState<T> =
 /**
  * Runs a local query after matching committed changes, focus, and a safety
  * interval. The query reads IndexedDB again. An event is never treated as data.
+ *
+ * One query runs at a time, and the changes that arrive while it runs ask for
+ * one more run after it (`lib/coalesced-read.ts`), so a burst of changes reads
+ * twice and not once per change (record 0176).
  */
 export function useLocalQuery<T>(
   store: LocalStore | null,
@@ -27,51 +32,47 @@ export function useLocalQuery<T>(
 ): LocalQueryState<T> {
   const queryRef = useRef(query);
   const acceptsRef = useRef(accepts);
-  const generationRef = useRef(0);
   queryRef.current = query;
   acceptsRef.current = accepts;
   const [state, setState] = useState<LocalQueryState<T>>({
     status: 'loading',
     value: initial,
   });
-  const load = useCallback((): void => {
+
+  useEffect(() => {
     if (store === null || accountId === null || workspaceId === null) {
       setState({ status: 'ready', value: initial });
       return;
     }
-    generationRef.current += 1;
-    const generation = generationRef.current;
-    void queryRef
-      .current(store, accountId, workspaceId)
-      .then((value) => {
-        if (generation === generationRef.current)
-          setState({ status: 'ready', value });
-      })
-      .catch(() => {
-        if (generation === generationRef.current)
-          setState((current) => ({ status: 'error', value: current.value }));
-      });
-  }, [store, accountId, workspaceId, initial]);
-
-  useEffect(() => {
-    load();
-    if (store === null || accountId === null || workspaceId === null) return;
+    let current = true;
+    const read = createCoalescedRead(async () => {
+      try {
+        const value = await queryRef.current(store, accountId, workspaceId);
+        if (current) setState({ status: 'ready', value });
+      } catch {
+        if (current)
+          setState((previous) => ({ status: 'error', value: previous.value }));
+      }
+    });
+    read.ask();
     const unsubscribe = store.subscribe((change) => {
       if (
         change.accountId === accountId &&
         change.workspaceId === workspaceId &&
         acceptsRef.current(change)
       )
-        load();
+        read.ask();
     });
-    window.addEventListener('focus', load);
-    const timer = window.setInterval(load, fallbackMs);
+    window.addEventListener('focus', read.ask);
+    const timer = window.setInterval(read.ask, fallbackMs);
     return () => {
+      current = false;
+      read.stop();
       unsubscribe();
-      window.removeEventListener('focus', load);
+      window.removeEventListener('focus', read.ask);
       window.clearInterval(timer);
     };
-  }, [store, accountId, workspaceId, load, fallbackMs]);
+  }, [store, accountId, workspaceId, initial, fallbackMs]);
 
   return state;
 }

@@ -9,6 +9,7 @@
  * resolved URLs; it never creates or revokes one itself.
  */
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -16,6 +17,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import { createAttachmentLoader } from '../../lib/attachment-content.ts';
+import { createCoalescedRead } from '../../lib/coalesced-read.ts';
 import { extractAttachmentRefs } from '@notesapp/markdown';
 import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 
@@ -63,6 +65,12 @@ function sameUrls(
 export type AttachmentUrls = {
   readonly attachmentUrls: ReadonlyMap<string, string>;
   readonly attachmentUrlsRef: MutableRefObject<ReadonlyMap<string, string>>;
+  /**
+   * Reads the references of a new text of the note. The editor calls it after
+   * a quiet time, never for each key, and an unchanged set of references
+   * reads nothing (record 0175).
+   */
+  readonly scan: (text: string) => void;
 };
 
 /**
@@ -71,13 +79,14 @@ export type AttachmentUrls = {
  * URLs are created for the references the buffer names and revoked when their
  * references leave the note and when the editor closes. The returned ref
  * always holds the current map, so a resolver can read it without a rerender.
+ * The map changes, and the screen renders, only when a URL comes or goes.
  */
 export function useAttachmentUrls(
   store: LocalStore,
   accountId: string,
   workspaceId: string,
-  notePath: string,
-  bufferText: string,
+  notePathRef: { readonly current: string },
+  initialText: string,
   recentAttachments: ReadonlyMap<string, string>,
 ): AttachmentUrls {
   const [attachmentUrls, setAttachmentUrls] = useState<
@@ -88,6 +97,8 @@ export function useAttachmentUrls(
   const ownedUrlsRef = useRef<
     Map<string, { url: string; dispose: () => void }>
   >(new Map());
+  const textRef = useRef(initialText);
+  const askRef = useRef<() => void>(() => {});
   const loader = useMemo(
     () => createAttachmentLoader(workspaceId),
     [workspaceId],
@@ -98,18 +109,35 @@ export function useAttachmentUrls(
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    void (async (): Promise<void> => {
-      const references = extractAttachmentRefs(bufferText, notePath);
-      let files: readonly LocalFileSummary[];
-      try {
-        files = await store.listLocalFiles(accountId, workspaceId);
-      } catch {
-        // A read of local storage that fails keeps the pictures that are
-        // shown. The write of the same keystroke fails too, and the note
-        // states that failure once (`lib/local-write.ts`).
-        return;
-      }
+    // The references and the recent uploads of the last read, so a text
+    // whose references did not change reads nothing.
+    let lastKey: string | null = null;
+    const read = createCoalescedRead(async (): Promise<void> => {
+      const references = extractAttachmentRefs(
+        textRef.current,
+        notePathRef.current,
+      );
+      const key = JSON.stringify(references);
+      if (key === lastKey) return;
+      // Only a reference by path needs the file list of the area.
+      const needsFiles = references.some(
+        (reference) =>
+          reference.revisionId === null &&
+          reference.targetPath !== null &&
+          !recentAttachments.has(reference.targetPath),
+      );
+      let files: readonly LocalFileSummary[] = [];
+      if (needsFiles)
+        try {
+          files = await store.listLocalFiles(accountId, workspaceId);
+        } catch {
+          // A read of local storage that fails keeps the pictures that are
+          // shown. The write of the same text fails too, and the note
+          // states that failure once (`lib/local-write.ts`).
+          return;
+        }
       if (cancelled) return;
+      lastKey = key;
       const wanted = references.flatMap((reference) => {
         if (reference.revisionId !== null)
           return [
@@ -138,10 +166,10 @@ export function useAttachmentUrls(
           : [{ key: reference.targetPath, revisionId }];
       });
       const owned = ownedUrlsRef.current;
-      for (const [key, entry] of owned) {
-        if (!wanted.some((item) => item.key === key)) {
+      for (const [ownedKey, entry] of owned) {
+        if (!wanted.some((item) => item.key === ownedKey)) {
           entry.dispose();
-          owned.delete(key);
+          owned.delete(ownedKey);
         }
       }
       for (const item of wanted) {
@@ -168,20 +196,21 @@ export function useAttachmentUrls(
                 [...owned].map(([id, entry]) => [id, entry.url] as const),
               ),
         );
-    })();
+    });
+    askRef.current = read.ask;
+    read.ask();
     return () => {
       cancelled = true;
+      read.stop();
+      askRef.current = () => {};
       controller.abort();
     };
-  }, [
-    store,
-    accountId,
-    workspaceId,
-    notePath,
-    loader,
-    bufferText,
-    recentAttachments,
-  ]);
+  }, [store, accountId, workspaceId, notePathRef, loader, recentAttachments]);
+
+  const scan = useCallback((text: string): void => {
+    textRef.current = text;
+    askRef.current();
+  }, []);
 
   useEffect(
     () => () => {
@@ -191,5 +220,5 @@ export function useAttachmentUrls(
     [],
   );
 
-  return { attachmentUrls, attachmentUrlsRef };
+  return { attachmentUrls, attachmentUrlsRef, scan };
 }

@@ -42,6 +42,8 @@
  * there.
  */
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -112,7 +114,6 @@ import {
   folderExpansionLabels,
 } from '../lib/folder-expansion.ts';
 import { noteOrderLabel, noteOrders } from '../lib/note-order.ts';
-import { formatPaletteRows } from '../lib/format-toolbar.ts';
 import {
   MoveItemsDialog,
   NewFolderDialog,
@@ -177,7 +178,7 @@ import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import {
   NoteSaveScope,
   useFlushNoteDraft,
-  useNoteSave,
+  useNoteSaveFact,
   useOnline,
 } from '../features/editor/save-status.tsx';
 import { actionIcon } from './action-icons.tsx';
@@ -188,7 +189,6 @@ import {
   useHeaderSlot,
 } from './header-slot.tsx';
 import { KeyHint } from './key-hint.tsx';
-import { ShortcutsDialog } from './shortcuts.tsx';
 import {
   syncDotClassName,
   syncFooter,
@@ -225,6 +225,15 @@ import { SidebarViewBar, useSidebarView } from './sidebar-view-bar.tsx';
 import { sidebarViewLabels, type SidebarView } from '../lib/sidebar-view.ts';
 
 /** The name of the screen that lists every note of the workspace. */
+/**
+ * The list of shortcuts comes from the editor package, which loads the
+ * editor engine, so the dialog loads when it opens and the first screen reads
+ * no editor code (record 0177).
+ */
+const ShortcutsDialog = lazy(async () => ({
+  default: (await import('./shortcuts.tsx')).ShortcutsDialog,
+}));
+
 const allNotesTitle = 'All notes';
 
 /** The name of the screen that holds the notes a person deleted. */
@@ -432,12 +441,14 @@ function Sidebar({
   // One short sentence for the state of the work, beside the dot that states
   // the same thing without a word. A failed local write of the open note
   // takes both, because sync never saw that text.
-  const openNote = useNoteSave();
+  const openNoteWriteFailed = useNoteSaveFact(
+    (report) => report?.localWriteFailed ?? false,
+  );
   const footer = syncFooter({
     state: sync.state,
     online,
     noteName: sync.noteName,
-    openNoteWriteFailed: openNote?.localWriteFailed ?? false,
+    openNoteWriteFailed,
   });
   const syncLine = footer.line;
 
@@ -1331,7 +1342,7 @@ function ShellFrame({
             // editor takes the focus back.
             ...(noteActions.format === null
               ? []
-              : formatPaletteRows(noteActions.formatContext).map((row) => ({
+              : noteActions.formatRows().map((row) => ({
                   id: row.id,
                   label: row.label,
                   keywords: row.keywords,
@@ -1661,10 +1672,11 @@ function ShellFrame({
             accountId={accountId}
             actions={paletteActions}
           />
-          <ShortcutsDialog
-            open={shortcutsOpen}
-            onClose={() => setShortcutsOpen(false)}
-          />
+          {shortcutsOpen ? (
+            <Suspense fallback={null}>
+              <ShortcutsDialog open onClose={() => setShortcutsOpen(false)} />
+            </Suspense>
+          ) : null}
           {openWorkspace === null ? null : (
             <>
               <NewWorkspaceDialog
@@ -1748,10 +1760,10 @@ function ShellFrame({
 
 /** Whether this session already created one version of any note. */
 function useSavedOnce(): boolean {
-  const note = useNoteSave();
+  const saved = useNoteSaveFact((report) => report?.lastSavedAt != null);
   const [seen, setSeen] = useState(false);
   useEffect(() => {
-    if (note?.lastSavedAt != null) setSeen(true);
-  }, [note]);
+    if (saved) setSeen(true);
+  }, [saved]);
   return seen;
 }

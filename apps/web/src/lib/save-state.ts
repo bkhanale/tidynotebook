@@ -2,22 +2,21 @@
  * The save state of one note.
  *
  * `resolveSaveState` reads durable facts about one file only. The note saves
- * itself, so no control shows this state; the shell reads it for the facts it
- * needs about the open note, and the sidebar footer states the sync progress
- * of the whole notes area.
+ * itself, so no control shows this state. The note screen states it on its
+ * root for automation, and the frame reads only `NoteSaveReport`.
  */
 import type { LocalStorageErrorKind, QueueState } from '@notesapp/sync';
+import { localWriteFailed } from './local-write.ts';
 
 export type SaveState =
-  | 'saving-local'
-  | 'saved-local'
-  | 'syncing'
-  | 'saved-server'
-  | 'storage-full'
-  | 'save-failed';
+  'saved-local' | 'syncing' | 'saved-server' | 'storage-full' | 'save-failed';
 
+/**
+ * The durable facts of one file. A local write that runs is not one of them:
+ * a key would change it, and the reload guard of the note screen covers the
+ * text that no write took yet (record 0175).
+ */
 export type SaveStateInput = {
-  readonly draftWritePending: boolean;
   readonly queueState: QueueState | null;
   readonly storageError: LocalStorageErrorKind | null;
   readonly hasUncheckpointedDraft: boolean;
@@ -30,7 +29,6 @@ export function resolveSaveState(input: SaveStateInput): SaveState {
   if (input.storageError === 'quota') return 'storage-full';
   if (input.storageError !== null) return 'save-failed';
   if (input.queueState === 'conflict') return 'save-failed';
-  if (input.draftWritePending) return 'saving-local';
   if (input.hasUncheckpointedDraft) return 'saved-local';
   if (input.queueState === 'sending') return 'syncing';
   if (input.queueState === 'pending') return 'saved-local';
@@ -42,14 +40,29 @@ export function resolveSaveState(input: SaveStateInput): SaveState {
   return 'saved-local';
 }
 
-/** What the note screen publishes to the shell about the open note. */
-export type NoteSaveFacts = {
-  readonly state: SaveState;
-  /** Text is typed but no version was created from it yet. */
-  readonly hasUnsavedEdits: boolean;
+/**
+ * What the note screen publishes to the frame about the open note.
+ *
+ * Only the facts the frame shows: a key changes neither, so a key renders no
+ * part of the frame (record 0175).
+ */
+export type NoteSaveReport = {
   /**
    * A write to local storage failed, so the typed text is only in this tab.
    * `lib/local-write.ts` decides it.
    */
   readonly localWriteFailed: boolean;
+  /** When the last version of this note was created, as an ISO instant. */
+  readonly lastSavedAt: string | null;
 };
+
+/** The report of the open note, from the two facts that decide it. */
+export function noteSaveReport(input: {
+  readonly storageError: LocalStorageErrorKind | null;
+  readonly lastSavedAt: string | null;
+}): NoteSaveReport {
+  return {
+    localWriteFailed: localWriteFailed(input.storageError),
+    lastSavedAt: input.lastSavedAt,
+  };
+}

@@ -31,13 +31,14 @@ too: `packages/sync/src/create-note.ts` writes the first draft and its
 checkpoint together. See
 [decision 0104](../decisions/0104-a-new-note-is-a-version-when-it-is-made.md).
 
-A draft write is coalesced, so typing does not write once per keystroke. A
-checkpoint first finishes the current draft write, then creates one immutable
-local version and wakes the sync engine. The store suppresses a checkpoint
-whose content, path, and deletion state are unchanged.
-
-A draft write carries a sequence number, and storage ignores an older sequence,
-so a late transaction cannot replace newer text.
+A key writes nothing: one local write takes the document work and the draft
+of a burst after a pause (`apps/web/src/features/editor/write-schedule.ts`,
+[decision 0175](../decisions/0175-a-key-changes-only-the-editor.md)). A
+checkpoint writes the waiting work, then one local version with its draft,
+and wakes the engine at once
+([decision 0176](../decisions/0176-a-save-waits-for-no-read.md)). The store
+suppresses a checkpoint whose content, path, and deletion are unchanged. A
+draft carries a sequence, and storage ignores an older one.
 
 ## The save transaction
 
@@ -94,12 +95,12 @@ tab reads the open workspace of every tab. A notice of the server only wakes an
 engine, and only an applied feed page moves a cursor (record 0130).
 
 Snapshot activation changes accepted server state only. It never deletes a
-draft or a queued version.
+draft or a queued version, and it announces one change of the workspace.
 
 ## Protocol check
 
 Before each push and each pull, the sync engine reads the sync protocol
-versions that the server serves. A client that does not fit sends nothing and
+versions that the server serves, at the same time as the session. A client that does not fit sends nothing and
 reads nothing, and it keeps every draft and queued save. A server that answers
 this read with the unknown path refusal predates the check and serves version
 1 only. `packages/sync/src/protocol.ts` holds the rule, and

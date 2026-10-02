@@ -63,14 +63,20 @@ export default function VersionPreview({
   const [renderMath, setRenderMath] = useState<
     ((source: string, display: boolean) => string) | null
   >(null);
-  const { attachmentUrls, attachmentUrlsRef } = useAttachmentUrls(
+  const pathRef = useRef(path);
+  pathRef.current = path;
+  const { attachmentUrls, attachmentUrlsRef, scan } = useAttachmentUrls(
     store,
     accountId,
     workspaceId,
-    path,
+    pathRef,
     text,
     noRecentAttachments,
   );
+  // A preview shows one version, and a new version is a new text to scan.
+  useEffect(() => {
+    scan(text);
+  }, [scan, text, path]);
 
   // KaTeX loads after the first paint, as it does on the note screen.
   useEffect(() => {

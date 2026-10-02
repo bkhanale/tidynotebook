@@ -3,7 +3,6 @@ import test from 'node:test';
 import { resolveSaveState, type SaveStateInput } from './save-state.ts';
 
 const accepted: SaveStateInput = {
-  draftWritePending: false,
   queueState: null,
   storageError: null,
   hasUncheckpointedDraft: false,
@@ -38,11 +37,15 @@ await test('save state follows only the current file durable lifecycle', () => {
     'save-failed',
   );
   assert.equal(
-    resolveSaveState({ ...accepted, draftWritePending: true }),
-    'saving-local',
-  );
-  assert.equal(
     resolveSaveState({ ...accepted, storageError: 'quota' }),
     'storage-full',
   );
+});
+
+await test('a key changes no durable fact, so the state stays', () => {
+  // Record 0175. The state read a write that runs, which a key started, so
+  // the root of the note changed at the first key of each burst.
+  const typing = { ...accepted, hasUncheckpointedDraft: true };
+  assert.equal(resolveSaveState(typing), resolveSaveState({ ...typing }));
+  assert.ok(!('draftWritePending' in typing));
 });

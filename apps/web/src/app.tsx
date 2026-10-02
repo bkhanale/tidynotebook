@@ -1317,6 +1317,13 @@ export function useSyncState(): SyncValue {
   return useContext(SyncContext);
 }
 
+/**
+ * The ask for a pass alone. It never changes, so a screen that only asks,
+ * such as the open note, renders nothing when the state of sync changes
+ * (record 0175).
+ */
+const SyncRequestContext = createContext<() => void>(() => {});
+
 /** Publishes the sync state of the open workspace to the screens below. */
 export function SyncProvider({
   value,
@@ -1325,7 +1332,13 @@ export function SyncProvider({
   readonly value: SyncValue;
   readonly children: ReactNode;
 }): ReactNode {
-  return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
+  return (
+    <SyncContext.Provider value={value}>
+      <SyncRequestContext.Provider value={value.requestSync}>
+        {children}
+      </SyncRequestContext.Provider>
+    </SyncContext.Provider>
+  );
 }
 
 /**
@@ -1335,7 +1348,7 @@ export function SyncProvider({
  * the local cache follows at once instead of at the next safety interval.
  */
 export function useRequestSync(): () => void {
-  return useContext(SyncContext).requestSync;
+  return useContext(SyncRequestContext);
 }
 
 /**
