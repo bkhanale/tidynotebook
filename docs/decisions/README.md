@@ -198,6 +198,7 @@ and needs no record.
 | [0165](0165-a-long-list-renders-a-window-of-its-rows.md)                              | A long list renders a window of its rows                                        |
 | [0166](0166-history-shows-a-version-as-the-note-and-as-a-difference.md)               | History shows a version as the note and as a difference                         |
 | [0167](0167-search-reads-the-words-of-any-language-as-a-reader-sees-them.md)          | Search reads the words of any language as a reader sees them                    |
+| [0168](0168-a-note-read-carries-the-document-only-for-an-editor.md)                   | A note read carries the document only for an editor                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -694,3 +695,8 @@ Record 0167 answers
 [issue 265](https://github.com/bkhanale/notesapp/issues/265). Search uses one
 text configuration with no language rule and no accent, matches each word as a
 prefix, indexes the text that a reader sees, and quotes a bounded window of it.
+
+Record 0168 answers
+[issue 264](https://github.com/bkhanale/notesapp/issues/264). A note read
+carries the document of the note only for a reader that asks for it, and a
+reader that shows the text asks for the text alone.
