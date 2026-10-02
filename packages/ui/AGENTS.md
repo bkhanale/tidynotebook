@@ -21,11 +21,6 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
   One element takes one colour class, a tone is in a recipe, and a class is
   whole, as Tailwind reads the text. `src/icon-grid.ts` is the grid of an icon
   (24, 1.5, 16 and 20); `src/glyph.ts` draws `glyph-parts.ts` in plain DOM.
-  `menuSurfaceStyle` gives the values of the classes of a menu to a typed
-  adapter, from the one table of `menuSurfaceClassName`.
-- `src/copy-action.ts` holds the words of the three states of a copy control
-  (0174), and `src/code-figure.ts` the one recipe of a rendered code figure,
-  which the published page and the documentation site read.
 - `src/layout.tsx` holds the page frame, `pageGutter`, and the row of every
   page from `layout-classes.ts` (0137). `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
@@ -85,17 +80,19 @@ and the stylesheet fallbacks to one registry.
 
 ## Key files
 
-| File                      | Purpose                                     |
-| ------------------------- | ------------------------------------------- |
-| `src/index.ts`            | The one public entry point                  |
-| `src/themes/index.ts`     | The theme registry                          |
-| `src/theme.ts`            | Tokens, the colour scheme, contrast checks  |
-| `src/control-classes.ts`  | The one recipe of every control             |
-| `src/icon-grid.ts`        | The one grid and the two sizes of an icon   |
-| `src/icons.tsx`           | The one icon set                            |
-| `src/overlay-position.ts` | Where an overlay sits on the screen         |
-| `src/motion.ts`           | The named transitions of the application    |
-| `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow |
-| `src/layout-classes.ts`   | The row, column and side region of a page   |
-| `src/controls.tsx`        | Buttons, inputs and their wrappers          |
-| `THIRD_PARTY_LICENSES.md` | The source and licence of every palette     |
+| File                      | Purpose                                                 |
+| ------------------------- | ------------------------------------------------------- |
+| `src/index.ts`            | The one public entry point                              |
+| `src/themes/index.ts`     | The theme registry                                      |
+| `src/theme.ts`            | Tokens, the colour scheme, contrast checks              |
+| `src/control-classes.ts`  | The one recipe of every control, and `menuSurfaceStyle` |
+| `src/icon-grid.ts`        | The one grid and the two sizes of an icon               |
+| `src/icons.tsx`           | The one icon set                                        |
+| `src/overlay-position.ts` | Where an overlay sits on the screen                     |
+| `src/motion.ts`           | The named transitions of the application                |
+| `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow             |
+| `src/layout-classes.ts`   | The row, column and side region of a page               |
+| `src/controls.tsx`        | Buttons, inputs and their wrappers                      |
+| `src/copy-action.ts`      | The words of a copy control (0174)                      |
+| `src/code-figure.ts`      | The one recipe of a rendered code figure                |
+| `THIRD_PARTY_LICENSES.md` | The source and licence of every palette                 |
