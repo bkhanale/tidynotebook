@@ -68,13 +68,20 @@ import {
 import { codeHighlighter } from './code-tokens.ts';
 import {
   authorElements,
+  authorNestingDepth,
   authorProperties,
   authorStrippedElements,
+  neutralizeAuthorTags,
 } from './html-elements.ts';
+import { markdownLimits, MarkdownLimitError } from './limits.ts';
 import { createMarkdownProcessor, parseMarkdown } from './parse.ts';
 import { renderMath } from './math.ts';
 import { allowsExternalImage, classifyUrl, sanitizeSchema } from './policy.ts';
-import { taskMarkClass, taskMarkPoints } from './task-mark.ts';
+import {
+  taskMarkAttributes,
+  taskMarkClass,
+  taskMarkPoints,
+} from './task-mark.ts';
 
 /** Builds a text-only HTML element. */
 function textElement(
@@ -529,6 +536,15 @@ function keepAuthorChildren(
       continue;
     }
     const element = child;
+    // A template holds its children in a document of its own, so an
+    // unclosed one took every later block of the note out of the page. Its
+    // content goes back into the tree, and the template leaves its tags.
+    if (element.tagName === 'template' && element.content !== undefined) {
+      element.children = element.content.children.filter(
+        (inner): inner is ElementContent => inner.type !== 'doctype',
+      );
+      delete element.content;
+    }
     element.children = keepAuthorElements(element.children, renderer);
     const mark = element.properties[rendererMark];
     const own = typeof mark === 'string' ? renderer.get(mark) : undefined;
@@ -568,11 +584,29 @@ function keepAuthorElements(
  * of this render through that parse, and `keepAuthorChildren` reads it.
  *
  * A note with no HTML skips the parse, so its tree stays exactly as the
- * Markdown to HTML stage wrote it.
+ * Markdown to HTML stage wrote it. A tag of `neutralAuthorTags` is text before
+ * the parse, so no unclosed tag reads the rest of the note as text, and the
+ * nesting of the HTML is bounded before the parse recurses on it.
  */
 function keepAuthorHtml() {
   return (tree: HastRoot): HastRoot => {
     if (!holdsAuthorHtml(tree)) return tree;
+    const values: string[] = [];
+    visit(tree, 'raw', (node) => {
+      node.value = neutralizeAuthorTags(node.value);
+      values.push(node.value);
+    });
+    // An HTML block is one node of the Markdown tree, so the depth guard of
+    // the parse never saw the elements inside it, and the parse below and
+    // the serializer recurse on them. A document that nests deeper than the
+    // limit is refused here, with the error of every other deep document.
+    const depth = authorNestingDepth(values);
+    if (depth > markdownLimits.maxNestingDepth)
+      throw new MarkdownLimitError(
+        'nesting-depth',
+        markdownLimits.maxNestingDepth,
+        depth,
+      );
     const renderer = markRendererElements(tree, crypto.randomUUID());
     const parsed = raw(tree);
     if (parsed.type !== 'root')
@@ -603,16 +637,7 @@ function drawTaskMarks() {
       const mark: Element = {
         type: 'element',
         tagName: 'svg',
-        properties: {
-          className: [taskMarkClass],
-          viewBox: '0 0 24 24',
-          fill: 'none',
-          stroke: 'currentColor',
-          strokeWidth: '1.5',
-          strokeLinecap: 'round',
-          strokeLinejoin: 'round',
-          ariaHidden: 'true',
-        },
+        properties: { className: [taskMarkClass], ...taskMarkAttributes },
         children: [
           {
             type: 'element',

@@ -281,6 +281,10 @@ export const noteBodyClasses = [
   // of the accent with the strong text on it.
   '[&_kbd]:rounded-sm [&_kbd]:border [&_kbd]:border-edge-line [&_kbd]:bg-surface [&_kbd]:px-1 [&_kbd]:font-mono [&_kbd]:text-note-mono',
   '[&_mark]:rounded-sm [&_mark]:bg-accent-surface [&_mark]:px-0.5 [&_mark]:text-strong',
+  // A subscript and a superscript take the script step and the keyword
+  // offset of the editor, so neither moves its line, and small text the
+  // small step.
+  '[&_sub]:static [&_sub]:align-sub [&_sub]:text-note-script [&_sup]:static [&_sup]:align-super [&_sup]:text-note-script [&_small]:text-note-small',
   '[&_details]:my-4 [&_summary]:cursor-pointer [&_summary]:rounded-sm [&_summary:focus-visible]:outline-2 [&_summary:focus-visible]:outline-offset-2 [&_summary:focus-visible]:outline-focus',
   // A diagram that the script of record 0158 draws stands where its source
   // stood.

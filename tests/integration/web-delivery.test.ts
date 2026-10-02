@@ -181,6 +181,8 @@ await test('the framed diagram document may be framed by the shell only', async 
     assert.equal(answer.statusCode, 200);
     const policy = String(answer.headers['content-security-policy']);
     assert.match(policy, /frame-ancestors 'self'/);
+    // A top-level open of the frame is sandboxed by the answer itself.
+    assert.match(policy, /^sandbox allow-scripts; /);
     assert.match(policy, /script-src 'self' 'unsafe-inline'/);
     assert.equal(answer.headers['x-frame-options'], 'SAMEORIGIN');
   } finally {

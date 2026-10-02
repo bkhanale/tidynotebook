@@ -17,7 +17,8 @@ const html = await renderMarkdown(corpusMarkdown);
 
 await test('the corpus renders no script element and no unsafe HTML', () => {
   assert.ok(!html.includes('<script'));
-  assert.ok(!html.includes('raw block'));
+  // GFM tagfilter: the script reads as the text that the author typed.
+  assert.ok(html.includes("&#x3C;script>alert('raw block')&#x3C;/script>"));
   assert.ok(!html.includes('onclick'));
   // Record 0157. A safe element keeps its tags and loses every attribute that
   // the author list does not name.

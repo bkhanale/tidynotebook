@@ -700,12 +700,19 @@ async function composeApp(
   // A note that holds a diagram draws it with the one diagram script of the
   // build, in the frame that the editor uses (record 0158). A deployment that
   // serves no built assets answers none, and the page shows the source.
+  // The files of one build do not change while it serves, so the build is
+  // read once, at the first note that holds a diagram.
+  let diagramAssets: { readonly value: PublishedDiagramAssets | null } | null =
+    null;
   const publishedDiagrams = (): PublishedDiagramAssets | null => {
-    if (webDist === null) return null;
-    const script = publishedDiagramScriptHref(webDist);
-    return script === null
-      ? null
-      : { script, frame: publishedDiagramFrameHref };
+    if (diagramAssets !== null) return diagramAssets.value;
+    const script =
+      webDist === null ? null : publishedDiagramScriptHref(webDist);
+    diagramAssets = {
+      value:
+        script === null ? null : { script, frame: publishedDiagramFrameHref },
+    };
+    return diagramAssets.value;
   };
   // The cause of a reader refusal reaches the operator and reaches no answer.
   // The sink is filled once the instance exists, as the protocol sink below

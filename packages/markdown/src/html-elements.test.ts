@@ -8,9 +8,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   authorElements,
+  authorNestingDepth,
   authorProperties,
   authorStrippedElements,
   previewHtmlElements,
+  neutralizeAuthorTags,
   previewHtmlTag,
 } from './html-elements.ts';
 
@@ -102,4 +104,23 @@ await test('a tag that the editor does not draw reads as nothing', () => {
     '<kbd',
   ])
     assert.equal(previewHtmlTag(token), null, token);
+});
+
+await test('a neutral tag is written as text and every other tag is kept', () => {
+  assert.equal(
+    neutralizeAuthorTags('<textarea rows="2">a</TEXTAREA> <b>b</b>'),
+    '&lt;textarea rows="2">a&lt;/TEXTAREA> <b>b</b>',
+  );
+  assert.equal(neutralizeAuthorTags('<titles>'), '<titles>');
+  assert.equal(neutralizeAuthorTags('<select/>'), '&lt;select/>');
+});
+
+await test('the nesting of author HTML is counted as an upper bound', () => {
+  assert.equal(authorNestingDepth(['<div><div>', '</div></div>']), 2);
+  assert.equal(authorNestingDepth(['<b><i><u>x']), 3);
+  // A void element, a self closing tag and an element with an optional end
+  // tag open nothing.
+  assert.equal(authorNestingDepth(['<br><img src=x><span/><p>a<p>b<li>c']), 0);
+  // An attribute that holds a bracket does not end the tag early.
+  assert.equal(authorNestingDepth(['<abbr title="a>b">x</abbr>']), 1);
 });

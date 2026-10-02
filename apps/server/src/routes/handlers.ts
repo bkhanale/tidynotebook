@@ -27,6 +27,7 @@ import type { ReadinessProbe } from './health.ts';
 import { configurationProbe, createServiceHandlers } from './health.ts';
 import type { HandlerMap } from '../plugins/register.ts';
 import type { PublishedDiagramAssets } from '../plugins/security-headers.ts';
+import type { renderMarkdown } from '@notesapp/markdown';
 
 import {
   type AttachmentStore,
@@ -106,6 +107,8 @@ export type PublicationDependencies = {
    * composition that leaves it out serves every diagram as its source.
    */
   readonly diagrams?: () => PublishedDiagramAssets | null;
+  /** The renderer of a published note, for a test that counts its calls. */
+  readonly render?: typeof renderMarkdown;
   /** Where the cause of a reader refusal goes, for the operator only. */
   readonly recordRefusal: (cause: ReaderRefusalCause) => void;
 };
@@ -258,6 +261,9 @@ export function createHandlers(
             hasher: published.hasher,
             stylesheets: published.stylesheets,
             diagrams: published.diagrams ?? (() => null),
+            ...(published.render === undefined
+              ? {}
+              : { render: published.render }),
             clock: Date.now,
             recordRefusal: published.recordRefusal,
           },

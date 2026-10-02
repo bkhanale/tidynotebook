@@ -270,12 +270,11 @@ await test('a published diagram loads its script and its frame from the publishe
   );
   const frame = await onPages('GET', '/src/diagram/frame.html');
   assert.equal(frame.statusCode, 200);
-  // The frame may stand inside a page of its own origin and nowhere else.
-  assert.ok(
-    String(frame.headers['content-security-policy']).includes(
-      "frame-ancestors 'self'",
-    ),
-  );
+  // The frame may stand inside a page of its own origin and nowhere else,
+  // and the answer sandboxes it even when its address is opened directly.
+  const framePolicy = String(frame.headers['content-security-policy']);
+  assert.ok(framePolicy.includes("frame-ancestors 'self'"));
+  assert.ok(framePolicy.startsWith('sandbox allow-scripts; '), framePolicy);
   // A note with no diagram names no script, and its policy refuses every one.
   const plain = await onPages('GET', `/published/${first.token}`);
   assert.ok(!plain.body.includes('<script'));

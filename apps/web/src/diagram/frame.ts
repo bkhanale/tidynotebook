@@ -135,6 +135,26 @@ export function diagramThemeOptions(
   };
 }
 
+/** The part of a window that decides who may send the frame a request. */
+export type DiagramFrameWindow = {
+  readonly parent: unknown;
+};
+
+/**
+ * Whether the frame takes a message as a request of its parent.
+ *
+ * The frame draws for the page that holds it and for no one else. A frame
+ * document that a person opened at the top level has no parent, so it takes
+ * no request at all, and a framed one takes a request from its own parent
+ * only, never from a sibling frame or from a window that it opened.
+ */
+export function isParentMessage(
+  frame: DiagramFrameWindow,
+  source: unknown,
+): boolean {
+  return frame.parent !== frame && source === frame.parent;
+}
+
 /** True when a value is a six digit hex colour. */
 function isHexColour(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);

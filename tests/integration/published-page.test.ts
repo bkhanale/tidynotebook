@@ -60,7 +60,7 @@ import {
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
-import { isSafeMathStyle } from '@notesapp/markdown';
+import { isSafeMathStyle, renderMarkdown } from '@notesapp/markdown';
 import sharp from 'sharp';
 import { createDisposableDatabase } from './support/database.ts';
 import { LogRecorder, startTestServer } from './support/server.ts';
@@ -171,6 +171,10 @@ const server = await startTestServer({
         hasher,
         stylesheets: () => [stylesheet],
         diagrams: () => diagramAssets,
+        render: (source, options) => {
+          renders.push(source);
+          return renderMarkdown(source, options);
+        },
         recordRefusal: (cause) => causes.push(cause),
       },
     }),
@@ -182,6 +186,9 @@ configureClient(server.baseUrl, undefined);
 
 /** The refusal causes that the operator log received. */
 const causes: string[] = [];
+
+/** The source of every note that the reader path rendered, in order. */
+const renders: string[] = [];
 
 const ownerEmail = 'published-owner@notes.invalid';
 const ownerPassword = 'a-strong-published-password';
@@ -452,9 +459,9 @@ await test('a script and an event attribute never travel, a picture does', async
   );
   // The words around a dropped element stay, so nothing of the author is lost.
   assert.ok(page.html.includes('The first day.'));
-  // A script is code and not words of the note, so it leaves with its
-  // content (record 0157).
-  assert.ok(!page.html.includes('alert(1)'));
+  // GFM tagfilter: a script tag is never a tag, so it reads as the text that
+  // the author typed and runs nothing (record 0157).
+  assert.ok(page.html.includes('&#x3C;script>alert(1)&#x3C;/script>'));
   // The code keeps every word, in the token spans of record 0159.
   assert.ok(
     page.html.includes('<span class="notes-code-keyword">const</span> kept'),
@@ -512,6 +519,21 @@ await test('a mermaid fence names the diagram script and keeps its source', asyn
   assert.ok(!plain.html.includes('<script'));
 });
 
+await test('a second read of a published note renders nothing again', async () => {
+  // Review R5. A public link rendered its note with the HTML parse and the
+  // highlighter for every request, so its requests alone drove the server.
+  const link = await publish({ kind: 'note', fileId: elementsId });
+  const before = renders.length;
+  const first = await readPage(link.token);
+  const second = await readPage(link.token);
+  assert.equal(renders.length - before, 1);
+  assert.equal(second.html, first.html);
+  // Another link of the same note writes other addresses, so it renders.
+  const other = await publish({ kind: 'note', fileId: elementsId });
+  await readPage(other.token);
+  assert.equal(renders.length - before, 2);
+});
+
 await test('the safe HTML of a note reaches the reader with its words', async () => {
   // Issue 235 and record 0157.
   const page = await readPage(folder.token, { note: elementsId });
@@ -527,6 +549,25 @@ await test('the safe HTML of a note reaches the reader with its words', async ()
   assert.ok(!page.html.includes('onclick'));
   assert.ok(!page.html.includes('position:fixed'));
   assert.ok(!page.html.includes('javascript:'));
+});
+
+await test('an unclosed tag keeps every later block on the page', async () => {
+  // Review C1 of record 0157. An unclosed template took every later block
+  // of the note off the page, and an unclosed title read them as text.
+  for (const opening of [
+    '<template>',
+    '<object>',
+    'a <title> b',
+    'a <xmp> b',
+  ]) {
+    const fileId = await writeNote(
+      `notes/trip/unclosed-${String(renders.length)}-${opening.replace(/[^a-z]/g, '')}.md`,
+      `${opening}\n\nThe later words.\n\n- the later item\n`,
+    );
+    const page = await readPage(folder.token, { note: fileId });
+    assert.ok(page.html.includes('<p>The later words.</p>'), opening);
+    assert.ok(page.html.includes('<li>the later item</li>'), opening);
+  }
 });
 
 await test('code, tasks and a table reach the reader as the editor draws them', async () => {

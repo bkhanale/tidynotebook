@@ -248,6 +248,11 @@ await test('the published page draws what the live preview draws', async () => {
     // The inline HTML of record 0157.
     'kbd {\n    border-color: var(--notes-border-line,',
     'mark {\n    background-color: var(--notes-accent-surface,',
+    // A subscript, a superscript and small text read the named note steps
+    // that the editor reads (review R2).
+    'sub {\n    font-size: var(--text-note-script);',
+    'sup {\n    vertical-align: super;',
+    'small {\n    font-size: var(--text-note-small);',
   ])
     assert.ok(css.includes(rule), rule);
   // A header cell no longer forces the left edge over its alignment.

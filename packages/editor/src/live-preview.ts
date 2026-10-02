@@ -660,6 +660,9 @@ export function buildPreview(
     lineClass(last, last, 'cm-np-code-block-close');
   };
 
+  /** The range that the walk reads now, one visible range at a time. */
+  let walked: PreviewRange = { from: 0, to: 0 };
+
   /** The closing tags that an opening tag already drew, by offset. */
   const drawnClosingTags = new Set<number>();
 
@@ -1402,8 +1405,13 @@ export function buildPreview(
         return false;
       }
       const offset = node.from;
+      // Only the part of the block in the range of this walk, so a block of
+      // deep HTML costs what the screen shows and never the whole block.
       mounted.tree.iterate({
+        from: Math.max(0, walked.from - offset),
+        to: Math.max(0, walked.to - offset),
         enter: (inner) => {
+          visited += 1;
           if (!htmlBlockMarks.has(inner.name)) return true;
           mark(offset + inner.from, offset + inner.to, 'cm-np-html');
           return false;
@@ -1466,6 +1474,7 @@ export function buildPreview(
       to: doc.lineAt(Math.min(item.to, doc.length)).to,
     })),
   )) {
+    walked = range;
     tree.iterate({
       from: range.from,
       to: range.to,

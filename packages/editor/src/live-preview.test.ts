@@ -1125,6 +1125,21 @@ await test('a long document costs a bounded number of tree visits', () => {
   );
 });
 
+await test('a block of deep HTML costs what the screen shows', () => {
+  // Review S2 of record 0157. The preview walked the whole HTML tree of a
+  // block for each build, so one block of deep HTML cost every tag of it.
+  const depth = 20000;
+  const doc = `${'<div>\n'.repeat(depth)}x${'</div>'.repeat(depth)}\n`;
+  const state = stateOf(doc);
+  const away = { from: doc.length, to: doc.length };
+  const whole = buildPreview(state, [{ from: 0, to: doc.length }], away);
+  const screen = buildPreview(state, [{ from: 0, to: 200 }], away);
+  assert.ok(whole.decorations.size > 10000, 'the block holds every tag');
+  const marks = screen.decorations.size;
+  assert.ok(marks < 100, `${String(marks)} decorations for one screen`);
+  assert.ok(screen.visited < 500, `visited ${String(screen.visited)} nodes`);
+});
+
 await test('a bare bracket pair with no definition stays plain text', () => {
   // The parser wraps `[word]` in a link node, but CommonMark renders it as
   // text, so hiding its brackets would remove real characters.

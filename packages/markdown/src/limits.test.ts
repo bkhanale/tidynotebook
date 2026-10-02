@@ -184,3 +184,30 @@ await test('the package states two limits and nothing else', () => {
     'maxNestingDepth',
   ]);
 });
+
+await test('nested HTML is refused with the nesting error and never a stack error', async () => {
+  // Review S2 of record 0157. An HTML block is one node of the Markdown
+  // tree, so nested elements inside it passed the depth guard and the HTML
+  // parse ran out of stack with a RangeError.
+  for (const depth of [markdownLimits.maxNestingDepth + 1, 5000, 90000]) {
+    const source = `${'<div>'.repeat(depth)}x${'</div>'.repeat(depth)}\n`;
+    await assert.rejects(
+      renderMarkdown(source),
+      (error: unknown) =>
+        error instanceof MarkdownLimitError && error.reason === 'nesting-depth',
+      String(depth),
+    );
+  }
+  // Unclosed tags nest as well, so they count the same.
+  await assert.rejects(
+    renderMarkdown(`${'<b>'.repeat(5000)}x\n`),
+    (error: unknown) =>
+      error instanceof MarkdownLimitError && error.reason === 'nesting-depth',
+  );
+  // HTML at the limit still renders.
+  const depth = markdownLimits.maxNestingDepth;
+  const html = await renderMarkdown(
+    `${'<div>'.repeat(depth)}x${'</div>'.repeat(depth)}\n`,
+  );
+  assert.ok(html.includes('x'));
+});

@@ -81,14 +81,47 @@ await test('a language class that is not a plain word is dropped', async () => {
   assert.ok(!html.includes('class='));
 });
 
-await test('a script leaves with its content and a raw picture leaves', async () => {
+await test('a script reads as text and a raw picture leaves', async () => {
+  // GFM tagfilter: a script tag is never a tag, so it reads as the text the
+  // author typed, and it runs nothing.
   const html = await renderMarkdown(
     '<script>alert(1)</script>\n\ntext <img src="x" onerror="alert(2)"> more\n',
   );
   assert.ok(!html.includes('<script'));
-  assert.ok(!html.includes('alert(1)'));
+  assert.ok(html.includes('&#x3C;script>alert(1)&#x3C;/script>'));
   assert.ok(!html.includes('onerror'));
   assert.ok(html.includes('text  more'));
+});
+
+await test('an unclosed tag keeps every later block of the note', async () => {
+  // Review C1 of record 0157. A template or an object took every later block
+  // and left with it, a select and a plaintext flattened the rest, and a
+  // title, a textarea and an xmp read every later tag as text. Each case
+  // keeps the words and the blocks after it now.
+  const later = '\n\nlater words\n\n- item\n';
+  const blocks = '<p>later words</p>\n<ul>\n<li>item</li>\n</ul>';
+  for (const opening of [
+    '<template>',
+    '<object>',
+    '<select>',
+    'a <plaintext> b',
+    'a <title> b',
+    'a <xmp> b',
+    'a <iframe> b',
+    'a <noscript> b',
+    'a <noembed> b',
+    'a <noframes> b',
+    'a <style> b',
+  ]) {
+    const html = await renderMarkdown(`${opening}${later}`);
+    assert.ok(html.includes(blocks), `${opening}: ${html}`);
+  }
+  // A textarea opens a CommonMark HTML block that ends only at its closing
+  // tag, as on GitHub, so the rest of the note is that block. Its words stay,
+  // as the text that the author typed.
+  const area = await renderMarkdown(`<textarea>${later}`);
+  assert.ok(area.includes('&#x3C;textarea>'), area);
+  assert.ok(area.includes('later words') && area.includes('- item'), area);
 });
 
 await test('the HTML of an author keeps its safe elements', async () => {
@@ -130,12 +163,18 @@ await test('an unsafe neighbour of a safe element leaves', async () => {
     ['<pre data-diagram="mermaid">graph</pre>', '<pre>graph</pre>'],
     ['<span data-math="inline">x^2</span>', '<p><span>x^2</span></p>'],
     ['<input type="checkbox" checked disabled>', ''],
-    ['<iframe src="https://example.com">fallback</iframe>', ''],
-    ['<style>p { color: red }</style>', ''],
-    // A template and an object do not start an HTML block, so the paragraph
-    // around each one stays, and it is empty.
-    ['<template><p>t</p></template>', '<p></p>'],
-    ['<object data="x.swf">o</object>', '<p></p>'],
+    // GFM tagfilter: a frame and a style read as the text of their tags.
+    [
+      '<iframe src="https://example.com">fallback</iframe>',
+      '&#x3C;iframe src="https://example.com">fallback&#x3C;/iframe>',
+    ],
+    [
+      '<style>p { color: red }</style>',
+      '&#x3C;style>p { color: red }&#x3C;/style>',
+    ],
+    // A template and an object lose their tags and keep their content.
+    ['<template><p>t</p></template>', '<p><p>t</p></p>'],
+    ['<object data="x.swf">o</object>', '<p>o</p>'],
     ['<form action="https://example.com"><button>Send</button></form>', 'Send'],
     [
       '<table><tr><td colspan="0" rowspan="2" align="justify" style="x">c</td></tr></table>',

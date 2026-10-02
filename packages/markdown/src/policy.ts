@@ -19,7 +19,11 @@ import {
   authorStrippedElements,
   type AuthorAttribute,
 } from './html-elements.ts';
-import { taskMarkClass, taskMarkPoints } from './task-mark.ts';
+import {
+  taskMarkAttributes,
+  taskMarkClass,
+  taskMarkPoints,
+} from './task-mark.ts';
 
 /**
  * Shape of a canonical identifier, as written in stored Markdown.
@@ -387,13 +391,9 @@ export const sanitizeSchema: SanitizeSchema = {
     sup: [['id', namespacedId]],
     svg: [
       ['className', taskMarkClass],
-      ['viewBox', '0 0 24 24'],
-      ['fill', 'none'],
-      ['stroke', 'currentColor'],
-      ['strokeWidth', '1.5'],
-      ['strokeLinecap', 'round'],
-      ['strokeLinejoin', 'round'],
-      ['ariaHidden', 'true'],
+      ...Object.entries(taskMarkAttributes).map(
+        ([name, value]): [string, string] => [name, value],
+      ),
     ],
     span: [
       ['dataMath', 'inline', 'display'],

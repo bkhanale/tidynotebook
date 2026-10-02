@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   diagramThemeOptions,
+  isParentMessage,
   clampDiagramHeight,
   diagramFrameStyle,
   diagramLimits,
@@ -90,4 +91,18 @@ await test('a diagram takes its colours from the palette of the page in both app
     for (const value of Object.values(variables))
       assert.ok(palette.includes(value), value);
   }
+});
+
+await test('the frame takes a request from its parent and from no one else', () => {
+  // A frame document opened at the top level, or a message of a sibling
+  // frame, drew whatever it received with the inline script of the frame.
+  const parent = { name: 'parent' };
+  const framed = { parent };
+  assert.equal(isParentMessage(framed, parent), true);
+  assert.equal(isParentMessage(framed, { name: 'sibling' }), false);
+  assert.equal(isParentMessage(framed, null), false);
+  // At the top level a window is its own parent, so nothing is a request.
+  const top: { parent: unknown } = { parent: null };
+  top.parent = top;
+  assert.equal(isParentMessage(top, top), false);
 });

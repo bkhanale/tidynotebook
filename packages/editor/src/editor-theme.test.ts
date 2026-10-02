@@ -162,6 +162,25 @@ await test('a code block is one card with a closed edge', () => {
   );
 });
 
+await test('a subscript, a superscript and small text read the named note steps', () => {
+  // Review R2. The adapter wrote 75 %, 80 % and two em offsets of its own.
+  for (const selector of ['.cm-np-html-sub', '.cm-np-html-sup']) {
+    assert.equal(rule(selector).fontSize, 'var(--text-note-script)');
+    assert.equal(
+      rule(selector).lineHeight,
+      'var(--text-note-script--line-height)',
+    );
+  }
+  assert.equal(rule('.cm-np-html-sub').verticalAlign, 'sub');
+  assert.equal(rule('.cm-np-html-sup').verticalAlign, 'super');
+  assert.equal(rule('.cm-np-html-small').fontSize, 'var(--text-note-small)');
+  // No rule of the inline HTML holds a number of its own.
+  for (const [selector, declarations] of Object.entries(noteSurfaceStyle()))
+    if (selector.startsWith('.cm-np-html'))
+      for (const value of Object.values(declarations))
+        assert.doesNotMatch(String(value), /^-?[0-9.]+(?:%|em)$/, selector);
+});
+
 await test('an HTML tag reads as a quiet mark and never in the code colours', () => {
   // Record 0157. The grammar parses a tag as HTML, and the code highlighter
   // paints the parts of a tag, so the mark gives every part its own quiet

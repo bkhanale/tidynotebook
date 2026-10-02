@@ -71,6 +71,11 @@ import {
   type PublishedPageView,
 } from './published-document.ts';
 import { readOptionalText, readText } from './files.ts';
+import {
+  createRenderCache,
+  publishedRenderCacheBounds,
+  publishedRenderKey,
+} from './published-render-cache.ts';
 import { newPublishedSecret } from '../auth/publication-secrets.ts';
 
 /** What the reader path needs from the composition. */
@@ -98,9 +103,15 @@ export type PublishedDependencies = {
   readonly stylesheets: () => readonly string[];
   /**
    * The diagram script and the frame document of the build, or `null` when
-   * the build holds none (record 0158).
+   * the build holds none (record 0158). It is read only for a note that holds
+   * a diagram.
    */
   readonly diagrams: () => PublishedDiagramAssets | null;
+  /**
+   * The renderer of a note, `renderMarkdown` unless a test counts its calls.
+   * The handlers keep each body that it gives in a bounded cache.
+   */
+  readonly render?: typeof renderMarkdown;
   /** The instant of one request. */
   readonly clock: () => number;
   /** Where the cause of a refusal goes, for the operator only. */
@@ -124,10 +135,13 @@ type DiagramPage = { readonly script: string; readonly policy: string };
 function diagramPageOf(
   view: PublishedPageView,
   host: string | undefined,
-  assets: PublishedDiagramAssets | null,
+  diagrams: () => PublishedDiagramAssets | null,
 ): DiagramPage | null {
-  if (view.kind !== 'note' || assets === null) return null;
-  if (!view.body.includes(diagramPlaceholder)) return null;
+  if (view.kind !== 'note' || !view.body.includes(diagramPlaceholder))
+    return null;
+  // The files of the build are read only for a note that holds a diagram.
+  const assets = diagrams();
+  if (assets === null) return null;
   const policy = publishedDiagramContentPolicy(host, assets);
   return policy === null ? null : { script: assets.script, policy };
 }
@@ -202,6 +216,7 @@ function renderPublishedNote(
   page: Extract<PublishedPage, { kind: 'note' }>,
   token: string,
   ticket: string | null,
+  render: typeof renderMarkdown,
 ): Promise<string> {
   const revisions = new Map<string, string>(
     page.attachments.map((entry: PublishedAttachmentReference) => [
@@ -209,7 +224,7 @@ function renderPublishedNote(
       entry.revisionId,
     ]),
   );
-  return renderMarkdown(page.note.text, {
+  return render(page.note.text, {
     sourcePath: page.note.path,
     attachmentHref: (reference) => {
       const revisionId = revisions.get(reference);
@@ -228,11 +243,19 @@ function renderPublishedNote(
   });
 }
 
+/** Renders the body of one note page, or answers the body that it kept. */
+type NoteRenderer = (
+  page: Extract<PublishedPage, { kind: 'note' }>,
+  token: string,
+  ticket: string | null,
+) => Promise<string>;
+
 /** Turns what the domain answered into what the document shows. */
 async function viewOf(
   page: PublishedPage,
   token: string,
   ticket: string | null,
+  renderNote: NoteRenderer,
 ): Promise<PublishedPageView> {
   if (page.kind === 'unavailable') return { kind: 'unavailable' };
   if (page.kind === 'locked') return { kind: 'locked' };
@@ -247,7 +270,7 @@ async function viewOf(
   return {
     kind: 'note',
     name: readableNoteName(page.note.path),
-    body: await renderPublishedNote(page, token, ticket),
+    body: await renderNote(page, token, ticket),
     // A link over one note has one page, so it offers no list to return to.
     listHref:
       page.link.scope.kind === 'folder'
@@ -262,6 +285,25 @@ export function createPublishedHandlers(
 ): HandlerMap {
   if (dependencies === undefined) return refusingHandlers();
   const parts = dependencies;
+  // A public link must not render its note again for each request, so each
+  // body is kept by everything that decides it (`published-render-cache.ts`).
+  const bodies = createRenderCache(publishedRenderCacheBounds);
+  const render = parts.render ?? renderMarkdown;
+  const renderNote: NoteRenderer = (page, token, ticket) =>
+    bodies.body(
+      publishedRenderKey({
+        fileId: page.note.fileId,
+        revisionId: page.note.headRevisionId,
+        path: page.note.path,
+        token,
+        ticket,
+        notes: page.notes.map((note) => [note.fileId, note.path] as const),
+        attachments: page.attachments.map(
+          (entry) => [entry.reference, entry.revisionId] as const,
+        ),
+      }),
+      () => renderPublishedNote(page, token, ticket, render),
+    );
 
   /** The document answer of one state of a link. */
   const answerPage = async (
@@ -271,7 +313,7 @@ export function createPublishedHandlers(
     note: string | null,
     host: string | undefined,
   ): Promise<HandlerResult> => {
-    const diagrams = diagramPageOf(view, host, parts.diagrams());
+    const diagrams = diagramPageOf(view, host, parts.diagrams);
     return {
       status: 200,
       mediaType: 'text/html',
@@ -317,7 +359,7 @@ export function createPublishedHandlers(
       const note = queryValue(request, 'note');
       const page = await readPage(token, ticket, note);
       return answerPage(
-        await viewOf(page, token, ticket),
+        await viewOf(page, token, ticket, renderNote),
         token,
         ticket,
         note,
@@ -341,7 +383,7 @@ export function createPublishedHandlers(
         // The same words and the same form as a link that was never opened.
         const page = await readPage(token, null, note);
         return answerPage(
-          await viewOf(page, token, null),
+          await viewOf(page, token, null, renderNote),
           token,
           null,
           note,
@@ -350,7 +392,7 @@ export function createPublishedHandlers(
       }
       const page = await readPage(token, ticket, note);
       return answerPage(
-        await viewOf(page, token, ticket),
+        await viewOf(page, token, ticket, renderNote),
         token,
         ticket,
         note,

@@ -204,8 +204,10 @@ elements as they look. It shows a block element such as `<details>`, and
 `<br>`, as its HTML: the tags are quiet, and the words between them read as
 the text of the note.
 
-Other HTML loses its tags and keeps its words. A script, a style, an event
-and a link or a picture written as HTML have no effect. Write a link or a
+Other HTML loses its tags and keeps its words. A script, a style, a text
+area and a few other tags show as the text you typed, so a tag that you do
+not close never hides the rest of the note. A script, a style, an event and a
+link or a picture written as HTML have no effect. Write a link or a
 picture in Markdown instead. A link to anything other than a web address, a
 mail address, another note, or an attachment loses its destination and is
 shown as plain text.

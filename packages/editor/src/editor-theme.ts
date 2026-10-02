@@ -51,6 +51,9 @@ export const editorThemeVariables: readonly string[] = [
   '--container-note',
   '--spacing-note-block',
   '--text-note-mono',
+  '--text-note-script',
+  '--text-note-script--line-height',
+  '--text-note-small',
   '--text-note-h1',
   '--text-note-h1--line-height',
   '--text-note-h2',
@@ -185,8 +188,8 @@ function quoteLevel(level: number): Record<string, string> {
  * (record 0157). Each rule here is the look that the published page gives the
  * same element in `apps/server/src/routes/published-document.ts`, so a key, a
  * mark and a subscript read alike on both surfaces. A subscript, a
- * superscript and small text take the sizes of the stylesheet that both
- * surfaces load, which Tailwind writes for the elements themselves.
+ * superscript and small text take the named note steps `--text-note-script`
+ * and `--text-note-small` of the central theme, which the page reads too.
  */
 export function inlineHtmlRules(): Record<string, Record<string, string>> {
   const strong = {
@@ -241,20 +244,16 @@ export function inlineHtmlRules(): Record<string, Record<string, string>> {
       paddingInline: 'calc(var(--spacing) * 0.5)',
     },
     '.cm-np-html-sub': {
-      fontSize: '75%',
-      lineHeight: '0',
-      position: 'relative',
-      verticalAlign: 'baseline',
-      bottom: '-0.25em',
+      fontSize: 'var(--text-note-script)',
+      lineHeight: 'var(--text-note-script--line-height)',
+      verticalAlign: 'sub',
     },
     '.cm-np-html-sup': {
-      fontSize: '75%',
-      lineHeight: '0',
-      position: 'relative',
-      verticalAlign: 'baseline',
-      top: '-0.5em',
+      fontSize: 'var(--text-note-script)',
+      lineHeight: 'var(--text-note-script--line-height)',
+      verticalAlign: 'super',
     },
-    '.cm-np-html-small': { fontSize: '80%' },
+    '.cm-np-html-small': { fontSize: 'var(--text-note-small)' },
     '.cm-np-html-q::before': { content: 'open-quote' },
     '.cm-np-html-q::after': { content: 'close-quote' },
   };

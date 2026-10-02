@@ -16,6 +16,7 @@ import mermaid from 'mermaid';
 import {
   diagramLimits,
   diagramThemeOptions,
+  isParentMessage,
   isDiagramRequest,
   paletteNames,
   type DiagramRequest,
@@ -89,11 +90,16 @@ function fail(requestId: string, message: string, source: string): void {
  *
  * The listener is registered with `{ once: true }`, so a second request is
  * never rendered. An invalid message is not a request, so the listener stays
- * registered until a valid one arrives.
+ * registered until a valid one arrives. A message that does not come from the
+ * parent of the frame is no request either, and a frame with no parent takes
+ * none.
  */
 export function startDiagramFrame(): void {
   const onMessage = (event: MessageEvent): void => {
-    if (!isDiagramRequest(event.data)) {
+    if (
+      !isParentMessage(window, event.source) ||
+      !isDiagramRequest(event.data)
+    ) {
       window.addEventListener('message', onMessage, { once: true });
       return;
     }

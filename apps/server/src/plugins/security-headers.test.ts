@@ -68,6 +68,13 @@ await test('the framed document policy allows its own inline script only', () =>
   );
   // The shell must be able to frame it, and nothing else may.
   assert.match(framedDocumentContentPolicy, /frame-ancestors 'self'/);
+  // The answer sandboxes the document itself, so it has an opaque origin
+  // even when its address is opened at the top level.
+  assert.equal(
+    framedDocumentContentPolicy.split('; ')[0],
+    'sandbox allow-scripts',
+  );
+  assert.ok(!framedDocumentContentPolicy.includes('allow-same-origin'));
   assert.match(framedDocumentContentPolicy, /connect-src 'none'/);
 });
 
@@ -199,7 +206,8 @@ await test('a host or a path that a policy cannot name gives no diagram script',
     'pages.example.net; script-src *',
     'pages.example.net *',
     "'unsafe-inline'",
-    '[::1]:8080',
+    '[::1]:8080; script-src *',
+    '[::1',
     'https://pages.example.net',
   ])
     assert.equal(
@@ -221,6 +229,20 @@ await test('a host or a path that a policy cannot name gives no diagram script',
     }),
     null,
   );
+});
+
+await test('a page at an IPv6 host names the two files of its own origin', () => {
+  // Review R5. A source expression has no IPv6 form, so a page opened at a
+  // bracketed IPv6 host drew no diagram at all.
+  for (const host of ['[::1]', '[::1]:8080', '[2001:db8::7]:443']) {
+    const policy = publishedDiagramContentPolicy(host, diagramAssets);
+    assert.ok(policy !== null, host);
+    const directives = policy.split('; ');
+    assert.ok(directives.includes("script-src 'self'"), policy);
+    assert.ok(directives.includes("frame-src 'self'"), policy);
+    assert.ok(directives.includes("frame-ancestors 'none'"), policy);
+    assert.ok(!/script-src[^;]*unsafe/.test(policy), policy);
+  }
 });
 
 await test('the headers of a page with a diagram keep the rules of every page', () => {

@@ -74,8 +74,14 @@ export function appShellContentPolicy(scriptHashes: readonly string[]): string {
  * Its renderer is a self-contained bundle whose entry stays inline, so this
  * policy keeps `'unsafe-inline'` for scripts and applies to that path only.
  * The shell policy above never has it.
+ *
+ * `sandbox allow-scripts` makes the document sandboxed by its own answer, so
+ * it runs with an opaque origin however it is opened: in the frame of the
+ * shell or of a published page, and also when a person or a page opens its
+ * address at the top level, which `frame-ancestors` does not stop.
  */
 export const framedDocumentContentPolicy = [
+  'sandbox allow-scripts',
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
@@ -140,6 +146,9 @@ export type PublishedDiagramAssets = {
 /** A host name, with an optional port, as a source of a content policy. */
 const policyHost = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d{1,5})?$/;
 
+/** An IPv6 literal in brackets, with an optional port. */
+const ipv6Host = /^\[[0-9a-f:.]+\](?::\d{1,5})?$/;
+
 /** A path of the build, with no query, no fragment and no space. */
 const policyPath = /^\/[A-Za-z0-9._/-]+$/;
 
@@ -154,6 +163,12 @@ const policyPath = /^\/[A-Za-z0-9._/-]+$/;
  * the page did. There is still no `'self'`, no inline script, no hash, no
  * `'unsafe-eval'` and no other origin, and `frame-ancestors 'none'` stays.
  *
+ * A source expression of a content policy has no form for an IPv6 literal, so
+ * a page opened at a bracketed IPv6 host names the two files with `'self'`.
+ * The published origin serves no other script (record 0118), and the
+ * application origin serves only its own build, so the page still runs only a
+ * file of this build.
+ *
  * The answer is `null` when the host or a path cannot be written as a source.
  * The page then names no script and shows the source of each diagram.
  *
@@ -165,19 +180,20 @@ export function publishedDiagramContentPolicy(
   assets: PublishedDiagramAssets,
 ): string | null {
   const name = (host ?? '').trim().toLowerCase();
-  if (!policyHost.test(name)) return null;
   if (!policyPath.test(assets.script) || !policyPath.test(assets.frame))
     return null;
+  const literal = ipv6Host.test(name);
+  if (!literal && !policyHost.test(name)) return null;
+  const script = literal ? "'self'" : `${name}${assets.script}`;
+  const frame = literal ? "'self'" : `${name}${assets.frame}`;
   return publishedDocumentContentPolicy
     .split('; ')
     .map((directive) =>
-      directive === "script-src 'none'"
-        ? `script-src ${name}${assets.script}`
-        : directive,
+      directive === "script-src 'none'" ? `script-src ${script}` : directive,
     )
     .flatMap((directive) =>
       directive.startsWith('connect-src')
-        ? [directive, `frame-src ${name}${assets.frame}`]
+        ? [directive, `frame-src ${frame}`]
         : [directive],
     )
     .join('; ');

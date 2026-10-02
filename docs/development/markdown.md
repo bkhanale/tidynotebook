@@ -89,8 +89,11 @@ are in [The live preview](live-preview.md).
 
 A note keeps the HTML elements of `packages/markdown/src/html-elements.ts`,
 parsed with parse5, and the live preview draws the inline ones. Any other
-element keeps its text alone, and a script or a style leaves with its content
+element keeps its text alone
 ([decision 0157](../decisions/0157-a-note-keeps-a-safe-set-of-html-elements.md)).
+A tag of GFM tagfilter and `select` reads as text, so no unclosed tag takes the
+rest of the note, and the nesting of the HTML counts against the depth limit
+([decision 0160](../decisions/0160-an-unclosed-tag-never-takes-the-rest-of-a-note.md)).
 The URL policy keeps a small set of schemes and the two internal prefixes, and
 it removes the destination of anything else rather than following it. An
 external image loads over HTTPS and no other scheme, and it carries

@@ -251,6 +251,14 @@
   --container-note: 40rem;
   --spacing-note-block: calc(var(--spacing) * 2);
   --text-note-mono: 0.9em;
+  /*
+   * A subscript and a superscript of a note, and its small text (record
+   * 0157). A script step keeps no line height of its own, so a raised or a
+   * lowered word never opens its line.
+   */
+  --text-note-script: 0.75em;
+  --text-note-script--line-height: 0;
+  --text-note-small: 0.8em;
   --text-note-h1: 1.75em;
   --text-note-h1--line-height: 1.2;
   --text-note-h2: 1.375em;

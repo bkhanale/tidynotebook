@@ -20,9 +20,13 @@
  * - No attribute holds a style, an event, a class, an identifier or an
  *   address. Each attribute below states the one shape of value it keeps.
  * - An element outside the list loses its tags and keeps its children, so a
- *   person never loses words they wrote. The elements of
- *   `authorStrippedElements` are the exception: they hold code or a document
- *   of their own, so they leave with their content.
+ *   person never loses words they wrote.
+ * - A tag that would change how the parser reads the rest of the note is no
+ *   tag at all. `neutralAuthorTags` lists the tags of GFM tagfilter and the
+ *   select of a form: each one switches the parser into text, a raw text or
+ *   a form mode, so one unclosed tag took or flattened every later block.
+ *   `neutralizeAuthorTags` writes its opening bracket as text before the
+ *   parse, so the tag and every word after it read as words.
  */
 
 /** The shape of value that one kept attribute may hold. */
@@ -143,8 +147,10 @@ export const authorElements: ReadonlyMap<string, readonly AuthorAttribute[]> =
 /**
  * The elements that leave with their content.
  *
- * Each one holds a script, a style, or a document of its own, whose text is
- * not words of the note. Every other element outside `authorElements` keeps
+ * Each one holds a script, a style, or a document of its own. The tags of the
+ * author never build one, because `neutralizeAuthorTags` turns each into text
+ * first, so the list is the second gate behind that rule. Every other element
+ * outside `authorElements`, a `template` and an `object` among them, keeps
  * its children.
  */
 export const authorStrippedElements: readonly string[] = [
@@ -152,11 +158,118 @@ export const authorStrippedElements: readonly string[] = [
   'noembed',
   'noframes',
   'noscript',
-  'object',
   'script',
   'style',
-  'template',
 ];
+
+/**
+ * The tags that the parser never reads as tags (GFM tagfilter and `select`).
+ *
+ * Each one switches the HTML parser into a mode that reads the rest of the
+ * document another way: `title`, `textarea` and `xmp` and the raw text
+ * elements read every later tag as text, `plaintext` never ends, and `select`
+ * drops every later tag that is not an option.
+ */
+export const neutralAuthorTags: readonly string[] = [
+  'iframe',
+  'noembed',
+  'noframes',
+  'noscript',
+  'plaintext',
+  'script',
+  'select',
+  'style',
+  'textarea',
+  'title',
+  'xmp',
+];
+
+/** An opening or a closing tag of one of `neutralAuthorTags`. */
+const neutralTag = new RegExp(
+  `<(/?)(${neutralAuthorTags.join('|')})(?=[\\s/>]|$)`,
+  'gi',
+);
+
+/**
+ * The HTML of one raw node with each neutral tag written as text.
+ *
+ * Only the opening bracket changes, to the entity that the parser reads as a
+ * plain `<`, so the reader sees the tag as the author typed it, and the words
+ * after it stay words of the note.
+ */
+export function neutralizeAuthorTags(html: string): string {
+  return html.replace(neutralTag, '&lt;$1$2');
+}
+
+/**
+ * Elements whose end tag the author may leave out, or that hold no content.
+ *
+ * Neither can nest without an element that does need its end tag, so neither
+ * adds to the depth that `authorNestingDepth` measures.
+ */
+const shallowElements = new Set([
+  'area',
+  'base',
+  'br',
+  'caption',
+  'col',
+  'colgroup',
+  'dd',
+  'dt',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'li',
+  'link',
+  'meta',
+  'optgroup',
+  'option',
+  'p',
+  'param',
+  'rp',
+  'rt',
+  'source',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'tr',
+  'track',
+  'wbr',
+]);
+
+/** One opening or closing tag, with a self closing slash or not. */
+const anyTag =
+  /<(\/?)([A-Za-z][A-Za-z0-9-]*)\b(?:"[^"]*"|'[^']*'|[^>"'])*?(\/?)>/g;
+
+/**
+ * The deepest nesting that the HTML of a note can open, as an upper bound.
+ *
+ * An HTML block is one node of the Markdown tree, so the depth guard of
+ * `./limits.ts` never sees the elements inside it, and the HTML parse and the
+ * serializer recurse on them. The values are the raw nodes in document order.
+ * Each opening tag opens a level and each closing tag closes one, whether or
+ * not the parser pairs them later, so the answer is never less than the depth
+ * that the parse builds. A tag of `shallowElements` and a self closing tag
+ * open nothing.
+ */
+export function authorNestingDepth(values: readonly string[]): number {
+  let depth = 0;
+  let deepest = 0;
+  for (const value of values)
+    for (const match of value.matchAll(anyTag)) {
+      const name = (match[2] ?? '').toLowerCase();
+      if (shallowElements.has(name) || match[3] === '/') continue;
+      if (match[1] === '/') depth = Math.max(0, depth - 1);
+      else {
+        depth += 1;
+        if (depth > deepest) deepest = depth;
+      }
+    }
+  return deepest;
+}
 
 /**
  * The inline elements that the live preview draws between their tags.
