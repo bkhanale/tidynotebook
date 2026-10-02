@@ -55,27 +55,73 @@ export type ButtonSize = 'sm' | 'md';
  */
 export type ButtonTone = 'danger';
 
+/** The colour key of one button: its variant, and its tone where it has one. */
+type ButtonColour = ButtonVariant | 'secondary-danger' | 'ghost-danger';
+
+/**
+ * The colour and surface of every button, written out in full.
+ *
+ * Tailwind reads the source text to decide which utilities to emit, so a
+ * class that a template builds from a prefix and a name is never emitted
+ * unless another file happens to write it whole. The group hover of a compact
+ * primary or danger button was such a class, and it drew no hover at all.
+ * Every class is therefore a whole word here, and `control-classes.test.ts`
+ * holds each class that a recipe answers to a whole word of this module.
+ *
+ * A disabled button states that it is unavailable with its own colours: the
+ * muted text on the surface of `disabledButtonSurface`, in every state. An
+ * opacity on the whole control did that before, and it made a colour at paint
+ * time that no contrast test could see: the ink fill of a primary button at
+ * half strength was a grey fill that still read as the action of the screen.
+ * The hover of a disabled button names the same surface. A variant prefix
+ * outranks the plain class, and the second prefix outranks the hover of the
+ * resting recipe, so the outcome does not depend on the order of the
+ * stylesheet. A compact button carries both states on its `group`.
+ */
+const buttonColours: Readonly<
+  Record<'button' | 'group', Readonly<Record<ButtonColour, string>>>
+> = {
+  button: {
+    primary:
+      'bg-accent-fill text-on-accent hover:bg-accent-fill-hover disabled:bg-hover disabled:hover:bg-hover disabled:text-muted',
+    danger:
+      'bg-danger-fill text-on-danger hover:bg-danger-fill-hover disabled:bg-hover disabled:hover:bg-hover disabled:text-muted',
+    secondary:
+      'border border-edge-line bg-card text-strong shadow-raised hover:bg-hover disabled:bg-card disabled:hover:bg-card disabled:text-muted',
+    'secondary-danger':
+      'border border-edge-line bg-card text-danger shadow-raised hover:bg-danger-surface disabled:bg-card disabled:hover:bg-card disabled:text-muted',
+    ghost:
+      'bg-transparent text-strong hover:bg-hover disabled:bg-transparent disabled:hover:bg-transparent disabled:text-muted',
+    'ghost-danger':
+      'bg-transparent text-danger hover:bg-danger-surface disabled:bg-transparent disabled:hover:bg-transparent disabled:text-muted',
+  },
+  group: {
+    primary:
+      'bg-accent-fill text-on-accent group-hover:bg-accent-fill-hover group-disabled:bg-hover group-disabled:group-hover:bg-hover group-disabled:text-muted',
+    danger:
+      'bg-danger-fill text-on-danger group-hover:bg-danger-fill-hover group-disabled:bg-hover group-disabled:group-hover:bg-hover group-disabled:text-muted',
+    secondary:
+      'border border-edge-line bg-card text-strong shadow-raised group-hover:bg-hover group-disabled:bg-card group-disabled:group-hover:bg-card group-disabled:text-muted',
+    'secondary-danger':
+      'border border-edge-line bg-card text-danger shadow-raised group-hover:bg-danger-surface group-disabled:bg-card group-disabled:group-hover:bg-card group-disabled:text-muted',
+    ghost:
+      'bg-transparent text-strong group-hover:bg-hover group-disabled:bg-transparent group-disabled:group-hover:bg-transparent group-disabled:text-muted',
+    'ghost-danger':
+      'bg-transparent text-danger group-hover:bg-danger-surface group-disabled:bg-transparent group-disabled:group-hover:bg-transparent group-disabled:text-muted',
+  },
+};
+
 /** The colour and surface of one button. */
 function buttonVariantClassName(
   variant: ButtonVariant,
   tone: ButtonTone | undefined,
   interaction: 'button' | 'group',
 ): string {
-  const danger = tone === 'danger';
-  const hover = interaction === 'group' ? 'group-hover:' : 'hover:';
-  const resting =
-    variant === 'secondary'
-      ? danger
-        ? `border border-edge-line bg-card text-danger shadow-raised ${hover}bg-danger-surface`
-        : `border border-edge-line bg-card text-strong shadow-raised ${hover}bg-hover`
-      : variant === 'ghost'
-        ? danger
-          ? `bg-transparent text-danger ${hover}bg-danger-surface`
-          : `bg-transparent text-strong ${hover}bg-hover`
-        : variant === 'danger'
-          ? `bg-danger-fill text-on-danger ${hover}bg-danger-fill-hover`
-          : `bg-accent-fill text-on-accent ${hover}bg-accent-fill-hover`;
-  return `${resting} ${disabledButtonClassName(variant, interaction)}`;
+  const colours = buttonColours[interaction];
+  if (tone === 'danger' && variant === 'secondary')
+    return colours['secondary-danger'];
+  if (tone === 'danger' && variant === 'ghost') return colours['ghost-danger'];
+  return colours[variant];
 }
 
 /**
@@ -94,30 +140,6 @@ export const disabledButtonSurface: Readonly<
   secondary: 'bg-card',
   ghost: 'bg-transparent',
 };
-
-/**
- * The appearance of a disabled button, as classes.
- *
- * A disabled button states that it is unavailable with its own colours: the
- * muted text on the surface of `disabledButtonSurface`, in every state. An
- * opacity on the whole control did that before, and it made a colour at paint
- * time that no contrast test could see: the ink fill of a primary button at
- * half strength was a grey fill that still read as the action of the screen.
- *
- * The hover of a disabled button names the same surface. A variant prefix
- * outranks the plain class, and the second prefix outranks the hover of the
- * resting recipe, so the outcome does not depend on the order of the
- * stylesheet. A compact button carries the state on its `group`.
- */
-function disabledButtonClassName(
-  variant: ButtonVariant,
-  interaction: 'button' | 'group',
-): string {
-  const surface = disabledButtonSurface[variant];
-  const state = interaction === 'group' ? 'group-disabled:' : 'disabled:';
-  const hover = interaction === 'group' ? 'group-hover:' : 'hover:';
-  return `${state}${surface} ${state}${hover}${surface} ${state}text-muted`;
-}
 
 /**
  * The appearance of a button, as classes.

@@ -18,9 +18,9 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
   `fieldClassName`, `textAreaClassName`, `kbdClassName`, `badgeClassName`, `avatarClassName`,
   `edgeControlClassName` at a frame edge, `controlStripClassName` for a row
   that scrolls (0094), and `focusOutline` with `focusOutlineInset`.
-  One element takes one colour class, so a tone is part of a recipe.
-  `src/icon-grid.ts` is the one grid of an icon: a 24 viewport, a stroke of
-  1.5, the sizes 16 and 20, and the attributes `src/icons.tsx` spreads.
+  One element takes one colour class, a tone is in a recipe, and a class is
+  whole, as Tailwind reads the text. `src/icon-grid.ts` is the grid of an icon:
+  a 24 viewport, a stroke of 1.5, the sizes 16 and 20, and its attributes.
 - `src/layout.tsx` holds the page frame, `pageGutter`, and the row of every
   page from `layout-classes.ts` (0137). `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
