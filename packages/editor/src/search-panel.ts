@@ -10,9 +10,14 @@
  *
  * The keys stay the keys of the search package. Enter in the find field finds
  * the next match and Shift and Enter the one before it, Enter in the replace
- * field replaces the next match, and the keys of `searchKeymap` that the
- * panel shares with the editor, Escape among them, run through
- * `runScopeHandlers` as they do in the panel of the package.
+ * field replaces the next match (`searchPanelKey`), and the keys of
+ * `searchKeymap` that the panel shares with the editor, Escape among them,
+ * run through `runScopeHandlers` as they do in the panel of the package.
+ * Escape closes the panel and gives the focus back to the text.
+ *
+ * A replace of every match says how many it replaced, with the count and its
+ * noun (`replaceAllWords`), because the phrase of the package has one form
+ * for every count.
  *
  * `editor-theme.ts` places the controls in one band, because CodeMirror
  * places the panel itself. Every class of a control is a recipe.
@@ -30,6 +35,7 @@ import {
   selectMatches,
   setSearchQuery,
 } from '@codemirror/search';
+import { EditorState, type Extension } from '@codemirror/state';
 import {
   EditorView,
   runScopeHandlers,
@@ -73,7 +79,6 @@ export const editorPhrases: Readonly<Record<string, string>> = {
   'current match': 'Current match',
   'on line': 'on line',
   'replaced match on line $': 'Replaced the match on line $',
-  'replaced $ matches': 'Replaced $ matches',
   Completions: 'Suggestions',
 };
 
@@ -86,6 +91,69 @@ export const editorPhrases: Readonly<Record<string, string>> = {
 export const noteSearchKeymap = searchKeymap.filter(
   (binding) => binding.run !== gotoLine,
 );
+
+/** What a person hears after a replace of every match. */
+export function replaceAllWords(count: number): string {
+  return count === 1
+    ? 'Replaced 1 match.'
+    : `Replaced ${String(count)} matches.`;
+}
+
+/**
+ * The words of a replace of every match, with the count and its noun.
+ *
+ * The package announces `replaced $ matches` for every count, so one match
+ * read `Replaced 1 matches`. This filter keeps the change of the package and
+ * states the words of {@link replaceAllWords} in place of its own, for the
+ * button and for the key alike.
+ */
+export const replaceAllAnnouncement: Extension =
+  EditorState.transactionFilter.of((transaction) => {
+    if (
+      !transaction.isUserEvent('input.replace.all') ||
+      !transaction.effects.some((effect) => effect.is(EditorView.announce))
+    )
+      return transaction;
+    let count = 0;
+    transaction.changes.iterChanges(() => {
+      count += 1;
+    }, true);
+    return {
+      changes: transaction.changes,
+      ...(transaction.selection === undefined
+        ? {}
+        : { selection: transaction.selection }),
+      effects: [
+        ...transaction.effects.filter(
+          (effect) => !effect.is(EditorView.announce),
+        ),
+        EditorView.announce.of(replaceAllWords(count)),
+      ],
+      userEvent: 'input.replace.all',
+      scrollIntoView: transaction.scrollIntoView,
+    };
+  });
+
+/** The field of the panel that a key of the panel lands in. */
+export type SearchPanelField = 'find' | 'replace' | 'other';
+
+/**
+ * The command that Enter runs in one field of the panel, or `null` for a key
+ * that the panel leaves alone.
+ *
+ * Enter in the find field finds the next match and Shift and Enter the one
+ * before it, and Enter in the replace field replaces the next match, as in the
+ * panel of the package.
+ */
+export function searchPanelKey(
+  key: { readonly key: string; readonly shiftKey: boolean },
+  field: SearchPanelField,
+): 'next' | 'previous' | 'replace' | null {
+  if (key.key !== 'Enter') return null;
+  if (field === 'find') return key.shiftKey ? 'previous' : 'next';
+  if (field === 'replace') return 'replace';
+  return null;
+}
 
 /** The class of the glyph inside a control: the 16 px of a control. */
 const glyphClass = 'size-4 shrink-0';
@@ -268,14 +336,19 @@ class SearchPanel implements Panel {
       event.preventDefault();
       return;
     }
-    if (event.key !== 'Enter') return;
-    if (event.target === this.searchField) {
-      event.preventDefault();
-      (event.shiftKey ? findPrevious : findNext)(this.view);
-    } else if (event.target === this.replaceField) {
-      event.preventDefault();
-      replaceNext(this.view);
-    }
+    const command = searchPanelKey(
+      event,
+      event.target === this.searchField
+        ? 'find'
+        : event.target === this.replaceField
+          ? 'replace'
+          : 'other',
+    );
+    if (command === null) return;
+    event.preventDefault();
+    if (command === 'next') findNext(this.view);
+    else if (command === 'previous') findPrevious(this.view);
+    else replaceNext(this.view);
   }
 
   update(update: ViewUpdate): void {

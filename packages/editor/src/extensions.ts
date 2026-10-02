@@ -32,6 +32,7 @@ import {
   createSearchPanel,
   editorPhrases,
   noteSearchKeymap,
+  replaceAllAnnouncement,
 } from './search-panel.ts';
 import { formattingKeymap } from './keymaps.ts';
 import { orderedListNumbering } from './list-numbering.ts';
@@ -57,6 +58,7 @@ export function editorCommands(): Extension {
   return [
     // The find panel is a panel of the design system (issue 247).
     search({ top: true, createPanel: createSearchPanel }),
+    replaceAllAnnouncement,
     EditorState.phrases.of(editorPhrases),
     autocompletion({
       // The list of notes after `[[` and `](`, and the slash menu of the

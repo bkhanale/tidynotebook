@@ -6,10 +6,14 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { gotoLine, searchKeymap } from '@codemirror/search';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { closeSearchPanel, gotoLine, searchKeymap } from '@codemirror/search';
 import {
   editorPhrases,
   noteSearchKeymap,
+  replaceAllAnnouncement,
+  searchPanelKey,
   searchPanelWords,
 } from './search-panel.ts';
 
@@ -39,4 +43,56 @@ await test('the panel keeps every key of the package but the line dialog', () =>
   // Escape closes the panel and F3 finds the next match, as before.
   assert.ok(noteSearchKeymap.some((binding) => binding.key === 'Escape'));
   assert.ok(noteSearchKeymap.some((binding) => binding.key === 'F3'));
+});
+
+/** What the editor announces after a replace of `count` matches. */
+function replacedWords(count: number): readonly string[] {
+  const state = EditorState.create({
+    doc: 'a '.repeat(count),
+    extensions: [EditorState.phrases.of(editorPhrases), replaceAllAnnouncement],
+  });
+  // The transaction of `replaceAll` of the package, as it builds it.
+  const changes = Array.from({ length: count }, (_, index) => ({
+    from: index * 2,
+    to: index * 2 + 1,
+    insert: 'b',
+  }));
+  const transaction = state.update({
+    changes,
+    effects: EditorView.announce.of(
+      `${state.phrase('replaced $ matches', count)}.`,
+    ),
+    userEvent: 'input.replace.all',
+  });
+  assert.equal(transaction.state.doc.toString(), 'b '.repeat(count));
+  return transaction.effects
+    .filter((effect) => effect.is(EditorView.announce))
+    .map((effect) => String(effect.value));
+}
+
+await test('a replace of every match counts one match and many matches', () => {
+  // Review of issue 247: one match read "Replaced 1 matches".
+  assert.deepEqual(replacedWords(1), ['Replaced 1 match.']);
+  assert.deepEqual(replacedWords(3), ['Replaced 3 matches.']);
+});
+
+await test('Enter finds and replaces in the fields of the panel', () => {
+  // Review of issue 247: no test held the keys of the panel.
+  const enter = { key: 'Enter', shiftKey: false };
+  const shiftEnter = { key: 'Enter', shiftKey: true };
+  assert.equal(searchPanelKey(enter, 'find'), 'next');
+  assert.equal(searchPanelKey(shiftEnter, 'find'), 'previous');
+  assert.equal(searchPanelKey(enter, 'replace'), 'replace');
+  assert.equal(searchPanelKey(shiftEnter, 'replace'), 'replace');
+  assert.equal(searchPanelKey(enter, 'other'), null);
+  assert.equal(searchPanelKey({ key: 'a', shiftKey: false }, 'find'), null);
+});
+
+await test('Escape in the panel closes it, which gives the focus to the text', () => {
+  // `closeSearchPanel` focuses the view when the focus is in the panel, so
+  // the binding of Escape in the scope of the panel returns the focus.
+  const escape = noteSearchKeymap.find((binding) => binding.key === 'Escape');
+  assert.ok(escape !== undefined);
+  assert.equal(escape.run, closeSearchPanel);
+  assert.ok((escape.scope ?? 'editor').split(' ').includes('search-panel'));
 });
