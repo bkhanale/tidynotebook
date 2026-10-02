@@ -31,7 +31,7 @@
  * `packages/ui`: `textStrong` meets 4.5 to 1 on the sidebar surface and on
  * both fills, and `focus` meets the 3 to 1 non-text minimum.
  */
-import { focusOutlineInset, rowClassName } from '@notesapp/ui';
+import { rowClassName } from '@notesapp/ui';
 
 /** What one row of the tree is right now. */
 export type TreeRowState = {
@@ -70,11 +70,25 @@ export function treeRowClassName(state: TreeRowState = {}): string {
   const drop = state.dropTarget === true ? 'ring-2 ring-inset ring-focus' : '';
   return rowClassName({
     selected: filled,
-    className: ['group pl-0 pr-1', openUnfilled, chosen, drop]
+    className: ['group pl-0 pr-1', treeItemFocus, openUnfilled, chosen, drop]
       .filter((part) => part !== '')
       .join(' '),
   });
 }
+
+/**
+ * The classes of a treeitem: the element of one row that takes the focus.
+ *
+ * The treeitem is the whole row with its indent (record 0164), so its own
+ * box covers the indent as well. It draws no outline of its own, and the row
+ * inside it draws the one focus treatment instead, inward, so the outline
+ * sits on the fill a person sees.
+ */
+export const treeItemClassName = 'group/item outline-none';
+
+/** The one focus treatment of a row, shown while its treeitem has the focus. */
+const treeItemFocus =
+  'group-focus-visible/item:outline-2 group-focus-visible/item:-outline-offset-2 group-focus-visible/item:outline-focus';
 
 /**
  * The disclosure column and the name control of one row.
@@ -95,7 +109,8 @@ export const treeRowLeadingClassName = 'flex min-w-0 flex-1 items-center';
  * so the disclosure target and the name do not add two spacing steps between
  * their icons.
  */
-export const treeRowNameClassName = `flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 truncate rounded-md border-0 bg-transparent pr-1 text-left text-inherit no-underline ${focusOutlineInset}`;
+export const treeRowNameClassName =
+  'flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 truncate rounded-md border-0 bg-transparent pr-1 text-left text-inherit no-underline';
 
 /** The deepest branch that still steps in. */
 export const deepestSteppedBranch = 4;

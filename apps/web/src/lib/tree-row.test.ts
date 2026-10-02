@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   deepestSteppedBranch,
   treeIndentClassName,
+  treeItemClassName,
   treeItemsClassName,
   treeListClassName,
   treeRowClassName,
@@ -86,11 +87,14 @@ await test('the name control inherits the colour of its row', () => {
   assert.ok(!treeRowNameClassName.includes('text-strong'));
 });
 
-await test('the name control shows its focus inside the row', () => {
+await test('a row shows the focus of its treeitem inside the row', () => {
   // The tree is a box that scrolls, and a box that scrolls clips an outline
-  // drawn outside the control.
-  assert.ok(treeRowNameClassName.includes('focus-visible:outline-2'));
-  assert.ok(treeRowNameClassName.includes('focus-visible:-outline-offset-2'));
+  // drawn outside the control. The treeitem is the whole row with its
+  // indent (record 0164), so the row inside it draws the outline, inward.
+  const row = treeRowClassName();
+  assert.ok(row.includes('group-focus-visible/item:outline-2'));
+  assert.ok(row.includes('group-focus-visible/item:-outline-offset-2'));
+  assert.ok(treeItemClassName.includes('group/item'));
   assert.ok(!treeRowNameClassName.includes('focus:'));
 });
 

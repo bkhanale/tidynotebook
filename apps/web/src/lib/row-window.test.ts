@@ -4,6 +4,7 @@ import {
   emptyRowWindow,
   estimatedStride,
   firstStride,
+  pinRow,
   revealScrollTop,
   rowWindow,
   sameRowWindow,
@@ -142,4 +143,23 @@ await test('a list that mounts again starts at the stride it measured', () => {
   assert.equal(firstStride(undefined), estimatedStride);
   assert.equal(firstStride(0), estimatedStride);
   assert.equal(firstStride(Number.NaN), estimatedStride);
+});
+
+await test('the row that has the focus stays in the document out of the window', () => {
+  // The review of the merged branch: the focused row of the tree left the
+  // document when a person scrolled it away, and the focus went to the page.
+  const window = rowWindow({ ...base, listTop: -3200 });
+  const above = pinRow(window, 3, 1010, 32);
+  assert.deepEqual(above.indexes.slice(0, 2), [3, window.start]);
+  assert.equal(above.before, window.before - 32);
+  assert.equal(
+    above.before + above.indexes.length * 32 + above.after,
+    1010 * 32,
+  );
+  const below = pinRow(window, 900, 1010, 32);
+  assert.equal(below.indexes.at(-1), 900);
+  assert.equal(below.after, window.after - 32);
+  const inside = pinRow(window, window.start + 2, 1010, 32);
+  assert.equal(inside.indexes.length, window.end - window.start);
+  assert.deepEqual(pinRow(window, null, 1010, 32).indexes, inside.indexes);
 });

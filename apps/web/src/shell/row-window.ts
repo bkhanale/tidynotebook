@@ -18,6 +18,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   firstStride,
+  pinRow,
   revealScrollTop,
   rowWindow,
   sameRowWindow,
@@ -46,6 +47,11 @@ export type RowWindowControl = {
   readonly start: number;
   /** One past the last rendered row. */
   readonly end: number;
+  /**
+   * The indexes of the rendered rows in document order: the window, and the
+   * kept row next to it when that row is outside the window.
+   */
+  readonly indexes: readonly number[];
   /** The list element. Its direct children are the rendered rows. */
   readonly listRef: (element: HTMLElement | null) => void;
   /** Scrolls the box that holds the list, so the row is in view. */
@@ -84,6 +90,8 @@ function measuredStride(list: HTMLElement): number | null {
 export function useRowWindow(
   count: number,
   kind: string,
+  /** A row that stays in the document, such as the row with the focus. */
+  pinned: number | null = null,
   overscan: number = defaultOverscan,
 ): RowWindowControl {
   const listRef = useRef<HTMLElement | null>(null);
@@ -129,12 +137,13 @@ export function useRowWindow(
 
   // The paddings follow the rows that this commit rendered, so the rows and
   // the space that stands for the others change in one frame.
+  const kept = pinRow(rows, pinned, count, strideRef.current);
   useLayoutEffect(() => {
     const list = listRef.current;
     if (list === null) return;
-    list.style.paddingTop = `${String(rows.before)}px`;
-    list.style.paddingBottom = `${String(rows.after)}px`;
-  }, [rows]);
+    list.style.paddingTop = `${String(kept.before)}px`;
+    list.style.paddingBottom = `${String(kept.after)}px`;
+  }, [kept.before, kept.after]);
 
   // A new count, a new stride or a new place decides the window again.
   useLayoutEffect(() => {
@@ -192,5 +201,11 @@ export function useRowWindow(
     if (next !== null) scroller.scrollTop = next;
   }, []);
 
-  return { start: rows.start, end: rows.end, listRef: attach, reveal };
+  return {
+    start: rows.start,
+    end: rows.end,
+    indexes: kept.indexes,
+    listRef: attach,
+    reveal,
+  };
 }

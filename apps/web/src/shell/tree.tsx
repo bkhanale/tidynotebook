@@ -32,7 +32,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import type { PublicationScope } from '@notesapp/core';
 import {
   AnchoredMenu,
@@ -80,11 +80,23 @@ import {
 } from '../lib/tree-rename.ts';
 import {
   treeIndentClassName,
+  treeItemClassName,
   treeItemsClassName,
   treeRowClassName,
   treeRowLeadingClassName,
   treeRowNameClassName,
 } from '../lib/tree-row.ts';
+import {
+  focusAfterRemoval,
+  rowKeyOf,
+  treeKeyAction,
+} from '../lib/tree-navigation.ts';
+import {
+  openRename,
+  renameStep,
+  type RenameEvent,
+  type RenameField,
+} from '../lib/tree-rename-field.ts';
 import {
   actionableKeys,
   folderRowKey,
@@ -92,6 +104,7 @@ import {
   noteRowKey,
   visibleTreeRows,
   type ActionableRow,
+  type TreeRowEntry,
 } from '../lib/tree-rows.ts';
 import {
   actionTargets,
@@ -144,12 +157,14 @@ export type NoteTreeProps = {
   readonly onMove: (items: readonly DragItem[]) => void;
 };
 
-/** The row that a rename in place edits, and the words in its field. */
+/** The row that a rename in place edits, and its field. */
 type Renaming = {
-  readonly key: string;
   readonly target: RenameTarget;
-  readonly value: string;
+  readonly field: RenameField;
 };
+
+/** The accessible name of the tree: what it holds. */
+export const treeLabel = 'Notes and folders';
 
 /** The one line under the tree: a result or the reason an action stopped. */
 type TreeMessage = {
@@ -177,6 +192,30 @@ function dragItemOf(target: TreeTarget): DragItem {
   return target.kind === 'note'
     ? { kind: 'note', fileId: target.fileId, path: target.path }
     : { kind: 'folder', folder: target.path };
+}
+
+/**
+ * The rows that one move to Trash removes: the rows it started from, the
+ * rows of its notes and every row inside a folder it moved.
+ */
+function removedKeys(
+  rows: readonly TreeRowEntry[],
+  keys: readonly string[],
+  plan: {
+    readonly items: readonly { readonly fileId: string }[];
+    readonly dropFolders: readonly string[];
+  },
+): readonly string[] {
+  const notes = new Set(plan.items.map((item) => noteRowKey(item.fileId)));
+  const folders = plan.dropFolders.map((folder) => `${folder}/`);
+  return rows.flatMap((row) => {
+    if (row.kind === 'empty') return [];
+    const path = row.kind === 'note' ? row.note.path : `${row.path}/`;
+    const inside = folders.some((folder) => path.startsWith(folder));
+    return keys.includes(row.key) || notes.has(row.key) || inside
+      ? [row.key]
+      : [];
+  });
 }
 
 /** The place on the screen of one element, for a menu that opens beside it. */
@@ -237,14 +276,24 @@ export function NoteTree({
 
   const [selection, setSelection] = useState<TreeSelection>(emptySelection);
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<Renaming | null>(null);
+  const [renaming, setRenamingState] = useState<Renaming | null>(null);
+  // The field of a rename lives in a reference as well, because one gesture
+  // sends several events before React renders again: Escape gives the focus
+  // back, and the blur that follows must read the field that Escape closed.
+  const renamingRef = useRef<Renaming | null>(null);
+  const setRenaming = useCallback((next: Renaming | null): void => {
+    renamingRef.current = next;
+    setRenamingState(next);
+  }, []);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [message, setMessage] = useState<TreeMessage | null>(null);
   const [busy, setBusy] = useState(false);
   const elements = useRef(new Map<string, HTMLElement>());
   const pendingFocus = useRef<string | null>(null);
   const revealedFor = useRef<string | null>(null);
-  const rowsInView = useRowWindow(rows.length, 'tree');
+  const focusIndex =
+    focusKey === null ? null : (indexByKey.get(focusKey) ?? null);
+  const rowsInView = useRowWindow(rows.length, 'tree', focusIndex);
   const selecting = selection.keys.size > 0;
 
   // A row that left the screen leaves the selection.
@@ -317,7 +366,7 @@ export function NoteTree({
 
   /** Moves the notes of some rows to Trash, as one store operation. */
   const trash = useCallback(
-    (keys: readonly string[]): void => {
+    (keys: readonly string[], fromKeys = false): void => {
       if (busy) return;
       const plan = trashPlan(targetsOfKeys(keys), files.notes);
       setMessage(null);
@@ -357,6 +406,15 @@ export function NoteTree({
         requestSync();
         for (const folder of plan.dropFolders) files.removeEmptyFolders(folder);
         setSelection(emptySelection);
+        // A move to Trash from the keys leaves the focus on the next row, so
+        // the focus never falls to the page with the rows that left.
+        if (fromKeys) {
+          const next = focusAfterRemoval(order, removedKeys(rows, keys, plan));
+          if (next !== null) {
+            pendingFocus.current = next;
+            setFocusKey(next);
+          }
+        }
         if (holdsOpenNote) void navigate(`/w/${workspaceId}`);
       })();
     },
@@ -371,6 +429,8 @@ export function NoteTree({
       announce,
       requestSync,
       navigate,
+      order,
+      rows,
     ],
   );
 
@@ -385,89 +445,118 @@ export function NoteTree({
           : { kind: 'folder', path: row.path };
       setMessage(null);
       setFocusKey(key);
-      setRenaming({ key, target, value: renameStartName(target) });
+      setRenaming({ target, field: openRename(key, renameStartName(target)) });
     },
-    [rowByKey],
+    [rowByKey, setRenaming],
   );
 
-  /** Gives the row its name back and the focus to the row. */
-  const cancelRename = useCallback((): void => {
-    const key = renaming?.key ?? null;
-    setRenaming(null);
-    setMessage(null);
-    if (key !== null) focusRow(key);
-  }, [renaming, focusRow]);
-
-  /** Keeps the typed name, or states why it cannot be kept. */
-  const commitRename = useCallback((): void => {
-    if (renaming === null || busy) return;
-    const plan = renamePlan(
-      renaming.target,
-      renaming.value,
-      files.notes,
-      knownFolders,
-    );
-    if (plan.kind === 'refused') {
-      setMessage({ tone: 'problem', text: plan.problem });
-      return;
-    }
-    if (plan.kind === 'unchanged') {
-      cancelRename();
-      return;
-    }
-    const activeStore = store.store;
-    if (plan.moves.length > 0 && (activeStore === null || accountId === null)) {
-      setMessage({
-        tone: 'problem',
-        text: 'Local storage is unavailable, so the name did not change.',
-      });
-      return;
-    }
-    const done = (): void => {
-      const moved = plan.folder;
-      if (moved !== null) {
-        files.moveEmptyFolders(moved.from, moved.to);
-        if (openFolders.has(moved.from)) openFolder(moved.to);
-        if (selectedFolder === moved.from) onSelectFolder(moved.to);
-      }
-      setRenaming(null);
-      setMessage(null);
-      focusRow(moved === null ? renaming.key : folderRowKey(moved.to));
-    };
-    if (plan.moves.length === 0 || activeStore === null || accountId === null) {
-      done();
-      return;
-    }
-    setBusy(true);
-    void (async (): Promise<void> => {
-      const failure = await applyMoves(
-        activeStore,
-        accountId,
-        workspaceId,
-        plan.moves,
-      );
-      setBusy(false);
-      if (failure !== null) {
-        setMessage({ tone: 'problem', text: failure });
+  /** Writes the name that the field keeps, and reports how the keep ended. */
+  const keepName = useCallback(
+    (target: RenameTarget, field: RenameField): void => {
+      const report = (event: RenameEvent, focus: string | null): void => {
+        // A keep reports to its own field. A rename that a person started on
+        // another row while this one wrote is not this field.
+        const current = renamingRef.current;
+        if (current === null || current.field.key !== field.key) return;
+        const step = renameStep(current.field, event);
+        setRenaming(
+          step.field.phase === 'closed'
+            ? null
+            : { ...current, field: step.field },
+        );
+        if (focus !== null) focusRow(focus);
+      };
+      const plan = renamePlan(target, field.value, files.notes, knownFolders);
+      if (plan.kind === 'refused') {
+        setMessage({ tone: 'problem', text: plan.problem });
+        report({ kind: 'refused' }, null);
         return;
       }
-      done();
-    })();
-  }, [
-    renaming,
-    busy,
-    files,
-    knownFolders,
-    cancelRename,
-    store.store,
-    accountId,
-    openFolders,
-    openFolder,
-    selectedFolder,
-    onSelectFolder,
-    focusRow,
-    workspaceId,
-  ]);
+      if (plan.kind === 'unchanged') {
+        report({ kind: 'kept' }, field.key);
+        return;
+      }
+      const done = (): void => {
+        const moved = plan.folder;
+        if (moved !== null) {
+          files.moveEmptyFolders(moved.from, moved.to);
+          if (openFolders.has(moved.from)) openFolder(moved.to);
+          if (selectedFolder === moved.from) onSelectFolder(moved.to);
+        }
+        setMessage(null);
+        const key = moved === null ? field.key : folderRowKey(moved.to);
+        // The row of a renamed folder has a new key, so it takes the focus
+        // once the tree renders it.
+        pendingFocus.current = key;
+        report({ kind: 'kept' }, key === field.key ? key : null);
+      };
+      const activeStore = store.store;
+      if (plan.moves.length === 0) {
+        done();
+        return;
+      }
+      if (activeStore === null || accountId === null) {
+        setMessage({
+          tone: 'problem',
+          text: 'Local storage is unavailable, so the name did not change.',
+        });
+        report({ kind: 'refused' }, null);
+        return;
+      }
+      setBusy(true);
+      void (async (): Promise<void> => {
+        const failure = await applyMoves(
+          activeStore,
+          accountId,
+          workspaceId,
+          plan.moves,
+        );
+        setBusy(false);
+        if (failure !== null) {
+          setMessage({ tone: 'problem', text: failure });
+          report({ kind: 'refused' }, null);
+          return;
+        }
+        done();
+      })();
+    },
+    [
+      files,
+      knownFolders,
+      store.store,
+      accountId,
+      openFolders,
+      openFolder,
+      selectedFolder,
+      onSelectFolder,
+      focusRow,
+      workspaceId,
+      setRenaming,
+    ],
+  );
+
+  /**
+   * Sends one event to the field of the rename. Each event acts once, so the
+   * blur that follows Escape or Enter keeps nothing (lib/tree-rename-field.ts).
+   */
+  const renameEvent = useCallback(
+    (event: RenameEvent): void => {
+      const current = renamingRef.current;
+      if (current === null) return;
+      const step = renameStep(current.field, event);
+      setRenaming(
+        step.field.phase === 'closed'
+          ? null
+          : { ...current, field: step.field },
+      );
+      if (step.effect === 'give-back') {
+        setMessage(null);
+        focusRow(current.field.key);
+      } else if (step.effect === 'keep') keepName(current.target, step.field);
+      else if (event.kind === 'type') setMessage(null);
+    },
+    [setRenaming, focusRow, keepName],
+  );
 
   /** Copies one note into a new note beside it and opens the copy. */
   const duplicate = useCallback(
@@ -638,99 +727,68 @@ export function NoteTree({
     [activeKey, order, selecting, focusKey],
   );
 
-  /** The keys of the tree, from the row that has the focus. */
+  /** The keys of the tree, from the row of the element that has the focus. */
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (renaming !== null) return;
+    if (renamingRef.current !== null) return;
     const intent = treeKeyIntent(event);
     if (intent === null) return;
-    const key =
-      focusKey !== null && order.includes(focusKey) ? focusKey : order[0];
+    const target = event.target instanceof Element ? event.target : null;
+    const key = rowKeyOf(target) ?? focusKey ?? order[0];
     if (key === undefined) return;
-    const at = order.indexOf(key);
-    const row = rowByKey.get(key);
-    const step = (delta: number): string | undefined =>
-      order[Math.min(Math.max(at + delta, 0), order.length - 1)];
-    if (intent === 'clear') {
-      // Escape with nothing to clear belongs to the drawer around the tree.
-      if (!selecting) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setSelection(emptySelection);
-      return;
-    }
+    const action = treeKeyAction(intent, { rows, order, key, selecting });
+    if (action.kind === 'none') return;
     event.preventDefault();
-    switch (intent) {
-      case 'next':
-      case 'previous': {
-        const next = step(intent === 'next' ? 1 : -1);
-        if (next !== undefined) focusRow(next);
+    if (action.kind === 'clear') event.stopPropagation();
+    switch (action.kind) {
+      case 'focus':
+        focusRow(action.key);
         return;
-      }
-      case 'extend-next':
-      case 'extend-previous': {
-        const next = step(intent === 'extend-next' ? 1 : -1);
-        if (next === undefined) return;
-        setSelection((now) => selectRange(now, order, next, key));
-        focusRow(next);
+      case 'extend':
+        setSelection((now) => selectRange(now, order, action.to, action.from));
+        focusRow(action.to);
         return;
-      }
-      case 'first':
-      case 'last': {
-        const next = intent === 'first' ? order[0] : order.at(-1);
-        if (next !== undefined) focusRow(next);
+      case 'toggle-folder':
+        setFocusKey(key);
+        toggleFolder(action.path);
         return;
-      }
-      case 'expand':
-        if (row?.kind !== 'folder') return;
-        if (!row.expanded) toggleFolder(row.path);
-        else {
-          const child = rows[(indexByKey.get(key) ?? -1) + 1];
-          if (
-            child !== undefined &&
-            isActionable(child) &&
-            child.parentKey === key
-          )
-            focusRow(child.key);
-        }
-        return;
-      case 'collapse':
-        if (row?.kind === 'folder' && row.expanded) {
-          toggleFolder(row.path);
-          return;
-        }
-        if (row !== undefined && row.parentKey !== null)
-          focusRow(row.parentKey);
-        return;
-      case 'activate':
+      case 'open-note':
         setSelection(emptySelection);
-        if (row?.kind === 'note') {
-          onNavigate();
-          void navigate(`/w/${workspaceId}/notes/${row.note.fileId}`);
-        } else if (row?.kind === 'folder') onSelectFolder(row.path);
+        onNavigate();
+        void navigate(`/w/${workspaceId}/notes/${action.fileId}`);
+        return;
+      case 'select-folder':
+        setSelection(emptySelection);
+        onSelectFolder(action.path);
         return;
       case 'toggle-select':
-        setSelection((now) => toggleRow(now, key));
+        setSelection((now) => toggleRow(now, action.key));
         return;
       case 'select-all':
         setSelection(selectAll(order));
         return;
+      case 'clear':
+        setSelection(emptySelection);
+        return;
       case 'rename':
-        startRename(key);
+        startRename(action.key);
         return;
       case 'menu': {
-        const element = elements.current.get(key);
-        if (element !== undefined) openMenu(key, anchorOf(element));
+        const element = elements.current.get(action.key);
+        if (element !== undefined) openMenu(action.key, anchorOf(element));
         return;
       }
       case 'trash':
-        trash(targetsFor(key));
+        trash(targetsFor(action.key), true);
         return;
     }
   };
 
   // The one row in the tab order: the row with the focus, else the open note,
   // else the first row of the window, so Tab always reaches the tree.
-  const rendered = rows.slice(rowsInView.start, rowsInView.end);
+  const rendered = rowsInView.indexes.flatMap((index) => {
+    const row = rows[index];
+    return row === undefined ? [] : [row];
+  });
   const renderedKeys = rendered.filter(isActionable).map((row) => row.key);
   const tabbable =
     focusKey !== null && renderedKeys.includes(focusKey)
@@ -748,15 +806,20 @@ export function NoteTree({
         ref={rowsInView.listRef}
         className={treeItemsClassName}
         role="tree"
-        aria-label="Folders"
+        aria-label={treeLabel}
         aria-multiselectable="true"
         onKeyDown={onKeyDown}
       >
         {rendered.map((row) =>
           row.kind === 'empty' ? (
+            // The line of an empty folder is a row of the tree that a person
+            // cannot act on, so the tree owns treeitems alone.
             <div
               key={row.key}
-              role="none"
+              role="treeitem"
+              aria-level={row.level}
+              aria-disabled="true"
+              aria-selected="false"
               className={treeIndentClassName(row.level)}
             >
               <div className={rowClassName({ interactive: false })}>
@@ -776,7 +839,7 @@ export function NoteTree({
               picked={isRowSelected(selection, row.key)}
               selecting={selecting}
               tabbable={row.key === tabbable}
-              renaming={renaming?.key === row.key ? renaming : null}
+              renaming={renaming?.field.key === row.key ? renaming.field : null}
               drag={drag}
               register={(element) => {
                 if (element === null) elements.current.delete(row.key);
@@ -787,8 +850,12 @@ export function NoteTree({
               onPlainClick={() => {
                 setSelection(emptySelection);
                 setFocusKey(row.key);
-                if (row.kind === 'note') onNavigate();
-                else onSelectFolder(row.path);
+                if (row.kind === 'folder') {
+                  onSelectFolder(row.path);
+                  return;
+                }
+                onNavigate();
+                void navigate(`/w/${workspaceId}/notes/${row.note.fileId}`);
               }}
               onToggle={() => {
                 if (row.kind === 'folder') toggleFolder(row.path);
@@ -797,12 +864,7 @@ export function NoteTree({
                 targetsOfKeys(targetsFor(row.key)).map(dragItemOf)
               }
               onMenu={(anchor) => openMenu(row.key, anchor)}
-              onRenameChange={(value) => {
-                setRenaming((now) => (now === null ? now : { ...now, value }));
-                setMessage(null);
-              }}
-              onRenameCommit={commitRename}
-              onRenameCancel={cancelRename}
+              onRenameEvent={renameEvent}
             />
           ),
         )}
@@ -862,9 +924,7 @@ function TreeRow({
   onToggle,
   onDragItems,
   onMenu,
-  onRenameChange,
-  onRenameCommit,
-  onRenameCancel,
+  onRenameEvent,
 }: {
   readonly row: ActionableRow;
   readonly workspaceId: string;
@@ -878,7 +938,7 @@ function TreeRow({
   readonly selecting: boolean;
   /** The row is the one row of the tree in the tab order. */
   readonly tabbable: boolean;
-  readonly renaming: Renaming | null;
+  readonly renaming: RenameField | null;
   readonly drag: TreeDrag;
   readonly register: (element: HTMLElement | null) => void;
   readonly onFocus: () => void;
@@ -888,25 +948,10 @@ function TreeRow({
   readonly onToggle: () => void;
   readonly onDragItems: () => readonly DragItem[];
   readonly onMenu: (anchor: MenuAnchor) => void;
-  readonly onRenameChange: (value: string) => void;
-  readonly onRenameCommit: () => void;
-  readonly onRenameCancel: () => void;
+  readonly onRenameEvent: (event: RenameEvent) => void;
 }): ReactNode {
   const isFolder = row.kind === 'folder';
   const isTarget = isFolder && drag.over === row.path;
-  const menuLabel = isFolder
-    ? `Actions for the folder ${row.name}`
-    : `Actions for the note ${row.name}`;
-  const treeItem = {
-    role: 'treeitem',
-    'aria-level': row.level,
-    'aria-posinset': row.posInSet,
-    'aria-setsize': row.setSize,
-    'aria-selected': picked || (!selecting && open),
-    'aria-expanded': isFolder ? row.expanded : undefined,
-    tabIndex: tabbable ? 0 : -1,
-    onFocus,
-  } as const;
   const icon = (
     <span className="inline-flex shrink-0 items-center" aria-hidden="true">
       {row.kind === 'note' ? (
@@ -918,11 +963,16 @@ function TreeRow({
       )}
     </span>
   );
-  const field =
-    renaming === null ? null : (
+  const name =
+    renaming === null ? (
+      <span className="min-w-0 flex-1 truncate" title={row.name}>
+        {row.name}
+      </span>
+    ) : (
       <input
         className={inlineFieldClassName()}
         value={renaming.value}
+        readOnly={renaming.phase !== 'editing'}
         aria-label={isFolder ? 'Name of the folder' : 'Name of the note'}
         autoComplete="off"
         spellCheck={false}
@@ -930,37 +980,97 @@ function TreeRow({
         // with the name selected so typing replaces it.
         autoFocus
         onFocus={(event) => event.currentTarget.select()}
-        onChange={(event) => onRenameChange(event.target.value)}
-        onBlur={onRenameCommit}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) =>
+          onRenameEvent({ kind: 'type', value: event.target.value })
+        }
+        onBlur={() => onRenameEvent({ kind: 'blur' })}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === 'Enter') {
             event.preventDefault();
-            onRenameCommit();
+            onRenameEvent({ kind: 'enter' });
           } else if (event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
-            onRenameCancel();
+            onRenameEvent({ kind: 'escape' });
           }
         }}
       />
     );
-  const name = field ?? (
-    <span className="min-w-0 flex-1 truncate" title={row.name}>
-      {row.name}
-    </span>
-  );
   const badge =
     row.kind === 'note' && (row.note.localOnly || row.note.unsent) ? (
       <span className="shrink-0" title="On this device only">
         <Badge>Local</Badge>
       </span>
     ) : null;
+  // A press on the chevron or the action button gives the focus to its row
+  // and not to the button, so the keys that follow act on the row a person
+  // pressed.
+  const keepFocus = (event: ReactMouseEvent<HTMLElement>): void => {
+    event.preventDefault();
+    const item = event.currentTarget.closest('[role="treeitem"]');
+    if (item instanceof HTMLElement) item.focus();
+  };
 
   return (
-    <div role="none" className={treeIndentClassName(row.level)}>
+    <div
+      ref={register}
+      role="treeitem"
+      data-row-key={row.key}
+      aria-level={row.level}
+      aria-posinset={row.posInSet}
+      aria-setsize={row.setSize}
+      aria-selected={picked || (!selecting && open)}
+      aria-expanded={isFolder ? row.expanded : undefined}
+      aria-current={open ? 'page' : undefined}
+      aria-haspopup="menu"
+      tabIndex={tabbable ? 0 : -1}
+      className={`${treeIndentClassName(row.level)} ${treeItemClassName}`}
+      draggable={renaming === null}
+      onFocus={onFocus}
+      onClick={(event) => {
+        if (renaming !== null) return;
+        if (onPick(event)) return;
+        onPlainClick();
+      }}
+      // A middle click opens a note in a new tab, as a link of the page does.
+      onAuxClick={(event) => {
+        if (event.button !== 1 || row.kind !== 'note') return;
+        event.preventDefault();
+        window.open(
+          `/w/${workspaceId}/notes/${row.note.fileId}`,
+          '_blank',
+          'noopener',
+        );
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onMenu({
+          top: event.clientY,
+          left: event.clientX,
+          width: 0,
+          height: 0,
+        });
+      }}
+      onDragStart={(event) => drag.begin(event, onDragItems())}
+      onDragEnd={() => drag.end()}
+      onDragOver={(event) => {
+        if (!isFolder || !drag.accepts(row.path)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        drag.hover(row.path);
+      }}
+      onDragLeave={() => {
+        if (isTarget) drag.hover(null);
+      }}
+      onDrop={(event) => {
+        if (!isFolder) return;
+        event.preventDefault();
+        drag.drop(row.path);
+      }}
+    >
       <div
-        role="none"
         className={treeRowClassName({
           open,
           selected: parent,
@@ -968,105 +1078,59 @@ function TreeRow({
           selecting,
           dropTarget: isTarget,
         })}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          onMenu({
-            top: event.clientY,
-            left: event.clientX,
-            width: 0,
-            height: 0,
-          });
-        }}
-        onDragOver={(event) => {
-          if (!isFolder || !drag.accepts(row.path)) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = 'move';
-          drag.hover(row.path);
-        }}
-        onDragLeave={() => {
-          if (isTarget) drag.hover(null);
-        }}
-        onDrop={(event) => {
-          if (!isFolder) return;
-          event.preventDefault();
-          drag.drop(row.path);
-        }}
       >
         <div className={treeRowLeadingClassName}>
           {isFolder ? (
-            // The chevron is for a pointer. The keyboard opens and closes a
-            // folder with Right and Left, so the chevron is not a tab stop.
+            // The chevron is for a pointer. The keys open and close a folder
+            // with Right and Left on the row, so the chevron is no stop of
+            // the keys and no part of the row a screen reader reads.
             <button
               type="button"
               tabIndex={-1}
+              aria-hidden="true"
               className={rowActionClassName}
-              onClick={onToggle}
-              aria-label={`${row.expanded ? 'Collapse' : 'Expand'} folder ${row.name}`}
+              onMouseDown={keepFocus}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle();
+              }}
               title={`${row.expanded ? 'Collapse' : 'Expand'} folder ${row.name}`}
             >
-              <span className="inline-flex text-muted" aria-hidden="true">
+              <span className="inline-flex text-muted">
                 {row.expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
               </span>
             </button>
           ) : (
             <span className={rowSpacerClassName} aria-hidden="true" />
           )}
-          {row.kind === 'note' && renaming === null ? (
-            <Link
-              {...treeItem}
-              ref={register}
-              className={treeRowNameClassName}
-              to={`/w/${workspaceId}/notes/${row.note.fileId}`}
-              aria-current={open ? 'page' : undefined}
-              draggable
-              onClick={(event) => {
-                if (onPick(event)) return;
-                onPlainClick();
-              }}
-              onDragStart={(event) => drag.begin(event, onDragItems())}
-              onDragEnd={() => drag.end()}
-            >
-              {icon}
-              {name}
-              {badge}
-            </Link>
-          ) : (
-            <div
-              {...treeItem}
-              ref={register}
-              className={treeRowNameClassName}
-              aria-current={open ? 'page' : undefined}
-              draggable={renaming === null}
-              onClick={(event) => {
-                if (renaming !== null) return;
-                if (onPick(event)) return;
-                onPlainClick();
-              }}
-              onDragStart={(event) => drag.begin(event, onDragItems())}
-              onDragEnd={() => drag.end()}
-            >
-              {icon}
-              {name}
-              {badge}
-            </div>
-          )}
+          <div className={treeRowNameClassName}>
+            {icon}
+            {name}
+            {badge}
+          </div>
         </div>
         {/*
-          The action button opens the menu that a right click and Shift + F10
-          open. The keyboard reaches that menu from the row, so the button is
-          not a tab stop, and it keeps its name for a screen reader on a touch
-          screen, which has no right click.
+          The action button opens the menu that a right click, Shift + F10
+          and the Menu key open. The row states that it has a menu, so the
+          button is for a pointer and a touch screen alone.
         */}
         <button
           type="button"
           tabIndex={-1}
+          aria-hidden="true"
           className={rowActionClassName}
-          aria-label={menuLabel}
-          aria-haspopup="menu"
-          title={menuLabel}
-          onClick={(event) => onMenu(anchorOf(event.currentTarget))}
+          title={
+            isFolder
+              ? `Actions for the folder ${row.name}`
+              : `Actions for the note ${row.name}`
+          }
+          onMouseDown={keepFocus}
+          onClick={(event) => {
+            event.stopPropagation();
+            onMenu(anchorOf(event.currentTarget));
+          }}
         >
-          <span className="inline-flex text-muted" aria-hidden="true">
+          <span className="inline-flex text-muted">
             <MoreIcon />
           </span>
         </button>

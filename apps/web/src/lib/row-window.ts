@@ -165,3 +165,48 @@ export function firstStride(remembered: number | undefined): number {
     ? remembered
     : estimatedStride;
 }
+
+/** The rows a list renders, with one row kept, and the space around them. */
+export type PinnedWindow = {
+  /** The indexes of the rendered rows, in the order of the document. */
+  readonly indexes: readonly number[];
+  readonly before: number;
+  readonly after: number;
+};
+
+/**
+ * The window of a list that also keeps one row in the document.
+ *
+ * The row that has the focus stays in the document when a person scrolls it
+ * out of the window, because a focused element that leaves the document
+ * sends the focus to the page (record 0165). The kept row stands next to the
+ * window, on the side of its place, and one stride of space less stands for
+ * the rows on that side, so the height of the list stays the same. It is out
+ * of view there, by the overscan, until the window reaches its place.
+ */
+export function pinRow(
+  window: RowWindow,
+  pinned: number | null,
+  count: number,
+  stride: number,
+): PinnedWindow {
+  const rendered = Array.from(
+    { length: window.end - window.start },
+    (_unused, offset) => window.start + offset,
+  );
+  if (pinned === null || pinned < 0 || pinned >= count)
+    return { indexes: rendered, before: window.before, after: window.after };
+  if (pinned < window.start)
+    return {
+      indexes: [pinned, ...rendered],
+      before: Math.max(0, window.before - stride),
+      after: window.after,
+    };
+  if (pinned >= window.end)
+    return {
+      indexes: [...rendered, pinned],
+      before: window.before,
+      after: Math.max(0, window.after - stride),
+    };
+  return { indexes: rendered, before: window.before, after: window.after };
+}
