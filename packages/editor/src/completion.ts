@@ -23,7 +23,6 @@ import {
   type CompletionResult,
   type CompletionSource,
 } from '@codemirror/autocomplete';
-import { syntaxTree } from '@codemirror/language';
 import {
   Compartment,
   EditorSelection,
@@ -32,7 +31,7 @@ import {
   type Extension,
 } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import type { SyntaxNode } from '@lezer/common';
+import { insideLiteral } from './literal-context.ts';
 import {
   convertWikiLinks,
   portableRelativePath,
@@ -247,32 +246,6 @@ export const noteLinkCompletion: CompletionSource = (
     filter: false,
   };
 };
-
-/** The blocks and spans in which a typed wiki link stays text. */
-const literalNodes = new Set([
-  'FencedCode',
-  'CodeBlock',
-  'InlineCode',
-  'InlineMath',
-  'MathBlock',
-  'HTMLBlock',
-  'HTMLTag',
-  'CommentBlock',
-  'Autolink',
-  'URL',
-  'Frontmatter',
-]);
-
-/** Whether a position stands inside code, math, HTML or an address. */
-function insideLiteral(state: EditorState, pos: number): boolean {
-  for (
-    let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1);
-    node !== null;
-    node = node.parent
-  )
-    if (literalNodes.has(node.name)) return true;
-  return false;
-}
 
 /** The text before the caret of a wiki link that one `]` more closes. */
 const openWikiLink = /(?:!)?\[\[[^[\]\n]+\]$/;

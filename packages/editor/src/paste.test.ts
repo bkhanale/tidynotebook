@@ -7,11 +7,15 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { EditorState } from '@codemirror/state';
+import { noteLinkSource } from './completion.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 import {
   decodeEntities,
   htmlToMarkdown,
   isPastedUrl,
   normalizePastedUrl,
+  pastedMarkdown,
 } from './paste.ts';
 
 await test('headings and paragraphs become Markdown blocks', () => {
@@ -163,5 +167,61 @@ await test('a pasted URL is recognised and completed', () => {
   assert.equal(
     normalizePastedUrl(' https://example.com '),
     'https://example.com',
+  );
+});
+
+/** A note of the grammar with one other note, and the caret at `‸`. */
+function pasteInto(text: string): EditorState {
+  const at = text.indexOf('‸');
+  return parsedWhole(
+    EditorState.create({
+      doc: text.replace('‸', ''),
+      selection: { anchor: at },
+      extensions: [
+        noteMarkdown(),
+        noteLinkSource({
+          currentPath: 'notes/a.md',
+          notes: [{ path: 'notes/a.md' }, { path: 'notes/Plan.md' }],
+        }),
+      ],
+    }),
+  );
+}
+
+await test('a plain paste in a paragraph links the notes that are there', () => {
+  assert.equal(
+    pastedMarkdown(pasteInto('Text ‸ more'), 'See [[Plan]].', ''),
+    'See [Plan](Plan.md).',
+  );
+  // Text with no note to link pastes as the editor writes plain text.
+  assert.equal(pastedMarkdown(pasteInto('Text ‸'), 'See [[Gone]].', ''), null);
+});
+
+await test('a plain paste inside code, math, HTML or a link keeps its brackets', () => {
+  // Review of record 0172: only a fence kept the text, and every other
+  // literal place took a link.
+  for (const text of [
+    'Code `a ‸ b` here.',
+    'Math $a ‸ b$ here.',
+    'Math $$a ‸ b$$ here.',
+    '$$\nx ‸ y\n$$',
+    '<div>\nsome ‸ words\n</div>',
+    '    indented ‸ code',
+    'A [label ‸ here](notes/x.md) link.',
+    '```\n‸\n```',
+  ])
+    assert.equal(pastedMarkdown(pasteInto(text), '[[Plan]]', ''), null, text);
+});
+
+await test('a rich paste keeps the brackets of the page that it came from', () => {
+  // The words of a page that shows `[[Plan]]` are those characters, so the
+  // rich text keeps them escaped and links nothing.
+  assert.equal(
+    pastedMarkdown(
+      pasteInto('‸'),
+      '[[Plan]] here',
+      '<p><b>[[Plan]]</b> here</p>',
+    ),
+    '**\\[\\[Plan\\]\\]** here',
   );
 });

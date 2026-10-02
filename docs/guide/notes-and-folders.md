@@ -142,7 +142,7 @@ readable in any other editor.
 You can also type a whole wiki link, such as `[[Plan]]`, `[[Plan|the plan]]`
 or `[[Plan#Next steps]]`, as you do in Obsidian. When you type the last `]`
 and a note of that name is in the workspace, the editor changes it to a normal
-link. A paste does the same. A wiki link that names no note stays as you
+link. A paste of plain text does the same. A wiki link that names no note stays as you
 wrote it.
 
 Select a link to open it. The pointer changes over a link, so you can see what

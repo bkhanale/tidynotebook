@@ -21,10 +21,9 @@ import type {
   CompletionResult,
   CompletionSource,
 } from '@codemirror/autocomplete';
-import { syntaxTree } from '@codemirror/language';
 import { Facet, type EditorState, type Extension } from '@codemirror/state';
-import type { SyntaxNode } from '@lezer/common';
 import { formatContextOf } from './format-context.ts';
+import { insideLiteral } from './literal-context.ts';
 import {
   formatActionApplies,
   formatActionOf,
@@ -51,34 +50,6 @@ export const slashCommandsFacet = Facet.define<
 /** The extension that gives the editor the blocks of the slash menu. */
 export function slashCommands(commands: readonly SlashCommand[]): Extension {
   return slashCommandsFacet.of(commands);
-}
-
-/** The nodes inside which a slash is text. */
-const literalNodes = new Set([
-  'FencedCode',
-  'CodeBlock',
-  'InlineCode',
-  'InlineMath',
-  'MathBlock',
-  'HTMLBlock',
-  'HTMLTag',
-  'CommentBlock',
-  'Autolink',
-  'URL',
-  'Link',
-  'Image',
-  'Frontmatter',
-]);
-
-/** Whether a position stands inside code, math, HTML, a link or an address. */
-function insideLiteral(state: EditorState, pos: number): boolean {
-  for (
-    let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1);
-    node !== null;
-    node = node.parent
-  )
-    if (literalNodes.has(node.name)) return true;
-  return false;
 }
 
 /** The slash and the words after it, up to the caret. */

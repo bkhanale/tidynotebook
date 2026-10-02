@@ -13,8 +13,13 @@
  * without a browser.
  */
 import { EditorView } from '@codemirror/view';
-import { EditorSelection, type Extension } from '@codemirror/state';
+import {
+  EditorSelection,
+  type EditorState,
+  type Extension,
+} from '@codemirror/state';
 import { withNoteLinks } from './completion.ts';
+import { insideLiteral } from './literal-context.ts';
 import { insideCodeFence } from './keymaps.ts';
 
 /** Elements that never hold content. */
@@ -521,13 +526,34 @@ export function normalizePastedUrl(text: string): string {
 }
 
 /**
+ * The Markdown that a paste of text writes at the selection, or `null` to
+ * leave the paste to the editor, which writes the plain text.
+ *
+ * Rich text becomes Markdown when that adds something over the plain text.
+ * Its characters are the characters of the page that the person copied, so a
+ * `[[` in it stays a `[[`, escaped. A wiki link of plain text, as a copy of
+ * the source of a vault holds, becomes a standard link when its note is there
+ * (record 0172), and inside code, math, HTML or a link it stays as it is.
+ */
+export function pastedMarkdown(
+  state: EditorState,
+  plain: string,
+  html: string,
+): string | null {
+  const converted = html === '' ? '' : htmlToMarkdown(html);
+  if (converted !== '' && converted !== plain.trim()) return converted;
+  const from = state.selection.main.from;
+  if (insideLiteral(state, from)) return null;
+  const linked = withNoteLinks(state, plain);
+  return linked === plain ? null : linked;
+}
+
+/**
  * The paste handler of the Markdown editor.
  *
  * Order matters. Files stay with the note screen, which uploads them.
  * Inside a code fence every paste stays literal. A URL over a selection
- * becomes a link, and rich text becomes Markdown only when the conversion
- * actually adds something over the plain text alternative. A wiki link whose
- * note is there becomes a standard link in either case (record 0172).
+ * becomes a link, and every other paste writes what `pastedMarkdown` answers.
  */
 export const markdownPaste: Extension = EditorView.domEventHandlers({
   paste: (event: ClipboardEvent, view: EditorView): boolean => {
@@ -553,16 +579,12 @@ export const markdownPaste: Extension = EditorView.domEventHandlers({
       return true;
     }
 
-    // Rich text becomes Markdown when that adds something over the plain
-    // text. A wiki link of the text then becomes a standard link when its
-    // note is there (record 0172), which is the one change a plain paste
-    // takes, so a page of a vault pastes with working links.
-    const html = data.getData('text/html');
-    const converted = html === '' ? '' : htmlToMarkdown(html);
-    const rich = converted !== '' && converted !== plain.trim();
-    const pasted = rich ? converted : plain;
-    const markdown = withNoteLinks(view.state, pasted);
-    if (!rich && markdown === plain) return false;
+    const markdown = pastedMarkdown(
+      view.state,
+      plain,
+      data.getData('text/html'),
+    );
+    if (markdown === null) return false;
     view.dispatch({
       changes: { from: main.from, to: main.to, insert: markdown },
       selection: EditorSelection.cursor(main.from + markdown.length),
