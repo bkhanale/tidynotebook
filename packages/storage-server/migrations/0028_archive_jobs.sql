@@ -8,7 +8,7 @@ ALTER TABLE "archive_jobs" ADD CONSTRAINT "archive_jobs_account_id_accounts_id_f
 CREATE INDEX "archive_jobs_account_idx" ON "archive_jobs" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "archive_jobs_expiry_idx" ON "archive_jobs" USING btree ("expires_at");--> statement-breakpoint
 
--- The archive jobs of record 0160. The table is reached through the functions
+-- The archive jobs of record 0170. The table is reached through the functions
 -- below only, so it has an owner policy and no runtime policy, as the stream
 -- reservations of migration 0019 do.
 ALTER TABLE public.archive_jobs ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

@@ -106,7 +106,7 @@ await test('an export past the bounds of one zip file says what to do', () => {
 });
 
 await test('an archive job that waits says when to try again', () => {
-  // Record 0160. One import or export of an account runs at once, and a few
+  // Record 0170. One import or export of an account runs at once, and a few
   // of the installation.
   assert.equal(
     importRefusalMessage({ code: 'archive_job_running' }),

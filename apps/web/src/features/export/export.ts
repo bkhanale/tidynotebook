@@ -196,7 +196,7 @@ export async function downloadNote(
  * A browser with a save picker writes the archive into the file that the
  * person picks as it arrives, so a large export needs no memory of its size.
  * The picker opens first, on the click of the person. Another browser saves a
- * blob (record 0160).
+ * blob (record 0170).
  */
 export async function downloadAll(
   workspaceId: string,

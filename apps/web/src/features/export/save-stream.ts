@@ -1,5 +1,5 @@
 /**
- * A file on the device that a download writes as it arrives (record 0160).
+ * A file on the device that a download writes as it arrives (record 0170).
  *
  * The export of a workspace can be as large as the zip format allows, so a
  * browser that offers the File System Access API saves it as a stream into a

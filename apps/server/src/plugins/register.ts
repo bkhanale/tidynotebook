@@ -527,7 +527,7 @@ function throttleGroup(id: OperationId): string | null {
   if (id === 'readInvitation' || id === 'registerAccount') return 'invitation';
   // The removal of an own account takes the password again, like a sign-in.
   if (id === 'removeOwnAccount') return 'password';
-  // An import and an export share one bucket of the account (record 0160).
+  // An import and an export share one bucket of the account (record 0170).
   if (id === 'importWorkspace' || id === 'exportWorkspace') return 'archive';
   // A report counts per client address and per /64 prefix (record 0119).
   if (id === 'reportPublishedLink') return 'report';

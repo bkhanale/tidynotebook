@@ -45,7 +45,7 @@ export type AttachmentStore = {
   /**
    * One page of the live files of a workspace, in path order, after `after`,
    * with the size of the content of each head. An export plans its archive
-   * from them before its first byte (record 0160).
+   * from them before its first byte (record 0170).
    */
   archivePlan(
     actor: Actor,
@@ -146,7 +146,7 @@ export type AttachmentBytes = {
   readonly path: string;
 };
 
-/** One live file of a workspace with the size of its head (record 0160). */
+/** One live file of a workspace with the size of its head (record 0170). */
 export type ArchivePlanRow = {
   readonly fileId: string;
   readonly path: string;

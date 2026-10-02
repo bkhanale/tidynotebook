@@ -1,4 +1,4 @@
-/** Checks the bounds of one import and one export before any byte (record 0160). */
+/** Checks the bounds of one import and one export before any byte (record 0170). */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';

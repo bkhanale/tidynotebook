@@ -9,7 +9,7 @@ post:
     and does not hold its slot. The operation takes every archive that
     exportWorkspace answers: up to 65534 files and 4 GiB without ZIP64. A
     refused archive answers archive_invalid, archive_too_many_files or
-    archive_too_large. Record 0160 bounds the work: one import or export
+    archive_too_large. Record 0170 bounds the work: one import or export
     of an account runs at once (429 archive_job_running) and a few of the
     installation (503 archive_jobs_busy, with Retry-After), a body that the
     storage cannot hold answers 507 storage_full before it is read, and

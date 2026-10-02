@@ -84,7 +84,7 @@ const controlReserveBytes = 1n << 20n;
  * The bytes that `changesets` changesets of `revisions` new revisions and
  * `contentBytes` new content charge to the owner, by the rule of the write
  * below. An import reads it to check the room of the owner before its first
- * commit (record 0160).
+ * commit (record 0170).
  */
 export function writeChargeBytes(
   contentBytes: bigint,

@@ -331,7 +331,7 @@ export class ArchiveRefusedError extends Error {
 export type ArchiveJobRefusal = 'archive_job_running' | 'archive_jobs_busy';
 
 /**
- * An import or an export that waits for another one (record 0160).
+ * An import or an export that waits for another one (record 0170).
  *
  * The account runs its limit of archive jobs, which answers 429, or the
  * installation runs its limit, which answers 503. Both answers carry
@@ -347,7 +347,7 @@ export class ArchiveJobRefusedError extends Error {
   }
 }
 
-/** A file that the storage volume has no room for now (record 0160). */
+/** A file that the storage volume has no room for now (record 0170). */
 export class StorageFullError extends Error {
   constructor(detail: string) {
     super(detail);
@@ -357,7 +357,7 @@ export class StorageFullError extends Error {
 
 /**
  * An import that a failure of the service stopped after its first commit
- * (record 0160). The detail states how many files came in.
+ * (record 0170). The detail states how many files came in.
  */
 export class ImportIncompleteError extends Error {
   constructor(detail: string) {

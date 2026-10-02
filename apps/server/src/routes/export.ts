@@ -8,7 +8,7 @@
  * archive needs this application to be read again.
  *
  * The export of a workspace plans its archive before its first byte: the
- * path and the size of the head of every live file (record 0160). A workspace
+ * path and the size of the head of every live file (record 0170). A workspace
  * past a bound of the format is refused at once with an answer of its own.
  * Otherwise the answer states the exact length of the archive and streams it
  * while it is written, one note or one image in memory at a time, from the
@@ -79,7 +79,7 @@ function exportDisposition(input: {
 
 /**
  * The refusal of a planned archive past a bound of the format, or `null`
- * (record 0160). The plan is checked before the first byte, so a refusal is
+ * (record 0170). The plan is checked before the first byte, so a refusal is
  * an answer of its own and never a download that stops in the middle.
  */
 export function exportRefusal(

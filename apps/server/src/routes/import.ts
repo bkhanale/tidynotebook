@@ -9,7 +9,7 @@
  * Such an archive does not fit in memory, so the import keeps it in a file of
  * the server. The file is removed from its folder as soon as it is open, so it
  * leaves nothing behind when the import ends, fails, or the process stops.
- * Record 0160 bounds the rest:
+ * Record 0170 bounds the rest:
  *
  * - One import of an account and a few of the installation run at once.
  * - A body longer than the bound is refused from `Content-Length`, and a body
@@ -128,7 +128,7 @@ function busboyHeaders(request: FastifyRequest): { 'content-type': string } {
 }
 
 /**
- * Why a body is refused before it is read, or `null` (record 0160).
+ * Why a body is refused before it is read, or `null` (record 0170).
  *
  * A body longer than the bound is too large. A body that the storage volume,
  * less `archiveDiskReserveBytes`, cannot hold has no room. A body with no
@@ -514,7 +514,7 @@ type ImportPlan = {
 };
 
 /**
- * Checks every entry of an archive before the first commit (record 0160).
+ * Checks every entry of an archive before the first commit (record 0170).
  *
  * A refusal here leaves the workspace as it was. Each note is read and parsed
  * once under the limits of the grammar, as the commit parses it, and each

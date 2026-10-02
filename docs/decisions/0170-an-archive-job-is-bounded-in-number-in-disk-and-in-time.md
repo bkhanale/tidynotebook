@@ -1,4 +1,4 @@
-# 0160. An archive job is bounded in number, in disk and in time
+# 0170. An archive job is bounded in number, in disk and in time
 
 - Status: Accepted
 - Date: 2026-10-02

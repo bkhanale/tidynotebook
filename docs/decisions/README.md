@@ -192,7 +192,6 @@ and needs no record.
 | [0158](0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)                  | A published diagram draws in the frame of the editor                            |
 | [0159](0159-one-highlighter-colours-code-on-both-surfaces.md)                         | One highlighter colours code on both surfaces                                   |
 | [0160](0160-an-unclosed-tag-never-takes-the-rest-of-a-note.md)                        | An unclosed tag never takes the rest of a note                                  |
-| [0160](0160-an-archive-job-is-bounded-in-number-in-disk-and-in-time.md)               | An archive job is bounded in number, in disk and in time                        |
 | [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
 | [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 | [0163](0163-a-new-note-takes-its-name-from-its-first-heading.md)                      | A new note takes its name from its first heading                                |
@@ -202,6 +201,7 @@ and needs no record.
 | [0167](0167-search-reads-the-words-of-any-language-as-a-reader-sees-them.md)          | Search reads the words of any language as a reader sees them                    |
 | [0168](0168-a-note-read-carries-the-document-only-for-an-editor.md)                   | A note read carries the document only for an editor                             |
 | [0169](0169-the-server-compresses-a-large-json-read.md)                               | The server compresses a large JSON read                                         |
+| [0170](0170-an-archive-job-is-bounded-in-number-in-disk-and-in-time.md)               | An archive job is bounded in number, in disk and in time                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -705,7 +705,7 @@ Record 0169 answers the same issue. The server compresses the JSON answer of
 a large read itself, as record 0013 asks of delivery, and leaves a write and
 an answer that sets a cookie as they are.
 
-Record 0160 answers the review of
+Record 0170 answers the review of
 [issue 243](https://github.com/bkhanale/notesapp/issues/243). An import and an
 export hold one reservation each across the processes, an export plans its
 archive and streams it with its length, and an import checks the free space

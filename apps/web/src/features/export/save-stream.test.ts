@@ -1,4 +1,4 @@
-/** Checks the target of a streamed download (record 0160). */
+/** Checks the target of a streamed download (record 0170). */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { pickSaveTarget } from './save-stream.ts';

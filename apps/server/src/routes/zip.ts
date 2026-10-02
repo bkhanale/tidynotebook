@@ -129,7 +129,7 @@ function endRecord(count: number, size: number, offset: number): Buffer {
  * Every entry is stored, so its bytes take their own size, after a local
  * header of 30 bytes and its name, and the central directory holds a record
  * of 46 bytes and the name of each, before the end record of 22. An export
- * states this length before its first byte (record 0160).
+ * states this length before its first byte (record 0170).
  */
 export function archiveLength(
   entries: Iterable<{ readonly path: string; readonly size: number }>,

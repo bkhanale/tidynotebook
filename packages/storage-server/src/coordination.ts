@@ -2,7 +2,7 @@
  * What every server process of one installation shares besides the data
  * (record 0121): the attempt counters of the limited routes, the right to
  * run one maintenance job, the reservations of the open notice streams
- * (record 0129), and the archive jobs that run (record 0160).
+ * (record 0129), and the archive jobs that run (record 0170).
  *
  * PostgreSQL already holds every other shared fact of the product, so it
  * holds these too. The counters live in `attempt_counters` and change through
@@ -52,7 +52,7 @@ export type CoordinationHandle = {
   pruneStreams(): Promise<number>;
   /**
    * Reserves one archive job of an account, and answers `reserved`, or the
-   * limit that refused it: `account` or `installation` (record 0160).
+   * limit that refused it: `account` or `installation` (record 0170).
    */
   reserveArchiveJob(
     id: string,

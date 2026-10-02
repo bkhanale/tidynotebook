@@ -811,7 +811,7 @@ await test(
 );
 
 await test('an account runs one archive job, and the installation a few', async () => {
-  // Review of issue 243, record 0160. Nothing bounded how many imports and
+  // Review of issue 243, record 0170. Nothing bounded how many imports and
   // exports ran at once, so their disk and their database work had no bound.
   const held = randomUUID();
   const ownerId = account.data?.accountId ?? '';
