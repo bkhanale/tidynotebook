@@ -10,6 +10,7 @@ import {
   createAttachmentChangeset,
   createFileChangeset,
   listFiles,
+  maxFilesPerChangeset,
   maxPageSize,
   workspaceText,
   normalizePath,
@@ -22,6 +23,7 @@ import { requireActor } from '../auth/actor.ts';
 import { inspectImage } from '../jobs/inspect-image.ts';
 import { watchBodyIdle } from '../plugins/body-idle-timeout.ts';
 import {
+  ArchiveRefusedError,
   DomainProblemError,
   ForbiddenError,
   InvalidContentError,
@@ -218,13 +220,36 @@ async function importAttachment(
   if (!accepted.ok) throw new DomainProblemError(accepted.error);
 }
 
+/**
+ * Commits the notes of an archive, in changesets of the largest size.
+ *
+ * `maxFilesPerChangeset` bounds every changeset, and an archive can hold up
+ * to `maxArchiveEntries` files, so the notes go in batches (issue 243). The
+ * paths were checked free before the first batch, so a batch fails only for
+ * a cause that the answer names, such as the room of the account.
+ */
 async function importNotes(
   entries: readonly UnzipEntry[],
   actor: Actor,
   workspaceId: string,
   store: WorkspaceStore,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  for (let start = 0; start < entries.length; start += maxFilesPerChangeset)
+    await importNoteBatch(
+      entries.slice(start, start + maxFilesPerChangeset),
+      actor,
+      workspaceId,
+      store,
+    );
+}
+
+/** Commits one batch of notes as one changeset. */
+async function importNoteBatch(
+  entries: readonly UnzipEntry[],
+  actor: Actor,
+  workspaceId: string,
+  store: WorkspaceStore,
+): Promise<void> {
   const revisions: ChangesetInput['revisions'][number][] = [];
   const expectedHeads: Record<string, null> = {};
   for (const entry of entries) {
@@ -298,16 +323,18 @@ export function createImportHandlers(
         );
       } catch (error) {
         // A body that is too large and a body that stopped are answers of
-        // their own. Only an archive that arrived whole and cannot be read is
-        // invalid content.
+        // their own. Only an archive that arrived whole is read here.
         if (error instanceof PayloadTooLargeError) throw error;
         if (error instanceof RequestTimeoutError) throw error;
         if (error instanceof RequestContractError) throw error;
         if (error instanceof UnsupportedMediaTypeError) throw error;
-        throw new InvalidContentError(
-          error instanceof Error
-            ? error.message
-            : 'The workspace archive is not valid.',
+        // The reader names each cause it knows (issue 243). Anything else
+        // that it meets is an archive it cannot read, which is never a digest
+        // that does not match.
+        if (error instanceof ArchiveRefusedError) throw error;
+        throw new ArchiveRefusedError(
+          'archive_invalid',
+          'The file is not a zip archive that this server can read.',
         );
       }
       const notes = entries.filter((entry) => entry.path.endsWith('.md'));

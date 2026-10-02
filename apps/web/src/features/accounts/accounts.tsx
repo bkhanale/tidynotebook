@@ -93,7 +93,11 @@ import {
   signOut as endSession,
   revokeSessionViaClient,
 } from '../../pwa/lifecycle.ts';
-import { downloadAll, importAll } from '../export/export.ts';
+import {
+  downloadAll,
+  importAll,
+  transferFailureMessage,
+} from '../export/export.ts';
 import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx';
 import { TemplateSettingsFields } from '../templates/template-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
@@ -199,7 +203,7 @@ function ConsentPage(): ReactNode {
         if (workspace.role === 'owner')
           await downloadAll(workspace.workspaceId);
     } catch (failure: unknown) {
-      setError(problemMessage(failure));
+      setError(transferFailureMessage(failure));
     } finally {
       setBusy(false);
     }
@@ -1009,6 +1013,8 @@ export function AccountSettingsPage(): ReactNode {
   const [exportError, setExportError] = useState('');
   const [importing, setImporting] = useState(false);
   const [importNotice, setImportNotice] = useState('');
+  // A refused import is a problem, not news, so it has its own notice.
+  const [importError, setImportError] = useState('');
   const [removing, setRemoving] = useState(false);
   const importInput = useRef<HTMLInputElement | null>(null);
   const requestSync = useRequestSync();
@@ -1160,7 +1166,7 @@ export function AccountSettingsPage(): ReactNode {
             setExporting(true);
             void downloadAll(workspaceId)
               .catch((failure: unknown) => {
-                setExportError(problemMessage(failure));
+                setExportError(transferFailureMessage(failure));
               })
               .finally(() => {
                 setExporting(false);
@@ -1179,6 +1185,9 @@ export function AccountSettingsPage(): ReactNode {
         {importNotice === '' ? null : (
           <Notice className="mb-3" tone="info" message={importNotice} />
         )}
+        {importError === '' ? null : (
+          <Notice className="mb-3" tone="problem" message={importError} />
+        )}
         <input
           ref={importInput}
           className="sr-only"
@@ -1190,6 +1199,7 @@ export function AccountSettingsPage(): ReactNode {
             if (file === undefined || workspaceId === null) return;
             setImporting(true);
             setImportNotice('');
+            setImportError('');
             void importAll(workspaceId, file)
               .then((result) => {
                 setImportNotice(
@@ -1198,7 +1208,7 @@ export function AccountSettingsPage(): ReactNode {
                 requestSync();
               })
               .catch((failure: unknown) => {
-                setImportNotice(problemMessage(failure));
+                setImportError(transferFailureMessage(failure));
               })
               .finally(() => {
                 setImporting(false);

@@ -9,12 +9,13 @@
  * The archive is produced as a stream: one entry is held in memory at a time,
  * and the central directory follows the entries, exactly as the format
  * prescribes. The format used here is the original one, not ZIP64, so an
- * archive is limited to 65535 entries and to 4 GiB. A larger export is
- * refused rather than written wrong.
+ * archive is limited to `maxArchiveEntries` entries and to 4 GiB. A larger
+ * export is refused rather than written wrong.
  */
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
 import { crc32 } from 'node:zlib';
+import { maxArchiveEntries } from '@notesapp/core';
 
 /** One stored file of the archive. */
 export type ZipEntry = {
@@ -25,8 +26,13 @@ export type ZipEntry = {
   readonly modified: Date;
 };
 
-/** How many entries and how many bytes the original format can address. */
-const maxEntries = 0xffff;
+/**
+ * How many bytes the original format can address.
+ *
+ * The most entries is `maxArchiveEntries` of `@notesapp/core`, which the
+ * import reader reads too, so an archive that this writer writes is an
+ * archive that an import takes (issue 243).
+ */
 const maxBytes = 0xffff_ffff;
 
 /** Stored, not deflated. The reader needs no compressor for such an entry. */
@@ -118,7 +124,7 @@ async function* archiveChunks(
     const checksum = crc32(entry.bytes);
     const stamp = dosStamp(entry.modified);
     const header = localHeader(name, checksum, entry.bytes.length, stamp);
-    if (directory.length === maxEntries)
+    if (directory.length === maxArchiveEntries)
       throw new Error('notesapp: the export holds too many files.');
     if (offset + header.length + entry.bytes.length > maxBytes)
       throw new Error('notesapp: the export is too large for the format.');

@@ -55,3 +55,10 @@ images. The import keeps each file path and each relative link.
 
 An imported path must not be in use. If a path is in use, rename or remove that
 file before you import the zip file again.
+
+One import takes a zip file of up to 100 MiB that holds up to 65535 files.
+Every zip file that **Export all notes** writes holds no more files than that,
+so a workspace can always come back through its own export when its files fit
+in 100 MiB. For a larger set, put the files in two or more zip files and import
+each one. When the server cannot take a zip file, the **Import** card says why
+and what to do next.

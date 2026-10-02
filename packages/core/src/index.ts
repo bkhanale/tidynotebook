@@ -167,6 +167,11 @@ export type {
 export { isOperationalError, OperationalError } from './files/ports.ts';
 export { commitChangeset, maxFilesPerChangeset } from './files/commit.ts';
 export {
+  archiveEntriesAllowed,
+  maxArchiveEntries,
+  maxArchiveExpandedBytes,
+} from './files/archive.ts';
+export {
   emptySubscription,
   noticeBatch,
   replaceSubscription,

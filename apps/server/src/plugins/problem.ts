@@ -37,6 +37,9 @@ export type ProblemCode =
   | 'invalid_path'
   | 'invalid_graph'
   | 'invalid_content'
+  | 'archive_invalid'
+  | 'archive_too_many_files'
+  | 'archive_too_large'
   | 'too_many_files'
   | 'unrenderable_note'
   | 'epoch_mismatch'
@@ -125,7 +128,12 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   precondition_required: 'The operation needs a precondition.',
   invalid_path: 'The path does not follow the workspace path rules.',
   invalid_graph: 'The submitted revisions are not a valid change.',
-  invalid_content: 'The submitted content does not match its digest.',
+  invalid_content: 'The submitted content is not valid.',
+  archive_invalid: 'The file is not a zip archive that this server can read.',
+  archive_too_many_files:
+    'The archive holds more files than one import can take.',
+  archive_too_large:
+    'The files of the archive are larger than one import can take.',
   too_many_files: 'The change rewrites more files than one request may hold.',
   unrenderable_note: 'The note cannot be read as Markdown.',
   quota_exceeded: 'The account has no room left for new content.',
@@ -282,6 +290,29 @@ export class InvalidContentError extends Error {
     super(detail);
     this.name = 'InvalidContentError';
     this.fileIds = fileIds;
+  }
+}
+
+/** The kind of an archive that an import refuses (issue 243). */
+export type ArchiveRefusal =
+  'archive_invalid' | 'archive_too_many_files' | 'archive_too_large';
+
+/**
+ * An import archive that the server does not read.
+ *
+ * Each kind is its own problem code with its own title, so the answer names
+ * the real cause: an archive that is not a zip archive the server can read,
+ * an archive with more files than one import takes, or files that expand
+ * past the bound of one import. The detail states the bound and never a
+ * path or a byte of the archive.
+ */
+export class ArchiveRefusedError extends Error {
+  readonly refusal: ArchiveRefusal;
+
+  constructor(refusal: ArchiveRefusal, detail: string) {
+    super(detail);
+    this.name = 'ArchiveRefusedError';
+    this.refusal = refusal;
   }
 }
 
@@ -724,6 +755,15 @@ export function classifyError(error: unknown): {
     return {
       status: 408,
       code: 'request_timeout',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof ArchiveRefusedError)
+    return {
+      // An archive that is too big is a body past a bound of the server, and
+      // an archive that is not readable is content that cannot be accepted.
+      status: error.refusal === 'archive_invalid' ? 422 : 413,
+      code: error.refusal,
       detail: error.message,
       issues: [],
     };

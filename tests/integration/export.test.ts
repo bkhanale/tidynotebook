@@ -59,8 +59,18 @@ import {
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
+import {
+  commitChangeset,
+  maxArchiveEntries,
+  maxFilesPerChangeset,
+  workspaceText,
+} from '@notesapp/core';
 import sharp from 'sharp';
-import { createDisposableDatabase, seedWorkspace } from './support/database.ts';
+import {
+  createDisposableDatabase,
+  memberActor,
+  seedWorkspace,
+} from './support/database.ts';
 import { startTestServer } from './support/server.ts';
 
 /** The HTTP response of a generated call, or a clear test failure. */
@@ -496,6 +506,150 @@ await test('an import that stops arriving answers with the declared timeout', as
     Date.now() - started < 30_000,
     'the answer waited for the request bound',
   );
+});
+
+await test('an export of more than 1000 notes imports back whole', async () => {
+  // Issue 243. The import refused an archive of more than 1000 files, and
+  // the export writes up to the bound of the format, so a workspace of more
+  // notes could not come back through its own export.
+  const count = maxFilesPerChangeset + 100;
+  const source = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Large source' },
+  });
+  const sourceId = source.data?.workspaceId ?? '';
+  assert.match(sourceId, /^[0-9a-f-]{36}$/);
+  const owner = memberActor(account.data?.accountId ?? '', sourceId);
+  for (let start = 0; start < count; start += maxFilesPerChangeset) {
+    const expectedHeads: Record<string, null> = {};
+    const revisions = Array.from(
+      { length: Math.min(maxFilesPerChangeset, count - start) },
+      (_, offset) => {
+        const fileId = randomUUID();
+        expectedHeads[fileId] = null;
+        const index = start + offset;
+        return {
+          id: randomUUID(),
+          fileId,
+          parents: [],
+          path: `folder-${String(index % 10)}/note-${String(index)}.md`,
+          deleted: false,
+          content: workspaceText(`# Note ${String(index)}\n`, 1),
+          clientTime: '2026-10-02T00:00:00.000Z',
+          message: null,
+          restoredFrom: null,
+        };
+      },
+    );
+    const input = {
+      workspaceId: sourceId,
+      mutationId: randomUUID(),
+      deviceId: 'integration-seed',
+      expectedHeads,
+      revisions,
+    };
+    const accepted = await commitChangeset(
+      content,
+      owner,
+      input,
+      `export-seed-${input.mutationId}`,
+    );
+    assert.equal(accepted.ok, true, JSON.stringify(accepted));
+  }
+  const exported = await exportWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: sourceId },
+  });
+  const archive = await archiveBytes(exported.data);
+  const entries = readArchive(archive);
+  assert.equal(entries.size, count);
+
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Large target' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File([archive], 'notes.zip', { type: 'application/zip' }),
+    },
+  });
+  assert.equal(imported.error, undefined, JSON.stringify(imported.error));
+  assert.deepEqual(imported.data, { notes: count, attachments: 0 });
+  const roundTrip = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.deepEqual([...roundTrip.keys()].sort(), [...entries.keys()].sort());
+  assert.equal(
+    roundTrip.get(`folder-3/note-${String(count - 7)}.md`)?.toString('utf8'),
+    `# Note ${String(count - 7)}\n`,
+  );
+});
+
+/** The ZIP64 end records of an archive that states `files` files. */
+function zip64Archive(files: number): Buffer<ArrayBuffer> {
+  const record = Buffer.alloc(56);
+  record.writeUInt32LE(0x0606_4b50, 0);
+  record.writeBigUInt64LE(44n, 4);
+  record.writeBigUInt64LE(BigInt(files), 24);
+  record.writeBigUInt64LE(BigInt(files), 32);
+  const locator = Buffer.alloc(20);
+  locator.writeUInt32LE(0x0706_4b50, 0);
+  locator.writeUInt32LE(1, 16);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x0605_4b50, 0);
+  end.writeUInt16LE(0xffff, 8);
+  end.writeUInt16LE(0xffff, 10);
+  end.writeUInt32LE(0xffff_ffff, 12);
+  end.writeUInt32LE(0xffff_ffff, 16);
+  return Buffer.concat([record, locator, end]);
+}
+
+await test('an import refusal names its real cause', async () => {
+  // Issue 243. Every refusal of the reader came back as invalid content,
+  // whose title names a digest that does not match.
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Refused target' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const send = (bytes: Buffer<ArrayBuffer>) =>
+    importWorkspace({
+      headers: browser(cookie),
+      path: { workspaceId: targetId },
+      body: {
+        file: new File([bytes], 'notes.zip', { type: 'application/zip' }),
+      },
+    });
+  const many = await send(zip64Archive(maxArchiveEntries + 1));
+  assert.equal(responseOf(many.response).status, 413);
+  assert.equal(readProperty(many.error, 'code'), 'archive_too_many_files');
+  assert.equal(
+    readProperty(many.error, 'title'),
+    'The archive holds more files than one import can take.',
+  );
+  assert.match(
+    String(readProperty(many.error, 'detail')),
+    /65535 files at the most/,
+  );
+  const broken = await send(Buffer.from('this is not a zip archive at all'));
+  assert.equal(responseOf(broken.response).status, 422);
+  assert.equal(readProperty(broken.error, 'code'), 'archive_invalid');
+  assert.equal(
+    readProperty(broken.error, 'title'),
+    'The file is not a zip archive that this server can read.',
+  );
+  for (const problem of [many.error, broken.error])
+    assert.doesNotMatch(String(readProperty(problem, 'title')), /digest/);
 });
 
 // Teardown
