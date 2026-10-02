@@ -32,6 +32,8 @@ export function searchableNote(
   text: string,
   path: string,
 ): { readonly links: readonly NoteLink[]; readonly body: string } {
-  const indexed = indexNote(text, path);
+  // The excerpt is shown under the name of the note, so a first block that
+  // repeats the name is no part of the text (record 0162).
+  const indexed = indexNote(text, path, { title: noteTitle(path) });
   return { links: indexed.links, body: indexed.text };
 }

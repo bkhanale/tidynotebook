@@ -14,7 +14,9 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
 
 - `parse.ts` gives the mdast tree with source offsets. `render.ts` gives
   sanitized HTML. `links.ts` extracts note links and attachment references.
-  `plain-text.ts` gives the plain text of a search excerpt (0162).
+  `plain-text.ts` is the one plain text rule: `readableText` gives the words
+  a reader sees, which the search index holds and the device search reads
+  (0162, 0167), and `indexNote` gives the links and that text from one parse.
 - `policy.ts` classifies a URL. `limits.ts` holds the limits and
   `MarkdownLimitError`, `math.ts` and `math-syntax.ts` the math rules,
   `alerts.ts` the alert marker and `ordered-markers.ts` the style and label of

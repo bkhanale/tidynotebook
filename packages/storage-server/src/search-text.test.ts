@@ -14,7 +14,7 @@ await test('the body is the readable text and the links come from the same parse
     '# Launch\nRead **the** [plan](Plan.md) at <https://example.com>.\n',
     'plans/Launch.md',
   );
-  assert.equal(indexed.body, 'Launch\nRead the plan at https://example.com.');
+  assert.equal(indexed.body, 'Read the plan at https://example.com.');
   assert.deepEqual(
     indexed.links.map((link) => link.targetPath),
     ['plans/Plan.md'],

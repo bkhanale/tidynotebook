@@ -19,7 +19,7 @@ import { toString } from 'mdast-util-to-string';
 import { visit } from 'unist-util-visit';
 import { parseMarkdown } from './parse.ts';
 import { classifyUrl, isIdentifier } from './policy.ts';
-import { readableTextOf } from './readable-text.ts';
+import { readableTextOf, type ReadableTextOptions } from './plain-text.ts';
 
 /** A half-open offset range into the parsed source string. */
 export type SourceRange = { readonly from: number; readonly to: number };
@@ -102,11 +102,12 @@ export function extractLinks(
 export function indexNote(
   source: string,
   sourcePath = '',
+  options: ReadableTextOptions = {},
 ): { readonly links: readonly NoteLink[]; readonly text: string } {
   const tree = parseMarkdown(source);
   return {
     links: linksOf(tree, source, sourcePath),
-    text: readableTextOf(tree),
+    text: readableTextOf(tree, options),
   };
 }
 

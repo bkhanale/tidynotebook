@@ -4,12 +4,13 @@
  * This is the answer the device can give with no connection. It follows the
  * same two rules as the server: a note whose name matches comes before a note
  * that only matches in its text, and the excerpt is the part of the note that
- * matched, split into plain parts with every matched word marked. The window
- * is cut from the Markdown of the note, and `plainExcerpt` of the one grammar
- * turns it into the text a reader sees (record 0162).
+ * matched, split into plain parts with every matched word marked. Like the
+ * server index, it reads the readable text of each note that `readableText`
+ * of the one grammar gives, so a word matches and shows as a reader sees it,
+ * and both excerpts follow one plain text rule (records 0162, 0167).
  */
 import type { ExcerptPart, SearchHit } from '@notesapp/core';
-import { plainExcerpt } from '@notesapp/markdown';
+import { MarkdownLimitError, readableText } from '@notesapp/markdown';
 
 /** One accepted or draft note that is safe to search in the active partition. */
 export type LocalSearchFile = {
@@ -85,6 +86,43 @@ function excerpt(
   return parts;
 }
 
+/** How many readable texts the device keeps between two searches. */
+const readableCacheSize = 2048;
+
+/**
+ * The readable texts of the last searches, by the Markdown they came from.
+ *
+ * A person types a query one key at a time, and each key searches the same
+ * notes again. A text that the device already read is not parsed again.
+ */
+const readableCache = new Map<string, string>();
+
+/**
+ * The readable text of one note, under its name.
+ *
+ * A text that the grammar refuses, by its size or its depth, is searched as
+ * it is, so the device still finds it.
+ */
+function readableOf(file: LocalSearchFile): string {
+  const title = noteTitle(file.path);
+  const key = `${title}\n${file.text}`;
+  const known = readableCache.get(key);
+  if (known !== undefined) return known;
+  let text: string;
+  try {
+    text = readableText(file.text, { title });
+  } catch (failure) {
+    if (!(failure instanceof MarkdownLimitError)) throw failure;
+    text = file.text;
+  }
+  if (readableCache.size >= readableCacheSize) {
+    const oldest = readableCache.keys().next().value;
+    if (oldest !== undefined) readableCache.delete(oldest);
+  }
+  readableCache.set(key, text);
+  return text;
+}
+
 /**
  * Searches already partitioned local files without network access.
  *
@@ -101,6 +139,13 @@ export function searchLocal(
   const latest = new Map<string, LocalSearchFile>();
   for (const file of files) latest.set(file.fileId, file);
   return [...latest.values()]
+    .filter((file) => {
+      // The Markdown holds every word of its readable text, so a note that
+      // fails here needs no parse.
+      const haystack = `${file.path}\n${file.text}`.toLocaleLowerCase('en-US');
+      return queryWords.every((word) => haystack.includes(word));
+    })
+    .map((file) => ({ ...file, text: readableOf(file) }))
     .filter((file) => {
       const haystack = `${file.path}\n${file.text}`.toLocaleLowerCase('en-US');
       return queryWords.every((word) => haystack.includes(word));
@@ -120,8 +165,6 @@ export function searchLocal(
       fileId: file.fileId,
       path: file.path,
       revisionId: file.revisionId,
-      excerpt: plainExcerpt(excerpt(file.text, queryWords), {
-        title: noteTitle(file.path),
-      }),
+      excerpt: excerpt(file.text, queryWords),
     }));
 }

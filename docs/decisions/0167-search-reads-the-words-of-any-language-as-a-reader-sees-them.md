@@ -10,10 +10,11 @@ stored vector of `search_index` in `packages/storage-server/src/schema.ts`
 and the query of `notesapp_search` use `english`, so a note in another
 language is stemmed and cut by English rules
 ([issue 246](https://github.com/bkhanale/notesapp/issues/246)). The index
-holds the raw Markdown, so an excerpt shows emphasis marks and link
-addresses ([issue 253](https://github.com/bkhanale/notesapp/issues/253)). A
-search for a word in every note spent most of its time in `ts_headline` over
-the whole text of a long note
+holds the raw Markdown, so its headline needs a plain text pass after the
+database, and a search finds a word of a link address that no reader sees.
+Record [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)
+states the plain text rule of an excerpt. A search for a word in every note
+spent most of its time in `ts_headline` over the whole text of a long note
 ([issue 265](https://github.com/bkhanale/notesapp/issues/265)).
 
 ## Decision
@@ -25,10 +26,11 @@ the whole text of a long note
 - Every word of a query matches as a prefix. This takes the place of
   stemming in every language whose word forms add an ending. A word form that
   changes its stem, and a shorter form of a longer query word, do not match.
-- The index holds the readable text of a note: `readableText` of
-  `packages/markdown` drops the marks, the link addresses and the raw HTML,
-  and keeps the words, the code and the alternative text of a picture. Search
-  matches and quotes only what a reader sees.
+- The body of the index is the readable text of a note under its name, the
+  one plain text rule of record 0162, from `readableText` of
+  `packages/markdown/src/plain-text.ts`. Search matches and quotes only what a
+  reader sees, and the headline is plain text as it leaves the database.
+  `text_rule` names the version of the rule that made a row.
 - The excerpt reads a bounded window of the text around the first place of a
   query word, so its cost does not grow with the length of a note.
 - A data migration after the SQL rebuilds the row of every live note that has
@@ -44,5 +46,5 @@ language.
   English. A text with no spaces between words, such as Japanese, matches
   only from the start of a run of letters.
 - `tests/integration/search.test.ts` proves the language rule, the accent
-  rule, the prefix rule, the readable excerpt, the window of a long note and
-  the rebuild. `packages/markdown/src/readable-text.test.ts` proves the text.
+  rule, the prefix rule, the index body, the window of a long note and the
+  rebuild. `packages/markdown/src/plain-text.test.ts` proves the text.

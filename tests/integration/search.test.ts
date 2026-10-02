@@ -200,11 +200,15 @@ await test('the excerpt is the plain text of the note, with no Markdown', async 
   const whole = hit.excerpt.map((part) => part.text).join('');
   // The first heading repeats the name the result is shown under, so it goes,
   // and no block runs into the next.
-  assert.equal(whole, 'The portage route is in the trip plan.');
+  // A headline ends at a word, so the full stop of the sentence stays out.
+  assert.equal(whole, 'The portage route is in the trip plan');
   assert.doesNotMatch(whole, /\*\*|\]\(|https:|maps\.example|#/);
   assert.deepEqual(
     hit.excerpt.filter((part) => part.marked).map((part) => part.text),
     ['portage'],
+  );
+});
+
 await test('a note in another language matches by its own words', async () => {
   // Issue 246. The English configuration dropped `will` as a stop word, so
   // the German verb could never be found.
@@ -247,9 +251,9 @@ await test('a letter with an accent matches the same letter without one', async 
   }
 });
 
-await test('the excerpt quotes the text that a reader sees', async () => {
-  // Issue 253. The index held the raw Markdown, so an excerpt showed the
-  // marks of emphasis and the address of a link.
+await test('the address of a link is not a word of the note', async () => {
+  // Record 0167. The index holds the readable text, so search matches what
+  // a reader sees and never the address behind a label.
   const fileId = randomUUID();
   await accept([
     revision({
@@ -258,22 +262,13 @@ await test('the excerpt quotes the text that a reader sees', async () => {
       text: '# Paddles\nA **carbon** paddle from [the shop](https://example.com/private/order) weighs little.\n',
     }),
   ]);
-  const found = await searchFiles(store, actor, workspaceId, 'carbon');
-  assert.equal(found.ok, true);
-  if (!found.ok) return;
-  const hit = found.value.find((entry) => entry.fileId === fileId);
-  assert.ok(hit !== undefined);
-  const whole = hit.excerpt.map((part) => part.text).join('');
-  assert.match(whole, /A carbon paddle from the shop weighs little/);
-  assert.ok(!whole.includes('**'), 'the excerpt holds no mark of emphasis');
-  assert.ok(!whole.includes('example.com'), 'the excerpt holds no address');
   const address = await searchFiles(store, actor, workspaceId, 'private order');
   assert.equal(address.ok, true);
   if (address.ok)
-    assert.ok(
-      !address.value.some((entry) => entry.fileId === fileId),
-      'the address of a link is not a word of the note',
-    );
+    assert.ok(!address.value.some((entry) => entry.fileId === fileId));
+  const label = await searchFiles(store, actor, workspaceId, 'shop');
+  assert.equal(label.ok, true);
+  if (label.ok) assert.ok(label.value.some((entry) => entry.fileId === fileId));
 });
 
 await test('a match deep in a long note is the excerpt of that note', async () => {
@@ -353,8 +348,14 @@ await test('a search of more notes than the limit answers the best ranked page',
     found.value.map((hit) => hit.fileId),
     [namedId, oftenId],
   );
-  for (const hit of found.value)
-    assert.ok(hit.excerpt.some((part) => part.marked));
+  // The note that holds the word marks it in its excerpt. The note that
+  // matched by its name alone shows the text under its name, because the
+  // heading that repeats the name is no part of the excerpt (record 0162).
+  const [named, often] = found.value;
+  assert.deepEqual(named?.excerpt, [{ text: 'One note.', marked: false }]);
+  assert.ok(
+    often?.excerpt.some((part) => part.marked && part.text === 'rapids'),
+  );
 });
 
 await test('the search reads the stored vector of a note', async () => {
@@ -427,7 +428,8 @@ await test('the migration makes a row of an earlier rule again', async () => {
     );
     assert.deepEqual(row.rows, [
       {
-        body: 'Canals\nThe lock keeper waves at boats.',
+        // The first heading repeats the name of the note, so it goes.
+        body: 'The lock keeper waves at boats.',
         text_rule: 1,
       },
     ]);

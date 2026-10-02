@@ -8,7 +8,8 @@
  * `parseMarkdown` gives the tree with source offsets. `extractLinks` and
  * `extractAttachmentRefs` give the references a caller resolves through the
  * generated API operations. `readableText` gives the words a reader sees,
- * and `indexNote` gives the links and that text from one parse.
+ * the one plain text of a note that search indexes and quotes (records 0162
+ * and 0167), and `indexNote` gives the links and that text from one parse.
  * `renderMarkdown` gives sanitized HTML. Every one of them refuses a document
  * that is larger or deeper than `markdownLimits` allows by throwing
  * `MarkdownLimitError`. Nothing in this package performs input or output of
@@ -25,7 +26,6 @@ export {
 export { parseMarkdown } from './parse.ts';
 export type { AttachmentRef, NoteLink, SourceRange } from './links.ts';
 export { extractAttachmentRefs, extractLinks, indexNote } from './links.ts';
-export { readableText } from './readable-text.ts';
 export type { MarkdownLimitReason } from './limits.ts';
 export { markdownLimits, MarkdownLimitError } from './limits.ts';
 export type { ContentUrl } from './policy.ts';
@@ -69,8 +69,8 @@ export {
   MathRenderError,
   renderMath,
 } from './math.ts';
-export type { ExcerptText } from './plain-text.ts';
-export { plainExcerpt } from './plain-text.ts';
+export type { ReadableTextOptions } from './plain-text.ts';
+export { blockSeparator, readableText } from './plain-text.ts';
 export type { CodeLanguage } from './code-languages.ts';
 export {
   codeLanguageOf,

@@ -5,7 +5,8 @@ reader must never disagree about what a document means.
 
 - `packages/markdown` is the definition. It parses with remark, applies the URL
   policy and the sanitizer, and returns HTML. It is the reference renderer. It
-  feeds the search index, and `plainExcerpt` makes its excerpt plain (0162).
+  gives the one readable text that the search index holds and the device
+  search reads, so every excerpt is plain (records 0162 and 0167).
 - `packages/editor` is the live preview. It reads the Lezer Markdown syntax
   tree that CodeMirror already parses and turns it into decorations. The
   Markdown source stays the document at every position.

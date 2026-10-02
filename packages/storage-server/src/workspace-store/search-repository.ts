@@ -2,15 +2,14 @@
  * The search repository: the accepted note index of the open workspace.
  *
  * It is the search slice of the port. It runs the membership checked search
- * function, turns each excerpt into the plain text a reader sees, and clears
- * the index rows of files that a changeset deleted.
+ * function and clears the index rows of files that a changeset deleted. The
+ * index holds the readable text of each note, so an excerpt is plain text
+ * when it leaves the database (records 0162, 0167).
  */
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Backlink, SearchHit, WorkspaceTransaction } from '@notesapp/core';
-import { plainExcerpt } from '@notesapp/markdown';
 import { noteLinks, searchIndex } from '../schema.ts';
 import { splitExcerpt } from '../excerpt.ts';
-import { noteTitle } from '../search-text.ts';
 import { assertUuid } from './errors.ts';
 import type { RepositoryContext } from './context.ts';
 
@@ -34,11 +33,7 @@ export function searchRepository(
         fileId: row.file_id,
         path: row.path,
         revisionId: row.revision_id,
-        // The headline is cut from the Markdown of the note, so the reader
-        // gets its plain text, shown under the name of the note (record 0162).
-        excerpt: plainExcerpt(splitExcerpt(row.excerpt), {
-          title: noteTitle(row.path),
-        }),
+        excerpt: splitExcerpt(row.excerpt),
       }));
     },
 

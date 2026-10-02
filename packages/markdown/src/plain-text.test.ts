@@ -1,169 +1,167 @@
+/**
+ * Checks of the one plain text rule of Markdown (records 0162 and 0167).
+ *
+ * Search indexes this text and quotes it on the server and on the device, so
+ * each case proves what a reader sees: the words stay, the marks and the
+ * link addresses go, and two blocks never read as one sentence.
+ */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { plainExcerpt, type ExcerptText } from './plain-text.ts';
+import { extractLinks, indexNote } from './links.ts';
+import { MarkdownLimitError, markdownLimits } from './limits.ts';
+import { blockSeparator, readableText } from './plain-text.ts';
 
-/** Splits a text with `[[` and `]]` around each marked word into parts. */
-function parts(text: string): readonly ExcerptText[] {
-  const result: ExcerptText[] = [];
-  for (const [index, piece] of text.split(/\[\[|\]\]/).entries())
-    if (piece !== '') result.push({ text: piece, marked: index % 2 === 1 });
-  return result;
-}
-
-/** Writes parts back with `[[` and `]]` around each marked part. */
-function written(excerpt: readonly ExcerptText[]): string {
-  return excerpt
-    .map((part) => (part.marked ? `[[${part.text}]]` : part.text))
-    .join('');
-}
-
-/** The plain text of one marked source, written back with its marks. */
-function plain(text: string): string {
-  return written(plainExcerpt(parts(text)));
-}
-
-await test('emphasis marks go and the marked word stays marked', () => {
+await test('emphasis marks go and their words stay', () => {
   // The defect this covers: a palette result showed `**` marks and whole
   // link addresses, because the excerpt was cut from the Markdown source.
   assert.equal(
-    plain('The **[[budget]]** is _final_ now.'),
-    'The [[budget]] is final now.',
+    readableText('The **budget** is _final_, ~~old~~ and `coded` now.'),
+    'The budget is final, old and coded now.',
   );
-  assert.equal(plain('A ~~[[old]]~~ plan.'), 'A [[old]] plan.');
 });
 
 await test('a link keeps its label and loses its address', () => {
   assert.equal(
-    plain('See [the [[budget]] plan](https://example.com/plans/budget).'),
-    'See the [[budget]] plan.',
+    readableText(
+      'See [the plan](../plans/Plan.md) and [ref][r] now.\n\n[r]: https://example.com/hidden\n',
+    ),
+    'See the plan and ref now.',
   );
-  // A match inside the address leaves with the address.
   assert.equal(
-    plain('Read [this](https://[[example]].com/a) now.'),
+    readableText('Read [this](https://example.com/a) now.'),
     'Read this now.',
   );
   // A bare address is what a reader sees, so it stays.
   assert.equal(
-    plain('Open https://[[example]].com today.'),
-    'Open https://[[example]].com today.',
+    readableText('Open https://example.com today.'),
+    'Open https://example.com today.',
   );
 });
 
 await test('block marks go and every block break stays visible', () => {
   // The defect this covers: a heading and the paragraph under it read as one
   // sentence, "Plan The budget is in the sheet."
+  assert.equal(blockSeparator, ' · ');
   assert.equal(
-    plain('# Plan\n\nThe [[budget]] is in the sheet.'),
-    'Plan · The [[budget]] is in the sheet.',
+    readableText('# Plan\n\nThe budget is in the sheet.'),
+    'Plan · The budget is in the sheet.',
   );
   assert.equal(
-    plain('# Plan\n\n- one [[budget]] item\n- two\n\n> a quote\n\n---\n\nend'),
-    'Plan · one [[budget]] item · two · a quote · end',
+    readableText('# Plan\n\n- one item\n- two\n\n> a quote\n\n---\n\nend'),
+    'Plan · one item · two · a quote · end',
   );
   assert.equal(
-    plain('| a | [[b]] |\n| - | - |\n| c | d |'),
-    'a · [[b]] · c · d',
+    readableText('| a | b |\n| - | - |\n| c | d |'),
+    'a · b · c · d',
   );
   // After the end of a sentence the next block needs only a space.
   assert.equal(
-    plain('The first one.\n\nThe [[second]] one'),
-    'The first one. The [[second]] one',
+    readableText('The first one.\n\nThe second one'),
+    'The first one. The second one',
   );
   // A line break is no block break.
-  assert.equal(plain('one  \ntwo\nthree'), 'one two three');
-  assert.equal(plain('- [ ] a [[task]]'), 'a [[task]]');
+  assert.equal(readableText('one  \ntwo\nthree'), 'one two three');
+  assert.equal(readableText('- [ ] a task'), 'a task');
 });
 
 await test('code, math and the text of an image stay', () => {
   assert.equal(
-    plain('Run `pnpm [[verify]]` first.'),
-    'Run pnpm [[verify]] first.',
+    readableText('Run `pnpm verify` first.'),
+    'Run pnpm verify first.',
   );
   assert.equal(
-    plain('![A [[budget]] chart](chart.png) here'),
-    'A [[budget]] chart here',
+    readableText('![A budget chart](chart.png) here'),
+    'A budget chart here',
   );
-  assert.equal(plain('```sh\nls [[notes]]\n```'), 'ls [[notes]]');
-  assert.equal(plain('Area $$\\pi r^2$$ is'), 'Area \\pi r^2 is');
+  assert.equal(readableText('```sh\nls notes\n```'), 'ls notes');
+  assert.equal(readableText('Area $$\\pi r^2$$ is'), 'Area \\pi r^2 is');
+  assert.equal(readableText('Inline \\(y\\) math.'), 'Inline y math.');
 });
 
-await test('raw HTML and front matter go, and their text stays', () => {
-  assert.equal(plain('A <b>[[bold]]</b> word<br>here'), 'A [[bold]] word here');
-  assert.equal(plain('---\ntitle: x\n---\n\nBody [[text]]'), 'Body [[text]]');
+await test('raw HTML, front matter and a footnote mark go, and text stays', () => {
+  assert.equal(readableText('A <b>bold</b> word<br>here'), 'A bold word here');
+  assert.equal(readableText('---\ntitle: x\n---\n\nBody text'), 'Body text');
   assert.equal(
-    plain('A <b>bold</b> word\n\n<div>x</div>\n\nend'),
+    readableText('A <b>bold</b> word\n\n<div>x</div>\n\nend'),
     'A bold word · end',
   );
-});
-
-await test('a value the parser changed keeps its marked words', () => {
   assert.equal(
-    plain('Cost \\* [[budget]] &amp; time'),
-    'Cost * [[budget]] & time',
+    readableText('Text[^1] here.\n\n[^1]: The note.\n'),
+    'Text here. The note.',
   );
 });
 
-await test('the ellipsis of a window stays and the edges are trimmed', () => {
+await test('a value that the parser changed reads as the reader sees it', () => {
   assert.equal(
-    plain('... the **[[budget]]** ... more text ...'),
-    '... the [[budget]] ... more text ...',
+    readableText('Cost \\* budget &amp; time'),
+    'Cost * budget & time',
   );
-  assert.equal(plain('\n\n  [[word]]  \n'), '[[word]]');
 });
 
-await test('plain text comes back as it went in', () => {
-  const text = parts('No marks at all, only [[words]] and more words.');
-  assert.deepEqual(plainExcerpt(text), text);
-  assert.deepEqual(plainExcerpt([]), []);
+await test('an alert leaves its title in place of its marker', () => {
+  assert.equal(
+    readableText('> [!WARNING]\n> Keep the boat dry.\n'),
+    'Warning · Keep the boat dry.',
+  );
+});
+
+await test('white space at the edges goes', () => {
+  assert.equal(readableText('\n\n  word  \n'), 'word');
+  assert.equal(readableText(''), '');
 });
 
 await test('a first block that repeats the note name goes', () => {
   // The excerpt is shown under the name of the note, so a first heading of
   // that name said it twice: "Plan" over "Plan The budget is in the sheet."
-  const excerpt = parts('# Plan\n\nThe [[budget]] is in the sheet.');
+  const note = '# Plan\n\nThe budget is in the sheet.';
   assert.equal(
-    written(plainExcerpt(excerpt, { title: 'Plan' })),
-    'The [[budget]] is in the sheet.',
+    readableText(note, { title: 'Plan' }),
+    'The budget is in the sheet.',
   );
   // The comparison reads the words, not their case or their spaces.
   assert.equal(
-    written(plainExcerpt(parts('#  my   PLAN\n\nText'), { title: 'My plan' })),
+    readableText('#  my   PLAN\n\nText', { title: 'My plan' }),
     'Text',
   );
-  // The server cuts its headline at a word, after the `#` marks, so the
-  // name is a line of its own there.
+  // A first paragraph of the name alone goes as well.
   assert.equal(
-    written(plainExcerpt(parts('Plan\n\nThe [[budget]].'), { title: 'Plan' })),
-    'The [[budget]].',
+    readableText('Plan\n\nThe budget.', { title: 'Plan' }),
+    'The budget.',
   );
   // A first line that only starts with the name is text of the note.
   assert.equal(
-    written(plainExcerpt(parts('Plan for May.\n\nText'), { title: 'Plan' })),
+    readableText('Plan for May.\n\nText', { title: 'Plan' }),
     'Plan for May. Text',
   );
   // Front matter before the heading is no text of the note.
   assert.equal(
-    written(
-      plainExcerpt(parts('---\na: b\n---\n# Plan\n\nText'), { title: 'Plan' }),
-    ),
+    readableText('---\na: b\n---\n# Plan\n\nText', { title: 'Plan' }),
     'Text',
   );
   // Another heading, a later heading, or no name keeps the heading.
   assert.equal(
-    written(plainExcerpt(excerpt, { title: 'Budget' })),
-    'Plan · The [[budget]] is in the sheet.',
+    readableText(note, { title: 'Budget' }),
+    'Plan · The budget is in the sheet.',
   );
   assert.equal(
-    written(plainExcerpt(parts('Intro.\n\n# Plan\n\nText'), { title: 'Plan' })),
+    readableText('Intro.\n\n# Plan\n\nText', { title: 'Plan' }),
     'Intro. Plan · Text',
   );
-  assert.equal(
-    written(plainExcerpt(excerpt)),
-    'Plan · The [[budget]] is in the sheet.',
-  );
-  // A heading that is all the excerpt holds stays.
-  assert.equal(
-    written(plainExcerpt(parts('# [[Plan]]'), { title: 'Plan' })),
-    '[[Plan]]',
+  assert.equal(readableText(note), 'Plan · The budget is in the sheet.');
+  // A heading that is all the note holds stays.
+  assert.equal(readableText('# Plan', { title: 'Plan' }), 'Plan');
+});
+
+await test('one parse gives the same links as extractLinks and the text', () => {
+  const source = '# Today\n\nGo to [Plan](Plan.md) now.\n';
+  const indexed = indexNote(source, 'notes/Today.md', { title: 'Today' });
+  assert.deepEqual(indexed.links, extractLinks(source, 'notes/Today.md'));
+  assert.equal(indexed.text, 'Go to Plan now.');
+});
+
+await test('a note over the limits is refused', () => {
+  assert.throws(
+    () => readableText('a'.repeat(markdownLimits.maxInputBytes + 1)),
+    MarkdownLimitError,
   );
 });

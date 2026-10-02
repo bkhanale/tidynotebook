@@ -139,3 +139,17 @@ await test('a later draft replaces the accepted state of one file', () => {
     [],
   );
 });
+
+await test('a word only in a link address finds nothing, as on the server', () => {
+  // Records 0162 and 0167. The device reads the same readable text that the
+  // server index holds, so both answer one query alike.
+  const hits = searchLocal('hidden', [
+    {
+      fileId: 'one',
+      path: 'Links.md',
+      revisionId: 'revision-one',
+      text: 'Read [the guide](https://example.com/hidden/guide) today.\n',
+    },
+  ]);
+  assert.deepEqual(hits, []);
+});

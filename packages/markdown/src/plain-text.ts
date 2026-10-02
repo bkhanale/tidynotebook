@@ -1,48 +1,40 @@
 /**
- * The plain text of a marked excerpt (record 0162).
+ * The readable text of a note: the words a reader sees, with no Markdown.
  *
- * A search answer cuts an excerpt out of the Markdown of a note and marks the
- * words that matched. A reader of that excerpt wants the words of the note,
- * not its syntax, so this module turns the excerpt into the text a reader
- * sees. It parses the text with the one grammar of `./parse.ts`, so no second
- * parser decides what a mark of Markdown is.
+ * This is the one plain text rule of Markdown. The server search index holds
+ * this text (record 0167), so its headline is plain text already, and the
+ * device search reads the same text of its Markdown (record 0162). Both
+ * excerpts are therefore cut from one text. It parses with the one grammar of
+ * `./parse.ts`, so no second parser decides what a mark of Markdown is.
  *
  * - Text, the label of a link, the text of an image, code and math stay.
  * - A link address, an image address, emphasis marks, the marks of a
- *   heading, a list, a quote and a table, raw HTML and front matter go.
+ *   heading, a list, a quote and a table, raw HTML, front matter, a link
+ *   definition and a footnote mark go. A bare address is text, so it stays.
+ * - An alert leaves its title, as the renderer writes it, in place of its
+ *   marker.
  * - A line break, also a `<br>`, reads as one space, and a run of white space
  *   reads as one space.
  * - A block break stays visible, so a heading and the paragraph under it never
  *   read as one sentence. After the end of a sentence it is one space, and
- *   anywhere else it is ` · `.
+ *   anywhere else it is `blockSeparator`.
  * - A first block that repeats the name of the note goes, when the caller
- *   names the note, because the excerpt is shown under that name. That is
- *   the first heading, and also the line that is left of it when the server
- *   cuts its headline after the `#` marks. It stays when nothing else is left.
- *
- * A marked word stays marked. The marks are ranges of the source, and each
- * character of the plain text keeps the source offset it came from. A value
- * that the parser changed, such as an escaped character, has no single
- * offset for each character, so its marked words are found in it by their
- * text instead.
- *
- * An excerpt is a window, and a construct that its edge cuts in half is no
- * construct to the grammar, so its marks stay as text. A text that the
- * grammar refuses, by its size or its depth, comes back as it was.
+ *   names the note, because an excerpt is shown under that name. It stays
+ *   when nothing else is left.
  */
-import type { Nodes } from 'mdast';
+import type { Nodes, Root } from 'mdast';
 import { toString } from 'mdast-util-to-string';
-import { MarkdownLimitError } from './limits.ts';
+import { alertMarkerLength, alertTitle, alertToneOf } from './alerts.ts';
 import { parseMarkdown } from './parse.ts';
 
-/** One part of an excerpt. A marked part is a word that the query matched. */
-export type ExcerptText = {
-  readonly text: string;
-  readonly marked: boolean;
-};
+/** The separator between two blocks that a sentence end does not part. */
+export const blockSeparator = ' · ';
 
-/** One character of the plain text and whether it is part of a match. */
-type PlainCharacter = { readonly char: string; readonly marked: boolean };
+/** What the caller knows of the note. */
+export type ReadableTextOptions = {
+  /** The name of the note, without its `.md` suffix. */
+  readonly title?: string | undefined;
+};
 
 /** The nodes that end a block, so a separator stands before the next. */
 const blockTypes = new Set<string>([
@@ -67,11 +59,8 @@ const hiddenTypes = new Set<string>([
   'thematicBreak',
 ]);
 
-/** The separator between two blocks of an excerpt. */
-export const blockSeparator = ' · ';
-
 /** A character that ends a sentence, after which a space separates blocks. */
-const sentenceEnd = /[.!?:;\u2026]/;
+const sentenceEnd = /[.!?:;…]$/;
 
 /** A name as a heading and a note name are compared. */
 function comparable(text: string): string {
@@ -82,79 +71,53 @@ function comparable(text: string): string {
     .toLocaleLowerCase('en-US');
 }
 
-/** Builds the plain characters of one source with its marked ranges. */
-function plainCharacters(
-  source: string,
-  ranges: readonly (readonly [number, number])[],
-  tree: Nodes,
-  skip: Nodes | null,
-): readonly PlainCharacter[] {
-  // The parser removes a leading byte order mark before it assigns offsets.
-  const shift = source.startsWith('﻿') ? 1 : 0;
-  const terms = ranges
-    .map(([from, to]) => source.slice(from, to))
-    .filter((term) => term.trim() !== '');
-  const output: PlainCharacter[] = [];
+/** The first block of a tree when it repeats the name of the note. */
+function repeatedTitle(tree: Root, title: string | undefined): Nodes | null {
+  if (title === undefined) return null;
+  const first = tree.children.find((child) => !hiddenTypes.has(child.type));
+  if (first === undefined) return null;
+  if (first.type !== 'heading' && first.type !== 'paragraph') return null;
+  return comparable(toString(first)) === comparable(title) ? first : null;
+}
+
+/** The readable text of a tree, leaving out the node `skip`. */
+function textOf(tree: Root, skip: Nodes | null): string {
+  let output = '';
   // A block ended, and the next character of text starts the next block.
   let blockEnded = false;
+  // The first text of a quote can be the marker of an alert.
+  let quoteOpened = false;
 
-  const isMarked = (offset: number): boolean =>
-    ranges.some(([from, to]) => offset >= from && offset < to);
-
-  const push = (char: string, marked: boolean): void => {
-    if (/\s/.test(char)) {
-      if (output.length === 0 || output.at(-1)?.char === ' ') return;
-      output.push({ char: ' ', marked: false });
-      return;
-    }
-    if (blockEnded && output.length > 0) {
-      while (output.at(-1)?.char === ' ') output.pop();
-      const separator = sentenceEnd.test(output.at(-1)?.char ?? '')
-        ? ' '
-        : blockSeparator;
-      for (const part of separator) output.push({ char: part, marked: false });
-    }
-    blockEnded = false;
-    output.push({ char, marked });
-  };
-
-  const space = (): void => {
-    push(' ', false);
-  };
-
-  // A value of one node, mapped back to its offsets in the source.
-  const value = (text: string, node: Nodes): void => {
-    if (text === '') return;
-    const start = node.position?.start.offset;
-    const end = node.position?.end.offset;
-    if (start !== undefined && end !== undefined) {
-      const slice = source.slice(start + shift, end + shift);
-      const at = slice === text ? 0 : slice.indexOf(text);
-      if (at >= 0) {
-        const base = start + shift + at;
-        for (let index = 0; index < text.length; index += 1)
-          push(text.charAt(index), isMarked(base + index));
-        return;
+  const push = (text: string): void => {
+    for (const char of text) {
+      if (/\s/.test(char)) {
+        if (output !== '' && !output.endsWith(' ')) output += ' ';
+        continue;
       }
-    }
-    // The parser changed the value, so its marked words are found by text.
-    const marked = new Array<boolean>(text.length).fill(false);
-    for (const term of terms) {
-      let found = text.indexOf(term);
-      while (found >= 0) {
-        marked.fill(true, found, found + term.length);
-        found = text.indexOf(term, found + term.length);
+      if (blockEnded && output !== '') {
+        output = output.trimEnd();
+        output += sentenceEnd.test(output) ? ' ' : blockSeparator;
       }
+      blockEnded = false;
+      output += char;
     }
-    for (let index = 0; index < text.length; index += 1)
-      push(text.charAt(index), marked[index] ?? false);
   };
 
   const walk = (node: Nodes): void => {
     if (node === skip) return;
     // A line break written in HTML is a line break.
-    if (node.type === 'html' && /^<br\s*\/?>$/i.test(node.value)) space();
+    if (node.type === 'html' && /^<br\s*\/?>$/i.test(node.value)) push(' ');
     if (hiddenTypes.has(node.type)) return;
+    if (node.type === 'text' && quoteOpened) {
+      quoteOpened = false;
+      const tone = alertToneOf(node.value);
+      if (tone !== null) {
+        push(alertTitle(tone));
+        blockEnded = true;
+        push(node.value.slice(alertMarkerLength(node.value)));
+        return;
+      }
+    }
     if (
       node.type === 'text' ||
       node.type === 'inlineCode' ||
@@ -162,64 +125,41 @@ function plainCharacters(
       node.type === 'math' ||
       node.type === 'inlineMath'
     )
-      value(node.value, node);
+      push(node.value);
     else if (node.type === 'image' || node.type === 'imageReference')
-      value(node.alt ?? '', node);
-    else if (node.type === 'break') space();
-    else if ('children' in node) for (const child of node.children) walk(child);
+      push(node.alt ?? '');
+    else if (node.type === 'break') push(' ');
+    else if ('children' in node) {
+      if (node.type === 'blockquote') quoteOpened = true;
+      for (const child of node.children) walk(child);
+    }
+    if (node.type === 'blockquote') quoteOpened = false;
     if (blockTypes.has(node.type)) blockEnded = true;
   };
 
   walk(tree);
-  while (output.at(-1)?.char === ' ') output.pop();
-  return output;
+  return output.trimEnd();
 }
 
-/** The first block of a tree when it repeats the name of the note. */
-function repeatedTitle(tree: Nodes, title: string | undefined): Nodes | null {
-  if (title === undefined || !('children' in tree)) return null;
-  const first = tree.children.find((child) => !hiddenTypes.has(child.type));
-  if (first === undefined) return null;
-  if (first.type !== 'heading' && first.type !== 'paragraph') return null;
-  return comparable(toString(first)) === comparable(title) ? first : null;
+/** The readable text of a parsed tree. */
+export function readableTextOf(
+  tree: Root,
+  options: ReadableTextOptions = {},
+): string {
+  const skip = repeatedTitle(tree, options.title);
+  const shown = textOf(tree, skip);
+  return skip !== null && shown === '' ? textOf(tree, null) : shown;
 }
 
 /**
- * The text a reader sees in one marked excerpt of Markdown.
+ * The readable text of one note.
  *
- * The parts come back in reading order, with the matched words marked and
- * every neighbour of one kind joined into one part. `title` is the name of
- * the note that the excerpt is shown under, without its `.md` suffix.
+ * It refuses a note over the limits of `./limits.ts` with
+ * `MarkdownLimitError`, as every entry point of this package does.
  */
-export function plainExcerpt(
-  parts: readonly ExcerptText[],
-  options: { readonly title?: string | undefined } = {},
-): readonly ExcerptText[] {
-  let source = '';
-  const ranges: [number, number][] = [];
-  for (const part of parts) {
-    if (part.marked)
-      ranges.push([source.length, source.length + part.text.length]);
-    source += part.text;
-  }
-  let tree: Nodes;
-  try {
-    tree = parseMarkdown(source);
-  } catch (failure) {
-    if (failure instanceof MarkdownLimitError) return parts;
-    throw failure;
-  }
-  const skip = repeatedTitle(tree, options.title);
-  const shown = plainCharacters(source, ranges, tree, skip);
-  const characters =
-    skip !== null && shown.length === 0
-      ? plainCharacters(source, ranges, tree, null)
-      : shown;
-  const result: { text: string; marked: boolean }[] = [];
-  for (const { char, marked } of characters) {
-    const last = result.at(-1);
-    if (last !== undefined && last.marked === marked) last.text += char;
-    else result.push({ text: char, marked });
-  }
-  return result;
+export function readableText(
+  source: string,
+  options: ReadableTextOptions = {},
+): string {
+  return readableTextOf(parseMarkdown(source), options);
 }

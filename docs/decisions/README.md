@@ -665,7 +665,8 @@ Records 0161 and 0162 answer issues of the
 [product audit of 2026-10-02](../audits/2026-10-02/product-audit.md). Record
 0161 holds a render failure at the nearest route boundary, so a failure in one
 page leaves the frame. Record 0162 makes a search excerpt the plain text of
-its Markdown, at the server and on the device.
+its Markdown, at the server and on the device, from the one readable text of
+record 0167.
 Records 0163 to 0165 follow
 [design 023](../design/023-names-the-tree-and-long-lists.md). Record 0163
 names a note from its first heading while its name is automatic, at the
@@ -695,7 +696,8 @@ Record 0167 answers
 [issue 253](https://github.com/bkhanale/notesapp/issues/253) and
 [issue 265](https://github.com/bkhanale/notesapp/issues/265). Search uses one
 text configuration with no language rule and no accent, matches each word as a
-prefix, indexes the text that a reader sees, and quotes a bounded window of it.
+prefix, indexes the readable text of record 0162, and quotes a bounded window
+of it.
 
 Record 0168 answers
 [issue 264](https://github.com/bkhanale/notesapp/issues/264). A note read
