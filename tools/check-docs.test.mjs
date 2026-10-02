@@ -13,6 +13,7 @@ import {
   namedPaths,
   placementFailure,
   relativeLinks,
+  retiredNames,
 } from './check-docs.mjs';
 
 // The fixtures below are disposable trees under the system temporary
@@ -407,5 +408,34 @@ await test('the index rule refuses a missing heading, a stray row and an order',
       decisionIndex(['0002-b.md', '0001-a.md']),
     ).join('\n'),
     /0001-a\.md follows 0002-b\.md/,
+  );
+});
+
+await test('a guide page that names the move to Trash Delete fails', () => {
+  // Issue 245: the guide said Delete note and Delete folder for the action
+  // that the application calls Move to Trash.
+  const result = check({
+    'docs/guide/quickstart.md':
+      '# Quick start\n\nThis page is for the person who writes notes.\n\n' +
+      'Open the row menu and select **Delete folder**.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /quickstart\.md:5: \*\*Delete folder\*\* names an action the application calls Move to Trash/,
+  );
+});
+
+await test('the retired names are found and the application words pass', () => {
+  assert.deepEqual(
+    retiredNames('Select **Delete note**.\nSelect **Delete this note**.'),
+    [
+      { line: 1, name: '**Delete note**' },
+      { line: 2, name: '**Delete this note**' },
+    ],
+  );
+  assert.deepEqual(
+    retiredNames('Select **Move to Trash**. In Trash, **Delete** removes it.'),
+    [],
   );
 });

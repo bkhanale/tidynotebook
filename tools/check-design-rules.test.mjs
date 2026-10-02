@@ -15,6 +15,7 @@ import {
   scanSource,
   stylesheet,
   textRules,
+  trashLabelModule,
 } from './check-design-rules.mjs';
 
 // The fixtures below are disposable trees under the system temporary
@@ -616,4 +617,49 @@ await test('a test file is not checked', () => {
   });
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /0 files checked/);
+});
+
+await test('a Delete label for the move to Trash fails in the web application', () => {
+  // Issue 245: the row menu of the tree said Delete, Delete folder and the
+  // palette said Delete this note, for the action that moves to Trash.
+  for (const source of [
+    "items={[{ id: 'delete-note', label: 'Delete', onSelect }]}",
+    "{ label: 'Delete folder', onSelect }",
+    "{ label: 'Delete this note', run }",
+    '<Button label="Delete">x</Button>',
+    '<button>Delete</button>',
+  ]) {
+    const found = fileRules['trash-label'](
+      source,
+      'apps/web/src/shell/tree.tsx',
+    );
+    assert.equal(found.length, 1, source);
+    assert.ok(found[0]?.message.includes(trashLabelModule), source);
+  }
+});
+
+await test('the words of the application and other packages pass', () => {
+  for (const source of [
+    '{ label: moveToTrashLabel, icon: actionIcon(noteTrashRow.icon) }',
+    "{ label: 'Delete permanently' }",
+    "const label = 'Deleted notes';",
+  ])
+    assert.deepEqual(
+      fileRules['trash-label'](source, 'apps/web/src/shell/tree.tsx'),
+      [],
+      source,
+    );
+  assert.deepEqual(
+    fileRules['trash-label']("{ label: 'Delete' }", 'packages/ui/src/menu.tsx'),
+    [],
+  );
+});
+
+await test('only the note menu draws the glyph of the move to Trash', () => {
+  const source = "icon: 'move-to-trash',\nactionIcon('move-to-trash')";
+  assert.equal(
+    fileRules['trash-label'](source, 'apps/web/src/shell/tree.tsx').length,
+    2,
+  );
+  assert.deepEqual(fileRules['trash-label'](source, trashLabelModule), []);
 });

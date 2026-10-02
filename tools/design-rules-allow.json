@@ -30,6 +30,16 @@
       "file": "packages/editor/src/widgets.ts",
       "rule": "inner-html",
       "reason": "The mathematics widget writes the markup that `renderMath` in @notesapp/markdown returned, which strips every element and every attribute outside the KaTeX drawing set first. The editor builds its own DOM, so no React node can carry that markup."
+    },
+    {
+      "file": "apps/web/src/features/trash/trash.tsx",
+      "rule": "trash-label",
+      "reason": "Delete on a row of Trash removes a note and every version of it for good. It is the one Delete of a note, and the page copy states that it cannot be undone (AGENTS.md, user-facing text)."
+    },
+    {
+      "file": "apps/web/src/features/accounts/theme-settings.tsx",
+      "rule": "trash-label",
+      "reason": "Delete removes an imported theme from the account for good. A theme has no Trash, so Delete is the true name of the action."
     }
   ]
 }

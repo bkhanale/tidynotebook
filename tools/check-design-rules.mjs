@@ -47,6 +47,12 @@
  *   0054.
  * - `jsx-text`: a `.md` path suffix or a UUID inside text that a person
  *   reads.
+ * - `trash-label`: a Delete label, title or button text in the web
+ *   application, or the glyph of the move to Trash outside
+ *   `apps/web/src/lib/note-menu.ts`. The move to Trash is named Move to Trash
+ *   on every surface, and in Trash Delete removes a note for good (issue
+ *   245). A screen that deletes for good, with no Trash behind it, is an
+ *   accepted exception.
  *
  * `tools/design-rules-allow.json` lists the accepted exceptions with a
  * reason. An entry names one file and one rule.
@@ -336,6 +342,16 @@ export function jsxTextRule(text) {
   return null;
 }
 
+/** The one module that names the move to Trash and draws its glyph. */
+export const trashLabelModule = 'apps/web/src/lib/note-menu.ts';
+
+/** A Delete label, title or button text, as a screen writes one. */
+const deleteLabel =
+  /(?:label|title):\s*['"`]Delete(?: note| folder| this note)?['"`]|(?:label|title)="Delete(?: note| folder| this note)?"|>\s*Delete(?: note| folder| this note)?\s*</gu;
+
+/** The glyph of the move to Trash, as a screen draws it. */
+const trashGlyph = /actionIcon\('move-to-trash'\)|icon:\s*'move-to-trash'/gu;
+
 /**
  * The rules that read one whole source file.
  *
@@ -358,6 +374,28 @@ export const fileRules = {
         offset: match.index,
       });
     }
+    return found;
+  },
+  /**
+   * @param {string} text
+   * @param {string} path
+   * @returns {{ message: string; offset: number }[]}
+   */
+  'trash-label'(text, path) {
+    if (!path.startsWith('apps/web/src/')) return [];
+    /** @type {{ message: string; offset: number }[]} */
+    const found = [];
+    for (const match of text.matchAll(deleteLabel))
+      found.push({
+        message: `A move to Trash is named Move to Trash. Read the label from ${trashLabelModule}.`,
+        offset: match.index,
+      });
+    if (path !== trashLabelModule)
+      for (const match of text.matchAll(trashGlyph))
+        found.push({
+          message: `The glyph of the move to Trash comes with its label from ${trashLabelModule}.`,
+          offset: match.index,
+        });
     return found;
   },
   /**

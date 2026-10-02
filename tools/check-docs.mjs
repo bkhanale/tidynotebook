@@ -29,6 +29,10 @@
  *    rather than left to grow.
  * 7. Each decision number names one record, and the index table of
  *    `docs/decisions/README.md` holds one row for each record, in order.
+ * 8. A guide page names an action by the word the application shows. The
+ *    move to Trash is Move to Trash, because in Trash Delete removes a note
+ *    for good (issue 245), so a guide page that writes a Delete action for
+ *    the move fails.
  *
  * A separate root permits a disposable negative check without real documents,
  * in the same shape as `tools/check-agents-md.mjs`.
@@ -283,6 +287,35 @@ export function headerFailures(kind, name, text) {
   return failures;
 }
 
+/**
+ * The names of a move to Trash that the application does not show.
+ *
+ * Each one is the bold name of a control, as a guide page writes it. The
+ * application names the action Move to Trash on every surface, from
+ * `apps/web/src/lib/note-menu.ts`.
+ */
+export const retiredActionNames = [
+  '**Delete note**',
+  '**Delete folder**',
+  '**Delete this note**',
+];
+
+/**
+ * The names of a control on a guide page that the application does not show.
+ *
+ * @param {string} text
+ * @returns {{ line: number; name: string }[]}
+ */
+export function retiredNames(text) {
+  /** @type {{ line: number; name: string }[]} */
+  const found = [];
+  text.split('\n').forEach((line, index) => {
+    for (const name of retiredActionNames)
+      if (line.includes(name)) found.push({ line: index + 1, name });
+  });
+  return found;
+}
+
 /** The heading of `docs/decisions/README.md` that holds the record table. */
 export const decisionIndexHeading = '## Index';
 
@@ -420,6 +453,11 @@ export async function main(directory) {
           );
       }
     }
+    if (kind === 'guide')
+      for (const retired of retiredNames(text))
+        failures.push(
+          `${path}:${String(retired.line)}: ${retired.name} names an action the application calls Move to Trash.`,
+        );
     if (kind === 'development') {
       const lines = text.endsWith('\n')
         ? text.split('\n').length - 1
