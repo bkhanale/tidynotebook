@@ -69,6 +69,10 @@ engines import it.
   close stays text.
 - Display math is a doubled dollar fence on its own line.
 
+A footnote label follows the rule of GFM. `packages/markdown/src/footnote-syntax.ts`
+states it, the editor grammar reads it, and its test compares it with remark
+([decision 0156](../decisions/0156-the-editor-reads-gfm-footnotes.md)).
+
 remark-math gives the renderer the dollar pair only, because the backslash pair
 is a CommonMark character escape. `packages/markdown/src/math-parens.ts` adds
 the second pair as a text construct on the backslash, ahead of that escape, and

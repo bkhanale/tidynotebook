@@ -83,6 +83,7 @@ through the editor path, so both surfaces must agree on structure.
 | `src/render.ts`          | `renderMarkdown` and heading slugs          |
 | `src/policy.ts`          | The sanitizer schema and the URL policy     |
 | `src/alerts.ts`          | The alert marker and the five tones         |
+| `src/footnote-syntax.ts` | The footnote label rule (0156)              |
 | `src/ordered-markers.ts` | The label and style of an ordered item      |
 | `src/limits.ts`          | Size and depth limits, `MarkdownLimitError` |
 | `test-data/content.ts`   | The equivalence corpus                      |

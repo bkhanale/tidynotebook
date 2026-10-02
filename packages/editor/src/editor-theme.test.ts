@@ -197,6 +197,19 @@ await test('the task box centres on the capital band of its line', () => {
   assert.equal(shell.verticalAlign, `calc(0.5cap - ${size} / 2)`);
 });
 
+await test('a footnote label is raised and quiet, and a definition reads as a footnote', () => {
+  // Record 0156. A label in the editor opens nothing, so it never takes the
+  // accent of a link (record 0062).
+  assert.equal(rule('.cm-np-footnote').color, 'var(--notes-text-muted)');
+  assert.equal(rule('.cm-np-footnote').verticalAlign, 'super');
+  assert.equal(rule('.cm-np-footnote').fontSize, 'var(--text-control)');
+  assert.equal(
+    rule('.cm-np-footnote-definition').color,
+    'var(--notes-text-muted)',
+  );
+  assert.equal(rule('.cm-np-footnote-definition').fontSize, 'var(--text-ui)');
+});
+
 await test('a list marker is quiet and never the accent', () => {
   // Record 0062. The accent marks a link, the caret and the selection, and
   // a bullet states none of those.

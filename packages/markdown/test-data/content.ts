@@ -27,8 +27,9 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * The corpus document.
  *
  * It contains front matter, nested lists, task items, a table with alignment,
- * escaping, Unicode in composed and decomposed form, an astral emoji, a
- * footnote, double bracket text in four forms, a note link, a reference link, a
+ * escaping, Unicode in composed and decomposed form, an astral emoji, two
+ * footnotes, one of two paragraphs and one in another case, double bracket
+ * text in four forms, a note link, a reference link, a
  * malformed note identifier, blocked URL schemes, an attachment image, an
  * external image, a blocked image, raw HTML including a script element and an
  * `onerror` attribute, both inline math pairs, display math, a Mermaid fence,
@@ -69,6 +70,12 @@ and this line follows it.
 > An alert states its tone and hides its marker.
 
 [^one]: The footnote text with a [second note](/notes/${noteIdB}).
+
+A second note[^Two] takes its label in another case.
+
+[^two]: A note of two paragraphs.
+
+    The second paragraph of the note.
 
 Bracket forms: [[Ambiguous]], [[Ambiguous|shown label]], \`[[in code]]\`, and \\[[escaped]].
 
@@ -165,8 +172,9 @@ const unclosed = true;
  * (record 0155). This note holds each block that the editor grammar knows,
  * at the top level, inside a quote and inside a list item, next to the
  * blocks it can be confused with: display math beside fences, a fence and a
- * `$$` line inside each other, a table and an alert in a quote, and an
- * unclosed display math block at the end. The corpus above holds one of each,
+ * `$$` line inside each other, a table and an alert in a quote, footnote
+ * definitions in a quote, in a list item and near the end, and an unclosed
+ * display math block at the end. The corpus above holds one of each,
  * and this note holds the edges between them.
  */
 export const blockSyntaxMarkdown = `---
@@ -244,7 +252,20 @@ $$
 
     indented code with $$ in it
 
-Text after the blocks.
+> Quoted text with a note[^q].
+>
+> [^q]: A definition in a quote.
+
+- An item with a note[^l].
+
+  [^l]: A definition in a list item.
+
+Text after the blocks[^end].
+
+[^end]: A definition near the end
+with a lazy line.
+
+    And an indented paragraph.
 
 $$
 an unclosed formula at the end

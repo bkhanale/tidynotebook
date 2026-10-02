@@ -19,10 +19,12 @@
  * the decorations, so a construct that stops being decorated also stops
  * appearing here.
  *
- * The generated footnote section is left out of the HTML side. The renderer
- * moves footnote definitions to the end of the document and wraps them in a
+ * A footnote reference is a fact in its place. The renderer moves footnote
+ * definitions to a section at the end of the document and wraps them in a
  * list, which is a rendering choice about placement rather than a
- * disagreement about the grammar.
+ * disagreement about the grammar. A definition is therefore compared by its
+ * label, with the structure inside it, and the renderer writes only the
+ * definitions that the note refers to (record 0156).
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -118,6 +120,17 @@ function renderedStructure(html: string): readonly PreviewNode[] {
     if (tag.name === 'section' && attribute(tag, 'data-footnotes') !== null)
       footnotes += tag.closing ? -1 : 1;
     if (footnotes > 0) continue;
+    if (
+      tag.name === 'a' &&
+      !tag.closing &&
+      attribute(tag, 'data-footnote-ref') !== null
+    ) {
+      found.push({
+        kind: 'footnote-reference',
+        label: footnoteLabel(attribute(tag, 'href') ?? ''),
+      });
+      continue;
+    }
     if (
       tag.name === 'pre' &&
       !tag.closing &&
@@ -230,6 +243,85 @@ function renderedStructure(html: string): readonly PreviewNode[] {
   return found;
 }
 
+/** The label of a footnote from the address or the id that names it. */
+function footnoteLabel(name: string): string {
+  return decodeURIComponent(name.replace(/^#?user-content-fn-/, ''));
+}
+
+/**
+ * The definitions of the footnote section, by label, each with the
+ * structure inside it.
+ */
+function renderedDefinitions(
+  html: string,
+): ReadonlyMap<string, readonly PreviewNode[]> {
+  const definitions = new Map<string, readonly PreviewNode[]>();
+  const tags = tagsOf(html);
+  let inside = false;
+  let depth = 0;
+  let open: { readonly label: string; readonly from: number } | null = null;
+  for (const tag of tags) {
+    if (tag.name === 'section' && attribute(tag, 'data-footnotes') !== null) {
+      inside = !tag.closing;
+      continue;
+    }
+    if (!inside || tag.name !== 'li') continue;
+    if (!tag.closing) {
+      depth += 1;
+      const id = attribute(tag, 'id');
+      if (depth === 1 && id !== null)
+        open = { label: footnoteLabel(id), from: tag.to };
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0 && open !== null) {
+      definitions.set(
+        open.label,
+        renderedStructure(html.slice(open.from, tag.from)),
+      );
+      open = null;
+    }
+  }
+  return definitions;
+}
+
+/**
+ * The preview reduced to what the renderer writes: the facts in place, and
+ * the definitions that a reference names, by label.
+ */
+function previewParts(nodes: readonly PreviewNode[]): {
+  readonly facts: readonly PreviewNode[];
+  readonly definitions: ReadonlyMap<string, readonly PreviewNode[]>;
+} {
+  const facts = nodes.filter((node) => node.kind !== 'footnote-definition');
+  const all = nodes.flatMap((node) =>
+    node.kind === 'footnote-definition' ? [node] : [],
+  );
+  const referenced = new Set(
+    [...facts, ...all.flatMap((node) => node.structure)].flatMap((node) =>
+      node.kind === 'footnote-reference' ? [node.label] : [],
+    ),
+  );
+  return {
+    facts,
+    definitions: new Map(
+      all
+        .filter((node) => referenced.has(node.label))
+        .map((node) => [node.label, node.structure]),
+    ),
+  };
+}
+
+/** Requires the two paths to agree on one document. */
+async function assertSameStructure(source: string): Promise<number> {
+  const html = await renderMarkdown(source);
+  const preview = previewParts(previewStructureOf(source));
+  const rendered = renderedStructure(html);
+  assert.deepEqual(preview.facts, rendered);
+  assert.deepEqual(preview.definitions, renderedDefinitions(html));
+  return rendered.length;
+}
+
 await test('front matter is metadata in both Markdown paths', async () => {
   const source = '---\ntitle: Example\ntags: [one, two]\n---\n\n# Body\n';
   const html = await renderMarkdown(source);
@@ -244,18 +336,28 @@ await test('front matter is metadata in both Markdown paths', async () => {
 });
 
 await test('the corpus has the same structure through both paths', async () => {
-  const html = await renderMarkdown(corpusMarkdown);
-  const rendered = renderedStructure(html);
-  const preview = previewStructureOf(corpusMarkdown);
-  assert.ok(rendered.length > 20, 'the corpus lost its content');
-  assert.deepEqual(preview, rendered);
+  const facts = await assertSameStructure(corpusMarkdown);
+  assert.ok(facts > 20, 'the corpus lost its content');
 });
 
 await test('the note of block syntax has the same structure through both paths', async () => {
-  const html = await renderMarkdown(blockSyntaxMarkdown);
-  const rendered = renderedStructure(html);
-  assert.ok(rendered.length > 10, 'the note of block syntax lost its content');
-  assert.deepEqual(previewStructureOf(blockSyntaxMarkdown), rendered);
+  const facts = await assertSameStructure(blockSyntaxMarkdown);
+  assert.ok(facts > 10, 'the note of block syntax lost its content');
+});
+
+await test('a footnote has the same meaning through both paths', async () => {
+  // The defect this covers: the editor grammar had no footnote, so the
+  // equivalence left footnotes out and the two surfaces disagreed.
+  const source =
+    'Ref[^a], [^B] and [^none].\n\n[^a]: # A heading in a note\n\n[^b]: One\n\n    - item[^a]\n\n[^unused]: Never named\n';
+  await assertSameStructure(source);
+  const preview = previewStructureOf(source);
+  assert.deepEqual(
+    preview.flatMap((node) =>
+      node.kind === 'footnote-reference' ? [node.label] : [],
+    ),
+    ['a', 'b'],
+  );
 });
 
 await test('the corpus keeps every construct the matrix covers', async () => {
@@ -270,6 +372,8 @@ await test('the corpus keeps every construct the matrix covers', async () => {
     'table',
     'quote',
     'thematic-break',
+    'footnote-reference',
+    'footnote-definition',
   ];
   for (const kind of expected) assert.ok(kinds.has(kind), kind);
   const levels = new Set(

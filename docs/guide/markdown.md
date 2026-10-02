@@ -125,6 +125,18 @@ onto more lines, so each column takes the width that its text needs. A table
 that cannot fit even when its cells wrap scrolls sideways inside its own
 outline, and the rest of the note stays where it is.
 
+## Footnotes
+
+Write `[^1]` after a word to add a footnote, and write the note on a line of
+its own, for example `[^1]: The source of the quote.` The label can be a
+number or a word. To write more than one paragraph in a note, indent the next
+paragraph by four spaces.
+
+The editor shows the label as a small raised mark, and shows the note in
+smaller, quieter text. Put the cursor on a footnote to see its Markdown. A
+published page shows a number for each footnote and puts the notes at the
+end of the page. A label that no note defines stays as you wrote it.
+
 ## Ordered lists
 
 An ordered list shows numbers, a list inside it shows the letters a, b, c,

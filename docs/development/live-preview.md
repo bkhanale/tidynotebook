@@ -21,6 +21,12 @@ Reveal is per construct, never per marker.
   [decision 0033](../decisions/0033-a-task-box-is-a-control-not-a-marker.md)
   and [decision 0132](../decisions/0132-a-list-marker-holds-no-caret.md).
 
+A footnote reference shows its label as a raised mark in the quiet text
+colour, and a definition shows the same mark and the footnote text of the
+theme. A reference whose label the note does not define stays text, as GFM
+reads it
+([decision 0156](../decisions/0156-the-editor-reads-gfm-footnotes.md)).
+
 A widget exists only where text cannot express the result: an image, a diagram,
 and math. A table stays editable text: each row of the source is one row of a
 real table and each cell holds its own padding, so the columns line up without

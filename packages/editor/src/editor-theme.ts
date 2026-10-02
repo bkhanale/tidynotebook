@@ -536,8 +536,13 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // `live-preview.ts` adds this class from the same reveal rule that shows
     // the source, so the cursor and the click cannot disagree.
     '.cm-np-link-open': { cursor: 'text' },
+    // A footnote label is a raised mark beside the word it notes, in the
+    // label step. It takes the quiet text colour and not the accent, because
+    // the accent marks a link that opens, and a label in the editor opens
+    // nothing (record 0062). A definition reads as a footnote: the label
+    // step of the chrome and the quiet text colour (record 0156).
     '.cm-np-footnote': {
-      color: 'var(--notes-accent-text)',
+      color: 'var(--notes-text-muted)',
       fontSize: 'var(--text-control)',
       verticalAlign: 'super',
     },

@@ -890,12 +890,56 @@ await test('the alignment reader follows the delimiter row', () => {
   ]);
 });
 
-await test('a footnote reference and its definition are styled', () => {
+await test('a footnote reference and its definition are drawn as a footnote', () => {
+  // The defect this covers: a footnote showed as raw `[^n]` text in the
+  // editor and as a real footnote on the published page.
   const doc = 'text[^one] more\n\n[^one]: the note\n';
   const found = describe(doc);
-  assert.ok(has(found, 'mark', 'cm-np-footnote', 4, 10));
-  assert.ok(has(found, 'line', 'cm-np-footnote-definition'));
-  assert.equal(visibleText(doc), doc);
+  // The label is the raised mark, and the brackets leave the screen.
+  assert.ok(has(found, 'mark', 'cm-np-footnote', 6, 9));
+  assert.ok(has(found, 'mark', 'cm-np-footnote', 19, 22));
+  assert.ok(has(found, 'line', 'cm-np-footnote-definition', 17, 17));
+  assert.equal(visibleText(doc), 'textone more\n\none the note\n');
+});
+
+await test('a footnote shows its source under the selection', () => {
+  const doc = 'text[^one] more\n\n[^one]: the note\n';
+  // A caret inside the reference shows its brackets, dimmed.
+  assert.equal(visibleText(doc, { from: 7, to: 7 }), 'text[^one] more\n\none the note\n');
+  assert.ok(has(describe(doc, { from: 7, to: 7 }), 'mark', 'cm-np-marker', 4, 6));
+  // A caret on the line of the definition shows its marker.
+  assert.equal(visibleText(doc, { from: 25, to: 25 }), 'textone more\n\n[^one]: the note\n');
+});
+
+await test('a reference to a label that the note does not define stays text', () => {
+  const doc = 'text[^none] more\n\n[^one]: the note\n';
+  const found = describe(doc);
+  assert.ok(!has(found, 'mark', 'cm-np-footnote', 6, 10));
+  assert.ok(visibleText(doc).startsWith('text[^none] more'));
+  // A label matches its definition in any case, as GFM reads it.
+  const upper = 'text[^ONE] more\n\n[^one]: the note\n';
+  assert.ok(has(describe(upper), 'mark', 'cm-np-footnote', 6, 9));
+});
+
+await test('a footnote reports its label and its own structure', () => {
+  const doc =
+    'Ref[^a] and [^B].\n\n[^a]: # A heading in a note\n\n[^b]: One\n\n    - item\n';
+  assert.deepEqual(structureOf(doc), [
+    { kind: 'footnote-reference', label: 'a' },
+    { kind: 'footnote-reference', label: 'b' },
+    {
+      kind: 'footnote-definition',
+      label: 'a',
+      structure: [{ kind: 'heading', level: 1, text: 'A heading in a note' }],
+    },
+    {
+      kind: 'footnote-definition',
+      label: 'b',
+      structure: [
+        { kind: 'list-item', depth: 1, ordered: false, value: null },
+      ],
+    },
+  ]);
 });
 
 await test('a hard break and raw HTML keep their source', () => {

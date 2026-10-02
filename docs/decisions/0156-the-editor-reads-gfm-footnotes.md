@@ -27,10 +27,10 @@ surfaces, and the equivalence test left footnotes out.
 - A reference is a footnote only when the note defines its label, as GFM
   reads it. Any other `[^label]` stays the text it is.
 - The live preview draws a reference as its label in a raised mark in the
-  link colour, because the published page makes it a link, with its
-  brackets hidden. A definition draws the same mark in place of `[^label]:`,
-  and its lines take the footnote text of the theme. Both follow the reveal
-  rule of record 0025.
+  quiet text colour, with its brackets hidden. The accent marks a link that
+  opens (record 0062), and a label in the editor opens nothing. A definition
+  draws the same mark in place of `[^label]:`, and its lines take the
+  footnote text of the theme. Both follow the reveal rule of record 0025.
 - The editor shows the label and not the number of the published page. A
   number needs a walk of every reference of the note on each key press, and
   the label is what the person wrote.

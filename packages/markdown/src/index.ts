@@ -48,6 +48,12 @@ export {
   openingDisplayMathFence,
   singleDollarTextMath,
 } from './math-syntax.ts';
+export {
+  footnoteIdentifier,
+  footnoteLabelEnd,
+  footnoteLabelMax,
+  footnoteLabelOpen,
+} from './footnote-syntax.ts';
 export type { OrderedMarkerStyle } from './ordered-markers.ts';
 export {
   orderedMarkerLabel,

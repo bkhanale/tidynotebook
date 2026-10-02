@@ -4,7 +4,7 @@
  * `@codemirror/lang-markdown` runs the Lezer Markdown parser. This module
  * configures it to the flavor that `@notesapp/markdown` defines: CommonMark,
  * the GFM bundle (tables, task items, strikethrough, autolinks), YAML front
- * matter, and the shared math delimiter rule. The maintained YAML front
+ * matter, the shared math delimiter rule, and GFM footnotes (record 0156). The maintained YAML front
  * matter wrapper gives the body to the Markdown parser and parses the leading
  * metadata as YAML. It does not evaluate or export a metadata value. Every
  * decoration, the outline, and every widget read `syntaxTree(state)` of the
@@ -27,6 +27,7 @@ import {
 import type { EditorState, Extension } from '@codemirror/state';
 import { GFM } from '@lezer/markdown';
 import { tags } from '@lezer/highlight';
+import { footnoteMarkdownExtension } from './footnote-syntax.ts';
 import { mathMarkdownExtension } from './math-syntax.ts';
 
 /**
@@ -185,7 +186,7 @@ const codeHighlightStyle = HighlightStyle.define([...codeHighlightSpecs]);
 export function noteMarkdown(): LanguageSupport {
   return yamlFrontmatter({
     content: markdown({
-      extensions: [GFM, mathMarkdownExtension],
+      extensions: [GFM, mathMarkdownExtension, footnoteMarkdownExtension],
       codeLanguages: [...codeLanguages],
     }),
   });

@@ -77,6 +77,8 @@ const blockNodes = [
   'Blockquote',
   'Task',
   'BulletList',
+  'FootnoteDefinition',
+  'FootnoteReference',
 ] as const;
 
 await test('the notes of the resume set hold every block syntax', () => {

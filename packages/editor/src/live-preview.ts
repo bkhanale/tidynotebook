@@ -33,7 +33,12 @@
  * `./widgets.ts` provides.
  */
 import { syntaxTree } from '@codemirror/language';
-import { EditorState, type Extension, type Range } from '@codemirror/state';
+import {
+  EditorState,
+  type Extension,
+  type Range,
+  type Text,
+} from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -42,12 +47,13 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view';
-import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
+import type { SyntaxNode, SyntaxNodeRef, Tree } from '@lezer/common';
 import { glyph } from './icon-mark.ts';
 import {
   alertMarkerLength,
   alertTitle,
   alertToneOf,
+  footnoteIdentifier,
   orderedMarkerLabel,
   type AlertTone,
 } from '@notesapp/markdown';
@@ -60,6 +66,12 @@ import {
   type ListMarker,
 } from './list-marker.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
+import {
+  footnoteDefinitionNode,
+  footnoteLabelNode,
+  footnoteMarkNode,
+  footnoteReferenceNode,
+} from './footnote-syntax.ts';
 
 /** One structural fact the preview decorated, in document order. */
 export type PreviewNode =
@@ -88,7 +100,23 @@ export type PreviewNode =
       /** The alert tone the quote opens with, or `null` for a plain quote. */
       readonly tone: AlertTone | null;
     }
-  | { readonly kind: 'thematic-break' };
+  | { readonly kind: 'thematic-break' }
+  | {
+      readonly kind: 'footnote-reference';
+      /** The label as a reader matches it, in lower case. */
+      readonly label: string;
+    }
+  | {
+      readonly kind: 'footnote-definition';
+      /** The label as a reader matches it, in lower case. */
+      readonly label: string;
+      /**
+       * The structure inside the definition. The published page moves a
+       * definition to the end of the page, so its content is reported with
+       * it and not in the place of the note where it is written.
+       */
+      readonly structure: readonly PreviewNode[];
+    };
 
 /** The result of one preview build. */
 export type PreviewBuild = {
@@ -426,6 +454,51 @@ export function contentText(
   return text.replace(/\s+/g, ' ').trim();
 }
 
+/** The label of a footnote reference or definition node, or null. */
+function footnoteLabelOf(doc: Text, node: SyntaxNode): string | null {
+  const label = node.getChild(footnoteLabelNode);
+  return label === null ? null : doc.sliceString(label.from, label.to);
+}
+
+/** The blocks that can hold a footnote definition. */
+const definitionContainers = new Set([
+  'Document',
+  'Body',
+  'Blockquote',
+  'BulletList',
+  'OrderedList',
+  'ListItem',
+  footnoteDefinitionNode,
+]);
+
+/** The defined footnote identifiers of each tree, built once per tree. */
+const definedByTree = new WeakMap<Tree, ReadonlySet<string>>();
+
+/**
+ * The identifiers of the footnotes that a note defines.
+ *
+ * A definition is a block, so the walk enters only the blocks that can hold
+ * one and never the text of a paragraph. A tree belongs to one document, and
+ * a new tree comes with each change, so the answer is kept per tree.
+ */
+function definedFootnotes(state: EditorState): ReadonlySet<string> {
+  const tree = syntaxTree(state);
+  const known = definedByTree.get(tree);
+  if (known !== undefined) return known;
+  const defined = new Set<string>();
+  tree.iterate({
+    enter: (node) => {
+      if (node.name === footnoteDefinitionNode) {
+        const label = footnoteLabelOf(state.doc, node.node);
+        if (label !== null) defined.add(footnoteIdentifier(label));
+      }
+      return definitionContainers.has(node.name);
+    },
+  });
+  definedByTree.set(tree, defined);
+  return defined;
+}
+
 /** Merges overlapping ranges so a line is decorated once. */
 function mergeRanges(ranges: readonly PreviewRange[]): PreviewRange[] {
   const sorted = [...ranges].sort((left, right) => left.from - right.from);
@@ -459,6 +532,11 @@ export function buildPreview(
   const doc = state.doc;
   const items: Range<Decoration>[] = [];
   const structure: PreviewNode[] = [];
+  /** Where the next structure entry goes: the note, or a definition in it. */
+  const targets: PreviewNode[][] = [structure];
+  const report = (entry: PreviewNode): void => {
+    (targets[targets.length - 1] ?? structure).push(entry);
+  };
   const lineClasses = new Set<string>();
   let visited = 0;
 
@@ -563,6 +641,29 @@ export function buildPreview(
   };
 
   const tree = syntaxTree(state);
+  const footnotes = definedFootnotes(state);
+
+  /**
+   * Draws the marks and the label of one footnote node.
+   *
+   * The label is a raised mark in the link colour, as the published page
+   * links it. Its brackets hide, and they come back dimmed while the source
+   * shows.
+   */
+  const footnoteMarks = (owner: SyntaxNode, source: boolean): void => {
+    for (
+      let child = owner.firstChild;
+      child !== null && child.name !== 'Paragraph';
+      child = child.nextSibling
+    ) {
+      if (child.name === footnoteLabelNode)
+        mark(child.from, child.to, 'cm-np-footnote');
+      else if (child.name === footnoteMarkNode)
+        if (source) dim(child.from, child.to);
+        else hide(child.from, child.to);
+    }
+  };
+
   const stack: string[] = [];
   let alignments: readonly ColumnAlign[] = [];
 
@@ -777,7 +878,7 @@ export function buildPreview(
       );
       // The YAML language owns the nested highlighting. Front matter is one
       // metadata block and never a set of Markdown headings.
-      structure.push({ kind: 'front-matter' });
+      report({ kind: 'front-matter' });
       return false;
     }
     const level = headingLevel(name);
@@ -798,7 +899,7 @@ export function buildPreview(
           contentTo,
           `cm-np-heading cm-np-h${String(level)}`,
         );
-      structure.push({
+      report({
         kind: 'heading',
         level,
         text: contentText(state, node.from, node.to),
@@ -890,13 +991,13 @@ export function buildPreview(
                 : doc.sliceString(first.from, first.to).trim();
             })()
           : '';
-      structure.push({ kind: 'code-block', info });
+      report({ kind: 'code-block', info });
       blockLines(node.from, node.to, 'cm-np-code-block-line');
       return true;
     }
 
     if (name === 'HorizontalRule') {
-      structure.push({ kind: 'thematic-break' });
+      report({ kind: 'thematic-break' });
       lineClass(node.from, node.to, 'cm-np-rule-line');
       if (!touchesLines(node.from, node.to))
         items.push(
@@ -914,7 +1015,7 @@ export function buildPreview(
       const depth = depthOf('Blockquote') + 1;
       const marker = alertMarkerAt(node.from, node.to);
       const tone = marker === null ? null : marker.tone;
-      structure.push({ kind: 'quote', depth, tone });
+      report({ kind: 'quote', depth, tone });
       lineClass(
         node.from,
         node.to,
@@ -948,7 +1049,7 @@ export function buildPreview(
 
     if (name === 'ListItem') {
       const ordered = parent === 'OrderedList';
-      structure.push({
+      report({
         kind: 'list-item',
         depth: depthOf('BulletList', 'OrderedList'),
         ordered,
@@ -1012,7 +1113,7 @@ export function buildPreview(
       const checked =
         marker !== null &&
         /[xX]/.test(doc.sliceString(marker.from + 1, marker.to - 1));
-      structure.push({ kind: 'task', checked });
+      report({ kind: 'task', checked });
       return true;
     }
 
@@ -1054,7 +1155,7 @@ export function buildPreview(
           lineClass(child.from, child.to, 'cm-np-table-align');
         }
       }
-      structure.push({ kind: 'table', rows, columns });
+      report({ kind: 'table', rows, columns });
       lineClass(node.from, node.to, 'cm-np-table-line');
       return true;
     }
@@ -1130,11 +1231,6 @@ export function buildPreview(
     }
 
     if (name === 'Link') {
-      const text = doc.sliceString(node.from, Math.min(node.to, node.from + 2));
-      if (text === '[^') {
-        mark(node.from, node.to, 'cm-np-footnote');
-        return false;
-      }
       const link = node.node;
       // A bare `[word]` with no definition is plain text, so it is left
       // exactly as written.
@@ -1202,18 +1298,39 @@ export function buildPreview(
       return false;
     }
 
-    if (name === 'Paragraph') {
-      const first = node.node.firstChild;
-      if (
-        first !== null &&
-        first.name === 'Link' &&
-        first.from === node.from &&
-        doc.sliceString(node.from, node.from + 2) === '[^' &&
-        doc.sliceString(first.to, first.to + 1) === ':'
-      )
-        lineClass(node.from, node.to, 'cm-np-footnote-definition');
+    if (name === footnoteReferenceNode) {
+      // A reference is a footnote only when the note defines its label, as
+      // GFM reads it. Any other `[^label]` stays the text it is.
+      const label = footnoteLabelOf(doc, node.node);
+      if (label === null || !footnotes.has(footnoteIdentifier(label)))
+        return false;
+      report({ kind: 'footnote-reference', label: label.toLowerCase() });
+      footnoteMarks(node.node, touches(node.from, node.to));
+      return false;
+    }
+
+    if (name === footnoteDefinitionNode) {
+      const label = footnoteLabelOf(doc, node.node) ?? '';
+      const inner: PreviewNode[] = [];
+      report({
+        kind: 'footnote-definition',
+        label: label.toLowerCase(),
+        structure: inner,
+      });
+      targets.push(inner);
+      const last =
+        node.to > node.from && doc.lineAt(node.to).from === node.to
+          ? node.to - 1
+          : node.to;
+      lineClass(node.from, last, 'cm-np-footnote-definition');
+      // The label is the marker of the block, so it follows the reveal rule
+      // of every block marker: its source shows while the selection touches
+      // its line.
+      footnoteMarks(node.node, touchesLines(node.from, node.from));
       return true;
     }
+
+    if (name === footnoteMarkNode || name === footnoteLabelNode) return false;
 
     return true;
   };
@@ -1235,8 +1352,9 @@ export function buildPreview(
         if (descend) stack.push(node.name);
         return descend;
       },
-      leave: () => {
+      leave: (node) => {
         stack.pop();
+        if (node.name === footnoteDefinitionNode) targets.pop();
       },
     });
   }
