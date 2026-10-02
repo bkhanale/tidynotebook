@@ -1,5 +1,8 @@
 /**
- * The folder dialogs: new folder, move to folder, and rename folder.
+ * The folder dialogs: new folder and move to folder.
+ *
+ * A folder renames in place in the tree (record 0164), so it has no dialog of
+ * its own.
  *
  * Every dialog states the outcome before it writes and reports one cause
  * when it cannot run. The rules of a rewrite live in `lib/folder-moves.ts`
@@ -28,11 +31,7 @@ import {
   TextField,
 } from '@notesapp/ui';
 import { applyMoves } from './apply-moves.ts';
-import {
-  folderMoves,
-  moveProblem,
-  type PathMove,
-} from '../../lib/folder-moves.ts';
+import { planMove, type DragItem } from '../../lib/folder-moves.ts';
 import type { NoteSummary } from '../../lib/note-list.ts';
 import { childFolderPath } from '../../lib/folder-selection.ts';
 import {
@@ -41,10 +40,8 @@ import {
   cleanNoteName,
   displayNoteName,
   folderOf,
-  joinNotePath,
   noteNameProblem,
   noteBaseNameProblem,
-  rewriteFolder,
 } from '../../lib/note-name.ts';
 
 /**
@@ -199,14 +196,32 @@ export function NewFolderDialog({
   );
 }
 
+/** The words that name what a move carries, for the legend of the dialog. */
+function moveSubject(items: readonly DragItem[]): string {
+  const only = items.length === 1 ? items[0] : undefined;
+  if (only === undefined) return `${String(items.length)} items`;
+  if (only.kind === 'note') return displayNoteName(baseNameOf(only.path));
+  return `the folder ${only.folder.split('/').at(-1) ?? only.folder}`;
+}
+
+/** The folder that holds the first item, which the dialog chooses first. */
+function startFolder(items: readonly DragItem[]): string {
+  const first = items[0];
+  if (first === undefined) return '';
+  return folderOf(first.kind === 'note' ? first.path : first.folder);
+}
+
 /**
- * Moves one note into a folder that already exists, or into a new one.
+ * Moves one note, one folder or a selection of rows into a folder that
+ * already exists, or into a new one (record 0164).
  *
  * The move is one store operation, so the tree and the open editor both read
- * the new path from the store. The dialog reports nothing back but its own
- * closing.
+ * the new paths from the store. `planMove` of `lib/folder-moves.ts` decides
+ * every new path first, so nothing moves unless everything can. A folder of
+ * the move is not one of the choices, because a folder cannot move into
+ * itself.
  */
-export function MoveNoteDialog({
+export function MoveItemsDialog({
   open,
   onClose,
   store,
@@ -214,8 +229,9 @@ export function MoveNoteDialog({
   workspaceId,
   notes,
   folders,
-  fileId,
-  path,
+  emptyFolders,
+  items,
+  onFolderMoved,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -223,24 +239,44 @@ export function MoveNoteDialog({
   readonly accountId: string;
   readonly workspaceId: string;
   readonly notes: readonly NoteSummary[];
+  /** Every folder that a person can choose, sorted by path. */
   readonly folders: readonly string[];
-  readonly fileId: string;
-  readonly path: string;
+  /** The folders that only this device remembers. */
+  readonly emptyFolders: readonly string[];
+  /** The rows that move. */
+  readonly items: readonly DragItem[];
+  /** Follows a folder of the move with the folders this device remembers. */
+  readonly onFolderMoved: (fromFolder: string, toFolder: string) => void;
 }): ReactNode {
   const [target, setTarget] = useState<string | null>('');
   const [custom, setCustom] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const movedFolders = items.flatMap((item) =>
+    item.kind === 'folder' ? [item.folder] : [],
+  );
+  const choices = folders.filter(
+    (folder) =>
+      !movedFolders.some(
+        (moved) => folder === moved || folder.startsWith(`${moved}/`),
+      ),
+  );
 
+  // The dialog reads the rows when it opens, so a change of the tree behind
+  // it does not move the choice that the person is making.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   useEffect(() => {
     if (!open) return;
-    setTarget(folderOf(path));
+    setTarget(startFolder(itemsRef.current));
     setCustom('');
     setError(null);
-  }, [open, path]);
+    setBusy(false);
+  }, [open]);
 
   const move = (): void => {
     if (store === null) {
-      setError('Local storage is unavailable, so the note cannot move.');
+      setError('Local storage is unavailable, so nothing can move.');
       return;
     }
     const folder = target === null ? cleanNoteName(custom) : target;
@@ -248,23 +284,38 @@ export function MoveNoteDialog({
       setError('Type a folder name.');
       return;
     }
-    const toPath = joinNotePath(folder, baseNameOf(path));
-    if (toPath === path) {
+    if (target === null) {
+      const named = noteNameProblem(folder);
+      if (named !== null) {
+        setError(named.replaceAll('note name', 'folder name'));
+        return;
+      }
+    }
+    const outcome = planMove(items, folder, notes, emptyFolders);
+    if (outcome.problem !== null) {
+      setError(outcome.problem);
+      return;
+    }
+    const plan = outcome.plan;
+    if (plan === null) {
       onClose();
       return;
     }
-    const moves: readonly PathMove[] = [{ fileId, toPath }];
-    const problem = moveProblem(moves, notes);
-    if (problem !== null) {
-      setError(problem);
-      return;
-    }
+    setBusy(true);
     void (async (): Promise<void> => {
-      const failure = await applyMoves(store, accountId, workspaceId, moves);
+      const failure = await applyMoves(
+        store,
+        accountId,
+        workspaceId,
+        plan.moves,
+      );
+      setBusy(false);
       if (failure !== null) {
         setError(failure);
         return;
       }
+      for (const rewrite of plan.folderMoves)
+        onFolderMoved(rewrite.from, rewrite.to);
       onClose();
     })();
   };
@@ -274,7 +325,7 @@ export function MoveNoteDialog({
       open={open}
       onClose={onClose}
       title="Move to folder"
-      titleId="move-note-title"
+      titleId="move-items-title"
       width="small"
     >
       <form
@@ -286,10 +337,10 @@ export function MoveNoteDialog({
         <DialogBody>
           <fieldset className="m-0 border-0 p-0">
             <legend className="mb-2 text-control font-medium text-strong">
-              Move {displayNoteName(baseNameOf(path))} to
+              Move {moveSubject(items)} to
             </legend>
             <ul className="m-0 max-h-64 list-none overflow-y-auto p-0">
-              {['', ...folders, null].map((folder) => (
+              {['', ...choices, null].map((folder) => (
                 <li key={folder ?? 'new'}>
                   <FolderChoice
                     label={
@@ -312,7 +363,7 @@ export function MoveNoteDialog({
           {target === null ? (
             <div className="mt-3">
               <TextField
-                id="move-note-folder"
+                id="move-items-folder"
                 label="New folder name"
                 value={custom}
                 autoFocus
@@ -331,152 +382,8 @@ export function MoveNoteDialog({
           <Button variant="ghost" type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit">
-            Move note
-          </Button>
-        </DialogFooter>
-      </form>
-    </Dialog>
-  );
-}
-
-/**
- * Renames one folder by rewriting the path of every note inside it.
- *
- * A folder that holds no note yet is renamed as well. Nothing is written for
- * it, because only this device remembers it; the caller moves the remembered
- * name with the same call.
- */
-export function RenameFolderDialog({
-  open,
-  onClose,
-  store,
-  accountId,
-  workspaceId,
-  notes,
-  folders,
-  folder,
-  onRenamed,
-}: {
-  readonly open: boolean;
-  readonly onClose: () => void;
-  readonly store: LocalStore | null;
-  readonly accountId: string;
-  readonly workspaceId: string;
-  readonly notes: readonly NoteSummary[];
-  /** Every folder that already exists, so a repeated name is refused. */
-  readonly folders: readonly string[];
-  readonly folder: string;
-  readonly onRenamed: (toFolder: string) => void;
-}): ReactNode {
-  const [name, setName] = useState(folder);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setName(folder);
-    setError(null);
-    setBusy(false);
-  }, [open, folder]);
-
-  const rename = (): void => {
-    if (store === null) {
-      setError('Local storage is unavailable, so the folder cannot change.');
-      return;
-    }
-    const toFolder = cleanNoteName(name);
-    if (toFolder === folder) {
-      onClose();
-      return;
-    }
-    if (toFolder === '') {
-      setError('Type a folder name.');
-      return;
-    }
-    const named = noteNameProblem(toFolder);
-    if (named !== null) {
-      setError(named);
-      return;
-    }
-    if (
-      folders.some(
-        (one) =>
-          one.toLowerCase() === toFolder.toLowerCase() &&
-          one.toLowerCase() !== folder.toLowerCase(),
-      )
-    ) {
-      setError(`A folder named ${toFolder} already exists.`);
-      return;
-    }
-    const moves = folderMoves(notes, folder, toFolder);
-    // A folder with no note in it moves no note. Only the remembered name
-    // changes, and the caller owns that.
-    if (moves.length === 0) {
-      onClose();
-      onRenamed(toFolder);
-      return;
-    }
-    const problem = moveProblem(moves, notes);
-    if (problem !== null) {
-      setError(problem);
-      return;
-    }
-    setBusy(true);
-    void (async (): Promise<void> => {
-      const failure = await applyMoves(store, accountId, workspaceId, moves);
-      setBusy(false);
-      if (failure !== null) {
-        setError(failure);
-        return;
-      }
-      onClose();
-      onRenamed(toFolder);
-    })();
-  };
-
-  const count = notes.filter(
-    (note) => rewriteFolder(note.path, folder, folder) !== null,
-  ).length;
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title="Rename folder"
-      titleId="rename-folder-title"
-      width="small"
-    >
-      <form
-        onSubmit={(event): void => {
-          event.preventDefault();
-          rename();
-        }}
-      >
-        <DialogBody>
-          <TextField
-            id="rename-folder-name"
-            label="Folder name"
-            hint={
-              count === 0
-                ? 'This folder holds no note yet.'
-                : `This changes the name of ${String(count)} ${count === 1 ? 'note' : 'notes'}.`
-            }
-            value={name}
-            error={error ?? undefined}
-            autoFocus
-            onChange={(value) => {
-              setName(value);
-              setError(null);
-            }}
-          />
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" type="button" onClick={onClose}>
-            Cancel
-          </Button>
           <Button variant="primary" type="submit" disabled={busy}>
-            Rename folder
+            Move
           </Button>
         </DialogFooter>
       </form>

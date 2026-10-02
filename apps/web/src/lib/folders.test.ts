@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { NoteSummary } from './note-list.ts';
-import { folderMoves, moveProblem, planDrop } from './folder-moves.ts';
+import {
+  folderMoves,
+  moveProblem,
+  planDrop,
+  planMove,
+} from './folder-moves.ts';
 import {
   pruneEmptyFolders,
   rewriteEmptyFolders,
@@ -175,4 +180,68 @@ await test('a folder move rewrites every empty folder inside it', () => {
     ['plans', 'plans/ideas', 'plans/ideas/later'],
   );
   assert.deepEqual(rewriteEmptyFolders(['a/b'], 'a', ''), ['b']);
+});
+
+await test('a move of several rows moves every row in one plan', () => {
+  // Issue 255: a person moved ten notes with ten drags.
+  const outcome = planMove(
+    [
+      { kind: 'note', fileId: 'c', path: 'other.md' },
+      { kind: 'folder', folder: 'plans/deep' },
+    ],
+    'archive',
+    notes,
+  );
+  assert.equal(outcome.problem, null);
+  assert.deepEqual(outcome.plan, {
+    moves: [
+      { fileId: 'c', toPath: 'archive/other.md' },
+      { fileId: 'b', toPath: 'archive/deep/two.md' },
+    ],
+    folderMoves: [{ from: 'plans/deep', to: 'archive/deep' }],
+  });
+});
+
+await test('a row inside a moved folder travels with the folder', () => {
+  const outcome = planMove(
+    [
+      { kind: 'folder', folder: 'plans' },
+      { kind: 'note', fileId: 'a', path: 'plans/one.md' },
+    ],
+    'archive',
+    notes,
+  );
+  assert.deepEqual(outcome.plan?.moves, [
+    { fileId: 'a', toPath: 'archive/plans/one.md' },
+    { fileId: 'b', toPath: 'archive/plans/deep/two.md' },
+  ]);
+});
+
+await test('two rows that land on one name refuse the whole move', () => {
+  const twins = [note('x', 'one/same.md'), note('y', 'two/same.md')];
+  const outcome = planMove(
+    [
+      { kind: 'note', fileId: 'x', path: 'one/same.md' },
+      { kind: 'note', fileId: 'y', path: 'two/same.md' },
+    ],
+    'archive',
+    twins,
+  );
+  assert.equal(outcome.plan, null);
+  assert.match(outcome.problem ?? '', /^Two notes would be named/u);
+});
+
+await test('one refused row refuses the move and a move in place does nothing', () => {
+  assert.equal(
+    planMove([{ kind: 'folder', folder: 'plans' }], 'plans/deep', notes).plan,
+    null,
+  );
+  assert.deepEqual(
+    planMove(
+      [{ kind: 'note', fileId: 'a', path: 'plans/one.md' }],
+      'plans',
+      notes,
+    ),
+    { plan: null, problem: null },
+  );
 });

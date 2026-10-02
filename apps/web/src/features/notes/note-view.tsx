@@ -17,7 +17,7 @@ import { useParams } from 'react-router';
 import { LoadingState, Page, PageHeader, PageRegion } from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useFiles } from '../../shell/files.tsx';
-import { MoveNoteDialog } from '../folders/folders.tsx';
+import { MoveItemsDialog } from '../folders/folders.tsx';
 import { PublishDialog } from '../publishing/publish-dialog.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
@@ -92,7 +92,7 @@ export function NoteView(): ReactNode {
         notes={files.notes}
       />
       {notePath === null ? null : (
-        <MoveNoteDialog
+        <MoveItemsDialog
           open={moveOpen}
           onClose={() => setMoveOpen(false)}
           store={store.store}
@@ -100,8 +100,9 @@ export function NoteView(): ReactNode {
           workspaceId={workspaceId}
           notes={files.notes}
           folders={moveFolders}
-          fileId={fileId}
-          path={notePath}
+          emptyFolders={files.emptyFolders}
+          items={[{ kind: 'note', fileId, path: notePath }]}
+          onFolderMoved={files.moveEmptyFolders}
         />
       )}
     </main>

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   deepestSteppedBranch,
-  treeBranchClassName,
+  treeIndentClassName,
   treeItemsClassName,
   treeListClassName,
   treeRowClassName,
@@ -94,22 +94,43 @@ await test('the name control shows its focus inside the row', () => {
   assert.ok(!treeRowNameClassName.includes('focus:'));
 });
 
-await test('a branch near the top of the tree steps in by one step', () => {
-  assert.equal(treeBranchClassName(1), 'mt-0.5 pl-2');
-  assert.equal(treeBranchClassName(deepestSteppedBranch), 'mt-0.5 pl-2');
+await test('a row near the top of the tree steps in by one step', () => {
+  assert.equal(treeIndentClassName(1), '');
+  assert.equal(treeIndentClassName(2), 'pl-2');
+  assert.equal(treeIndentClassName(deepestSteppedBranch), 'pl-6');
 });
 
-await test('a deep branch stops stepping in, so the name keeps its room', () => {
+await test('a deep row stops stepping in, so the name keeps its room', () => {
   // The defect this covers: every level added its own step and nothing
   // stopped it, so a folder ten levels down showed a chevron, a folder mark
   // and no name at all in a narrow sidebar.
-  assert.equal(treeBranchClassName(deepestSteppedBranch + 1), 'mt-0.5');
-  assert.equal(treeBranchClassName(12), 'mt-0.5');
+  assert.equal(treeIndentClassName(deepestSteppedBranch + 1), 'pl-6');
+  assert.equal(treeIndentClassName(12), 'pl-6');
+  assert.equal(treeIndentClassName(0), '');
 });
 
-await test('every open branch separates its first row from its folder', () => {
-  for (const depth of [1, 3, 5, 12])
-    assert.ok(treeBranchClassName(depth).includes('mt-0.5'));
+await test('a row of a selection takes the fill of a chosen row', () => {
+  // Record 0164: the fill names the rows that an action acts on.
+  const picked = classes({ picked: true, selecting: true });
+  assert.ok(picked.includes('bg-active'));
+  assert.ok(picked.includes('text-strong'));
+});
+
+await test('while a selection exists the open note keeps its text and gives up its fill', () => {
+  const open = classes({ open: true, selecting: true });
+  assert.ok(!open.includes('bg-active'));
+  assert.ok(open.includes('text-strong'));
+  assert.ok(open.includes('font-medium'));
+  const openPicked = classes({ open: true, picked: true, selecting: true });
+  assert.ok(openPicked.includes('bg-active'));
+});
+
+await test('the create parent keeps its quiet fill outside a selection', () => {
+  const parent = classes({ selected: true, selecting: true });
+  assert.ok(parent.includes('bg-hover'));
+  const pickedParent = classes({ selected: true, picked: true });
+  assert.ok(pickedParent.includes('bg-active'));
+  assert.ok(!pickedParent.includes('bg-hover'));
 });
 
 await test('siblings use a small gap while each row keeps its target size', () => {
@@ -118,12 +139,12 @@ await test('siblings use a small gap while each row keeps its target size', () =
   assert.ok(treeRowClassName().includes('min-h-11'));
 });
 
-await test('no branch of the tree draws a guide line', () => {
+await test('no level of the tree draws a guide line', () => {
   // Decision 0064. A line down every branch is the mark of a file manager
   // and not of a note list; the step states the level.
-  for (const depth of [1, 3, 5, 12]) {
-    const one = treeBranchClassName(depth);
-    assert.ok(!one.includes('border'), `depth ${String(depth)}`);
+  for (const level of [1, 3, 5, 12]) {
+    const one = treeIndentClassName(level);
+    assert.ok(!one.includes('border'), `level ${String(level)}`);
   }
 });
 

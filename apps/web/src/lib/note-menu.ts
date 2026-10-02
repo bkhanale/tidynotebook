@@ -35,11 +35,13 @@ import type { ActionIconName } from './palette-items.ts';
  * separator.
  */
 export type NoteMenuAction =
+  | 'open'
   | 'history'
   | 'publish'
   | 'rename'
   | 'move'
   | 'duplicate'
+  | 'copy-link'
   | 'attach-image'
   | 'export'
   | 'move-to-trash';
@@ -51,23 +53,80 @@ export type NoteMenuRow = {
   readonly icon: ActionIconName;
 };
 
+/**
+ * Where a note menu stands.
+ *
+ * `header` is the menu of the open note in the frame header (record 0069).
+ * `tree` is the menu of a note row of the tree, which the action button, a
+ * right click and the keys open (record 0164). The tree menu acts on a note
+ * that may not be open, so it offers Open and Copy link and not Attach an
+ * image, which needs the editor of the note.
+ */
+export type NoteMenuSurface = 'header' | 'tree';
+
 /** Which of the rows the open note offers right now. */
 export type NoteMenuOffer = {
   /** False when the screen holds no Move to folder dialog. */
   readonly canMove: boolean;
   /** False when the screen holds no Publish dialog. */
   readonly canPublish: boolean;
+  /** The menu the rows are for. The header is the default. */
+  readonly surface?: NoteMenuSurface | undefined;
 };
 
-/** Every row of the note menu, in order. */
-const allRows: readonly NoteMenuRow[] = [
-  { id: 'history', label: 'History', icon: 'history' },
-  { id: 'publish', label: 'Publish', icon: 'publish' },
-  { id: 'rename', label: 'Rename', icon: 'rename' },
-  { id: 'move', label: 'Move to folder', icon: 'move' },
-  { id: 'duplicate', label: 'Duplicate', icon: 'duplicate' },
-  { id: 'attach-image', label: 'Attach an image', icon: 'image' },
-  { id: 'export', label: 'Export as Markdown', icon: 'export' },
+/** Every row of the note menu, in order, with the menus that show it. */
+const allRows: readonly (NoteMenuRow & {
+  readonly surfaces: readonly NoteMenuSurface[];
+})[] = [
+  { id: 'open', label: 'Open', icon: 'open', surfaces: ['tree'] },
+  {
+    id: 'history',
+    label: 'History',
+    icon: 'history',
+    surfaces: ['header', 'tree'],
+  },
+  {
+    id: 'publish',
+    label: 'Publish',
+    icon: 'publish',
+    surfaces: ['header', 'tree'],
+  },
+  {
+    id: 'rename',
+    label: 'Rename',
+    icon: 'rename',
+    surfaces: ['header', 'tree'],
+  },
+  {
+    id: 'move',
+    label: 'Move to folder',
+    icon: 'move',
+    surfaces: ['header', 'tree'],
+  },
+  {
+    id: 'duplicate',
+    label: 'Duplicate',
+    icon: 'duplicate',
+    surfaces: ['header', 'tree'],
+  },
+  {
+    id: 'copy-link',
+    label: 'Copy link',
+    icon: 'copy-link',
+    surfaces: ['tree'],
+  },
+  {
+    id: 'attach-image',
+    label: 'Attach an image',
+    icon: 'image',
+    surfaces: ['header'],
+  },
+  {
+    id: 'export',
+    label: 'Export as Markdown',
+    icon: 'export',
+    surfaces: ['header', 'tree'],
+  },
 ];
 
 /** The one name of the action that moves a note or a folder to Trash. */
@@ -84,15 +143,19 @@ export const noteTrashRow: NoteMenuRow = {
 };
 
 /**
- * The rows the note menu shows for one open note.
+ * The rows the note menu shows for one note.
  *
  * A row whose dialog the screen does not hold is absent, because a row that
  * does nothing is worse than no row at all.
  */
 export function noteMenuRows(offer: NoteMenuOffer): readonly NoteMenuRow[] {
-  return allRows.filter(
-    (row) =>
-      (row.id !== 'move' || offer.canMove) &&
-      (row.id !== 'publish' || offer.canPublish),
-  );
+  const surface = offer.surface ?? 'header';
+  return allRows
+    .filter(
+      (row) =>
+        row.surfaces.includes(surface) &&
+        (row.id !== 'move' || offer.canMove) &&
+        (row.id !== 'publish' || offer.canPublish),
+    )
+    .map(({ id, label, icon }) => ({ id, label, icon }));
 }

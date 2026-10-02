@@ -80,3 +80,35 @@ await test('the move to Trash has one name on every surface', () => {
   assert.ok(moveNoteToTrashPaletteLabel.startsWith('Move '));
   assert.ok(moveNoteToTrashPaletteLabel.endsWith(' to Trash'));
 });
+
+await test('a note row of the tree offers the note menu with Open and Copy link', () => {
+  // Record 0164: the menu of a tree row had one row, and one table holds the
+  // rows of the tree and of the header, so their words cannot drift.
+  assert.deepEqual(
+    noteMenuRows({ canMove: true, canPublish: true, surface: 'tree' }).map(
+      (row) => row.id,
+    ),
+    [
+      'open',
+      'history',
+      'publish',
+      'rename',
+      'move',
+      'duplicate',
+      'copy-link',
+      'export',
+    ],
+  );
+});
+
+await test('a row the two menus share reads the same words in both', () => {
+  const tree = noteMenuRows({
+    canMove: true,
+    canPublish: true,
+    surface: 'tree',
+  });
+  for (const row of tree) {
+    const header = everyRow.find((entry) => entry.id === row.id);
+    if (header !== undefined) assert.deepEqual(header, row);
+  }
+});

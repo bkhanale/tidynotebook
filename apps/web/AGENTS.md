@@ -8,12 +8,12 @@ screens, the worker and the diagram frame. It composes and holds no rule.
 ## What lives here and what does not
 
 - `src/shell/` is the frame: the header, the sidebar, the palette and the
-  notices. `header-slot.tsx` holds the two places a route writes into the
-  header (0064, 0069), `lib/breadcrumb.ts` states its parts (0064) and
-  `action-icons.tsx` the glyph of an action (0065). `workspaces.tsx` owns the
-  switcher (0049). `src/features/<feature>/` is a feature, `src/lib/` is pure,
-  `app.tsx`, `router.tsx` and `main.tsx` compose it, `src/pwa/` the worker and
-  notices (0130), `src/diagram/` the frame, `src/published/` its page (0158).
+  notices. `tree.tsx` is the tree (0164), `header-slot.tsx` the two header
+  places of a route (0064, 0069), and `action-icons.tsx` the glyph of an
+  action (0065). `workspaces.tsx` owns the switcher (0049).
+  `src/features/<feature>/` is a feature, `src/lib/` is pure, `app.tsx`,
+  `router.tsx` and `main.tsx` compose it, `src/pwa/` the worker and notices
+  (0130), `src/diagram/` the frame, `src/published/` its page (0158).
 - `src/tailwind.css` is the only CSS source: imports, sources, `@font-face`
   (0061), the scales, and the built palette of a page with no script (0151).
   A domain rule is in `packages/core`, a Markdown rule in `packages/markdown`.
@@ -86,7 +86,11 @@ on each rule below.
 | `src/router.tsx`                              | Routes and the two boundaries     |
 | `src/lib/route-error.ts`                      | What a boundary says (0161)       |
 | `src/tailwind.css`                            | CSS source and the named scales   |
-| `src/shell/shell.tsx`                         | Frame, tree, sidebar size         |
+| `src/shell/shell.tsx`                         | Frame, sidebar, sidebar size      |
+| `src/shell/tree.tsx`                          | The tree, its selection and menu  |
+| `src/lib/tree-rows.ts`                        | The visible rows of the tree      |
+| `src/shell/row-window.ts`                     | The window of a long list         |
+| `src/lib/row-window.ts`                       | The rule of the window of a list  |
 | `src/shell/header-slot.tsx`                   | Where a route fills the header    |
 | `src/lib/note-menu.ts`                        | The rows of the note menu         |
 | `src/lib/note-name-field.ts`                  | The name field of the open note   |

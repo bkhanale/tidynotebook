@@ -16,7 +16,7 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import type { LocalStore } from '@notesapp/sync';
-import { planDrop, type DragItem } from '../lib/folder-moves.ts';
+import { planMove, type DragItem } from '../lib/folder-moves.ts';
 import { applyMoves } from '../features/folders/apply-moves.ts';
 import type { NoteSummary } from '../lib/note-list.ts';
 
@@ -25,12 +25,15 @@ const dragMediaType = 'application/x-notesapp-tree';
 
 /** What every row of the tree needs to take part in a drag. */
 export type TreeDrag = {
-  /** The row that is being dragged, or `null` when no drag is running. */
-  readonly item: DragItem | null;
+  /**
+   * The rows that are being dragged, or `null` when no drag is running. A row
+   * of a selection drags the whole selection (record 0164).
+   */
+  readonly items: readonly DragItem[] | null;
   /** The folder under the pointer, where the empty string is the root. */
   readonly over: string | null;
-  /** Starts a drag and puts the row on the data transfer. */
-  readonly begin: (event: ReactDragEvent, item: DragItem) => void;
+  /** Starts a drag and puts the rows on the data transfer. */
+  readonly begin: (event: ReactDragEvent, items: readonly DragItem[]) => void;
   /** Ends a drag, whether it dropped or not. */
   readonly end: () => void;
   /** Marks the folder under the pointer, or clears the mark with `null`. */
@@ -63,24 +66,27 @@ export function useTreeDrag({
   readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
   readonly openFolder: (folder: string) => void;
 }): TreeDrag {
-  const [item, setItem] = useState<DragItem | null>(null);
+  const [items, setItems] = useState<readonly DragItem[] | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   // The drop reads the row from a ref: `dataTransfer` is not readable while
   // the pointer only moves over a target, so the highlight needs its own copy.
-  const dragged = useRef<DragItem | null>(null);
+  const dragged = useRef<readonly DragItem[] | null>(null);
 
-  const begin = useCallback((event: ReactDragEvent, next: DragItem): void => {
-    dragged.current = next;
-    setItem(next);
-    setProblem(null);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData(dragMediaType, JSON.stringify(next));
-  }, []);
+  const begin = useCallback(
+    (event: ReactDragEvent, next: readonly DragItem[]): void => {
+      dragged.current = next;
+      setItems(next);
+      setProblem(null);
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData(dragMediaType, JSON.stringify(next));
+    },
+    [],
+  );
 
   const end = useCallback((): void => {
     dragged.current = null;
-    setItem(null);
+    setItems(null);
     setOver(null);
   }, []);
 
@@ -88,7 +94,7 @@ export function useTreeDrag({
     (folder: string): boolean => {
       const current = dragged.current;
       if (current === null) return false;
-      const outcome = planDrop(current, folder, notes, emptyFolders);
+      const outcome = planMove(current, folder, notes, emptyFolders);
       return outcome.plan !== null;
     },
     [notes, emptyFolders],
@@ -99,7 +105,7 @@ export function useTreeDrag({
       const current = dragged.current;
       end();
       if (current === null) return;
-      const outcome = planDrop(current, folder, notes, emptyFolders);
+      const outcome = planMove(current, folder, notes, emptyFolders);
       if (outcome.problem !== null) {
         setProblem(outcome.problem);
         return;
@@ -107,8 +113,8 @@ export function useTreeDrag({
       const plan = outcome.plan;
       if (plan === null) return;
       setProblem(null);
-      if (plan.folderMove !== null)
-        moveEmptyFolders(plan.folderMove.from, plan.folderMove.to);
+      for (const rewrite of plan.folderMoves)
+        moveEmptyFolders(rewrite.from, rewrite.to);
       if (folder !== '') openFolder(folder);
       if (plan.moves.length === 0) return;
       if (store === null || accountId === null) {
@@ -138,7 +144,7 @@ export function useTreeDrag({
   );
 
   return {
-    item,
+    items,
     over,
     begin,
     end,

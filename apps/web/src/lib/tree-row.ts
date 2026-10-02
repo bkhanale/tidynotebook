@@ -22,6 +22,11 @@
  * ten levels down in a narrow sidebar showed a chevron, a folder mark and no
  * name at all.
  *
+ * A person can also build a selection of many rows (record 0164). A row of
+ * it takes the fill of a chosen row, and while it exists the open note keeps
+ * its strong text and gives up its fill, so the fill names the rows that an
+ * action acts on.
+ *
  * Every token here is proved on every surface by `theme.test.ts` in
  * `packages/ui`: `textStrong` meets 4.5 to 1 on the sidebar surface and on
  * both fills, and `focus` meets the 3 to 1 non-text minimum.
@@ -34,6 +39,10 @@ export type TreeRowState = {
   readonly open?: boolean | undefined;
   /** The row is the folder that a create action uses as its parent. */
   readonly selected?: boolean | undefined;
+  /** The row is in a selection that a person built (record 0164). */
+  readonly picked?: boolean | undefined;
+  /** Some row of the tree is in such a selection. */
+  readonly selecting?: boolean | undefined;
   /** A dragged row is over this row and it accepts the drop. */
   readonly dropTarget?: boolean | undefined;
 };
@@ -47,14 +56,21 @@ export type TreeRowState = {
  * which is what an action that appears on hover reads.
  */
 export function treeRowClassName(state: TreeRowState = {}): string {
+  // While a person builds a selection, the fill of a chosen row is the mark
+  // of the rows an action acts on, and the open note keeps its strong text
+  // alone, so a person reads one answer to "which rows will this act on".
+  const filled =
+    state.picked === true || (state.open === true && state.selecting !== true);
+  const openUnfilled =
+    !filled && state.open === true ? 'text-strong font-medium' : '';
   const chosen =
-    state.open !== true && state.selected === true
+    !filled && state.open !== true && state.selected === true
       ? 'bg-hover text-strong'
       : '';
   const drop = state.dropTarget === true ? 'ring-2 ring-inset ring-focus' : '';
   return rowClassName({
-    selected: state.open === true,
-    className: ['group pl-0 pr-1', chosen, drop]
+    selected: filled,
+    className: ['group pl-0 pr-1', openUnfilled, chosen, drop]
       .filter((part) => part !== '')
       .join(' '),
   });
@@ -84,15 +100,21 @@ export const treeRowNameClassName = `flex min-w-0 flex-1 cursor-pointer items-ce
 /** The deepest branch that still steps in. */
 export const deepestSteppedBranch = 4;
 
+/** The indent of each level, from the top of the tree to the deepest step. */
+const indentSteps = ['', 'pl-2', 'pl-4', 'pl-6'] as const;
+
 /**
- * The classes of one child branch of the tree, at `depth`.
+ * The indent of one row of the tree, at `level`.
  *
- * `depth` is 1 for the children of a folder at the top of the tree. One step
- * for each level is enough to read the shape of the tree, because folder and
- * note rows reserve the same disclosure column.
+ * `level` is 1 for a row at the top of the tree. The tree is one list of rows
+ * (record 0164), so the level of a row is a class of the row and not the
+ * nesting of the document. One step for each level is enough to read the
+ * shape of the tree, because folder and note rows reserve the same disclosure
+ * column, and the steps stop at {@link deepestSteppedBranch}.
  */
-export function treeBranchClassName(depth: number): string {
-  return depth > deepestSteppedBranch ? 'mt-0.5' : 'mt-0.5 pl-2';
+export function treeIndentClassName(level: number): string {
+  const step = Math.min(Math.max(level - 1, 0), deepestSteppedBranch - 1);
+  return indentSteps[step] ?? '';
 }
 
 /** Small gaps keep sibling rows distinct without using extra list height. */

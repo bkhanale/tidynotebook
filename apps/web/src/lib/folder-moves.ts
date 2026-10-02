@@ -36,6 +36,14 @@ export function moveProblem(
   notes: readonly NoteSummary[],
 ): string | null {
   if (moves.length === 0) return 'Nothing moves with that name.';
+  // Two notes of one move that land on one path would take one name.
+  const landing = new Set<string>();
+  for (const move of moves) {
+    const target = move.toPath.toLowerCase();
+    if (landing.has(target))
+      return `Two notes would be named ${displayNoteName(move.toPath)} there. Move them one at a time.`;
+    landing.add(target);
+  }
   const moving = new Set(moves.map((move) => move.fileId));
   const taken = new Set(
     notes
@@ -159,4 +167,78 @@ export function planDrop(
     plan: { moves, folderMove: { from: item.folder, to: target } },
     problem: null,
   };
+}
+
+/** What a move of several rows does, once it is known to be possible. */
+export type MovePlan = {
+  /** The notes that change path. */
+  readonly moves: readonly PathMove[];
+  /** The folder rewrites the move implies, one for each folder that moves. */
+  readonly folderMoves: readonly {
+    readonly from: string;
+    readonly to: string;
+  }[];
+};
+
+/** The outcome of a move of several rows. */
+export type MoveOutcome = {
+  /** `null` when the move changes nothing. */
+  readonly plan: MovePlan | null;
+  /** The one sentence that states why the move cannot run. */
+  readonly problem: string | null;
+};
+
+/** Whether an item lies inside a folder that the same move carries. */
+function insideMovedFolder(
+  item: DragItem,
+  folders: readonly string[],
+): boolean {
+  const path = item.kind === 'note' ? item.path : item.folder;
+  return folders.some((folder) => path !== folder && isInside(path, folder));
+}
+
+/**
+ * States what a move of several rows to one folder does, or why it is
+ * refused (record 0164).
+ *
+ * A row inside a folder of the same move travels with that folder, so it is
+ * not moved twice. Each row follows the rule of a drop on one folder, and the
+ * whole set is refused when one row is, or when two rows would land on one
+ * name, so nothing moves unless everything can.
+ */
+export function planMove(
+  items: readonly DragItem[],
+  toFolder: string,
+  notes: readonly NoteSummary[],
+  emptyFolders: readonly string[] = [],
+): MoveOutcome {
+  const folders = items.flatMap((item) =>
+    item.kind === 'folder' ? [item.folder] : [],
+  );
+  const outermost = items.filter((item) => !insideMovedFolder(item, folders));
+  const moves: PathMove[] = [];
+  const rewrites: { from: string; to: string }[] = [];
+  for (const item of outermost) {
+    const outcome = planDrop(item, toFolder, notes, emptyFolders);
+    if (outcome.problem !== null)
+      return { plan: null, problem: outcome.problem };
+    if (outcome.plan === null) continue;
+    moves.push(...outcome.plan.moves);
+    if (outcome.plan.folderMove !== null)
+      rewrites.push(outcome.plan.folderMove);
+  }
+  const targets = rewrites.map((rewrite) => rewrite.to.toLowerCase());
+  if (new Set(targets).size !== targets.length)
+    return {
+      plan: null,
+      problem:
+        'Two folders would take one name there. Move them one at a time.',
+    };
+  if (moves.length > 0) {
+    const problem = moveProblem(moves, notes);
+    if (problem !== null) return { plan: null, problem };
+  }
+  if (moves.length === 0 && rewrites.length === 0)
+    return { plan: null, problem: null };
+  return { plan: { moves, folderMoves: rewrites }, problem: null };
 }

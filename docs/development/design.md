@@ -82,13 +82,13 @@ no screen writes its own (record 0065).
   that destroys something takes the danger tone from the recipe and never a
   colour class of its own (record 0065).
 - `fieldClassName`: a text field, a select and a read only field. 32 px,
-  `edge-line` at rest, `border-focus` with a ring when active, `border-danger`
-  in error, and 16 px text under touch (`touchFieldText`) so that iOS does not
-  zoom. Its label is above it in `text-control font-medium`.
-- `kbdClassName`: one key cap in `text-kbd font-mono` with `edge-line`. A key
-  combination is one cap for each key, from `KeyHint` in
-  `apps/web/src/shell/key-hint.tsx`, and `apps/web/src/shell/modifier-key.ts`
-  decides the cap of the device. A screen reader gets the full key name.
+  `edge-line` at rest, `border-focus` when active, `border-danger` in error,
+  16 px text under touch (`touchFieldText`) against the zoom of iOS, a label
+  in `text-control font-medium` above, `inlineFieldClassName` in a tree row.
+- `tabClassName`: a tab, a chip that takes `bg-active` when its view shows.
+- `kbdClassName`: one cap in `text-kbd font-mono` with `edge-line` for each
+  key, from `KeyHint` (`apps/web/src/shell/key-hint.tsx`) with the device cap
+  of `apps/web/src/shell/modifier-key.ts` and the full name for a reader.
 
 Focus is one treatment: a two pixel outline in the focus colour, offset outward
 on a control and inward on a row in a scroller. Always `focus-visible:`.
@@ -113,7 +113,7 @@ The note route writes its name in that part and gives the header one menu, with
 History and Publish as rows (record 0069). An icon-only control there is
 compact, and one at an end takes the pull of `edgeControlClassName`. The
 sidebar is a bar of view buttons and a panel of rows (record 0105): the
-switcher, the tree (record 0093) or the calendar (record 0100), and the footer.
+switcher, the tree (records 0093, 0164) or the calendar (0100), and the footer.
 The wordmark belongs to sign in and setup. The note has one row of formatting
 tools above its text (record 0094), and `apps/web/src/lib/format-toolbar.ts` is
 the one list that the row and the command palette read.
@@ -136,9 +136,9 @@ the one list that the row and the command palette read.
 ## Copy
 
 Sentence case everywhere. Name a thing by what a person does with it. One term
-for one thing: Save, Trash, Restore, Delete, History, Publish. In Trash, the
-page copy states that Delete removes a note for good. A row shows one name and
-one fact. The rules of user facing text in `AGENTS.md` hold here.
+for one thing: Save, Trash, Move to Trash, Restore, Delete, History, Publish.
+Delete removes a note for good, in Trash only (record 0164). A row shows one
+name and one fact. The rules of user facing text in `AGENTS.md` hold here.
 
 ## Before a screen lands
 

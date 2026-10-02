@@ -31,7 +31,9 @@
  * The tree marks two things at once: the note the screen shows, and the
  * folder that a create action uses as its parent. `lib/tree-row.ts` holds
  * which mark each one takes, and `lib/folder-selection.ts` holds which folder
- * is the parent. Both marks are fills and neither is an edge.
+ * is the parent. Both marks are fills and neither is an edge. The tree itself
+ * is `./tree.tsx`: one list of rows with the tree role, a selection of many
+ * rows, one menu for a row and a rename in place (record 0164).
  *
  * The workspace is an explicit container that the person chooses. The
  * switcher is the first row of the sidebar, so it reads as the container of
@@ -57,22 +59,16 @@ import {
 } from 'react-router';
 import {
   avatarClassName,
-  Badge,
   Button,
   buttonClassName,
-  ChevronDownIcon,
-  ChevronRightIcon,
   CloseIcon,
   compactButtonVisualClassName,
   edgeControlClassName,
-  FileTextIcon,
   FolderIcon,
-  FolderOpenIcon,
   LoadingState,
   Menu,
   MenuIcon,
   type MenuItem,
-  MoreIcon,
   focusOutline,
   focusOutlineInset,
   Notice,
@@ -89,7 +85,6 @@ import {
 import {
   SyncProvider,
   useLocalStore,
-  useRequestSync,
   useSession,
   useSyncSession,
   useSyncState,
@@ -118,8 +113,8 @@ import {
 import { noteOrderLabel, noteOrders } from '../lib/note-order.ts';
 import { formatPaletteRows } from '../lib/format-toolbar.ts';
 import {
+  MoveItemsDialog,
   NewFolderDialog,
-  RenameFolderDialog,
 } from '../features/folders/folders.tsx';
 import { useCreateNote } from '../features/notes/new-note.tsx';
 import {
@@ -134,7 +129,7 @@ import {
 } from '../features/templates/templates.tsx';
 import { templatePalettePick } from '../lib/templates.ts';
 import { SidebarCalendar } from '../features/daily-notes/calendar.tsx';
-import { dailyNoteDate } from '@notesapp/core';
+import { dailyNoteDate, type PublicationScope } from '@notesapp/core';
 import { PublishDialog } from '../features/publishing/publish-dialog.tsx';
 import { publishedLinksTitle } from '../features/publishing/publishing.ts';
 import { accountsTitle } from '../lib/accounts.ts';
@@ -142,13 +137,8 @@ import {
   NoteActionsScope,
   useNoteActions,
 } from '../features/editor/note-actions.tsx';
-import {
-  ancestorFolders,
-  buildNoteTree,
-  notesInFolder,
-  type NoteSummary,
-  type TreeNode,
-} from '../lib/note-list.ts';
+import { ancestorFolders, buildNoteTree } from '../lib/note-list.ts';
+import type { DragItem } from '../lib/folder-moves.ts';
 import {
   drawerCalendarClassName,
   drawerClassName,
@@ -165,16 +155,14 @@ import {
   stepForWidth,
   type SidebarSize,
 } from './sidebar-size.ts';
-import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
+import { useTreeDrag } from './tree-drag.ts';
+import { NoteTree, rowSpacerClassName } from './tree.tsx';
 import {
-  treeBranchClassName,
-  treeItemsClassName,
   treeListClassName,
   treeRowClassName,
   treeRowLeadingClassName,
   treeRowNameClassName,
 } from '../lib/tree-row.ts';
-import { deleteNotes } from '../features/editor/note-delete.ts';
 import { moveNoteToTrashPaletteLabel, noteTrashRow } from '../lib/note-menu.ts';
 import { baseNameOf, displayNoteName } from '../lib/note-name.ts';
 import { initialOf } from '../lib/initial.ts';
@@ -184,7 +172,6 @@ import {
   selectedFolderOrRoot,
   selectionForOpenNote,
 } from '../lib/folder-selection.ts';
-import { folderOf } from '../lib/relative-time.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import {
   NoteSaveScope,
@@ -231,101 +218,10 @@ import {
 import {
   DeleteNoticeBar,
   DeleteNoticeProvider,
-  useDeleteNotice,
 } from '../features/trash/trash.tsx';
 import { useViewportFit } from './viewport-fit.ts';
 import { SidebarViewBar, useSidebarView } from './sidebar-view-bar.tsx';
 import { sidebarViewLabels, type SidebarView } from '../lib/sidebar-view.ts';
-
-/**
- * One note row of the tree.
- *
- * The row and not the link carries the mark of the open note, so the fill,
- * the edge, and the pointer answer cover the same box as the actions menu
- * next to it. `tree-row.ts` holds which mark each state takes.
- */
-function NoteRow({
-  note,
-  basename,
-  workspaceId,
-  active,
-  drag,
-  onNavigate,
-  onDelete,
-}: {
-  readonly note: NoteSummary;
-  readonly basename: string;
-  readonly workspaceId: string;
-  readonly active: boolean;
-  readonly drag?: TreeDrag | undefined;
-  readonly onNavigate: () => void;
-  readonly onDelete: () => void;
-}): ReactNode {
-  // The open note scrolls into view when its row mounts or becomes active, so
-  // a note opened from the palette or a link is visible in the tree even when
-  // it was below the fold. `nearest` moves the row the least amount needed.
-  const revealActive = useCallback(
-    (node: HTMLElement | null): void => {
-      if (node !== null && active) node.scrollIntoView({ block: 'nearest' });
-    },
-    [active],
-  );
-  return (
-    <div className={treeRowClassName({ open: active })}>
-      <div className={treeRowLeadingClassName}>
-        <span className={rowSpacerClassName} aria-hidden="true" />
-        <Link
-          ref={revealActive}
-          className={treeRowNameClassName}
-          to={`/w/${workspaceId}/notes/${note.fileId}`}
-          onClick={onNavigate}
-          aria-current={active ? 'page' : undefined}
-          draggable={drag !== undefined}
-          onDragStart={(event) => {
-            drag?.begin(event, {
-              kind: 'note',
-              fileId: note.fileId,
-              path: note.path,
-            });
-          }}
-          onDragEnd={() => drag?.end()}
-        >
-          <span
-            className="inline-flex shrink-0 items-center"
-            aria-hidden="true"
-          >
-            <FileTextIcon />
-          </span>
-          <span
-            className="min-w-0 flex-1 truncate"
-            title={displayNoteName(basename)}
-          >
-            {displayNoteName(basename)}
-          </span>
-          {note.localOnly || note.unsent ? (
-            <span className="shrink-0" title="On this device only">
-              <Badge>Local</Badge>
-            </span>
-          ) : null}
-        </Link>
-      </div>
-      <Menu
-        label={`Actions for the note ${displayNoteName(basename)}`}
-        icon={<MoreIcon className="text-muted" />}
-        triggerClassName={rowActionClassName}
-        items={[
-          {
-            id: noteTrashRow.id,
-            label: noteTrashRow.label,
-            icon: actionIcon(noteTrashRow.icon),
-            danger: true,
-            onSelect: onDelete,
-          },
-        ]}
-      />
-    </div>
-  );
-}
 
 /** The name of the screen that lists every note of the workspace. */
 const allNotesTitle = 'All notes';
@@ -354,222 +250,6 @@ const sidebarKeys = 'Cmd or Ctrl + \\';
 
 /** The key line that opens the command palette. */
 const paletteKeys = 'Cmd or Ctrl + P';
-
-/**
- * One icon action that sits on a row: the chevron and the row menu.
- *
- * A ghost control of the one recipe, square, and as small as a row allows on
- * a desktop while it keeps the 44 px touch target under the medium width.
- */
-const rowActionClassName = buttonClassName({
-  variant: 'ghost',
-  size: 'sm',
-  className: 'size-11 shrink-0 px-0 md:size-7',
-});
-
-/** The column that a row with no chevron keeps for one, so names line up. */
-const rowSpacerClassName = 'size-11 shrink-0 md:size-7';
-
-/**
- * Renders the tree nodes as interactive collapsible lists.
- *
- * A row is a drag source and a folder row is a drop target. The handlers stay
- * thin: every rule of a drop lives in `folder-moves.ts` and the state of the
- * gesture lives in `tree-drag.ts`. The same moves are reachable without a
- * pointer through Move to folder and Rename folder.
- */
-function TreeView({
-  nodes,
-  depth = 1,
-  workspaceId,
-  activeFileId,
-  selectedFolder,
-  openFolders,
-  drag,
-  onToggleFolder,
-  onSelectFolder,
-  onRenameFolder,
-  onDeleteFolder,
-  onPublishFolder,
-  onNewNoteIn,
-  onNewFolderIn,
-  onDeleteNote,
-  onNavigate,
-}: {
-  readonly nodes: readonly TreeNode[];
-  /** How far in this list sits. The list at the top of the tree is 1. */
-  readonly depth?: number | undefined;
-  readonly workspaceId: string;
-  readonly activeFileId: string | null;
-  readonly selectedFolder: string;
-  readonly openFolders: ReadonlySet<string>;
-  readonly drag: TreeDrag;
-  readonly onToggleFolder: (path: string) => void;
-  readonly onSelectFolder: (path: string) => void;
-  readonly onRenameFolder: (path: string) => void;
-  readonly onDeleteFolder: (folder: string) => void;
-  readonly onPublishFolder: (folder: string) => void;
-  readonly onNewNoteIn: (path: string) => void;
-  readonly onNewFolderIn: (path: string) => void;
-  readonly onDeleteNote: (note: NoteSummary) => void;
-  readonly onNavigate: () => void;
-}): ReactNode {
-  return (
-    <ul className={treeItemsClassName}>
-      {nodes.map((node) => {
-        if (node.kind === 'note')
-          return (
-            <li key={node.note.fileId}>
-              <NoteRow
-                note={node.note}
-                basename={node.basename}
-                workspaceId={workspaceId}
-                active={node.note.fileId === activeFileId}
-                drag={drag}
-                onNavigate={onNavigate}
-                onDelete={() => onDeleteNote(node.note)}
-              />
-            </li>
-          );
-
-        const isOpen = openFolders.has(node.fullPath);
-        const isTarget = drag.over === node.fullPath;
-        const isSelected = selectedFolder === node.fullPath;
-        return (
-          <li key={`folder:${node.fullPath}`}>
-            <div
-              className={treeRowClassName({
-                selected: isSelected,
-                dropTarget: isTarget,
-              })}
-              onDragOver={(event) => {
-                if (!drag.accepts(node.fullPath)) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
-                drag.hover(node.fullPath);
-              }}
-              onDragLeave={() => {
-                if (isTarget) drag.hover(null);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                drag.drop(node.fullPath);
-              }}
-            >
-              <div className={treeRowLeadingClassName}>
-                <button
-                  type="button"
-                  className={rowActionClassName}
-                  onClick={() => onToggleFolder(node.fullPath)}
-                  aria-expanded={isOpen}
-                  aria-label={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
-                  title={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
-                >
-                  <span className="inline-flex text-muted" aria-hidden="true">
-                    {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={treeRowNameClassName}
-                  onClick={() => onSelectFolder(node.fullPath)}
-                  aria-pressed={isSelected}
-                  aria-expanded={isOpen}
-                  draggable
-                  onDragStart={(event) => {
-                    drag.begin(event, {
-                      kind: 'folder',
-                      folder: node.fullPath,
-                    });
-                  }}
-                  onDragEnd={() => drag.end()}
-                >
-                  <span
-                    className="inline-flex shrink-0 items-center"
-                    aria-hidden="true"
-                  >
-                    {isOpen ? <FolderOpenIcon /> : <FolderIcon />}
-                  </span>
-                  <span className="min-w-0 truncate" title={node.name}>
-                    {node.name}
-                  </span>
-                </button>
-              </div>
-              <Menu
-                label={`Actions for the folder ${node.name}`}
-                icon={<MoreIcon className="text-muted" />}
-                triggerClassName={rowActionClassName}
-                items={[
-                  {
-                    id: 'new-note',
-                    label: 'New note in this folder',
-                    icon: actionIcon('new-note'),
-                    onSelect: () => onNewNoteIn(node.fullPath),
-                  },
-                  {
-                    id: 'new-folder',
-                    label: 'New folder in this folder',
-                    icon: actionIcon('new-folder'),
-                    onSelect: () => onNewFolderIn(node.fullPath),
-                  },
-                  {
-                    id: 'rename',
-                    label: 'Rename folder',
-                    icon: actionIcon('rename'),
-                    onSelect: () => onRenameFolder(node.fullPath),
-                  },
-                  {
-                    id: 'publish',
-                    label: 'Publish folder',
-                    icon: actionIcon('publish'),
-                    onSelect: () => onPublishFolder(node.fullPath),
-                  },
-                  {
-                    id: noteTrashRow.id,
-                    label: noteTrashRow.label,
-                    icon: actionIcon(noteTrashRow.icon),
-                    danger: true,
-                    onSelect: () => onDeleteFolder(node.fullPath),
-                  },
-                ]}
-              />
-            </div>
-            {isOpen ? (
-              node.children.length === 0 ? (
-                <div className={treeBranchClassName(depth + 1)}>
-                  <p className="m-0 px-3 py-1 text-control text-muted">
-                    This folder is empty.
-                  </p>
-                </div>
-              ) : (
-                <div className={treeBranchClassName(depth + 1)}>
-                  <TreeView
-                    nodes={node.children}
-                    depth={depth + 1}
-                    workspaceId={workspaceId}
-                    activeFileId={activeFileId}
-                    selectedFolder={selectedFolder}
-                    openFolders={openFolders}
-                    drag={drag}
-                    onToggleFolder={onToggleFolder}
-                    onSelectFolder={onSelectFolder}
-                    onRenameFolder={onRenameFolder}
-                    onDeleteFolder={onDeleteFolder}
-                    onPublishFolder={onPublishFolder}
-                    onNewNoteIn={onNewNoteIn}
-                    onNewFolderIn={onNewFolderIn}
-                    onDeleteNote={onDeleteNote}
-                    onNavigate={onNavigate}
-                  />
-                </div>
-              )
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 /**
  * Where the person is, as one line of the header.
@@ -663,8 +343,8 @@ function Sidebar({
   onSelectFolder,
   onNavigate,
   onNewFolderIn,
-  onRenameFolder,
-  onPublishFolder,
+  onPublish,
+  onMove,
   onNewNoteIn,
   onNewWorkspace,
   onRenameWorkspace,
@@ -683,8 +363,10 @@ function Sidebar({
   readonly onSelectFolder: (folder: string) => void;
   readonly onNavigate: () => void;
   readonly onNewFolderIn: (folder: string) => void;
-  readonly onRenameFolder: (folder: string) => void;
-  readonly onPublishFolder: (folder: string) => void;
+  /** Opens the Publish dialog of the frame for one note or one folder. */
+  readonly onPublish: (scope: PublicationScope) => void;
+  /** Opens the Move to folder dialog of the frame for some rows. */
+  readonly onMove: (items: readonly DragItem[]) => void;
   readonly onNewNoteIn: (folder: string) => void;
   readonly onNewWorkspace: () => void;
   readonly onRenameWorkspace: () => void;
@@ -699,7 +381,7 @@ function Sidebar({
   const sync = useSyncState();
   const files = useFiles();
   const online = useOnline();
-  const { openFolders, toggleFolder, openFolder, setOpenFolders } = folders;
+  const { openFolders, openFolder, setOpenFolders } = folders;
   const noteOrder = useNoteOrder();
   const expansion = folderExpansion(openFolders, knownFolders);
   const drag = useTreeDrag({
@@ -757,94 +439,6 @@ function Sidebar({
     openNoteWriteFailed: openNote?.localWriteFailed ?? false,
   });
   const syncLine = footer.line;
-  const navigate = useNavigate();
-  const { announce } = useDeleteNotice();
-  const requestSync = useRequestSync();
-  const [deleting, setDeleting] = useState(false);
-  const [deleteProblem, setDeleteProblem] = useState<string | null>(null);
-
-  const accountId = session.account?.accountId ?? null;
-
-  /** Moves one note to the trash without a confirmation step. */
-  const deleteNoteNow = (target: NoteSummary): void => {
-    if (deleting) return;
-    const name = displayNoteName(target.path);
-    const folder = folderOf(target.path);
-    // Remember the folder before the local tombstone publishes its change.
-    // It stays hidden while another note still describes the folder.
-    if (folder !== null) files.addEmptyFolder(folder);
-    const activeStore = store.store;
-    if (activeStore === null || accountId === null) {
-      setDeleteProblem(
-        'Local storage is unavailable, so the note cannot be deleted.',
-      );
-      return;
-    }
-    setDeleting(true);
-    setDeleteProblem(null);
-    void (async (): Promise<void> => {
-      const outcome = await deleteNotes(activeStore, accountId, workspaceId, [
-        { fileId: target.fileId, name },
-      ]);
-      setDeleting(false);
-      if (!outcome.ok) {
-        setDeleteProblem(outcome.message);
-        return;
-      }
-      announce({
-        workspaceId,
-        items: [{ fileId: target.fileId, name }],
-      });
-      requestSync();
-      setDeleteProblem(null);
-      if (fileId === target.fileId) void navigate(`/w/${workspaceId}`);
-    })();
-  };
-
-  /** Moves every note under one folder to the trash without a confirm step. */
-  const deleteFolderNow = (folder: string): void => {
-    if (deleting) return;
-    const targets = notesInFolder(files.notes, folder);
-    if (targets.length === 0) {
-      files.removeEmptyFolders(folder);
-      return;
-    }
-    const items = targets.map((note) => ({
-      fileId: note.fileId,
-      name: displayNoteName(note.path),
-    }));
-    const activeStore = store.store;
-    if (activeStore === null || accountId === null) {
-      setDeleteProblem(
-        'Local storage is unavailable, so the folder cannot be deleted.',
-      );
-      return;
-    }
-    // The open note needs no special case. The store marks every working copy
-    // of every named note deleted, so the open editor follows it.
-    const holdsOpenNote =
-      fileId !== null && targets.some((note) => note.fileId === fileId);
-    setDeleting(true);
-    setDeleteProblem(null);
-    void (async (): Promise<void> => {
-      const outcome = await deleteNotes(
-        activeStore,
-        accountId,
-        workspaceId,
-        items,
-      );
-      setDeleting(false);
-      if (!outcome.ok) {
-        setDeleteProblem(outcome.message);
-        return;
-      }
-      announce({ workspaceId, items });
-      requestSync();
-      files.removeEmptyFolders(folder);
-      setDeleteProblem(null);
-      if (holdsOpenNote) void navigate(`/w/${workspaceId}`);
-    })();
-  };
 
   return (
     <>
@@ -1003,25 +597,23 @@ function Sidebar({
                   </p>
                 ) : (
                   <div className={treeListClassName}>
-                    <TreeView
-                      nodes={tree}
+                    <NoteTree
                       workspaceId={workspaceId}
+                      nodes={tree}
+                      knownFolders={knownFolders}
                       activeFileId={fileId}
                       selectedFolder={selectedFolder}
-                      openFolders={openFolders}
+                      folders={folders}
                       drag={drag}
-                      onToggleFolder={toggleFolder}
                       onSelectFolder={(folder) => {
                         openFolder(folder);
                         onSelectFolder(folder);
                       }}
-                      onRenameFolder={onRenameFolder}
-                      onDeleteFolder={deleteFolderNow}
-                      onPublishFolder={onPublishFolder}
+                      onNavigate={onNavigate}
                       onNewNoteIn={onNewNoteIn}
                       onNewFolderIn={onNewFolderIn}
-                      onDeleteNote={deleteNoteNow}
-                      onNavigate={onNavigate}
+                      onPublish={onPublish}
+                      onMove={onMove}
                     />
                   </div>
                 )}
@@ -1035,11 +627,6 @@ function Sidebar({
                   </p>
                 )}
               </section>
-              {deleteProblem === null ? null : (
-                <p className="mx-2 my-2 text-control text-danger" role="alert">
-                  {deleteProblem}
-                </p>
-              )}
               {drag.problem === null ? null : (
                 <p className="mx-2 my-2 text-control text-danger" role="alert">
                   {drag.problem}
@@ -1331,9 +918,14 @@ function ShellFrame({
   // closed. It is a path and not a flag, so a folder row can name a parent
   // that is not the selected one.
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
-  const [renameFolder, setRenameFolder] = useState<string | null>(null);
-  // The folder that the publish dialog opens, or `null` while it is closed.
-  const [publishFolder, setPublishFolder] = useState<string | null>(null);
+  // The note or the folder that the publish dialog opens, or `null` while
+  // it is closed.
+  const [publishScope, setPublishScope] = useState<PublicationScope | null>(
+    null,
+  );
+  // The rows that the Move to folder dialog moves, or `null` while it is
+  // closed (record 0164).
+  const [moveItems, setMoveItems] = useState<readonly DragItem[] | null>(null);
   // Which workspace dialog is open, or `null` for none. The frame owns these
   // and not the sidebar: the sidebar is transformed so it slides, and a
   // transform makes its box the containing block of a `position: fixed` child,
@@ -1996,8 +1588,8 @@ function ShellFrame({
                 onSelectFolder={setSelectedFolder}
                 onNavigate={() => setDrawerOpen(false)}
                 onNewFolderIn={(folder) => setNewFolderParent(folder)}
-                onRenameFolder={(folder) => setRenameFolder(folder)}
-                onPublishFolder={(folder) => setPublishFolder(folder)}
+                onPublish={setPublishScope}
+                onMove={setMoveItems}
                 onNewNoteIn={(folder) => newNote.create(folder)}
                 onNewWorkspace={() => setWorkspaceDialog('create')}
                 onRenameWorkspace={() => setWorkspaceDialog('rename')}
@@ -2124,29 +1716,27 @@ function ShellFrame({
               setSelectedFolder(folder);
             }}
           />
-          {publishFolder === null ? null : (
+          {publishScope === null ? null : (
             <PublishDialog
               open
-              onClose={() => setPublishFolder(null)}
+              onClose={() => setPublishScope(null)}
               workspaceId={workspaceId}
-              scope={{ kind: 'folder', path: publishFolder }}
+              scope={publishScope}
               notes={files.notes}
             />
           )}
-          {session.account === null || renameFolder === null ? null : (
-            <RenameFolderDialog
+          {session.account === null || moveItems === null ? null : (
+            <MoveItemsDialog
               open
-              onClose={() => setRenameFolder(null)}
+              onClose={() => setMoveItems(null)}
               store={store.store}
               accountId={session.account.accountId}
               workspaceId={workspaceId}
               notes={files.notes}
               folders={allFolders}
-              folder={renameFolder}
-              onRenamed={(toFolder) => {
-                files.moveEmptyFolders(renameFolder, toFolder);
-                setRenameFolder(null);
-              }}
+              emptyFolders={files.emptyFolders}
+              items={moveItems}
+              onFolderMoved={files.moveEmptyFolders}
             />
           )}
         </div>

@@ -70,8 +70,12 @@ export function NoteHeaderActions({
 }: NoteHeaderActionsProps): ReactNode {
   const navigate = useNavigate();
 
-  /** What each row of the menu runs. */
-  const run: Readonly<Record<NoteMenuAction, () => void>> = {
+  /**
+   * What each row of the menu runs. Open and Copy link are rows of the menu
+   * of a tree row and not of the header, because the header acts on the note
+   * that is open already (record 0164).
+   */
+  const run: Readonly<Partial<Record<NoteMenuAction, () => void>>> = {
     history: () => {
       void navigate(`/w/${workspaceId}/notes/${fileId}/history`);
     },
@@ -87,12 +91,19 @@ export function NoteHeaderActions({
   const items: MenuItem[] = noteMenuRows({
     canMove: onMoveToFolder !== undefined,
     canPublish: onPublish !== undefined,
-  }).map((row) => ({
-    id: row.id,
-    label: row.label,
-    icon: actionIcon(row.icon),
-    onSelect: run[row.id],
-  }));
+  }).flatMap((row) => {
+    const onSelect = run[row.id];
+    return onSelect === undefined
+      ? []
+      : [
+          {
+            id: row.id,
+            label: row.label,
+            icon: actionIcon(row.icon),
+            onSelect,
+          },
+        ];
+  });
 
   return (
     <HeaderActions>
@@ -111,7 +122,7 @@ export function NoteHeaderActions({
             label: noteTrashRow.label,
             icon: actionIcon(noteTrashRow.icon),
             danger: true,
-            onSelect: run[noteTrashRow.id],
+            onSelect: onDelete,
           },
         ]}
         triggerClassName={noteMenuTriggerClassName}

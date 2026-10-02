@@ -56,16 +56,52 @@ Select **Sort notes** above the tree and select an order:
 The order applies to the notes in each folder. Folders stay above the notes,
 in alphabet order from A to Z. This device keeps your order until you select another one.
 
+## The menu of a row
+
+Each row of the tree has a menu. Open it with the button at the end of the
+row, with a right click on the row, or from the keyboard with **Shift + F10**
+or the **Menu** key.
+
+- A note row offers **Open**, **History**, **Publish**, **Rename**,
+  **Move to folder**, **Duplicate**, **Copy link**, **Export as Markdown** and
+  **Move to Trash**. **Copy link** puts the address of the note on the
+  clipboard. The address opens the note for a person who signs in to your
+  account. To share a note with other people, use **Publish**.
+- A folder row offers **New note in this folder**, **New folder in this
+  folder**, **Rename**, **Move to folder**, **Publish** and **Move to Trash**.
+
 ## Move and rename
 
 Drag a note or a folder onto another folder, or onto **All notes** to move it
-to the top. The note menu in the header, marked **Note actions**, also offers
-**Move to folder**.
+to the top. **Move to folder** in the menu of a row, and in the note menu in
+the header, marked **Note actions**, does the same with the keyboard.
 
-Renaming a folder renames the path of every note inside it, and the application
-says how many notes that is before you confirm. A move is refused when a note
-or a folder of that name is already there, and when a folder would move into
-itself. The reason appears as one line in the sidebar.
+To rename a row, select it and press **F2**, or select **Rename** in its menu.
+The name becomes a field in the row. Press **Enter** to keep the new name, or
+**Escape** to keep the old one. Renaming a folder renames the path of every
+note inside it. A move or a rename is refused when a note or a folder of that
+name is already there, and when a folder would move into itself. The reason
+appears as one line in the sidebar.
+
+## Select several notes
+
+Hold **Ctrl**, or **Cmd** on a Mac, and select rows to add them to a
+selection. Hold **Shift** and select a row to select every row between it and
+the last row you selected. **Shift + Down** and **Shift + Up** do the same
+from the keyboard, **Space** adds the row that has the focus, and **Ctrl + A**
+selects every row. The open note is part of the selection when you start it.
+
+The menu of a selected row then acts on the whole selection: **Move to folder**
+moves every selected note and folder, and **Move to Trash** moves them all to
+Trash. You can also drag a selected row to move the whole selection. Press
+**Escape** to clear the selection. A plain select of a row also clears it.
+
+## Move through the tree with the keyboard
+
+The tree takes one stop of **Tab**. **Up** and **Down** move between rows,
+**Home** and **End** go to the first and the last row, **Right** opens a
+folder and **Left** closes it or goes to the folder above. **Enter** opens a
+note or selects a folder. **Delete** moves the selection to Trash.
 
 ## Find a note
 
@@ -100,8 +136,8 @@ type is in the list before you save it. A narrow window hides this side panel.
 
 ## Remove a note or a folder
 
-Open the row menu of a note or a folder and select **Move to Trash**. The
-note menu in the header and the command palette offer the same action for the
-open note. The action runs at once. A bar offers **Restore** for a few
-seconds. A folder action moves every note under the folder to Trash. See
-[Trash](trash.md).
+Open the menu of a note row or a folder row and select **Move to Trash**, or
+press **Delete** in the tree. The note menu in the header and the command
+palette offer the same action for the open note. The action runs at once. A
+bar offers **Restore** for a few seconds. A folder action moves every note
+under the folder to Trash. See [Trash](trash.md).

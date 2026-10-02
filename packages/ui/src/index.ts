@@ -174,6 +174,7 @@ export {
   CodeIcon,
   CollapseAllIcon,
   ComputerIcon,
+  ClipboardIcon,
   CopyIcon,
   DownloadIcon,
   ExpandAllIcon,

@@ -509,7 +509,9 @@ export function Menu({
  * A menu that opens at a place a caller names, with no trigger of its own.
  *
  * A control that the editor draws, such as the handle of a table row, is no
- * React element, so it cannot own a `Menu`. It names its place on the screen,
+ * React element, so it cannot own a `Menu`, and a right click or Shift + F10
+ * on a row of the tree opens a menu where the pointer or the row is. Each
+ * names its place on the screen,
  * and this menu opens there with the rows, the keys and the placement of every
  * other menu. `onClose` runs when the list closes; `restoreFocus` is true when
  * a key or a chosen row closed it, and the caller gives the focus back.
@@ -517,12 +519,18 @@ export function Menu({
 export function AnchoredMenu({
   label,
   items,
+  pinned = [],
   anchor,
   align = 'start',
   onClose,
 }: {
   readonly label: string;
   readonly items: readonly MenuItem[];
+  /**
+   * Rows under the separator, as `Menu` takes them. The context menu of a
+   * tree row pins Move to Trash there (record 0164).
+   */
+  readonly pinned?: readonly MenuItem[] | undefined;
   readonly anchor: MenuAnchor;
   readonly align?: MenuAlign | undefined;
   readonly onClose: (restoreFocus: boolean) => void;
@@ -533,7 +541,7 @@ export function AnchoredMenu({
       id={menuIdOf(label)}
       label={label}
       items={items}
-      pinned={[]}
+      pinned={pinned}
       anchor={place}
       align={align}
       matchWidth={false}
