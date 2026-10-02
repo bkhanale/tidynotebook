@@ -12,7 +12,8 @@
  * - A display block opens on a line whose only content is a run of two or
  *   more dollars plus an optional info string that holds no dollar, and
  *   closes on a later line whose only content is a run of at least as many
- *   dollars. An unclosed block runs to the end of its container.
+ *   dollars. An unclosed block runs to the end of its container. The opening
+ *   line ends a paragraph above it, as a code fence does.
  * - Inline math is `$$...$$` or `\(...\)` on one line. One dollar is money.
  *
  * The `\(...\)` parser is declared before `Escape`, because CommonMark reads
@@ -172,7 +173,16 @@ export const mathMarkdownExtension: MarkdownConfig = {
     { name: mathTextNode, style: tags.special(tags.content) },
     { name: inlineMathNode },
   ],
-  parseBlock: [{ name: mathBlockNode, parse: parseMathBlock }],
+  // A math fence ends the paragraph above it, as a code fence does and as
+  // remark-math reads it, so a formula right under a line of text is a
+  // formula on both surfaces.
+  parseBlock: [
+    {
+      name: mathBlockNode,
+      parse: parseMathBlock,
+      endLeaf: (_cx, line) => fenceEnd(line) >= 0,
+    },
+  ],
   parseInline: [
     {
       name: 'InlineMathDollar',

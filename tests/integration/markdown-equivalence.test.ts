@@ -29,7 +29,10 @@ import test from 'node:test';
 import { previewStructureOf } from '@notesapp/editor';
 import type { PreviewNode } from '@notesapp/editor';
 import { alertTones, renderMarkdown, type AlertTone } from '@notesapp/markdown';
-import { corpusMarkdown } from '../../packages/markdown/test-data/content.ts';
+import {
+  blockSyntaxMarkdown,
+  corpusMarkdown,
+} from '../../packages/markdown/test-data/content.ts';
 
 /** One HTML tag, as the scanner below sees it. */
 type Tag = {
@@ -246,6 +249,13 @@ await test('the corpus has the same structure through both paths', async () => {
   const preview = previewStructureOf(corpusMarkdown);
   assert.ok(rendered.length > 20, 'the corpus lost its content');
   assert.deepEqual(preview, rendered);
+});
+
+await test('the note of block syntax has the same structure through both paths', async () => {
+  const html = await renderMarkdown(blockSyntaxMarkdown);
+  const rendered = renderedStructure(html);
+  assert.ok(rendered.length > 10, 'the note of block syntax lost its content');
+  assert.deepEqual(previewStructureOf(blockSyntaxMarkdown), rendered);
 });
 
 await test('the corpus keeps every construct the matrix covers', async () => {

@@ -32,6 +32,16 @@ The corpus lives in a TypeScript file and not in a `.md` file for two reasons.
 A browser-safe package cannot read a file from disk in a test, and Prettier
 would repair the deliberately malformed Markdown that the corpus needs.
 
+## A parse in slices
+
+A view parses a note in slices and a later parse reuses the partial tree, so a
+block syntax of the editor must parse the same however the parse was cut.
+`packages/editor/src/language-resume.test.ts` stops a parse at every offset of
+the corpus and of the note of block syntax beside it, continues it, and
+requires the tree of one pass
+([decision 0155](../decisions/0155-the-editor-grammar-parses-the-same-in-slices.md)).
+A new block syntax adds its cases to that note.
+
 ## Line breaks
 
 A new line inside a paragraph is a line break on every surface, the way

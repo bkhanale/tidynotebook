@@ -22,7 +22,8 @@ The editor, the server index, and Read mode all read a note through it.
   style cycle and the label of an ordered item, which the live preview and
   the published page both follow (record 0089).
 - `test-data/content.ts` is the corpus document that both render paths must
-  agree on.
+  agree on, and the note of block syntax that a parse of the editor must
+  read the same in slices (record 0155).
 - `package.json` states `"sideEffects": false`, so a bundle takes only the
   modules a caller imports. The link scan of the first route then leaves the
   renderer and KaTeX in the deferred chunks. A module here runs nothing when

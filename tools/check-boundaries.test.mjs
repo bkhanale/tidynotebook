@@ -341,6 +341,44 @@ await test('rejects a relative import that leaves a package', () => {
   );
 });
 
+await test('accepts a test that reads the shared Markdown test data', () => {
+  accepted(
+    check(
+      workspace({
+        'packages/markdown/package.json': manifest('markdown'),
+        'packages/markdown/src/index.ts': 'export const grammar = 1;\n',
+        'packages/markdown/test-data/content.ts':
+          'export const corpusMarkdown = "# A";\n',
+        'packages/editor/package.json': manifest('editor', {
+          '@notesapp/markdown': 'workspace:*',
+        }),
+        'packages/editor/src/index.ts': 'export const editor = 1;\n',
+        'packages/editor/src/index.test.ts':
+          "import { corpusMarkdown } from '../../markdown/test-data/content.ts';\nexport const read = corpusMarkdown;\n",
+      }),
+    ),
+  );
+});
+
+await test('rejects production source that reads the shared test data', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/markdown/package.json': manifest('markdown'),
+        'packages/markdown/src/index.ts': 'export const grammar = 1;\n',
+        'packages/markdown/test-data/content.ts':
+          'export const corpusMarkdown = "# A";\n',
+        'packages/editor/package.json': manifest('editor', {
+          '@notesapp/markdown': 'workspace:*',
+        }),
+        'packages/editor/src/index.ts':
+          "export { corpusMarkdown } from '../../markdown/test-data/content.ts';\n",
+      }),
+    ),
+    'Relative or absolute imports cannot leave a package.',
+  );
+});
+
 await test('rejects a package cycle', () => {
   rejected(
     check(

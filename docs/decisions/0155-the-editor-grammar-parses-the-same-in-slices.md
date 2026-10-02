@@ -35,6 +35,10 @@ preview draws: fences, tables, task items, quotes, alerts and front matter.
 - A new block syntax of the editor grammar adds its cases to that note. The
   test names each block node that the set must contain, so a case that
   leaves the note fails the test.
+- A test file of any package may import `packages/markdown/test-data/`.
+  `tools/check-boundaries.mjs` allows that one relative import out of a
+  package, and only from a test file, so the editor reads the one corpus and
+  no private copy of it.
 
 ## Consequences
 

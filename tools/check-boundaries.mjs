@@ -224,6 +224,8 @@ const editorBridgeEntry = '@notesapp/note-document/editor-bridge';
 const bridgeReaders = new Set(['editor']);
 // The one package with a second entry point, and the one entry it may add.
 const secondEntries = new Map([[yjsOwner, './editor-bridge']]);
+/** The test data that a test file of any package may import (record 0155). */
+const sharedTestDataPrefix = 'packages/markdown/test-data/';
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -375,7 +377,11 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     const targetPath = relative(directory, target).split(sep).join('/');
     if (!isTest && isTestPath(targetPath))
       fail(file, `Production source cannot import test file ${specifier}.`);
-    if (owner(target) !== item)
+    // The shared Markdown corpus is test data that every reader of a note
+    // checks itself against (record 0155), so a test file may read it from
+    // the package that owns it. Production source never may.
+    const sharedTestData = isTest && targetPath.startsWith(sharedTestDataPrefix);
+    if (owner(target) !== item && !sharedTestData)
       fail(file, 'Relative or absolute imports cannot leave a package.');
     // A lib helper is pure, so it never reaches back into a screen.
     if (

@@ -156,3 +156,96 @@ Autolinks: <https://example.com/pointy>, https://example.com/bare, and
 \`\`\`js
 const unclosed = true;
 `;
+
+/**
+ * The note of block syntax.
+ *
+ * A view parses a note in slices and a later parse reuses the partial tree,
+ * so every block syntax must parse the same however the parse was cut
+ * (record 0155). This note holds each block that the editor grammar knows,
+ * at the top level, inside a quote and inside a list item, next to the
+ * blocks it can be confused with: display math beside fences, a fence and a
+ * `$$` line inside each other, a table and an alert in a quote, and an
+ * unclosed display math block at the end. The corpus above holds one of each,
+ * and this note holds the edges between them.
+ */
+export const blockSyntaxMarkdown = `---
+title: Block syntax
+---
+
+# Display math and fences
+
+$$
+a^2 + b^2 = c^2
+$$
+
+\`\`\`js
+const inline = '$$';
+$$
+\`\`\`
+
+$$ tex
+\\frac{1}{2}
+
+\\sum_{i=0}^{n} i
+$$
+
+~~~
+tilde fence with \`\`\` inside
+~~~
+
+$$$
+x
+$$
+still the formula
+$$$
+
+\`\`\`\`markdown
+\`\`\`
+a fence inside a longer fence
+\`\`\`
+\`\`\`\`
+
+A paragraph right before math.
+$$
+p
+$$
+
+> $$
+> q = 1
+> $$
+>
+> | Quoted | Table |
+> | ------ | ----- |
+> | a      | b     |
+
+> [!TIP]
+> An alert with code:
+>
+> \`\`\`sh
+> echo tip
+> \`\`\`
+
+- An item with math:
+
+  $$
+  r
+  $$
+
+- [ ] A task with a fence:
+
+  \`\`\`
+  inside the item
+  \`\`\`
+
+| Left | Right |
+| :--- | ----: |
+| 1    |     2 |
+
+    indented code with $$ in it
+
+Text after the blocks.
+
+$$
+an unclosed formula at the end
+`;
