@@ -188,6 +188,7 @@ and needs no record.
 | [0154](0154-a-change-carries-its-test.md)                                             | A change carries its test                                                       |
 | [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
 | [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
+| [0155](0155-the-editor-grammar-parses-the-same-in-slices.md)                          | The editor grammar parses the same in slices                                    |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -637,3 +638,7 @@ Records 0161 and 0162 answer issues of the
 0161 holds a render failure at the nearest route boundary, so a failure in one
 page leaves the frame. Record 0162 makes a search excerpt the plain text of
 its Markdown, at the server and on the device.
+Record 0155 makes the stop and resume of a parse part of the gate: every block
+syntax of the editor grammar parses the same in slices as in one pass, after
+the audit of 2026-10-02 reported a display math block that a resumed parse
+read as two paragraphs.
