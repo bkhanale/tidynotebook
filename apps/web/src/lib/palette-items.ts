@@ -18,6 +18,7 @@
  * the templates of Insert from template (record 0149).
  */
 import type { ExcerptPart } from '@notesapp/core';
+import { baseNameOf, displayNoteName, folderOf } from './note-name.ts';
 
 /** One note the palette can open. */
 export type PaletteNote = {
@@ -40,6 +41,30 @@ export type NoteMatch = {
   /** The matching part of the note, when the match was in its text. */
   readonly excerpt: readonly ExcerptPart[] | null;
 };
+
+/** What one note row of the palette shows. */
+export type PaletteNoteLabel = {
+  /** The name of the note, which is the title of the row. */
+  readonly name: string;
+  /** The folder of the note, or `null` at the top of the workspace. */
+  readonly folder: string | null;
+};
+
+/**
+ * The name and the folder of one note row.
+ *
+ * The title is the name alone and the folder is the quiet fact at the end of
+ * the row, so two notes of one name in two folders read apart and no row
+ * says its folder twice. The row showed the whole path as its title before,
+ * and the folder again at its end.
+ */
+export function paletteNoteLabel(path: string): PaletteNoteLabel {
+  const folder = folderOf(path);
+  return {
+    name: displayNoteName(baseNameOf(path)),
+    folder: folder === '' ? null : folder,
+  };
+}
 
 /** Joins server and local content hits, keeping one row per note. */
 export function mergeHits(

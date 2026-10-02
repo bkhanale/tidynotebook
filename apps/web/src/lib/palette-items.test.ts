@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   actionIconNames,
   mergeHits,
+  paletteNoteLabel,
   rankActions,
   activeRowIndex,
   pickAnnouncement,
@@ -257,4 +258,23 @@ await test('the marked row is always a row of the list', () => {
   assert.equal(activeRowIndex(7, 1), 0);
   assert.equal(activeRowIndex(-1, 2), 0);
   assert.equal(activeRowIndex(4, 0), -1);
+});
+
+await test('a note row names the note once and its folder once', () => {
+  // The defect this covers: a row showed the whole path as its title and the
+  // folder again at its end, so a result read `Work/Plan ... Work`.
+  assert.deepEqual(paletteNoteLabel('Work/Plan.md'), {
+    name: 'Plan',
+    folder: 'Work',
+  });
+  assert.deepEqual(paletteNoteLabel('Work/2026/Plan.md'), {
+    name: 'Plan',
+    folder: 'Work/2026',
+  });
+  assert.deepEqual(paletteNoteLabel('Plan.md'), { name: 'Plan', folder: null });
+  // Two notes of one name read apart by their folder.
+  assert.notDeepEqual(
+    paletteNoteLabel('Work/Plan.md'),
+    paletteNoteLabel('Home/Plan.md'),
+  );
 });

@@ -47,13 +47,12 @@ import {
   rowClassName,
   SearchIcon,
 } from '@notesapp/ui';
-import { displayNoteName } from '../lib/note-name.ts';
-import { folderOf } from '../lib/relative-time.ts';
 import { actionIcon, emptyStateIcon } from './action-icons.tsx';
 import { KeyHint } from './key-hint.tsx';
 import {
   activeRowIndex,
   mergeHits,
+  paletteNoteLabel,
   pickAnnouncement,
   rankActions,
   rankChoices,
@@ -461,7 +460,7 @@ function PaletteDialog({
                 <>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate">
-                      {displayNoteName(row.match.path)}
+                      {paletteNoteLabel(row.match.path).name}
                     </span>
                     {row.match.excerpt === null ? null : (
                       <span className="truncate text-muted">
@@ -480,9 +479,9 @@ function PaletteDialog({
                       </span>
                     )}
                   </span>
-                  {folderOf(row.match.path) === null ? null : (
-                    <span className="shrink-0 truncate text-muted">
-                      {folderOf(row.match.path)}
+                  {paletteNoteLabel(row.match.path).folder === null ? null : (
+                    <span className="max-w-1/3 shrink-0 truncate text-muted">
+                      {paletteNoteLabel(row.match.path).folder}
                     </span>
                   )}
                 </>
