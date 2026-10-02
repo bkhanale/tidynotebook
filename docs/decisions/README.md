@@ -186,10 +186,13 @@ and needs no record.
 | [0152](0152-the-guide-is-a-static-site-of-its-own.md)                                 | The guide is a static site of its own                                           |
 | [0153](0153-the-site-answers-search-and-agents-from-its-build.md)                     | The site answers search and agents from its build                               |
 | [0154](0154-a-change-carries-its-test.md)                                             | A change carries its test                                                       |
-| [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
-| [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 | [0155](0155-the-editor-grammar-parses-the-same-in-slices.md)                          | The editor grammar parses the same in slices                                    |
 | [0156](0156-the-editor-reads-gfm-footnotes.md)                                        | The editor reads GFM footnotes                                                  |
+| [0157](0157-a-note-keeps-a-safe-set-of-html-elements.md)                              | A note keeps a safe set of HTML elements                                        |
+| [0158](0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)                  | A published diagram draws in the frame of the editor                            |
+| [0159](0159-one-highlighter-colours-code-on-both-surfaces.md)                         | One highlighter colours code on both surfaces                                   |
+| [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
+| [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -634,15 +637,25 @@ with no server. Record 0154 makes the gate refuse a change of source that
 carries no test and states no reason, and runs the same check as a Stop hook
 of the agent.
 
+Record 0155 makes the stop and resume of a parse part of the gate: every block
+syntax of the editor grammar parses the same in slices as in one pass, after
+the audit of 2026-10-02 reported a display math block that a resumed parse
+read as two paragraphs.
+
+Record 0156 adds GFM footnotes to the editor grammar, a container block for a
+definition and an inline reference, with the label rule of the renderer, so a
+footnote has one meaning in the editor and on the published page.
+
+Records 0157 to 0159 follow
+[design 021](../design/021-the-published-page-draws-what-the-editor-draws.md).
+Record 0157 keeps a safe set of the HTML elements that an author writes and
+keeps the text of every other one. Record 0158 draws a diagram of a published
+page in the frame of the editor, with one script file that the content policy
+names by its address. Record 0159 colours code on the published page and in
+the editor with one list of languages and one map of tokens.
+
 Records 0161 and 0162 answer issues of the
 [product audit of 2026-10-02](../audits/2026-10-02/product-audit.md). Record
 0161 holds a render failure at the nearest route boundary, so a failure in one
 page leaves the frame. Record 0162 makes a search excerpt the plain text of
 its Markdown, at the server and on the device.
-Record 0155 makes the stop and resume of a parse part of the gate: every block
-syntax of the editor grammar parses the same in slices as in one pass, after
-the audit of 2026-10-02 reported a display math block that a resumed parse
-read as two paragraphs.
-Record 0156 adds GFM footnotes to the editor grammar, a container block for a
-definition and an inline reference, with the label rule of the renderer, so a
-footnote has one meaning in the editor and on the published page.
