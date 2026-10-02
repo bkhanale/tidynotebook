@@ -209,3 +209,37 @@ await test('a paste of wiki links links the notes that are there', () => {
   const empty = EditorState.create({ doc: '' });
   assert.equal(withNoteLinks(empty, '[[beta plan]]'), '[[beta plan]]');
 });
+
+await test('a note name with a colon gives a link and never an address', () => {
+  // Review of record 0172: `Meeting: Q3` gave a blocked link, and a note
+  // named `https:evil.com` gave a link to another site.
+  const colon: NoteLinkSource = {
+    currentPath: 'a.md',
+    notes: [
+      { path: 'a.md' },
+      { path: 'Meeting: Q3.md' },
+      { path: 'https:evil.com.md' },
+    ],
+  };
+  assert.equal(
+    noteLinkText(colon, 'Meeting: Q3.md'),
+    '[Meeting: Q3](Meeting%3A%20Q3.md)',
+  );
+  assert.equal(
+    noteLinkText(colon, 'https:evil.com.md'),
+    '[https:evil.com](https%3Aevil.com.md)',
+  );
+  const state = EditorState.create({
+    doc: 'See [[Meeting: Q3]',
+    selection: { anchor: 18 },
+    extensions: [noteMarkdown(), noteLinkSource(colon)],
+  });
+  assert.deepEqual(typedWikiLink(state, 18), {
+    from: 4,
+    insert: '[Meeting: Q3](Meeting%3A%20Q3.md)',
+  });
+  assert.equal(
+    withNoteLinks(state, '[[https:evil.com]]'),
+    '[https:evil.com](https%3Aevil.com.md)',
+  );
+});

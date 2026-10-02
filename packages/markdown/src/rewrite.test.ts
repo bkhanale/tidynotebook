@@ -18,6 +18,10 @@ await test('a portable path reaches every note name that a path may hold', () =>
     'plan (draft) 100%.md',
     'a <b> c.md',
     'deep/folder/caf\u00e9 & tea.md',
+    // A colon made the path an address with a scheme (review of 0172).
+    'Meeting: Q3.md',
+    'https:evil.com.md',
+    'mailto:me.md',
   ]) {
     const destination = portableRelativePath('notes/source.md', target);
     const resolved = classifyUrl(destination, 'notes/source.md');
@@ -37,6 +41,21 @@ await test('a portable path reaches every note name that a path may hold', () =>
   assert.equal(
     portableRelativePath('a/b.md', 'a/C# 50%.md'),
     'C%23%2050%25.md',
+  );
+});
+
+await test('a rename to a name with a colon keeps a link to the note', () => {
+  const rewritten = rewriteRelativeReferences(
+    '[A](a.md)',
+    'notes/b.md',
+    new Map([['notes/a.md', 'https:evil.com.md']]),
+  );
+  assert.equal(rewritten.text, '[A](../https%3Aevil.com.md)');
+  const target = classifyUrl('../https%3Aevil.com.md', 'notes/b.md');
+  assert.equal(target.kind, 'relative');
+  assert.equal(
+    target.kind === 'relative' ? target.path : '',
+    'https:evil.com.md',
   );
 });
 

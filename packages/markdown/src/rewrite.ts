@@ -35,8 +35,9 @@ function folder(path: string): readonly string[] {
  * escape, in the order the escape runs.
  *
  * A space and a parenthesis would end a Markdown destination, `#` and `?`
- * would start a fragment and a query, and `<` and `>` would start or end a
- * destination of their own. `%` comes first, so an escape is never escaped
+ * would start a fragment and a query, `<` and `>` would start or end a
+ * destination of their own, and `:` would make the path read as an address
+ * with a scheme, so `https:evil.com.md` would open another site. `%` comes first, so an escape is never escaped
  * twice. Every other character stays as the name holds it, so a link reads
  * like its note.
  */
@@ -49,6 +50,7 @@ const pathEscapes: readonly (readonly [string, string])[] = [
   ['?', '%3F'],
   ['<', '%3C'],
   ['>', '%3E'],
+  [':', '%3A'],
 ];
 
 /** Returns the portable path of `targetPath` seen from `sourcePath`. */

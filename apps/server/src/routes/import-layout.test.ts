@@ -85,3 +85,17 @@ await test('a note that a conversion would grow past the limit keeps its text', 
   );
   assert.equal(importedNoteText(text, 'Vault/Home.md', links), text);
 });
+
+await test('a vault note with a colon in its name links to it and never away', () => {
+  const links = archiveLinks(['Vault/Home.md', 'Vault/Meeting: Q3.md'], []);
+  const imported = importedNoteText(
+    'See [[Meeting: Q3]].',
+    'Vault/Home.md',
+    links,
+  );
+  assert.equal(imported, 'See [Meeting: Q3](Meeting%3A%20Q3.md).');
+  assert.deepEqual(
+    extractLinks(imported, 'Vault/Home.md').map((link) => link.targetPath),
+    ['Vault/Meeting: Q3.md'],
+  );
+});
