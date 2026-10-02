@@ -79,15 +79,39 @@ function percentile(values: readonly number[], fraction: number): number {
   return sorted[index] ?? 0;
 }
 
-/** A sentence of plain words, so the text reads like a note. */
-const sentence =
-  'The team wrote down each point of the meeting and the next steps for every open item. ';
+/** The words of the generated text, so a compressor sees varied prose. */
+const vocabulary = (
+  'the team wrote down each point of meeting and next steps for every open ' +
+  'item river stone lamp paper winter garden letter window market bridge ' +
+  'quiet early yellow number travel answer system method review plan draft ' +
+  'budget schedule customer feature design report office morning evening'
+).split(' ');
+
+/**
+ * Text of about `bytes` bytes, the same for the same index.
+ *
+ * The words come from a small linear congruential sequence, so the text
+ * changes from line to line as prose does and compresses like prose, not
+ * like one sentence said again.
+ */
+function prose(index: number, bytes: number): string {
+  let state = (index * 2_654_435_761 + 1) >>> 0;
+  const words: string[] = [];
+  let length = 0;
+  while (length < bytes) {
+    state = (Math.imul(state, 1_103_515_245) + 12_345) >>> 0;
+    const word = vocabulary[state % vocabulary.length] ?? 'note';
+    const end = state % 13 === 0 ? '.\n' : ' ';
+    words.push(word + end);
+    length += word.length + end.length;
+  }
+  return words.join('');
+}
 
 /** One note of about the given size, with the common word in it. */
 function noteText(index: number, bytes: number): string {
   const header = `# Note ${String(index)}\n\nA **${commonWord}** with [a link](https://example.com/${String(index)}).\n\n`;
-  const body = sentence.repeat(Math.ceil(bytes / sentence.length));
-  return header + body.slice(0, Math.max(0, bytes - header.length));
+  return header + prose(index, Math.max(0, bytes - header.length));
 }
 
 /** One actor of the seed, with every action. */
@@ -375,24 +399,42 @@ try {
   };
 
   /** The size of one read, without and with compression. */
+  /**
+   * The size of one read: the full head and the text alone, each without and
+   * with the codings that a browser accepts.
+   */
   const readBytes = async (
     fileId: string,
-  ): Promise<{ identity: number; compressed: number; encoding: string }> => {
-    const identity = await getFile({
-      baseUrl,
-      headers: plain,
-      path: { workspaceId, fileId },
-    });
-    const compressed = await getFile({
-      baseUrl,
-      headers: browser,
-      path: { workspaceId, fileId },
-    });
+  ): Promise<{
+    full: number;
+    fullCompressed: number;
+    text: number;
+    textCompressed: number;
+    encoding: string;
+  }> => {
+    const size = async (
+      headers: Record<string, string>,
+      content: 'text' | 'full',
+    ): Promise<{ bytes: number; encoding: string }> => {
+      const answer = await getFile({
+        baseUrl,
+        headers,
+        path: { workspaceId, fileId },
+        query: { content },
+      });
+      return {
+        bytes: statedBytes(answer.response),
+        encoding:
+          answer.response?.headers.get('content-encoding') ?? 'identity',
+      };
+    };
+    const compressed = await size(browser, 'full');
     return {
-      identity: statedBytes(identity.response),
-      compressed: statedBytes(compressed.response),
-      encoding:
-        compressed.response?.headers.get('content-encoding') ?? 'identity',
+      full: (await size(plain, 'full')).bytes,
+      fullCompressed: compressed.bytes,
+      text: (await size(plain, 'text')).bytes,
+      textCompressed: (await size(browser, 'text')).bytes,
+      encoding: compressed.encoding,
     };
   };
 
