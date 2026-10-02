@@ -82,3 +82,60 @@ await test('a display math fence ends the paragraph above it', () => {
     ['paragraph'],
   );
 });
+
+/** The inline formulas of one note, as the editor grammar reads them. */
+function editorFormulas(doc: string): readonly string[] {
+  const state = parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown()] }),
+  );
+  const found: string[] = [];
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (node.name !== 'MathText' || node.node.parent?.name !== 'InlineMath')
+        return true;
+      found.push(state.doc.sliceString(node.from, node.to));
+      return false;
+    },
+  });
+  return found;
+}
+
+/** The inline formulas of one note, as the renderer reads them. */
+function rendererFormulas(doc: string): readonly string[] {
+  const found: string[] = [];
+  const walk = (node: object): void => {
+    if ('type' in node && node.type === 'inlineMath' && 'value' in node)
+      found.push(String(node.value));
+    if ('children' in node && Array.isArray(node.children))
+      for (const child of node.children)
+        if (typeof child === 'object' && child !== null) walk(child);
+  };
+  walk(parseMarkdown(doc));
+  return found;
+}
+
+await test('one dollar opens math where the renderer opens it', () => {
+  // Record 0170. The two grammars read one rule, so a formula, a price and an
+  // escaped dollar mean the same thing in the note and on the published page.
+  for (const doc of [
+    'A formula $x^2$ in a sentence.',
+    'Two $a$ and $b$ formulas.',
+    'It costs $5 and $10 today.',
+    'A range of $5-$10 or US$5.',
+    'The total $5 and 10$ is math.',
+    'A space $ x$ never opens, and $x $ never closes.',
+    'A digit $x$1 after the dollar keeps it open.',
+    'An escaped \\$x$ is a dollar.',
+    'An escape $a\\$b$ inside the formula.',
+    'A closing dollar $a $b$ after a space.',
+    'Two dollars $$x$$ and a run $$y$ of two.',
+    'Code `$x$` stays code, and *$a*$ is a formula.',
+    'Back to back $a$$b$ formulas.',
+    '> A quoted $q$ formula.',
+    '- An item with $i$ in it.',
+    '| A | B |\n| - | - |\n| $c$ | $5 |\n',
+    'A link [a $b](c) d$ swallows its end.',
+    'Two lines $a\nb$ hold no formula.',
+  ])
+    assert.deepEqual(editorFormulas(doc), rendererFormulas(doc), doc);
+});

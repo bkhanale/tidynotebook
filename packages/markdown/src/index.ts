@@ -43,11 +43,14 @@ export {
 } from './rewrite.ts';
 export type { DisplayMathFence, InlineMathDelimiter } from './math-syntax.ts';
 export {
+  closesDollarMath,
   closingDisplayMathFence,
   displayMathFenceChar,
   displayMathFenceMin,
+  dollarMathEnd,
   inlineMathDelimiters,
   openingDisplayMathFence,
+  opensDollarMath,
   singleDollarTextMath,
 } from './math-syntax.ts';
 export {

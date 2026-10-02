@@ -127,6 +127,9 @@ const blockNodes = [
   'RuleSet',
   'Element',
   'Attribute',
+  // Record 0170. Inline math on one dollar reads the text around each dollar,
+  // so a formula, a price and an escaped dollar must parse the same in slices.
+  'InlineMath',
 ] as const;
 
 await test('the notes of the resume set hold every block syntax', () => {

@@ -17,7 +17,7 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
   `plain-text.ts` is the one plain text rule, `readableText`, which search
   indexes and quotes (0162, 0167); `indexNote` gives links and text at once.
 - `policy.ts` classifies a URL. `limits.ts` holds the limits and
-  `MarkdownLimitError`, `math.ts` and `math-syntax.ts` the math rules,
+  `MarkdownLimitError`, `math*.ts` the math rules (0170),
   `alerts.ts` the alert marker and `ordered-markers.ts` the style and label of
   an ordered item (0089), which the live preview reads as well.
 - `html-elements.ts` is the one list of author HTML (0157), which

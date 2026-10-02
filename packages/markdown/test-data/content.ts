@@ -37,7 +37,8 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * inline math pairs, display math, a Mermaid fence,
  * a hard line break, six ATX heading levels, both setext heading levels, an
  * ordered list with a start number, an ordered list nested three deep with a
- * lazy number and a bullet list inside it, an alert quote, both thematic break
+ * lazy number and a bullet list inside it, inline math on one dollar beside
+ * money and an escaped dollar, an alert quote, both thematic break
  * forms, an indented code block,
  * pointy, bare, and email autolinks, a nested block quote, and an unclosed
  * code fence at the end.
@@ -119,6 +120,8 @@ Inline math $$E = mc^2$$ inside a sentence.
 
 Inline math \\(a^2 + b^2 = c^2\\) with the other pair.
 
+Inline math $x^2 + y$ on one dollar, and an escaped \\$x$ stays text.
+
 $$
 \\int_0^1 x^2 \\, dx
 $$
@@ -187,7 +190,8 @@ const unclosed = true;
  * `$$` line inside each other, fences of JavaScript, CSS and HTML whose
  * languages parse inside them, a table and an alert in a quote, footnote
  * definitions in a quote, in a list item and near the end, HTML blocks and
- * inline HTML of record 0157 beside a fence and in a quote, and an unclosed
+ * inline HTML of record 0157 beside a fence and in a quote, inline math on
+ * one dollar of record 0170 beside money and in a quote, and an unclosed
  * display math block at the end. The corpus above holds one of each, and this
  * note holds the edges between them.
  */
@@ -290,6 +294,11 @@ inside the folded block
 \`\`\`
 
 Inline HTML: <kbd>Ctrl</kbd>, H<sub>2</sub>O and one<br>two.
+
+One dollar $a^2$ opens math, and $5 and $10 stay money.
+An escaped \\$b$ stays text.
+
+> A quoted formula $q_1$ on one dollar.
 
 > <div>
 > quoted HTML

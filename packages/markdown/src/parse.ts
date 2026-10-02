@@ -17,10 +17,11 @@
  *   rendering options, or application behavior.
  * - Unknown syntax stays text. Raw HTML is parsed into `html` nodes so that
  *   the source stays addressable, but the renderer never emits it.
- * - One dollar is money, not math. The math delimiter rule comes from
+ * - A price is money, not math. The math delimiter rule comes from
  *   `./math-syntax.ts`, which the live preview parser reads as well, so both
  *   engines open math at the same place. remark-math gives `$$...$$` only, so
- *   `./math-parens.ts` adds the `\(...\)` pair of the same rule.
+ *   `./math-parens.ts` adds the `\(...\)` pair and `./math-dollar.ts` the
+ *   one dollar of the rule of Pandoc (record 0170).
  * - Every entry point is bounded. The size and nesting checks in `./limits.ts`
  *   run before the parser sees the text, and the tree depth is checked after.
  *
@@ -39,6 +40,7 @@ import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified, type Processor } from 'unified';
 import { assertNestingDepth, assertParseLimits } from './limits.ts';
+import { mathTextDollarExtension } from './math-dollar.ts';
 import { mathTextParensExtension } from './math-parens.ts';
 import { singleDollarTextMath } from './math-syntax.ts';
 
@@ -66,15 +68,15 @@ export function createMarkdownProcessor() {
 }
 
 /**
- * Adds the `\(...\)` inline math pair to the parser.
+ * Adds the `\(...\)` pair and the one dollar of inline math to the parser.
  *
  * It runs after remark-math, so the mdast handlers of remark-math are already
- * installed and they read the tokens this construct writes.
+ * installed and they read the tokens these constructs write.
  */
 function remarkMathParens(this: Processor): undefined {
   const data = this.data();
   const extensions = data.micromarkExtensions ?? [];
-  extensions.push(mathTextParensExtension);
+  extensions.push(mathTextParensExtension, mathTextDollarExtension);
   data.micromarkExtensions = extensions;
 }
 

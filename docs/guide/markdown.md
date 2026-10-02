@@ -164,8 +164,12 @@ quote shows the word and a colour instead.
 
 ## Math
 
-- A single dollar sign is money, never math. `It costs $5 today` stays text.
-- Inline math is `$$x^2$$` or `\(x^2\)`, on one line.
+- Inline math is `$x^2$`, `$$x^2$$` or `\(x^2\)`, on one line.
+- One dollar starts a formula only when a character that is not a space
+  follows it. The closing dollar has a character that is not a space before
+  it and no digit after it. So `It costs $5 and $10 today` stays text, as it
+  does in GitHub, Obsidian and Pandoc.
+- To write a dollar sign that must not start a formula, write `\$`.
 - Display math is a `$$` line of its own, the formula, then a closing `$$`
   line.
 

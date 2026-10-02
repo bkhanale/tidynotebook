@@ -200,9 +200,13 @@ export function parseHtml(html: string): HtmlNode[] {
   return root.children;
 }
 
-/** Escapes the Markdown characters that would change the meaning of text. */
+/**
+ * Escapes the Markdown characters that would change the meaning of text.
+ *
+ * A dollar is one of them, because one dollar opens math (record 0170).
+ */
 function escapeMarkdown(value: string): string {
-  return value.replace(/([\\`*[\]])/g, '\\$1');
+  return value.replace(/([\\`*[\]$])/g, '\\$1');
 }
 
 /** Collapses HTML white space the way a browser renders it. */

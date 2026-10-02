@@ -64,10 +64,12 @@ one break of each kind.
 `packages/markdown/src/math-syntax.ts` holds the math delimiter rule, and both
 engines import it.
 
-- One dollar is money, never math.
-- Inline math is a doubled dollar pair or a backslash parenthesis pair, on one
-  line. Math ends at the first closing pair, and a pair that its line does not
-  close stays text.
+- Inline math is a doubled dollar pair, a backslash parenthesis pair, or one
+  dollar by the rule of Pandoc, on one line. One dollar opens before a
+  character that is not a space and closes after one, with no digit after
+  it, so a price stays text
+  ([decision 0170](../decisions/0170-one-dollar-opens-math-by-the-rule-of-pandoc.md)).
+  A pair that its line does not close stays text.
 - Display math is a doubled dollar fence on its own line.
 
 A footnote label follows the rule of GFM. `packages/markdown/src/footnote-syntax.ts`
@@ -77,8 +79,10 @@ states it, the editor grammar reads it, and its test compares it with remark
 remark-math gives the renderer the dollar pair only, because the backslash pair
 is a CommonMark character escape. `packages/markdown/src/math-parens.ts` adds
 the second pair as a text construct on the backslash, ahead of that escape, and
-writes the tokens remark-math already reads, so both pairs build the same node.
-Every other backslash keeps its CommonMark meaning.
+`packages/markdown/src/math-dollar.ts` the one dollar, both with the tokens
+remark-math already reads, so every form builds the same node. Every other
+backslash keeps its CommonMark meaning. The editor reads one dollar through
+`dollarMathEnd` of `math-syntax.ts`, the one scan of the rule.
 
 ## The live preview
 

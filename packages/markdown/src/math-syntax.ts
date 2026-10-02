@@ -8,23 +8,29 @@
  *
  * The rule:
  *
- * - A single dollar never opens math. A note that says "It costs $5 and $10
- *   today" holds prices, not a formula. `singleDollarTextMath` records that
- *   choice for the remark option of the same name.
- * - Inline math uses `$$...$$` or `\(...\)` on one line.
+ * - Inline math uses `$$...$$`, `\(...\)` or `$...$` on one line.
+ * - One dollar opens math by the rule of Pandoc (record 0170), so a note that
+ *   says "It costs $5 and $10 today" holds prices and not a formula. The
+ *   opening dollar has no dollar before it, and the character after it is
+ *   not a space and not a dollar. The closing dollar has a character before
+ *   it that is not a space, and no digit after it. Inside the formula a
+ *   backslash escapes the next character. `opensDollarMath`,
+ *   `closesDollarMath` and `dollarMathEnd` state it, and an escaped `\$` is
+ *   a dollar because each engine reads the escape first.
  * - Display math uses a `$$` fence on its own line, with an optional info
  *   string that holds no dollar sign, and closes on a later line whose only
  *   content is a run of at least as many dollars.
  *
  * This module holds no parser and no renderer. It states the rule as data and
- * as three small predicates, so a change here reaches both engines.
+ * as small predicates, so a change here reaches both engines.
  */
 
 /**
- * Whether one dollar opens inline math.
+ * Whether remark-math reads one dollar itself.
  *
- * Passed to `remark-math` as `singleDollarTextMath`. The editor applies the
- * same value in its inline math parser.
+ * Passed to `remark-math` as `singleDollarTextMath`. Its rule for one dollar
+ * is the rule of a code span, which reads `$5 and $10` as a formula, so it
+ * stays off and `./math-dollar.ts` reads one dollar by the rule above.
  */
 export const singleDollarTextMath = false;
 
@@ -38,7 +44,63 @@ export type InlineMathDelimiter = {
 export const inlineMathDelimiters: readonly InlineMathDelimiter[] = [
   { open: '$$', close: '$$' },
   { open: '\\(', close: '\\)' },
+  { open: '$', close: '$' },
 ];
+
+/** Whether one character is white space, or the edge of a line. */
+function isSpace(character: string): boolean {
+  return character === '' || /\s/.test(character);
+}
+
+/**
+ * Whether one dollar opens inline math, by the characters around it.
+ *
+ * `before` and `after` are the characters next to the dollar, or an empty
+ * text at the edge of the line.
+ */
+export function opensDollarMath(before: string, after: string): boolean {
+  return before !== '$' && after !== '$' && !isSpace(after);
+}
+
+/**
+ * Whether one dollar inside a formula closes it, by the characters around it.
+ *
+ * A space before it, or a digit after it, keeps the dollar in the formula, so
+ * `$5 and $10` holds no closing dollar.
+ */
+export function closesDollarMath(before: string, after: string): boolean {
+  return !isSpace(before) && !/^[0-9]$/.test(after);
+}
+
+/**
+ * The offset of the dollar that closes the formula that opens at `open`, or
+ * -1.
+ *
+ * `text` holds the dollar at `open`. The formula ends at the line, so a line
+ * break before a closing dollar answers -1. This is the one scan of the rule:
+ * the Lezer parser of the editor calls it, and `math-syntax.test.ts` holds
+ * the micromark construct of the renderer to it.
+ */
+export function dollarMathEnd(text: string, open: number): number {
+  if (text[open] !== '$') return -1;
+  if (!opensDollarMath(text[open - 1] ?? '', text[open + 1] ?? '')) return -1;
+  for (let at = open + 1; at < text.length; at += 1) {
+    const character = text[at] ?? '';
+    if (character === '\n' || character === '\r') return -1;
+    if (character === '\\') {
+      const escaped = text[at + 1] ?? '';
+      if (escaped === '\n' || escaped === '\r') return -1;
+      at += 1;
+      continue;
+    }
+    if (
+      character === '$' &&
+      closesDollarMath(text[at - 1] ?? '', text[at + 1] ?? '')
+    )
+      return at;
+  }
+  return -1;
+}
 
 /** The character that fences display math. */
 export const displayMathFenceChar = '$';

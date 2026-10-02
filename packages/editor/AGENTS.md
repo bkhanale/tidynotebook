@@ -72,7 +72,7 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 - No widget outside an image, a Mermaid diagram and display math, and no text
   decoration above a widget (204). A table stays text; only its model and
   writer change its rows and columns (0096).
-- No single dollar inline math: use `$$...$$` or `\(...\)`.
+- One dollar opens math through `dollarMathEnd` of `@notesapp/markdown` (0170).
 - No network call, no database, no token storage, no `@notesapp/api-client`.
   No colour value: the theme adapter reads `--notes-*` and `--notes-syntax-*`.
 - No replacement of the editor document during a React render, a theme

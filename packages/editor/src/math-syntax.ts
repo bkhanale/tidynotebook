@@ -14,7 +14,10 @@
  *   closes on a later line whose only content is a run of at least as many
  *   dollars. An unclosed block runs to the end of its container. The opening
  *   line ends a paragraph above it, as a code fence does.
- * - Inline math is `$$...$$` or `\(...\)` on one line. One dollar is money.
+ * - Inline math is `$$...$$`, `\(...\)` or `$...$` on one line. One dollar
+ *   opens by the rule of Pandoc (record 0170), so a price stays text: no
+ *   space after the opening dollar, no space before the closing dollar, and
+ *   no digit after it. `dollarMathEnd` of `@notesapp/markdown` is the scan.
  *
  * The `\(...\)` parser is declared before `Escape`, because CommonMark reads
  * `\(` as an escaped parenthesis. Inside the delimiters a backslash escapes
@@ -22,6 +25,7 @@
  */
 import {
   closingDisplayMathFence,
+  dollarMathEnd,
   openingDisplayMathFence,
 } from '@notesapp/markdown';
 import { tags } from '@lezer/highlight';
@@ -160,6 +164,27 @@ function parseInlineMath(
 }
 
 /**
+ * Parses one inline formula on one dollar, or answers -1.
+ *
+ * The rule and its scan are `dollarMathEnd` of `@notesapp/markdown`, which
+ * reads the text of the inline section, so the characters before and after
+ * each dollar are the ones the renderer reads. An escaped `\$` never reaches
+ * here, because `Escape` reads the backslash first.
+ */
+function parseDollarMath(cx: InlineContext, pos: number): number {
+  const close = dollarMathEnd(cx.text, pos - cx.offset);
+  if (close < 0) return -1;
+  const end = cx.offset + close;
+  return cx.addElement(
+    cx.elt(inlineMathNode, pos, end + 1, [
+      cx.elt(mathMarkNode, pos, pos + 1),
+      cx.elt(mathTextNode, pos + 1, end),
+      cx.elt(mathMarkNode, end, end + 1),
+    ]),
+  );
+}
+
+/**
  * The math extension of the live preview parser.
  *
  * Add it to `markdown({ extensions })` next to the GFM bundle. It defines
@@ -188,6 +213,12 @@ export const mathMarkdownExtension: MarkdownConfig = {
       name: 'InlineMathDollar',
       parse: (cx, next, pos) =>
         next === dollar ? parseInlineMath(cx, pos, [36, 36], [36, 36]) : -1,
+    },
+    {
+      name: 'InlineMathSingleDollar',
+      parse: (cx, next, pos) =>
+        next === dollar ? parseDollarMath(cx, pos) : -1,
+      after: 'InlineMathDollar',
     },
     {
       name: 'InlineMathParen',
