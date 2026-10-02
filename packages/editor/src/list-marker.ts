@@ -6,9 +6,11 @@
  * way Notion and Obsidian draw them. The source before the item text is
  * therefore no place a person can see, so a caret never rests there: a caret
  * that a move puts in it rests on the first character of the text, and a step
- * backward from that character goes to the end of the line above. Home at that
- * character stays there. A range may still end in it, so the marker stays
- * selectable and editable as text.
+ * backward from that character goes to the end of the line above. Home is a
+ * smart Home: it goes to the start of the text of a list or a quoted line
+ * first, and a caret at the start of the text of a drawn marker stays there. A
+ * range may still end in the marker, so it stays selectable and editable as
+ * text.
  *
  * The live preview reads the same marker to draw the line, so the part that is
  * drawn and the part that holds no caret are one range.
@@ -22,7 +24,12 @@ import {
   type Transaction,
   type TransactionSpec,
 } from '@codemirror/state';
-import { EditorView, ViewPlugin, keymap } from '@codemirror/view';
+import {
+  EditorView,
+  ViewPlugin,
+  keymap,
+  type Command,
+} from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 
 /** The class of the shell of a task box, which owns its own events. */
@@ -138,7 +145,7 @@ export function selectionShowsMarker(
  * the left arrow and a step by word leave the item as they leave a block in
  * Notion and a key never meets a place it cannot pass. A pointer never steps:
  * a tap beside a box means the text of the item. Home is the one backward move
- * that means this line, so `stayAtTextStart` answers it before it moves.
+ * that means this line, so `homeTarget` answers it before it moves.
  */
 export function markerCaret(
   state: EditorState,
@@ -308,21 +315,103 @@ function markerCaretFilter(
 }
 
 /**
- * Home at the first character of the text of a drawn marker, which stays.
+ * The first character of the text of a line after its markers, or null for
+ * a line with no marker.
  *
- * Home means the start of this line, and for such a line that is the start of
- * its text. Without this answer Home moved into the marker, which reads as a
- * move out of the text, and the caret left for the line above.
+ * The markers are the quote marks, the list marker and the task box at the
+ * start of the line, with the white space after them, so `> - [ ] text` has
+ * its text at `t`. A later line of an item or a lazy line of a quote carries
+ * no marker of its own.
  */
-export function stayAtTextStart(target: {
-  readonly state: EditorState;
-}): boolean {
-  const state = target.state;
-  return state.selection.ranges.every(
-    (range) =>
-      range.empty &&
-      drawnPrefixAt(state, range.head)?.contentFrom === range.head,
-  );
+export function lineTextStart(state: EditorState, pos: number): number | null {
+  const line = state.doc.lineAt(pos);
+  let end = -1;
+  syntaxTree(state).iterate({
+    from: line.from,
+    to: line.to,
+    enter: (node) => {
+      if (
+        node.name !== 'QuoteMark' &&
+        node.name !== 'ListMark' &&
+        node.name !== 'TaskMarker'
+      )
+        return true;
+      if (node.from >= line.from && node.to <= line.to)
+        end = Math.max(end, node.to);
+      return false;
+    },
+  });
+  if (end < 0) return null;
+  while (end < line.to && /[ \t]/.test(state.doc.sliceString(end, end + 1)))
+    end += 1;
+  return end;
+}
+
+/**
+ * Where Home puts the head of a selection, or null for a line with no
+ * marker, which keeps the Home of CodeMirror.
+ *
+ * Home is a smart Home, as in Obsidian: on a list line or a quoted line the
+ * first press goes to the start of the text after the markers, and a second
+ * press goes to the start of the line. On a line that wraps, a press first
+ * goes to the start of the visual line, `wrapStart`, as the Home of
+ * CodeMirror does. A drawn bullet or task box holds no caret (record 0132),
+ * so a caret at the start of its text stays there. Shift and Home still
+ * reach the start of the line, because a range may end in the marker, so a
+ * person can select the marker as text with a second press and never with
+ * the first one.
+ */
+export function homeTarget(
+  state: EditorState,
+  head: number,
+  extend: boolean,
+  wrapStart: number,
+): number | null {
+  const textStart = lineTextStart(state, head);
+  if (textStart === null) return null;
+  if (wrapStart > textStart && wrapStart < head) return wrapStart;
+  if (head !== textStart) return textStart;
+  if (!extend && drawnPrefixAt(state, head) !== null) return head;
+  return state.doc.lineAt(head).from;
+}
+
+/**
+ * The Home of the editor: {@link homeTarget} for each range.
+ *
+ * When no range is on a line with a marker, the command declines and the
+ * Home of CodeMirror runs, which already goes to the end of the indentation
+ * first. A range on a line with no marker, beside one that has a marker,
+ * takes the same rule with its indentation as its marker.
+ */
+function smartHome(extend: boolean): Command {
+  return (view: EditorView): boolean => {
+    const state = view.state;
+    const targets = state.selection.ranges.map((range) => {
+      const wrapStart = view.moveToLineBoundary(
+        EditorSelection.cursor(range.head),
+        false,
+        true,
+      ).head;
+      return homeTarget(state, range.head, extend, wrapStart);
+    });
+    if (targets.every((target) => target === null)) return false;
+    const ranges = state.selection.ranges.map((range, index) => {
+      const line = state.doc.lineAt(range.head);
+      const indent = /^[ \t]*/.exec(line.text)?.[0].length ?? 0;
+      const target =
+        targets[index] ??
+        (range.head === line.from + indent ? line.from : line.from + indent);
+      return extend
+        ? EditorSelection.range(range.anchor, target)
+        : EditorSelection.cursor(target);
+    });
+    view.dispatch({
+      selection: EditorSelection.create(ranges, state.selection.mainIndex),
+      scrollIntoView: true,
+      userEvent: 'select',
+    });
+    return true;
+  };
 }
 
 /** The caret rule of the drawn list markers (record 0132). */
@@ -333,8 +422,12 @@ export function listMarkerCaret(): Extension {
     // Above the default keymap, which moves Home to the start of the line.
     Prec.high(
       keymap.of([
-        { key: 'Home', run: stayAtTextStart },
-        { mac: 'Cmd-ArrowLeft', run: stayAtTextStart },
+        { key: 'Home', run: smartHome(false), shift: smartHome(true) },
+        {
+          mac: 'Cmd-ArrowLeft',
+          run: smartHome(false),
+          shift: smartHome(true),
+        },
       ]),
     ),
   ];

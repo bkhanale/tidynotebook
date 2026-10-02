@@ -12,8 +12,9 @@ import {
   drawnPrefixAt,
   listMarkerCaret,
   listMarkerOnLine,
+  homeTarget,
+  lineTextStart,
   selectionShowsMarker,
-  stayAtTextStart,
 } from './list-marker.ts';
 
 /** A parsed state with the caret filter and a caret at `caret`. */
@@ -68,14 +69,62 @@ await test('a step back from the text of an item leaves for the line above', () 
   assert.equal(moved(doc, 8, 7, 'select.pointer'), 8);
 });
 
-await test('Home at the start of the text stays there', () => {
+await test('Home at the start of the text of a drawn marker stays there', () => {
   const doc = 'a\n- [ ] one\n';
-  assert.equal(stayAtTextStart({ state: stateOf(doc, 8) }), true);
-  // Anywhere else Home moves as it always does, and the filter above holds
-  // where it lands.
-  assert.equal(stayAtTextStart({ state: stateOf(doc, 10) }), false);
-  assert.equal(stayAtTextStart({ state: stateOf(doc, 1) }), false);
-  assert.equal(stayAtTextStart({ state: stateOf('1. one\n', 3) }), false);
+  assert.equal(homeTarget(stateOf(doc, 8), 8, false, 2), 8);
+  // From inside the text Home goes to the start of the text.
+  assert.equal(homeTarget(stateOf(doc, 10), 10, false, 2), 8);
+  // A line with no marker keeps the Home of CodeMirror.
+  assert.equal(homeTarget(stateOf(doc, 1), 1, false, 0), null);
+  assert.equal(homeTarget(stateOf('  plain\n', 5), 5, false, 0), null);
+});
+
+await test('Shift and Home on a list line stop at the start of the text', () => {
+  // The defect this covers: Shift and Home selected the marker, and a URL
+  // pasted over the selection made a link that held the marker.
+  const task = 'a\n- [ ] one\n';
+  assert.equal(homeTarget(stateOf(task, 11), 11, true, 2), 8);
+  // A second press selects the marker as text (record 0132).
+  assert.equal(homeTarget(stateOf(task, 8), 8, true, 2), 2);
+  const bullet = '- one\n';
+  assert.equal(homeTarget(stateOf(bullet, 5), 5, true, 0), 2);
+  assert.equal(homeTarget(stateOf(bullet, 2), 2, true, 0), 0);
+  const nested = '- one\n  - two\n';
+  assert.equal(homeTarget(stateOf(nested, 13), 13, true, 6), 10);
+});
+
+await test('Home on an ordered or a quoted line is a smart Home', () => {
+  // The first press goes to the start of the text, the second to the start
+  // of the line, and the third back to the text, as in Obsidian.
+  const ordered = '1. one\n';
+  assert.equal(homeTarget(stateOf(ordered, 5), 5, false, 0), 3);
+  assert.equal(homeTarget(stateOf(ordered, 3), 3, false, 0), 0);
+  assert.equal(homeTarget(stateOf(ordered, 0), 0, false, 0), 3);
+  assert.equal(homeTarget(stateOf(ordered, 5), 5, true, 0), 3);
+  const quote = '> quoted text\n';
+  assert.equal(homeTarget(stateOf(quote, 9), 9, false, 0), 2);
+  assert.equal(homeTarget(stateOf(quote, 2), 2, false, 0), 0);
+  const nested = '> > deep\n';
+  assert.equal(homeTarget(stateOf(nested, 7), 7, false, 0), 4);
+  const quotedTask = '> - [ ] item\n';
+  assert.equal(homeTarget(stateOf(quotedTask, 11), 11, false, 0), 8);
+  assert.equal(homeTarget(stateOf(quotedTask, 8), 8, false, 0), 8);
+  assert.equal(homeTarget(stateOf(quotedTask, 8), 8, true, 0), 0);
+});
+
+await test('Home on a wrapped list line goes to the start of the visual line', () => {
+  const doc = `- ${'word '.repeat(30)}\n`;
+  assert.equal(homeTarget(stateOf(doc, 120), 120, false, 80), 80);
+  // From the start of that visual line Home goes on to the text.
+  assert.equal(homeTarget(stateOf(doc, 80), 80, false, 80), 2);
+});
+
+await test('the text of a line starts after every marker on it', () => {
+  assert.equal(lineTextStart(stateOf('> - [x] done\n', 0), 0), 8);
+  assert.equal(lineTextStart(stateOf('3) three\n', 0), 0), 3);
+  assert.equal(lineTextStart(stateOf('- \n', 0), 0), 2);
+  assert.equal(lineTextStart(stateOf('- one\n  two\n', 0), 8), null);
+  assert.equal(lineTextStart(stateOf('text\n', 0), 0), null);
 });
 
 await test('a step back on the first line keeps the caret on the text', () => {

@@ -103,6 +103,11 @@ empty line between the two fences. A `$$` line and Enter do the same for a
 formula. When the fence already has a closing fence below it, Enter only
 starts a new line inside the block.
 
+On a list line or a quoted line, Home goes to the start of the text after the
+bullet, the box, the number or the quote mark. On a numbered line or a quoted
+line, press Home again to go to the start of the line. Shift and Home select
+the text first, and a second press adds the marker to the selection.
+
 Other Markdown tools can join two lines of one paragraph into one line. Put a
 blank line between the two lines if they must stay apart in those tools too.
 

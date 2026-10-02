@@ -1528,6 +1528,10 @@ export const shortcuts: readonly EditorShortcut[] = [
   { keys: 'Alt + Up arrow', description: 'Move the list item up' },
   { keys: 'Alt + Down arrow', description: 'Move the list item down' },
   { keys: 'Shift + Enter', description: 'Start a new line in the same item' },
+  {
+    keys: 'Home',
+    description: 'Go to the start of the text, then to the start of the line',
+  },
   { keys: 'Tab', description: 'Move to the next cell of a table' },
   { keys: 'Shift + Tab', description: 'Move to the previous cell of a table' },
   {

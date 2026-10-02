@@ -65,37 +65,10 @@ the second pair as a text construct on the backslash, ahead of that escape, and
 writes the tokens remark-math already reads, so both pairs build the same node.
 Every other backslash keeps its CommonMark meaning.
 
-## What the preview shows
+## The live preview
 
-Reveal is per construct, never per marker.
-
-- A block construct shows its source when the selection touches the line that
-  carries its marker. A fenced block shows its fences when the selection is
-  anywhere inside it.
-- An inline construct shows its source when the selection touches the whole
-  construct, so a cursor inside a bold word shows both marker runs.
-- A bullet and a task box are drawn at every caret, and no caret rests in
-  them: a tap beside a box puts the caret on the item text. A bullet is drawn
-  once a space follows it. Their source comes
-  back only while a range selection covers the marker, so a person sees what
-  a copy takes. See
-  [decision 0033](../decisions/0033-a-task-box-is-a-control-not-a-marker.md)
-  and [decision 0132](../decisions/0132-a-list-marker-holds-no-caret.md).
-
-A widget exists only where text cannot express the result: an image, a diagram,
-and math. A table stays editable text: each row of the source is one row of a
-real table and each cell holds its own padding, so the columns line up without
-a widget and every cell is edited where it stands. The padding never shows, and
-a cell wraps, so a column takes the width of its text
-([decision 0147](../decisions/0147-a-table-sizes-to-its-text-and-its-controls-sit-on-its-edge.md)). The delimiter row follows
-the same reveal rule as every other marker, because the columns already state
-what it says. Each widget covers whole lines or one span, is atomic for cursor
-movement, disappears while the selection touches it, and puts the cursor at the
-start of its source when clicked. A picture is a button that opens the image
-viewer, and a click beside it opens the source
-([decision 0145](../decisions/0145-a-click-on-a-picture-opens-the-image-viewer.md)).
-A widget that cannot render falls back to its source with one short sentence,
-so a note never loses text to a failed render.
+How the editor draws the tree, its editing commands, its cost and its styling
+are in [The live preview](live-preview.md).
 
 ## Safety
 
@@ -131,20 +104,3 @@ bounded. A refused document throws rather than being truncated, because a half
 note looks like data loss. The error message is technical, so the storage
 package maps it to a domain code and the boundary answers with a sentence the
 person can read.
-
-## Cost
-
-Decorations are built for the visible ranges only, from the tree. Nothing reads
-the whole document as a string per keystroke. The preview builder reports how
-many tree nodes it entered, and its unit test bounds that count for a large
-document instead of timing a clock, so the test does not depend on machine
-load.
-
-## Styling
-
-The editor writes its presentation in TypeScript, because CodeMirror builds its
-own DOM and a utility class cannot reach it. Every value is a central theme
-variable declared in `apps/web/src/tailwind.css`.
-`packages/editor/src/editor-theme.ts` names the list, and
-`tests/integration/theme-variables.test.ts` asserts that the built stylesheet
-declares all of them.
