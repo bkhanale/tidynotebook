@@ -76,8 +76,10 @@ export type { ReadableTextOptions } from './plain-text.ts';
 export { blockSeparator, readableText } from './plain-text.ts';
 export type { CodeLanguage } from './code-languages.ts';
 export {
+  codeBlockLabel,
   codeLanguageOf,
   codeLanguages,
+  loadCodeLanguage,
   loadCodeParser,
 } from './code-languages.ts';
 export type { CodeToken, CodeTokenTags } from './code-tokens.ts';

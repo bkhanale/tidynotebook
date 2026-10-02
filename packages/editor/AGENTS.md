@@ -14,7 +14,7 @@ diff for History.
 ## What lives here and what does not
 
 - `create-editor.ts` builds one instance; `extensions.ts`, `language.ts` with
-  the fence languages and code tokens of `@notesapp/markdown` (0159),
+  the fence languages and code tokens of `@notesapp/markdown` (0172),
   `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
 - `document-binding.ts` joins the live document of an open note to one view
   (0082), and `openBoundNote` is what a screen uses. A bound editor takes its

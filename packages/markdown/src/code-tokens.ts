@@ -60,7 +60,9 @@ export const codeTokenTags: readonly CodeTokenTags[] = [
   },
   {
     token: 'string',
-    tags: [tags.string, tags.special(tags.string), tags.regexp],
+    // An inserted line of a diff takes the colour of a string, as the green
+    // of a diff reads in most palettes (record 0172).
+    tags: [tags.string, tags.special(tags.string), tags.regexp, tags.inserted],
   },
   {
     token: 'comment',
@@ -84,7 +86,8 @@ export const codeTokenTags: readonly CodeTokenTags[] = [
     token: 'punctuation',
     tags: [tags.operator, tags.punctuation, tags.separator, tags.bracket],
   },
-  { token: 'invalid', tags: [tags.invalid] },
+  // A deleted line of a diff takes the danger colour of the invalid token.
+  { token: 'invalid', tags: [tags.invalid, tags.deleted] },
 ];
 
 /** The class of one code token in rendered HTML. */

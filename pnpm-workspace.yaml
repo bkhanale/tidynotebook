@@ -14,6 +14,8 @@ allowBuilds:
 # reference and holds the exact version rule over the value below, so a range
 # still fails the gate.
 catalog:
+  '@codemirror/lang-yaml': 6.1.3
+  '@codemirror/language': 6.12.4
   '@lezer/common': 1.5.3
   '@lezer/highlight': 1.2.5
   '@types/mdast': 4.0.4

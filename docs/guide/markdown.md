@@ -121,8 +121,13 @@ quotes, inline code, fenced code with a language, indented code, links,
 reference links, images, thematic breaks, hard breaks, escapes, and entities
 all work as CommonMark describes.
 
-Code in a fence named `js`, `ts`, `json`, `css` or `html` shows in colour,
-in the note and on a published page alike.
+Code in a fence shows in colour, in the note and on a published page alike,
+when the fence names one of these languages: JavaScript (`js`), TypeScript
+(`ts`), JSON, CSS, HTML, Python (`py`), shell (`sh`, `bash`, `zsh`), SQL, Go,
+Rust, YAML, Java, C, C++, C# (`cs`), PHP, XML, Dockerfile, Kotlin, Swift,
+Ruby, TOML and Diff. Inside such a fence, Enter indents the next line the way
+the language does, and Ctrl + / or Cmd + / turns the line into a comment of
+that language. Code in another language shows as plain text.
 
 A task box is a real checkbox. Select it to tick the line. A table shows as a
 grid of cells, and the note stores it as a GitHub table. A long cell wraps

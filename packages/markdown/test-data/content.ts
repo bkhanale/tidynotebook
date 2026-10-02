@@ -191,7 +191,9 @@ const unclosed = true;
  * languages parse inside them, a table and an alert in a quote, footnote
  * definitions in a quote, in a list item and near the end, HTML blocks and
  * inline HTML of record 0157 beside a fence and in a quote, inline math on
- * one dollar of record 0170 beside money and in a quote, and an unclosed
+ * one dollar of record 0170 beside money and in a quote, fences of a Lezer
+ * language, a stream language and a mixed language of record 0172, and an
+ * unclosed
  * display math block at the end. The corpus above holds one of each, and this
  * note holds the edges between them.
  */
@@ -219,6 +221,20 @@ $$
 ~~~
 tilde fence with \`\`\` inside
 ~~~
+
+\`\`\`python
+def f(x):
+    return "$$"
+\`\`\`
+
+\`\`\`sh
+echo "a $b" # a comment
+\`\`\`
+
+\`\`\`php
+<?php echo "a"; ?>
+<b>page</b>
+\`\`\`
 
 $$$
 x

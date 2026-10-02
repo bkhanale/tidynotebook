@@ -140,6 +140,15 @@ await test('the notes of the resume set hold every block syntax', () => {
   for (const name of blockNodes) assert.ok(found.has(name), name);
 });
 
+await test('the note of block syntax mounts the tree of each kind of fence language', () => {
+  // A Lezer language, a stream language and a language that mixes in HTML.
+  const shape = shapeOf(parser.parse(blockSyntaxMarkdown));
+  for (const name of ['FunctionDefinition', 'PhpOpen', 'Element'])
+    assert.ok(shape.includes(`${name}:`), name);
+  // A stream language names each token by its style, in lower case.
+  assert.ok(/ comment:/.test(shape), 'the stream language of a shell fence');
+});
+
 for (const [name, doc] of [
   ['the corpus', corpusMarkdown],
   ['the note of block syntax', blockSyntaxMarkdown],

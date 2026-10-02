@@ -13,16 +13,16 @@
  * Code inside a fence is parsed by a second language when one is known for
  * the info string. The list of those languages and the map of their tokens
  * live in `@notesapp/markdown`, which highlights the published page with the
- * same parsers (record 0159), so a fence reads one way on both surfaces. The
- * parsers load on demand, so the initial bundle carries none of them.
+ * same languages (records 0159 and 0172), so a fence reads one way on both
+ * surfaces, and its indentation and comment markers are those of its
+ * language. The languages load on demand, so the initial bundle carries none
+ * of them.
  */
 import { markdown } from '@codemirror/lang-markdown';
 import { yamlFrontmatter } from '@codemirror/lang-yaml';
 import {
   ensureSyntaxTree,
-  defineLanguageFacet,
   HighlightStyle,
-  Language,
   LanguageDescription,
   LanguageSupport,
   syntaxHighlighting,
@@ -34,7 +34,7 @@ import {
   codeLanguageOf,
   codeLanguages as fenceLanguages,
   codeTokenTags,
-  loadCodeParser,
+  loadCodeLanguage,
   type CodeLanguage,
   type CodeToken,
 } from '@notesapp/markdown';
@@ -44,14 +44,13 @@ import { mathMarkdownExtension } from './math-syntax.ts';
 /**
  * The CodeMirror language of one entry of the shared list.
  *
- * The language wraps the bare Lezer parser of `@notesapp/markdown`, so the
- * editor highlights exactly the tokens that the published page highlights.
+ * It is the one language object that the renderer highlights with (record
+ * 0172), so the editor highlights exactly the tokens that the published page
+ * highlights, and a fence takes the indentation, the folding data and the
+ * comment markers of its language.
  */
 async function fenceSupport(language: CodeLanguage): Promise<LanguageSupport> {
-  const parser = await loadCodeParser(language);
-  return new LanguageSupport(
-    new Language(defineLanguageFacet(), parser, [], language.name),
-  );
+  return new LanguageSupport(await loadCodeLanguage(language));
 }
 
 /**

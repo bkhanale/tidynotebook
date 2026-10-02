@@ -114,6 +114,9 @@ refusal.
 fence, and `code-tokens.ts` maps their tokens to the syntax colours. The
 renderer and the editor read both, so a fence has one set of colours
 ([decision 0159](../decisions/0159-one-highlighter-colours-code-on-both-surfaces.md)).
+Each entry is a CodeMirror language: the renderer reads its parser and the
+editor mounts it whole, so a fence also keeps the editing of its language
+([decision 0172](../decisions/0172-a-fence-language-is-a-codemirror-language-of-the-one-list.md)).
 The published page draws a diagram in the frame of the editor with one script
 that its policy names, and shows the source with no script
 ([decision 0158](../decisions/0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)).

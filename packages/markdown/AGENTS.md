@@ -36,8 +36,8 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
 ## Allowed imports
 
 `@notesapp/core`, plus the remark, rehype, micromark, unified, `hast-util-raw`
-and `katex` packages, `@lezer/common`, `@lezer/highlight`, and the Lezer
-language packages of `code-languages.ts`. No CodeMirror package.
+and `katex` packages, `@lezer/common` and `@lezer/highlight`. Only
+`code-languages.ts` loads a CodeMirror language package, lazily (0172).
 
 This package is browser code. It cannot import a Node built in module, a Node
 only package, or a server only package.
@@ -88,7 +88,7 @@ through the editor path, so both surfaces must agree on structure.
 | `src/wiki-links.ts`      | The one converter of wiki links (0171)      |
 | `src/policy.ts`          | The sanitizer schema and the URL policy     |
 | `src/html-elements.ts`   | The HTML that an author may write (0157)    |
-| `src/code-languages.ts`  | The one list of fence languages (0159)      |
+| `src/code-languages.ts`  | The one list of fence languages (0172)      |
 | `src/code-tokens.ts`     | The one map of code tokens (0159)           |
 | `src/alerts.ts`          | The alert marker and the five tones         |
 | `src/footnote-syntax.ts` | The footnote label rule (0156)              |

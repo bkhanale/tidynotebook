@@ -9,8 +9,9 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { insertNewlineAndIndent, toggleComment } from '@codemirror/commands';
 import { syntaxTree } from '@codemirror/language';
-import { EditorState } from '@codemirror/state';
+import { EditorState, type Transaction } from '@codemirror/state';
 import { tags, type Tag } from '@lezer/highlight';
 import {
   codeLanguages as fenceLanguages,
@@ -151,5 +152,56 @@ await test('parsedWhole refuses a document the bound cannot cover', () => {
   assert.throws(
     () => parsedWhole(fresh, { attempts: 0 }),
     /the parser stopped at \d+ of \d+ characters/,
+  );
+});
+
+/** Runs one state command on a note with the caret at `‸`, and answers the text. */
+async function afterCommand(
+  text: string,
+  command: (target: {
+    state: EditorState;
+    dispatch: (transaction: Transaction) => void;
+  }) => boolean,
+): Promise<string> {
+  for (const description of codeLanguages) await description.load();
+  const at = text.indexOf('‸');
+  let state = parsedWhole(
+    EditorState.create({
+      doc: text.replace('‸', ''),
+      selection: { anchor: at },
+      extensions: [noteMarkdown()],
+    }),
+  );
+  command({
+    state,
+    dispatch: (transaction) => {
+      state = transaction.state;
+    },
+  });
+  return state.doc.toString();
+}
+
+await test('a fence indents and comments in the way of its language', async () => {
+  // Record 0172. A fence took a bare parser and lost the editing of its
+  // language, so Enter after a block opener kept the indentation of the line
+  // above and the comment key wrote nothing.
+  assert.equal(
+    await afterCommand(
+      '```python\ndef f(x):‸\n```\n',
+      insertNewlineAndIndent,
+    ),
+    '```python\ndef f(x):\n  \n```\n',
+  );
+  assert.equal(
+    await afterCommand('```js\nif (a) {‸}\n```\n', insertNewlineAndIndent),
+    '```js\nif (a) {\n  \n}\n```\n',
+  );
+  assert.equal(
+    await afterCommand('```sh\necho a‸\n```\n', toggleComment),
+    '```sh\n# echo a\n```\n',
+  );
+  assert.equal(
+    await afterCommand('```sql\nSELECT 1‸\n```\n', toggleComment),
+    '```sql\n-- SELECT 1\n```\n',
   );
 });
