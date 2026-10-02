@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  diagramThemeOptions,
   clampDiagramHeight,
   diagramFrameStyle,
   diagramLimits,
@@ -59,4 +60,34 @@ await test('a short colour of the stylesheet reaches the frame in six digits', (
   assert.equal(paletteNames.length, palette.length);
   assert.equal(isDiagramRequest(request(palette)), false);
   assert.equal(isDiagramRequest(request(palette.map(longHexColour))), true);
+});
+
+await test('a diagram takes its colours from the palette of the page in both appearances', () => {
+  // The light diagram drew in the lavender of the default Mermaid theme while
+  // the page drew the Default palette. Every colour now comes from the palette
+  // that the request carries, so a theme of the registry reaches the frame.
+  const light = ['#ffffff', '#f7f7f5', '#37352f', '#1a63c4', '#85837d'];
+  const dark = ['#191919', '#141414', '#d0cfcc', '#6fa8f5', '#807e79'];
+  for (const [theme, palette] of [
+    ['light', light],
+    ['dark', dark],
+  ] as const) {
+    const options = diagramThemeOptions({
+      requestId: 'r',
+      source: 'graph TD;',
+      theme,
+      palette,
+    });
+    assert.equal(options.theme, 'base');
+    assert.equal(options.darkMode, theme === 'dark');
+    const variables = options.themeVariables;
+    assert.equal(variables['background'], palette[0]);
+    assert.equal(variables['primaryColor'], palette[1]);
+    assert.equal(variables['primaryTextColor'], palette[2]);
+    assert.equal(variables['primaryBorderColor'], palette[4]);
+    assert.equal(variables['lineColor'], palette[4]);
+    // No colour of a Mermaid theme stays: each value is one of the palette.
+    for (const value of Object.values(variables))
+      assert.ok(palette.includes(value), value);
+  }
 });

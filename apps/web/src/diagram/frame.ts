@@ -67,6 +67,74 @@ export const paletteNames: readonly string[] = [
   '--notes-border',
 ];
 
+/** The theme options that the frame gives Mermaid for one request. */
+export type DiagramThemeOptions = {
+  readonly theme: 'base';
+  readonly darkMode: boolean;
+  readonly themeVariables: Readonly<Record<string, string>>;
+};
+
+/**
+ * The Mermaid theme of one request, from the palette that it carries.
+ *
+ * Mermaid draws a node, an edge and a label in colours of its own theme,
+ * the lavender of `default` in light and the greys of `dark`. The colours of
+ * a diagram come from the theme registry instead, in both appearances: the
+ * `base` theme of Mermaid takes every colour below from the palette of the
+ * page, and derives the rest from them. A node is the chrome surface with the
+ * component edge, as a code block is, the text is the text of the page, and
+ * an edge is drawn in the component edge, which meets the 3 to 1 minimum of a
+ * line a person must see (record 0063).
+ */
+export function diagramThemeOptions(
+  request: DiagramRequest,
+): DiagramThemeOptions {
+  const colour = (index: number): string => request.palette[index] ?? '';
+  const background = colour(0);
+  const surface = colour(1);
+  const text = colour(2);
+  const border = colour(4);
+  return {
+    theme: 'base',
+    darkMode: request.theme === 'dark',
+    themeVariables: {
+      background,
+      mainBkg: surface,
+      primaryColor: surface,
+      primaryTextColor: text,
+      primaryBorderColor: border,
+      secondaryColor: surface,
+      secondaryTextColor: text,
+      secondaryBorderColor: border,
+      tertiaryColor: background,
+      tertiaryTextColor: text,
+      tertiaryBorderColor: border,
+      nodeBorder: border,
+      nodeTextColor: text,
+      textColor: text,
+      titleColor: text,
+      lineColor: border,
+      clusterBkg: background,
+      clusterBorder: border,
+      edgeLabelBackground: background,
+      noteBkgColor: surface,
+      noteTextColor: text,
+      noteBorderColor: border,
+      actorBkg: surface,
+      actorBorder: border,
+      actorTextColor: text,
+      actorLineColor: border,
+      signalColor: text,
+      signalTextColor: text,
+      labelBoxBkgColor: surface,
+      labelBoxBorderColor: border,
+      labelTextColor: text,
+      loopTextColor: text,
+      sequenceNumberColor: background,
+    },
+  };
+}
+
 /** True when a value is a six digit hex colour. */
 function isHexColour(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);

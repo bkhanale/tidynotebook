@@ -960,11 +960,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-hard-break': {
       borderBottom: '1px dotted var(--notes-border-line)',
     },
-    '.cm-np-html': {
-      fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--text-note-mono)',
-      color: 'var(--notes-text-muted)',
-    },
+    // An HTML tag is notation, so it reads as a quiet mark like every other
+    // marker of the note, and never in the colours of code: the grammar
+    // parses a tag as HTML, and the highlighter of `language.ts` would paint
+    // its name and its brackets (record 0157).
+    '.cm-np-html': { color: 'var(--notes-text-muted)', opacity: '0.6' },
+    '.cm-np-html *': { color: 'inherit', fontStyle: 'inherit' },
     ...inlineHtmlRules(),
 
     // The space above and below a picture, a diagram and display math is a

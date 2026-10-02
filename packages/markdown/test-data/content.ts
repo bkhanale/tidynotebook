@@ -185,9 +185,10 @@ const unclosed = true;
  * at the top level, inside a quote and inside a list item, next to the
  * blocks it can be confused with: display math beside fences, a fence and a
  * `$$` line inside each other, a table and an alert in a quote, footnote
- * definitions in a quote, in a list item and near the end, and an unclosed
- * display math block at the end. The corpus above holds one of each,
- * and this note holds the edges between them.
+ * definitions in a quote, in a list item and near the end, HTML blocks and
+ * inline HTML of record 0157 beside a fence and in a quote, and an unclosed
+ * display math block at the end. The corpus above holds one of each, and this
+ * note holds the edges between them.
  */
 export const blockSyntaxMarkdown = `---
 title: Block syntax
@@ -261,6 +262,24 @@ $$
 | Left | Right |
 | :--- | ----: |
 | 1    |     2 |
+
+<details>
+<summary>An HTML block with $$ and a fence</summary>
+
+\`\`\`
+inside the folded block
+\`\`\`
+
+</details>
+
+Inline HTML: <kbd>Ctrl</kbd>, H<sub>2</sub>O and one<br>two.
+
+> <div>
+> quoted HTML
+> </div>
+
+<!-- a comment block
+over two lines -->
 
     indented code with $$ in it
 

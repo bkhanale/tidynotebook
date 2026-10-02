@@ -27,6 +27,13 @@ theme. A reference whose label the note does not define stays text, as GFM
 reads it
 ([decision 0156](../decisions/0156-the-editor-reads-gfm-footnotes.md)).
 
+An inline HTML element of `previewHtmlElements` in
+`packages/markdown/src/html-elements.ts` takes its look between its two tags,
+and the tags follow the reveal rule of an inline construct. Any other tag, and
+each tag of an HTML block, reads as a quiet mark, and the words between the
+tags read as the text of the note
+([decision 0157](../decisions/0157-a-note-keeps-a-safe-set-of-html-elements.md)).
+
 A widget exists only where text cannot express the result: an image, a diagram,
 and math. A table stays editable text: each row of the source is one row of a
 real table and each cell holds its own padding, so the columns line up without
@@ -75,4 +82,8 @@ own DOM and a utility class cannot reach it. Every value is a central theme
 variable declared in `apps/web/src/tailwind.css`.
 `packages/editor/src/editor-theme.ts` names the list, and
 `tests/integration/theme-variables.test.ts` asserts that the built stylesheet
-declares all of them.
+declares all of them. The published page draws the same constructs with
+descendant variants in `apps/server/src/routes/published-document.ts`, which
+`tests/integration/published-styles.test.ts` holds to the built stylesheet. A
+code block is one card on both surfaces: in the editor, its first and its last
+visible line carry the top and the bottom edge and the radius.

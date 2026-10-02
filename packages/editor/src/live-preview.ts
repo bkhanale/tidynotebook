@@ -47,7 +47,12 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view';
-import type { SyntaxNode, SyntaxNodeRef, Tree } from '@lezer/common';
+import {
+  NodeProp,
+  type SyntaxNode,
+  type SyntaxNodeRef,
+  type Tree,
+} from '@lezer/common';
 import { glyph } from './icon-mark.ts';
 import {
   alertMarkerLength,
@@ -74,6 +79,25 @@ import {
   footnoteMarkNode,
   footnoteReferenceNode,
 } from './footnote-syntax.ts';
+
+/**
+ * The nodes of the HTML tree inside an HTML block that read as quiet marks.
+ *
+ * They are the names of the HTML grammar that `@codemirror/lang-markdown`
+ * mounts on a block: a tag, a comment, a declaration and an instruction. The
+ * text of an element is no mark, so it reads as the text of the note.
+ */
+const htmlBlockMarks: ReadonlySet<string> = new Set([
+  'OpenTag',
+  'CloseTag',
+  'SelfClosingTag',
+  'MismatchedCloseTag',
+  'IncompleteCloseTag',
+  'NoMatchCloseTag',
+  'Comment',
+  'Doctype',
+  'ProcessingInst',
+]);
 
 /** One structural fact the preview decorated, in document order. */
 export type PreviewNode =
@@ -590,22 +614,50 @@ export function buildPreview(
     }
   };
   /**
-   * Marks the lines of one block, and names the first and the last of them.
+   * Marks the lines of one code block, and names the first and the last.
    *
    * A code block is one card on the note, and CodeMirror gives each of its
    * lines an element of its own with nothing around them. The two edge
-   * classes are how the first line can carry the top of that card and the
-   * last line the bottom of it. The syntax tree states where the block starts
-   * and ends, so no rule reads the text to find out.
+   * classes, `cm-np-code-block-open` and `cm-np-code-block-close` of the
+   * theme, are how the first line can carry the top of that card and the last
+   * line the bottom of it. The syntax tree states where the block starts and
+   * ends, so no rule reads the text to find out.
+   *
+   * The edges go on the lines that a person sees. A fence of `./widgets.ts`
+   * hides its two fence lines while the selection is away from the block: the
+   * opening line joins the first line of code, so its edge stays on the line
+   * that the card starts with, and the closing line joins the last line of
+   * code, so the bottom edge goes on that last line of code. The class names
+   * once missed the theme, so a code block drew no top, no bottom and no
+   * radius in the editor while the published page drew the card.
    */
-  const blockLines = (from: number, to: number, className: string): void => {
-    lineClass(from, to, className);
-    lineClass(from, from, `${className}-open`);
+  const codeBlockLines = (code: SyntaxNode): void => {
+    lineClass(code.from, code.to, 'cm-np-code-block-line');
+    lineClass(code.from, code.from, 'cm-np-code-block-open');
     // A block that ends on the first offset of a line ends on the line above
     // it, so the bottom of the card never lands on the empty line after the
     // block.
-    const last = to > from && doc.lineAt(to).from === to ? to - 1 : to;
-    lineClass(last, last, `${className}-close`);
+    let last =
+      code.to > code.from && doc.lineAt(code.to).from === code.to
+        ? code.to - 1
+        : code.to;
+    const marks = code.getChildren('CodeMark');
+    const open = marks[0];
+    const close = marks.length > 1 ? marks[marks.length - 1] : undefined;
+    if (
+      open !== undefined &&
+      close !== undefined &&
+      !touches(code.from, code.to) &&
+      doc.lineAt(close.from).number > doc.lineAt(open.from).number + 1
+    ) {
+      const openLine = doc.lineAt(open.from);
+      const lastCode = doc.lineAt(doc.lineAt(close.from).from - 1);
+      // A block of one line of code is one visual line: the hidden opening
+      // fence starts it, so that line carries the bottom edge as well.
+      last =
+        lastCode.number === openLine.number + 1 ? openLine.from : lastCode.from;
+    }
+    lineClass(last, last, 'cm-np-code-block-close');
   };
 
   /** The closing tags that an opening tag already drew, by offset. */
@@ -1041,7 +1093,7 @@ export function buildPreview(
             })()
           : '';
       report({ kind: 'code-block', info });
-      blockLines(node.from, node.to, 'cm-np-code-block-line');
+      codeBlockLines(node.node);
       return true;
     }
 
@@ -1337,8 +1389,30 @@ export function buildPreview(
 
     if (name === 'HTMLTag' && inlineHtml(node.node)) return false;
 
+    // An HTML block stays source under record 0002, but its words are words
+    // of the note. The grammar mounts an HTML tree on the block as an
+    // overlay, which a walk of the Markdown tree does not enter, so the walk
+    // reads that tree here. Each tag reads as a quiet mark and the text
+    // between the tags reads as the text of the note (record 0157). A block
+    // with no HTML tree stays one quiet mark.
+    if (name === 'HTMLBlock') {
+      const mounted = node.node.tree?.prop(NodeProp.mounted);
+      if (mounted === undefined) {
+        mark(node.from, node.to, 'cm-np-html');
+        return false;
+      }
+      const offset = node.from;
+      mounted.tree.iterate({
+        enter: (inner) => {
+          if (!htmlBlockMarks.has(inner.name)) return true;
+          mark(offset + inner.from, offset + inner.to, 'cm-np-html');
+          return false;
+        },
+      });
+      return false;
+    }
+
     if (
-      name === 'HTMLBlock' ||
       name === 'HTMLTag' ||
       name === 'Comment' ||
       name === 'CommentBlock' ||

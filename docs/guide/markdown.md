@@ -201,7 +201,8 @@ subscript and a superscript, `<mark>` marks text, `<br>` breaks a line, and
 
 The note shows a key, a subscript, a superscript, a mark and other text
 elements as they look. It shows a block element such as `<details>`, and
-`<br>`, as its HTML.
+`<br>`, as its HTML: the tags are quiet, and the words between them read as
+the text of the note.
 
 Other HTML loses its tags and keeps its words. A script, a style, an event
 and a link or a picture written as HTML have no effect. Write a link or a

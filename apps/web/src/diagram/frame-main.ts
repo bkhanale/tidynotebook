@@ -15,6 +15,7 @@
 import mermaid from 'mermaid';
 import {
   diagramLimits,
+  diagramThemeOptions,
   isDiagramRequest,
   paletteNames,
   type DiagramRequest,
@@ -38,10 +39,15 @@ function paint(request: DiagramRequest): void {
 /** Renders one validated request and answers with its height. */
 async function render(request: DiagramRequest): Promise<void> {
   paint(request);
+  // The colours come from the palette of the request, in light and in dark,
+  // so a diagram takes the theme of the page and never one of Mermaid.
+  const themed = diagramThemeOptions(request);
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
-    theme: request.theme === 'dark' ? 'dark' : 'default',
+    theme: themed.theme,
+    darkMode: themed.darkMode,
+    themeVariables: { ...themed.themeVariables },
   });
   const id = `notes-diagram-${request.requestId.replace(/[^a-zA-Z0-9-]/g, '')}`;
   const outcome = await mermaid.render(id, request.source);

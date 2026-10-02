@@ -997,6 +997,55 @@ await test('a tag with no partner, an attribute or a block stays source', () => 
   }
 });
 
+await test('the tags of an HTML block are quiet marks and its words are text', () => {
+  // The audit of 2026-10-02 found the tags of a `<details>` block in the
+  // colour of code. A tag reads as a quiet mark now, and the words between the
+  // tags take no mark at all, so they read as the text of the note.
+  const doc = '<details>\n<summary>Folded title</summary>\n</details>\n';
+  const found = describe(doc);
+  for (const tag of ['<details>', '<summary>', '</summary>', '</details>']) {
+    const from = doc.indexOf(tag);
+    assert.ok(has(found, 'mark', 'cm-np-html', from, from + tag.length), tag);
+  }
+  const words = doc.indexOf('Folded title');
+  assert.ok(
+    !found.some(
+      (item) =>
+        item.value === 'cm-np-html' && item.from <= words && item.to > words,
+    ),
+  );
+  assert.equal(visibleText(doc), doc);
+});
+
+await test('a code block names its first and its last visible line', () => {
+  // The editor drew a code block with no top, no bottom and no radius: the
+  // edge classes missed the theme, and the bottom edge sat on the closing
+  // fence line, which the preview hides while the caret is away.
+  const doc = 'Text\n\n```ts\nconst a = 1;\nconst b = 2;\n```\n\nAfter\n';
+  const fenceOpen = doc.indexOf('```ts');
+  const lastCode = doc.indexOf('const b');
+  const fenceClose = doc.lastIndexOf('```');
+  const away = describe(doc);
+  assert.ok(has(away, 'line', 'cm-np-code-block-open', fenceOpen, fenceOpen));
+  assert.ok(has(away, 'line', 'cm-np-code-block-close', lastCode, lastCode));
+  assert.ok(
+    !has(away, 'line', 'cm-np-code-block-close', fenceClose, fenceClose),
+  );
+  // With the caret in the block the fences show, so the closing fence line is
+  // the last line of the card.
+  const inside = describe(doc, { from: lastCode, to: lastCode });
+  assert.ok(
+    has(inside, 'line', 'cm-np-code-block-close', fenceClose, fenceClose),
+  );
+  // A block of one line of code is one visual line, which the hidden opening
+  // fence starts, so that line carries both edges.
+  const one = 'Text\n\n```json\n{"a": 1}\n```\n\nAfter\n';
+  const oneOpen = one.indexOf('```json');
+  const single = describe(one);
+  assert.ok(has(single, 'line', 'cm-np-code-block-open', oneOpen, oneOpen));
+  assert.ok(has(single, 'line', 'cm-np-code-block-close', oneOpen, oneOpen));
+});
+
 await test('a nested pair of one element draws the outer pair', () => {
   const doc = 'A <b>bold <b>more</b> text</b> end.\n';
   const found = describe(doc);

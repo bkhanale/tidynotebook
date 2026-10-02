@@ -162,6 +162,17 @@ await test('a code block is one card with a closed edge', () => {
   );
 });
 
+await test('an HTML tag reads as a quiet mark and never in the code colours', () => {
+  // Record 0157. The grammar parses a tag as HTML, and the code highlighter
+  // paints the parts of a tag, so the mark gives every part its own quiet
+  // colour back.
+  const tag = rule('.cm-np-html');
+  assert.equal(tag.color, 'var(--notes-text-muted)');
+  assert.equal(tag.fontFamily, undefined);
+  assert.equal(rule('.cm-np-html *').color, 'inherit');
+  assert.equal(rule('.cm-np-marker').color, tag.color);
+});
+
 await test('the task box is drawn from the theme and never by the system', () => {
   // Record 0033. The native box paints the accent of the operating system,
   // which no palette reaches, so the appearance is removed and the box, its

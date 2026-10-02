@@ -79,6 +79,11 @@ const blockNodes = [
   'BulletList',
   'FootnoteDefinition',
   'FootnoteReference',
+  // Record 0157. The live preview draws inline HTML between its tags and an
+  // HTML block as quiet source, so both must parse the same in slices.
+  'HTMLBlock',
+  'HTMLTag',
+  'CommentBlock',
 ] as const;
 
 await test('the notes of the resume set hold every block syntax', () => {
