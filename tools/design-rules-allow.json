@@ -17,11 +17,6 @@
       "reason": "The box of the Checkbox is one of the five controls that decision 0063 reserves the component edge for. A person reads the state of a checkbox from its shape alone, so its edge must meet the 3 to 1 non text minimum that theme.test.ts holds `border` to."
     },
     {
-      "file": "apps/server/src/routes/published-document.ts",
-      "rule": "stateful-edge",
-      "reason": "The box of a published task is the task box of decision 0033, one of the five controls that decision 0063 reserves the component edge for. The editor draws it with the same edge, and a reader reads its state from its shape alone."
-    },
-    {
       "file": "apps/web/src/lib/tree-row.ts",
       "rule": "stateful-edge",
       "reason": "The drop target of the folder tree is named by decision 0063. While a row is dragged over a folder, the edge is the whole message, so it must meet the 3 to 1 non text minimum."
@@ -30,16 +25,6 @@
       "file": "packages/editor/src/widgets.ts",
       "rule": "inner-html",
       "reason": "The mathematics widget writes the markup that `renderMath` in @notesapp/markdown returned, which strips every element and every attribute outside the KaTeX drawing set first. The editor builds its own DOM, so no React node can carry that markup."
-    },
-    {
-      "file": "apps/web/src/features/trash/trash.tsx",
-      "rule": "trash-label",
-      "reason": "Delete on a row of Trash removes a note and every version of it for good. It is the one Delete of a note, and the page copy states that it cannot be undone (AGENTS.md, user-facing text)."
-    },
-    {
-      "file": "apps/web/src/features/accounts/theme-settings.tsx",
-      "rule": "trash-label",
-      "reason": "Delete removes an imported theme from the account for good. A theme has no Trash, so Delete is the true name of the action."
     }
   ]
 }

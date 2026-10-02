@@ -35,11 +35,12 @@ import {
   themeFileText,
   themeOfFamily,
   transitionSurface,
-  TrashIcon,
   UploadIcon,
   type AppearanceChoice,
   type ThemeFamily,
 } from '@notesapp/ui';
+import { actionIcon } from '../../shell/action-icons.tsx';
+import { deleteForGoodLabel, deleteGlyph } from '../../lib/delete-label.ts';
 import { problemMessage, useSession, useTheme } from '../../app.tsx';
 import {
   familyAmong,
@@ -333,14 +334,14 @@ export function ThemeSettings(): ReactNode {
                   variant="ghost"
                   size="sm"
                   tone="danger"
-                  icon={<TrashIcon />}
+                  icon={actionIcon(deleteGlyph)}
                   disabled={busy}
-                  label={`Delete ${family.name}`}
+                  label={`${deleteForGoodLabel} ${family.name}`}
                   onClick={() => {
                     run(() => removeTheme(family));
                   }}
                 >
-                  Delete
+                  {deleteForGoodLabel}
                 </Button>
               </li>
             ))}

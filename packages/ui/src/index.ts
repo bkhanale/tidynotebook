@@ -96,6 +96,7 @@ export {
   selectClassName,
   sidebarViewClassName,
   tabClassName,
+  taskBoxClassName,
   textAreaClassName,
   focusOutline,
   focusOutlineInset,

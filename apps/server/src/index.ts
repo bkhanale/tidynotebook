@@ -162,6 +162,7 @@ export {
   publishedDocument,
   publishedDocumentClasses,
   publishedFieldClasses,
+  publishedTaskBoxClasses,
   type PublishedPageView,
 } from './routes/published-document.ts';
 export { createSearchHandlers } from './routes/search.ts';

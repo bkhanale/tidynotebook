@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
@@ -15,8 +15,14 @@ import {
   scanSource,
   stylesheet,
   textRules,
+  actionIconModule,
+  binGlyphOwners,
+  controlRecipeModule,
+  deleteLabelModule,
   trashLabelModule,
 } from './check-design-rules.mjs';
+import { readFile } from 'node:fs/promises';
+import { root } from './workspace.mjs';
 
 // The fixtures below are disposable trees under the system temporary
 // directory. They are never committed as application code.
@@ -261,6 +267,33 @@ await test('the component edge fails outside a control with a drawn state', () =
   assert.equal(textRules['stateful-edge']('border border-edge-line'), null);
   assert.equal(textRules['stateful-edge']('border-edge-subtle'), null);
   assert.equal(textRules['stateful-edge']('ring-edge-line'), null);
+});
+
+await test('the task box takes the edge through its one recipe', () => {
+  // The review of the merged branch: the published task box needed an
+  // exception of this gate. The recipe module names the edge, and the
+  // published copy names it under the variant of a task item alone.
+  const box = 'size-4 rounded-sm border border-edge bg-app';
+  assert.equal(textRules['stateful-edge'](box, controlRecipeModule), null);
+  assert.notEqual(
+    textRules['stateful-edge'](box, 'apps/server/src/routes/a.ts'),
+    null,
+  );
+  assert.equal(
+    textRules['stateful-edge'](
+      '[&_.task-list-item_input]:border [&_.task-list-item_input]:border-edge [&_.task-list-item_input]:bg-app',
+      'apps/server/src/routes/published-document.ts',
+    ),
+    null,
+  );
+  // Another element of the published page keeps the resting edge.
+  assert.notEqual(
+    textRules['stateful-edge'](
+      '[&_pre]:border [&_pre]:border-edge',
+      'apps/server/src/routes/published-document.ts',
+    ),
+    null,
+  );
 });
 
 await test('a focus variant fails except on the edge and the ring of a field', () => {
@@ -588,7 +621,7 @@ await test('the editor tree and the published page are checked too', () => {
 await test('a screen that follows every new rule passes the command', () => {
   const result = check({
     'apps/web/src/screen.tsx': [
-      "import { CheckIcon, TrashIcon } from '@notesapp/ui';",
+      "import { CheckIcon, FolderIcon } from '@notesapp/ui';",
       '',
       'export function Screen() {',
       '  return (',
@@ -600,7 +633,7 @@ await test('a screen that follows every new rule passes the command', () => {
       '        <CheckIcon size={16} />',
       '        Save',
       '      </button>',
-      '      <TrashIcon size={20} />',
+      '      <FolderIcon size={20} />',
       '      <input className="border-edge-line focus:border-focus focus:ring-2" />',
       '    </div>',
       '  );',
@@ -662,4 +695,61 @@ await test('only the note menu draws the glyph of the move to Trash', () => {
     2,
   );
   assert.deepEqual(fileRules['trash-label'](source, trashLabelModule), []);
+});
+
+await test('the bin reaches a screen only through its owner, by any name', () => {
+  // The review of the merged branch: actionIcon('delete') drew the same bin
+  // as the move to Trash, so a screen could draw it with no label module.
+  for (const source of [
+    "icon: actionIcon('delete'),",
+    "emptyStateIcon('trash')",
+    'icon={<TrashIcon />}',
+  ])
+    assert.equal(
+      fileRules['trash-label'](source, 'apps/web/src/shell/tree.tsx').length,
+      1,
+      source,
+    );
+  assert.deepEqual(
+    fileRules['trash-label'](
+      "export const deleteGlyph: ActionIconName = 'delete';",
+      deleteLabelModule,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    fileRules['trash-label']('  delete: TrashIcon,', actionIconModule),
+    [],
+  );
+  // A glyph that draws no bin is free.
+  assert.deepEqual(
+    fileRules['trash-label']("actionIcon('history')", 'apps/web/src/a.tsx'),
+    [],
+  );
+});
+
+await test('every glyph name that draws the bin has its owner', async () => {
+  const icons = await readFile(resolve(root, actionIconModule), 'utf8');
+  const names = [...icons.matchAll(/^\s+'?([a-z-]+)'?: TrashIcon,$/gmu)].map(
+    (match) => match[1],
+  );
+  assert.ok(names.length > 0);
+  assert.deepEqual(names.sort(), Object.keys(binGlyphOwners).sort());
+});
+
+await test('a removal for good may read Delete from its one module', () => {
+  assert.deepEqual(
+    fileRules['trash-label'](
+      "export const deleteForGoodLabel = 'Delete';",
+      deleteLabelModule,
+    ),
+    [],
+  );
+  assert.equal(
+    fileRules['trash-label'](
+      '<Button>\n  Delete\n</Button>',
+      'apps/web/src/features/trash/trash.tsx',
+    ).length,
+    1,
+  );
 });

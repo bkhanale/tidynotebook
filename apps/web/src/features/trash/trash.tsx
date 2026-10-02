@@ -45,9 +45,14 @@ import {
   pageGroupLabelClassName,
   PageHeader,
   Toast,
-  TrashIcon,
   transitionAction,
 } from '@notesapp/ui';
+import { actionIcon, emptyStateIcon } from '../../shell/action-icons.tsx';
+import {
+  deleteForGoodLabel,
+  deleteGlyph,
+  trashPageGlyph,
+} from '../../lib/delete-label.ts';
 import {
   problemMessage,
   useLocalStore,
@@ -330,7 +335,7 @@ export function TrashView(): ReactNode {
       <Page>
         <PageHeader title="Trash" />
         <EmptyState
-          icon={<TrashIcon size={20} />}
+          icon={emptyStateIcon(trashPageGlyph)}
           title="This address names no trash"
           description="Open your notes and choose Trash in the sidebar."
         />
@@ -674,7 +679,7 @@ function TrashList({
           <LoadingState shape="list" rows={4} label="The trash is loading." />
         ) : items.length === 0 ? (
           <EmptyState
-            icon={<TrashIcon size={20} />}
+            icon={emptyStateIcon(trashPageGlyph)}
             title="The trash is empty"
             description="A note you delete waits here until you restore it or select Delete."
           />
@@ -728,8 +733,8 @@ function TrashList({
                             size="sm"
                             tone="danger"
                             disabled={busy || item.pending}
-                            icon={<TrashIcon />}
-                            label={`Delete ${name}`}
+                            icon={actionIcon(deleteGlyph)}
+                            label={`${deleteForGoodLabel} ${name}`}
                             onClick={() =>
                               setConfirming({
                                 kind: 'one',
@@ -737,7 +742,7 @@ function TrashList({
                               })
                             }
                           >
-                            Delete
+                            {deleteForGoodLabel}
                           </Button>
                         }
                         confirmation={

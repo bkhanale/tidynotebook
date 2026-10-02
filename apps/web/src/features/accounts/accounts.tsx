@@ -62,11 +62,12 @@ import {
   pageListClassName,
   SignOutIcon,
   TextField,
-  TrashIcon,
   UsersIcon,
   UploadIcon,
   type PageSection,
 } from '@notesapp/ui';
+import { actionIcon } from '../../shell/action-icons.tsx';
+import { deleteGlyph } from '../../lib/delete-label.ts';
 import {
   problemMessage,
   useLocalStore,
@@ -263,7 +264,7 @@ function ConsentPage(): ReactNode {
             <Button
               variant="secondary"
               tone="danger"
-              icon={<TrashIcon />}
+              icon={actionIcon(deleteGlyph)}
               disabled={busy}
               onClick={() => {
                 setRemoving(true);
@@ -1301,7 +1302,7 @@ export function AccountSettingsPage(): ReactNode {
         <Button
           variant="secondary"
           tone="danger"
-          icon={<TrashIcon />}
+          icon={actionIcon(deleteGlyph)}
           onClick={() => {
             setRemoving(true);
           }}

@@ -35,11 +35,13 @@ import {
   publishedButtonClasses,
   publishedDocumentClasses,
   publishedFieldClasses,
+  publishedTaskBoxClasses,
 } from '@notesapp/server';
 import {
   buttonClassName,
   defaultThemeFor,
   fieldClassName,
+  taskBoxClassName,
   themeProperties,
   transitionField,
   transitionSurface,
@@ -330,6 +332,19 @@ await test('the button of the published page is the primary recipe', () => {
       classesOf(buttonClassName({ variant: 'primary' })),
       transitionSurface,
     ),
+  );
+});
+
+await test('the task box of the published page is the task box recipe', () => {
+  // The review of the merged branch: the published task box named the
+  // component edge under an exception of the design gate. It is the one
+  // recipe of the task box, written under the variant of a task item.
+  const variant = '[&_.task-list-item_input]:';
+  const classes = [...classesOf(publishedTaskBoxClasses)];
+  assert.ok(classes.every((name) => name.startsWith(variant)));
+  assert.deepEqual(
+    new Set(classes.map((name) => name.slice(variant.length))),
+    classesOf(taskBoxClassName()),
   );
 });
 

@@ -201,6 +201,14 @@ const gateHeadingClasses =
 const gateHintClasses = 'm-0 text-control text-muted';
 
 /**
+ * The classes of the box of a published task: `taskBoxClassName` of
+ * `packages/ui/src/control-classes.ts` under the variant of the box of a task
+ * item. See {@link publishedButtonClasses}.
+ */
+export const publishedTaskBoxClasses =
+  '[&_.task-list-item_input]:size-4 [&_.task-list-item_input]:appearance-none [&_.task-list-item_input]:rounded-sm [&_.task-list-item_input]:border [&_.task-list-item_input]:border-edge [&_.task-list-item_input]:bg-app [&_.task-list-item_input]:align-middle';
+
+/**
  * The typography of the note body.
  *
  * The markup comes from the sanitized renderer, so no class attribute of this
@@ -243,7 +251,8 @@ export const noteBodyClasses = [
   // fill when the task is done. The check mark is the element after the box,
   // and it lies over the box while the box is checked.
   '[&_li.task-list-item]:list-none',
-  '[&_.task-list-item_input]:-ml-6 [&_.task-list-item_input]:mr-1.5 [&_.task-list-item_input]:size-4 [&_.task-list-item_input]:appearance-none [&_.task-list-item_input]:rounded-sm [&_.task-list-item_input]:border [&_.task-list-item_input]:border-edge [&_.task-list-item_input]:bg-app [&_.task-list-item_input]:align-middle',
+  '[&_.task-list-item_input]:-ml-6 [&_.task-list-item_input]:mr-1.5',
+  publishedTaskBoxClasses,
   '[&_.task-list-item_input:checked]:border-accent-fill [&_.task-list-item_input:checked]:bg-accent-fill',
   '[&_.notes-task-mark]:-ml-5.5 [&_.notes-task-mark]:mr-1.5 [&_.notes-task-mark]:hidden [&_.notes-task-mark]:size-4 [&_.notes-task-mark]:align-middle [&_.notes-task-mark]:text-on-accent',
   '[&_input:checked+.notes-task-mark]:inline-block',

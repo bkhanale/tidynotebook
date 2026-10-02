@@ -82,6 +82,7 @@ import {
   SearchIcon,
   transitionSurface,
 } from '@notesapp/ui';
+import { trashPageGlyph } from '../lib/delete-label.ts';
 import {
   SyncProvider,
   useLocalStore,
@@ -681,7 +682,7 @@ function Sidebar({
               className="inline-flex shrink-0 items-center"
               aria-hidden="true"
             >
-              {actionIcon('trash')}
+              {actionIcon(trashPageGlyph)}
             </span>
             <span className="min-w-0 flex-1 truncate">{trashTitle}</span>
           </Link>
@@ -1356,7 +1357,7 @@ function ShellFrame({
         id: 'trash',
         label: 'Go to Trash',
         keywords: 'deleted restore',
-        icon: 'trash' as const,
+        icon: trashPageGlyph,
         run: () => {
           void navigate(`/w/${workspaceId}/trash`);
         },

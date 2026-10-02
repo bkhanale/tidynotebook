@@ -32,8 +32,9 @@ import {
   PageHeader,
   pageListClassName,
   StatusRegion,
-  TrashIcon,
 } from '@notesapp/ui';
+import { actionIcon } from '../../shell/action-icons.tsx';
+import { deleteGlyph } from '../../lib/delete-label.ts';
 import { attentionTitle, useParkedSaves } from './attention-link.tsx';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { copyText } from '../../platform.ts';
@@ -125,7 +126,7 @@ function ParkedSaveRow({
             <Button
               variant="danger"
               size="sm"
-              icon={<TrashIcon />}
+              icon={actionIcon(deleteGlyph)}
               label={`Confirm discard of the kept text of ${save.name}`}
               onClick={() => {
                 setConfirming(false);
@@ -150,7 +151,7 @@ function ParkedSaveRow({
             variant="ghost"
             size="sm"
             tone="danger"
-            icon={<TrashIcon />}
+            icon={actionIcon(deleteGlyph)}
             label={`Discard the kept text of ${save.name}`}
             onClick={() => {
               setConfirming(true);

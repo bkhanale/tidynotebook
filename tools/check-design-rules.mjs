@@ -48,11 +48,11 @@
  * - `jsx-text`: a `.md` path suffix or a UUID inside text that a person
  *   reads.
  * - `trash-label`: a Delete label, title or button text in the web
- *   application, or the glyph of the move to Trash outside
- *   `apps/web/src/lib/note-menu.ts`. The move to Trash is named Move to Trash
- *   on every surface, and in Trash Delete removes a note for good (issue
- *   245). A screen that deletes for good, with no Trash behind it, is an
- *   accepted exception.
+ *   application, and the glyph of a bin outside the module that owns its
+ *   words. The move to Trash is named Move to Trash from
+ *   `apps/web/src/lib/note-menu.ts`, and a removal for good reads Delete from
+ *   `apps/web/src/lib/delete-label.ts` (issue 245). A bin reaches a screen
+ *   only through an action glyph name, and each name only through its owner.
  *
  * `tools/design-rules-allow.json` lists the accepted exceptions with a
  * reason. An entry names one file and one rule.
@@ -147,6 +147,12 @@ const colourClass =
 
 /** The component edge, which only a control with a drawn state may name. */
 const statefulEdge = /(?:^|[\s:])(?:border|ring)-edge(?![\w-])/;
+
+/** The module that holds the recipe of every control, the task box among them. */
+export const controlRecipeModule = 'packages/ui/src/control-classes.ts';
+
+/** The edge of the task box recipe, under the variant of a published task. */
+const publishedTaskBoxEdge = '[&_.task-list-item_input]:border-edge ';
 
 /** A `focus:` variant, and the two utilities a field may put behind one. */
 const pointerFocus = /(?:^|[\s:])focus:([a-z][\w-]*)/g;
@@ -270,9 +276,14 @@ export const textRules = {
       return 'Nothing scales when a person presses it.';
     return null;
   },
-  /** @param {string} text @returns {string | null} */
-  'stateful-edge'(text) {
-    return statefulEdge.test(text)
+  /** @param {string} text @param {string} [path] @returns {string | null} */
+  'stateful-edge'(text, path = '') {
+    // The one recipe of the task box names its edge, and the published copy
+    // of that recipe names it under the variant of the box of a task item,
+    // which the published styles test holds to the recipe class for class.
+    if (path === controlRecipeModule) return null;
+    const rest = text.replaceAll(publishedTaskBoxEdge, '');
+    return statefulEdge.test(rest)
       ? 'The resting edge of a control is edge-line. edge is a task box, a checkbox, a radio, a switch track and a drop target.'
       : null;
   },
@@ -345,12 +356,30 @@ export function jsxTextRule(text) {
 /** The one module that names the move to Trash and draws its glyph. */
 export const trashLabelModule = 'apps/web/src/lib/note-menu.ts';
 
+/** The one module that names a removal for good and draws its glyph. */
+export const deleteLabelModule = 'apps/web/src/lib/delete-label.ts';
+
+/** The one module that turns a glyph name into the bin of the icon set. */
+export const actionIconModule = 'apps/web/src/shell/action-icons.tsx';
+
+/**
+ * Every action glyph name that draws the bin, and the modules that may name
+ * it. A name that draws the bin and is not here fails the test of this
+ * check, which reads the glyphs of `actionIconModule`.
+ */
+export const binGlyphOwners = {
+  'move-to-trash': [trashLabelModule],
+  delete: [deleteLabelModule],
+  trash: [deleteLabelModule],
+};
+
 /** A Delete label, title or button text, as a screen writes one. */
 const deleteLabel =
   /(?:label|title):\s*['"`]Delete(?: note| folder| this note)?['"`]|(?:label|title)="Delete(?: note| folder| this note)?"|>\s*Delete(?: note| folder| this note)?\s*</gu;
 
-/** The glyph of the move to Trash, as a screen draws it. */
-const trashGlyph = /actionIcon\('move-to-trash'\)|icon:\s*'move-to-trash'/gu;
+/** A bin glyph name, as a screen names it, or the bin of the icon set. */
+const binGlyph =
+  /(?:actionIcon|emptyStateIcon)\(\s*'([a-z-]+)'|icon:\s*'([a-z-]+)'|ActionIconName\s*=\s*'([a-z-]+)'|\bTrashIcon\b/gu;
 
 /**
  * The rules that read one whole source file.
@@ -387,15 +416,24 @@ export const fileRules = {
     const found = [];
     for (const match of text.matchAll(deleteLabel))
       found.push({
-        message: `A move to Trash is named Move to Trash. Read the label from ${trashLabelModule}.`,
+        message: `A move to Trash is named Move to Trash from ${trashLabelModule}, and a removal for good reads Delete from ${deleteLabelModule}.`,
         offset: match.index,
       });
-    if (path !== trashLabelModule)
-      for (const match of text.matchAll(trashGlyph))
-        found.push({
-          message: `The glyph of the move to Trash comes with its label from ${trashLabelModule}.`,
-          offset: match.index,
-        });
+    if (path === actionIconModule) return found;
+    /** @type {Readonly<Record<string, readonly string[]>>} */
+    const owners = binGlyphOwners;
+    for (const match of text.matchAll(binGlyph)) {
+      const name = match[1] ?? match[2] ?? match[3];
+      const allowed = name === undefined ? [actionIconModule] : owners[name];
+      if (allowed === undefined || allowed.includes(path)) continue;
+      found.push({
+        message:
+          name === undefined
+            ? `The bin reaches a screen through a glyph name of ${actionIconModule}.`
+            : `The glyph ${name} draws the bin, so it comes with its words from ${allowed.join(' or ')}.`,
+        offset: match.index,
+      });
+    }
     return found;
   },
   /**

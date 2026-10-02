@@ -408,6 +408,21 @@ export function sidebarViewClassName(options: {
 }
 
 /**
+ * The appearance of a task box, as classes.
+ *
+ * A task box is a control whose state a person reads from its shape alone
+ * (record 0033), so it is one of the five controls that take the component
+ * edge (record 0063). The published page draws the native box of a task with
+ * these classes, and `tests/integration/published-styles.test.ts` holds its
+ * copy to this recipe. The editor draws the same box with the same edge from
+ * its theme. This is the one place of the web that names the task box edge,
+ * so the `stateful-edge` rule reads it here and needs no exception.
+ */
+export function taskBoxClassName(): string {
+  return 'size-4 appearance-none rounded-sm border border-edge bg-app align-middle';
+}
+
+/**
  * The appearance of one tab of a set of views, as classes.
  *
  * A tab chooses which view of one thing a panel shows, such as the changes

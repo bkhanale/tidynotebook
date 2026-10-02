@@ -39,6 +39,7 @@ import {
   rowClassName,
   TextField,
 } from '@notesapp/ui';
+import { deleteGlyph } from '../lib/delete-label.ts';
 import { problemMessage, useWorkspace } from '../app.tsx';
 import { addressInWorkspace, isMemberOf } from '../lib/workspace-choice.ts';
 import { initialOf } from '../lib/initial.ts';
@@ -513,7 +514,7 @@ export function WorkspaceSwitcher({
           {
             id: 'delete-workspace',
             label: 'Delete permanently',
-            icon: actionIcon('delete'),
+            icon: actionIcon(deleteGlyph),
             danger: true,
             onSelect: onDelete,
           },

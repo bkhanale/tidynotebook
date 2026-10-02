@@ -32,6 +32,7 @@ import {
   inlineFieldClassName,
   sidebarViewClassName,
   tabClassName,
+  taskBoxClassName,
   textAreaClassName,
   touchFieldText,
   type ButtonSize,
@@ -779,4 +780,14 @@ await test('a field inside a row keeps the height of the row', () => {
   assert.ok(field.includes('border-edge-line'));
   assert.ok(field.includes('focus-visible:border-focus'));
   assert.ok(field.includes(touchFieldText));
+});
+
+await test('a task box takes the component edge, a task radius and the page fill', () => {
+  // Record 0063: a task box is one of the five controls with the component
+  // edge, and the published page reads this recipe for its box.
+  const box = taskBoxClassName().split(' ');
+  assert.ok(box.includes('border-edge'));
+  assert.ok(box.includes('rounded-sm'));
+  assert.ok(box.includes('bg-app'));
+  assert.ok(box.includes('size-4'));
 });
