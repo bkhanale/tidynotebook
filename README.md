@@ -5,7 +5,7 @@ you invite. Each account has its own notes. The file is the document: a note is 
 you choose. Typing writes a draft on your device. Save creates one immutable
 version on your server.
 
-**Status:** 0.11.0 is the current release. See
+**Status:** 0.12.0 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
 [GitHub project board](https://github.com/users/bkhanale/projects/2) for the
 open work.

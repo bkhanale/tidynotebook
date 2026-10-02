@@ -5,6 +5,29 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.12.0 - 2026-10-02
+
+This minor release copies a whole note as Markdown from the command palette,
+and publishes the guide as a documentation site with search.
+
+### Added
+
+- **Copy this note as Markdown.** The command palette copies the whole text of
+  the open note to the clipboard. You do not have to select text first. A
+  browser with no clipboard names Export as Markdown instead.
+- **A documentation site.** The guide is a site with search in the browser.
+  Each page has a Markdown copy, and the site gives the whole guide in one
+  file for an AI agent.
+- The guide has a reference page for Settings and a reference page for the
+  settings of the server.
+
+### Fixed
+
+- The save status no longer names another tab when no other tab is open.
+- Each tab of a browser shows that a save is on the server when the save
+  arrives there.
+- Safari on iPhone and iPad does not zoom the page when you tap a field.
+
 ## 0.11.0 - 2026-10-02
 
 This minor release lets an administrator set the mail server and the legal
