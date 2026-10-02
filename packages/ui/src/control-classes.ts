@@ -65,8 +65,9 @@ type ButtonColour = ButtonVariant | 'secondary-danger' | 'ghost-danger';
  * class that a template builds from a prefix and a name is never emitted
  * unless another file happens to write it whole. The group hover of a compact
  * primary or danger button was such a class, and it drew no hover at all.
- * Every class is therefore a whole word here, and `control-classes.test.ts`
- * holds each class that a recipe answers to a whole word of this module.
+ * Every class is therefore a whole word here, and
+ * `tests/integration/theme-variables.test.ts` finds each class that a recipe
+ * answers in the built stylesheet.
  *
  * A disabled button states that it is unavailable with its own colours: the
  * muted text on the surface of `disabledButtonSurface`, in every state. An

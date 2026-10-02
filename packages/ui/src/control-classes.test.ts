@@ -10,7 +10,6 @@
  * radius, one size scale, and to the resting edge of decision 0063.
  */
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   avatarClassName,
@@ -39,7 +38,6 @@ import {
   type FrameEdge,
 } from './control-classes.ts';
 import { defaultIconSize } from './icon-grid.ts';
-import * as motion from './motion.ts';
 import { contrastRatio, textContrastMinimum } from './theme.ts';
 import { themes } from './themes/index.ts';
 
@@ -750,46 +748,4 @@ await test('the view that shows takes the mark of a current row', () => {
     assert.ok(view.includes(focusOutline), 'the one focus treatment');
     assert.ok(view.includes('size-11'), 'the touch target');
   }
-});
-
-await test('every class of a recipe is a whole word of its source', async () => {
-  // Tailwind reads the source text to decide which utilities to emit. A class
-  // that a template built from a prefix and a name was emitted only when
-  // another file wrote it whole, so the group hover of a compact primary or
-  // danger button drew nothing, and the disabled surface of a secondary button
-  // was missing from the published page and the documentation site.
-  const source = await readFile(
-    new URL('./control-classes.ts', import.meta.url),
-    'utf8',
-  );
-  const words = new Set(source.split(/[\s'"`{}$]+/));
-  for (const value of Object.values(motion))
-    if (typeof value === 'string')
-      for (const word of value.split(' ')) words.add(word);
-  const answers: string[] = [];
-  for (const variant of variants)
-    for (const tone of [undefined, 'danger'] as const)
-      for (const size of sizes)
-        for (const iconOnly of [false, true]) {
-          for (const compact of [false, true])
-            answers.push(
-              buttonClassName({ variant, tone, size, iconOnly, compact }),
-            );
-          answers.push(
-            compactButtonVisualClassName({ variant, tone, size, iconOnly }),
-          );
-        }
-  for (const selected of [false, true])
-    for (const interactive of [false, true])
-      for (const danger of [false, true])
-        for (const inset of [false, true])
-          answers.push(rowClassName({ selected, interactive, danger, inset }));
-  for (const [, classes] of recipes) answers.push(classes);
-  for (const edge of ['start', 'end'] as const)
-    for (const mark of ['icon', 'avatar'] as const)
-      answers.push(edgeControlClassName({ edge, mark }));
-  answers.push(controlStripClassName(), bareFieldClassName());
-  for (const answer of answers)
-    for (const word of answer.split(' ').filter(Boolean))
-      assert.ok(words.has(word), `${word} is built and never written whole`);
 });

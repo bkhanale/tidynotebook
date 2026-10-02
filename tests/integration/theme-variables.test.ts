@@ -21,8 +21,23 @@ import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { editorThemeVariables, touchFieldQuery } from '@notesapp/editor';
 import {
+  avatarClassName,
+  badgeClassName,
+  bareFieldClassName,
+  buttonClassName,
+  calendarDayClassName,
+  calendarNoteMarkClassName,
+  compactButtonVisualClassName,
+  controlStripClassName,
   defaultThemeFor,
+  edgeControlClassName,
+  fieldClassName,
   importedThemeFamily,
+  kbdClassName,
+  rowClassName,
+  selectClassName,
+  sidebarViewClassName,
+  textAreaClassName,
   readThemeFile,
   scrollbarValue,
   themeFamilies,
@@ -166,6 +181,70 @@ await test('a field under touch sets its text at 16 px', async () => {
     'the served rule',
   );
   assert.match(served, /--text-base:1rem/);
+});
+
+await test('every class of every control recipe reaches the built stylesheet', async () => {
+  // Tailwind reads the source text to decide which utilities to emit. The
+  // button recipe built its hover and its disabled classes from a prefix and
+  // a name, so the group hover of a compact primary or danger button and the
+  // disabled surface of a secondary button were never emitted.
+  const assets = resolve(root, 'apps/web/dist/web/assets');
+  const built = (
+    await Promise.all(
+      (await readdir(assets))
+        .filter((name) => name.endsWith('.css'))
+        .map((name) => readFile(resolve(assets, name), 'utf8')),
+    )
+  ).join('\n');
+  const variants = ['primary', 'secondary', 'ghost', 'danger'] as const;
+  const answers: string[] = [];
+  for (const variant of variants)
+    for (const tone of [undefined, 'danger'] as const)
+      for (const size of ['sm', 'md'] as const)
+        for (const iconOnly of [false, true]) {
+          for (const compact of [false, true])
+            answers.push(
+              buttonClassName({ variant, tone, size, iconOnly, compact }),
+            );
+          answers.push(
+            compactButtonVisualClassName({ variant, tone, size, iconOnly }),
+          );
+        }
+  for (const selected of [false, true])
+    for (const interactive of [false, true])
+      for (const danger of [false, true])
+        for (const inset of [false, true])
+          answers.push(rowClassName({ selected, interactive, danger, inset }));
+  for (const current of [false, true])
+    answers.push(sidebarViewClassName({ current }));
+  for (const invalid of [false, true])
+    answers.push(fieldClassName({ invalid }), textAreaClassName({ invalid }));
+  for (const selected of [false, true])
+    for (const today of [false, true])
+      for (const inMonth of [false, true])
+        answers.push(calendarDayClassName({ selected, today, inMonth }));
+  for (const edge of ['start', 'end'] as const)
+    for (const mark of ['icon', 'avatar'] as const)
+      answers.push(edgeControlClassName({ edge, mark }));
+  answers.push(
+    avatarClassName(),
+    badgeClassName(),
+    bareFieldClassName(),
+    calendarNoteMarkClassName(),
+    controlStripClassName(),
+    kbdClassName(),
+    selectClassName(),
+  );
+  // A marker class selects nothing by itself.
+  const markers = new Set(['group']);
+  const missing = new Set<string>();
+  for (const answer of answers)
+    for (const name of answer.split(' ').filter(Boolean)) {
+      if (markers.has(name)) continue;
+      const selector = `.${name.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`)}`;
+      if (!built.includes(selector)) missing.add(name);
+    }
+  assert.deepEqual([...missing].sort(), []);
 });
 
 await test('the compact tree spacing reaches the built stylesheet', async () => {
