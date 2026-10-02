@@ -186,6 +186,8 @@ and needs no record.
 | [0152](0152-the-guide-is-a-static-site-of-its-own.md)                                 | The guide is a static site of its own                                           |
 | [0153](0153-the-site-answers-search-and-agents-from-its-build.md)                     | The site answers search and agents from its build                               |
 | [0154](0154-a-change-carries-its-test.md)                                             | A change carries its test                                                       |
+| [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
+| [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -629,3 +631,9 @@ Record 0153 gives the site a search and the files for agents from its build,
 with no server. Record 0154 makes the gate refuse a change of source that
 carries no test and states no reason, and runs the same check as a Stop hook
 of the agent.
+
+Records 0161 and 0162 answer issues of the
+[product audit of 2026-10-02](../audits/2026-10-02/product-audit.md). Record
+0161 holds a render failure at the nearest route boundary, so a failure in one
+page leaves the frame. Record 0162 makes a search excerpt the plain text of
+its Markdown, at the server and on the device.
