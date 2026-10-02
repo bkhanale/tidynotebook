@@ -83,7 +83,7 @@ import {
   localWriteFailed,
   localWriteFailureMessage,
 } from '../../lib/local-write.ts';
-import { FormatToolbar } from './format-toolbar.tsx';
+import { FormatToolbar, toolSlashCommands } from './format-toolbar.tsx';
 import { TableMenu } from './table-menu.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
@@ -869,6 +869,8 @@ function NoteEditorBody({
         document: bound,
         onFormatContext: setFormatContext,
         onTableMenu: setTableMenu,
+        // The slash menu offers the block tools of the row (issue 259).
+        slashCommands: toolSlashCommands,
         // A toggle of a task box is a whole action, so it saves at once and
         // another device reads it before the person reaches that device. Two
         // toggles of one box that cross still merge to one state on the

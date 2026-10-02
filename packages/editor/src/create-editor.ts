@@ -46,6 +46,7 @@ import { tableGridView } from './table-grid.ts';
 import { tableMenuOpener, type TableMenuOpener } from './table-controls.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 import { spellCheck } from './spell-check.ts';
+import { slashCommands, type SlashCommand } from './slash-menu.ts';
 
 /** Optional behavior beyond the required creation signature. */
 export type CreateEditorOptions = {
@@ -109,6 +110,11 @@ export type CreateEditorOptions = {
    * `runTableAction`.
    */
   readonly onTableMenu?: TableMenuOpener | undefined;
+  /**
+   * The blocks of the slash menu (issue 259), from the one list of the
+   * tools of the application. No slash menu opens when absent.
+   */
+  readonly slashCommands?: readonly SlashCommand[] | undefined;
 };
 
 /** Re-resolution of a link target for keyboard activation. */
@@ -210,6 +216,7 @@ export function createEditor(
       themeCompartment.of(editorTheme(options.theme ?? 'dark')),
       saveKeymap,
       editorCommands(),
+      slashCommands(options.slashCommands ?? []),
       ...(options.onTableMenu === undefined
         ? []
         : [tableMenuOpener.of(options.onTableMenu)]),

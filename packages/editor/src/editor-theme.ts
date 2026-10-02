@@ -317,13 +317,17 @@ export function panelRules(): Record<string, Record<string, string | Record<stri
       width: 'auto',
       minWidth: '0',
     },
+    // A match is a place the person looks for, so it takes the tint of a
+    // selection and the current match a stronger one, in the focus colour
+    // that record 0062 gives a selection. The ink fill of the action read as
+    // a grey block in both palettes.
     '.cm-searchMatch': {
       backgroundColor:
-        'color-mix(in srgb, var(--notes-accent-fill) 28%, transparent)',
+        'color-mix(in srgb, var(--notes-focus) 18%, transparent)',
     },
     '.cm-searchMatch.cm-searchMatch-selected': {
       backgroundColor:
-        'color-mix(in srgb, var(--notes-accent-fill) 55%, transparent)',
+        'color-mix(in srgb, var(--notes-focus) 40%, transparent)',
     },
     '.cm-tooltip': {
       backgroundColor: 'var(--notes-surface-card)',

@@ -1523,6 +1523,10 @@ export const shortcuts: readonly EditorShortcut[] = [
   { keys: 'Cmd or Ctrl + Shift + 8', description: 'Bullet list' },
   { keys: 'Cmd or Ctrl + Shift + 9', description: 'Task list' },
   { keys: 'Cmd or Ctrl + Shift + .', description: 'Block quote' },
+  {
+    keys: '/',
+    description: 'Open the menu of blocks at the start of a line',
+  },
   { keys: 'Tab or Cmd or Ctrl + ]', description: 'Indent the list item' },
   {
     keys: 'Shift + Tab or Cmd or Ctrl + [',

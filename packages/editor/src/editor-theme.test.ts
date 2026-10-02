@@ -503,6 +503,18 @@ await test('the rules of the panels keep the rules of the surface', () => {
   assert.ok('.cm-tooltip.cm-tooltip-autocomplete > ul > li' in coarse);
 });
 
+await test('a match of the find panel takes the tint of a selection', () => {
+  // Issue 247. The current match took the ink fill and read as a grey block.
+  for (const selector of [
+    '.cm-searchMatch',
+    '.cm-searchMatch.cm-searchMatch-selected',
+  ]) {
+    const fill = text(rule(selector), 'backgroundColor');
+    assert.ok(fill.includes('--notes-focus'), fill);
+    assert.ok(!fill.includes('accent'), fill);
+  }
+});
+
 await test('a code card keeps the room of the bar of its language', () => {
   // Record 0174. The bar of the language and the copy action stands over the
   // first line of the card, so that line keeps the height of the bar.

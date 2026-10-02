@@ -43,7 +43,7 @@ those two alone.
 - **A move or a deletion.** Call `applyMoves` in `features/folders/` or
   `deleteNotes` in `features/editor/`. No screen holds either value (0032).
 - **A formatting tool.** One row of `formatActions` in the editor and one
-  tool in `lib/format-toolbar.ts`, which also gives its palette row (0094).
+  tool in `lib/format-toolbar.ts`: its palette row and slash menu row (0094).
 
 ## Testing conventions here
 

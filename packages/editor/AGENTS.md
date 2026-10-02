@@ -8,8 +8,8 @@ this directory. The recipe for a whole feature is in
 
 The CodeMirror Markdown editor: the extension set, the live preview
 decorations, the widgets, the commands and keymaps, the outline, note link
-completion, paste conversion, the binding of an open note, and the unified
-diff for History.
+completion, the slash menu, the find panel, paste conversion, the binding of
+an open note, and the unified diff for History.
 
 ## What lives here and what does not
 
@@ -100,3 +100,6 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/list-controls.ts`    | The grip that drags a list item (0106)       |
 | `src/format-context.ts`   | Where the caret stands for the tools (0094)  |
 | `src/spell-check.ts`      | What the browser spell check skips (0103)    |
+| `src/code-controls.ts`    | The bar of a code block (0174)               |
+| `src/search-panel.ts`     | The find and replace panel                   |
+| `src/slash-menu.ts`       | The slash menu of the blocks                 |

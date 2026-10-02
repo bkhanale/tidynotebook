@@ -26,6 +26,7 @@ import {
   formatActionOf,
   type FormatActionId,
   type FormatContext,
+  type SlashCommand,
 } from '@notesapp/editor';
 import { controlStripClassName } from '@notesapp/ui';
 import type { ActionIconName } from './palette-items.ts';
@@ -161,6 +162,39 @@ export function formatPaletteRows(
     });
 }
 
+/** Words that also find a block in the slash menu, as a person types it. */
+const slashWords: Readonly<Partial<Record<FormatActionId, string>>> = {
+  'heading-1': 'h1',
+  'heading-2': 'h2',
+  'heading-3': 'h3',
+};
+
+/**
+ * The blocks of the slash menu (issue 259): every tool of the row that
+ * shapes whole lines, in the order of the row.
+ *
+ * They come from {@link formatToolbar}, so a block tool that joins the row
+ * joins the menu in the same change. `hint` writes the key of a tool as this
+ * device shows it, or answers null for a tool with no key.
+ */
+export function slashMenuCommands(
+  hint: (keys: string) => string,
+): readonly SlashCommand[] {
+  return formatToolbar
+    .flat()
+    .filter((tool) => formatActionOf(tool.id).scope === 'block')
+    .map((tool) => {
+      const action = formatActionOf(tool.id);
+      return {
+        id: tool.id,
+        keywords: [slashWords[tool.id], paletteWords[tool.id]]
+          .filter((words) => words !== undefined)
+          .join(' '),
+        hint: action.keys === null ? null : hint(action.keys),
+      };
+    });
+}
+
 /**
  * The tooltip of one tool: its name and the keys of this device.
  *
@@ -174,7 +208,12 @@ export function formatToolTitle(
   apple: boolean,
 ): string {
   if (signs.length === 0) return label;
-  return `${label} (${signs.join(apple ? '' : ' + ')})`;
+  return `${label} (${keySignsText(signs, apple)})`;
+}
+
+/** The key caps of one key line, as the keyboard of this device writes them. */
+export function keySignsText(signs: readonly string[], apple: boolean): string {
+  return signs.join(apple ? '' : ' + ');
 }
 
 /**
@@ -206,8 +245,21 @@ export function toolbarFocusTarget(
  * one of the footer, so the row and the text start on one line.
  */
 export function formatToolbarFrameClassName(): string {
-  return 'shrink-0 border-b border-edge-line px-2';
+  return `shrink-0 border-b border-edge-line px-2 ${phoneFormatRowClassName}`;
 }
+
+/**
+ * The place of the row on a phone (issue 261): a finger on a narrow screen.
+ *
+ * The keyboard of a phone covers the foot of the screen, and the text that a
+ * person types stands just above it, so the row goes to the foot of the note,
+ * last in the column, with the divider above it. The frame of the application
+ * takes the height of the visual viewport (`./viewport-fit.ts`), so the foot
+ * of the note is the top of the keyboard and the row stands on it. A desktop
+ * keeps the row above the text.
+ */
+export const phoneFormatRowClassName =
+  'max-md:pointer-coarse:order-last max-md:pointer-coarse:border-b-0 max-md:pointer-coarse:border-t';
 
 /** The classes of the column that holds the row, on the note measure (0055). */
 export function formatToolbarColumnClassName(): string {
@@ -228,7 +280,55 @@ export function formatToolbarClassName(): string {
   return `${controlStripClassName()} gap-1 md:gap-group`;
 }
 
+/**
+ * The classes of the band that holds the row and its two scroll controls.
+ *
+ * A row wider than the screen hides tools at an end, so a control at that
+ * end states it and scrolls the row (issue 261). The row takes the room
+ * between the two.
+ */
+export function formatToolbarBandClassName(): string {
+  return 'flex items-center';
+}
+
+/** The names of the two controls that scroll the row to its hidden tools. */
+export const formatToolbarScrollWords = {
+  start: 'Show the tools before',
+  end: 'Show more tools',
+} as const;
+
+/** The classes of the row inside the band, which takes the room left. */
+export function formatToolbarRowSlotClassName(): string {
+  return 'min-w-0 flex-1';
+}
+
 /** The classes of one group of the row, which never shrinks in the strip. */
 export function formatToolGroupClassName(): string {
   return 'flex shrink-0 items-center md:gap-1';
+}
+
+/** The sides of a row that scrolls sideways that hold more tools. */
+export type StripOverflow = {
+  /** Tools stand before the start of the row. */
+  readonly start: boolean;
+  /** Tools stand after the end of the row. */
+  readonly end: boolean;
+};
+
+/**
+ * Which ends of the row of tools hide tools, from what the row measures.
+ *
+ * A pixel of rounding is not a tool, so the row reads full within one pixel.
+ */
+export function stripOverflow(metrics: {
+  readonly scrollLeft: number;
+  readonly scrollWidth: number;
+  readonly clientWidth: number;
+}): StripOverflow {
+  const hidden = metrics.scrollWidth - metrics.clientWidth;
+  if (hidden <= 1) return { start: false, end: false };
+  return {
+    start: metrics.scrollLeft > 1,
+    end: metrics.scrollLeft < hidden - 1,
+  };
 }

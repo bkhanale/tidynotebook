@@ -115,8 +115,9 @@ compact, and one at an end takes the pull of `edgeControlClassName`. The
 sidebar is a bar of view buttons and a panel of rows (record 0105): the
 switcher, the tree (records 0093, 0164) or the calendar (0100), and the footer.
 The wordmark belongs to sign in and setup. The note has one row of formatting
-tools above its text (record 0094), and `apps/web/src/lib/format-toolbar.ts` is
-the one list that the row and the command palette read.
+tools above its text (record 0094), at the foot above the keyboard on a phone,
+and `apps/web/src/lib/format-toolbar.ts` is the one list that the row, the
+command palette and the slash menu read.
 
 ## Surfaces a person waits on or reads
 

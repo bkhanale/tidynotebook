@@ -13,7 +13,9 @@
  * Tab leave the row from the tool a person is on. When the focus leaves, the
  * stop goes back to the first tool that applies. Every tool is a button of
  * the row, and a row wider than the screen scrolls sideways, so no menu covers
- * the text.
+ * the text. An arrow at an end that hides tools states them and scrolls the
+ * row, and on a phone the row stands at the foot of the note, on the
+ * keyboard (issue 261).
  *
  * Where the caret stands decides which tools apply. In a table a block tool
  * is disabled, because a table line is a row. A table carries its own
@@ -23,38 +25,56 @@
  * the editor before the action runs, and the action then gives the focus back
  * to the editor.
  */
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   formatActionOf,
   type FormatActionId,
   type FormatContext,
 } from '@notesapp/editor';
-import { Button } from '@notesapp/ui';
+import { Button, ChevronLeftIcon, ChevronRightIcon } from '@notesapp/ui';
 import {
+  formatToolbarBandClassName,
   formatToolbarClassName,
   formatToolbarColumnClassName,
+  formatToolbarRowSlotClassName,
+  formatToolbarScrollWords,
+  stripOverflow,
+  type StripOverflow,
   formatToolbarFrameClassName,
   formatToolbarLabel,
   formatToolGroupClassName,
   formatToolTitle,
   formatToolbar,
+  keySignsText,
+  slashMenuCommands,
   toolApplies,
   toolbarFocusTarget,
 } from '../../lib/format-toolbar.ts';
 import { actionIcon } from '../../shell/action-icons.tsx';
 import { appleKeyboard, keyHintParts } from '../../shell/modifier-key.ts';
 
+/** The key caps of one key line on this device. */
+function signsOf(keys: string | null): readonly string[] {
+  return keys === null
+    ? []
+    : keyHintParts(keys).flatMap((part) =>
+        part.kind === 'key' ? [part.cap.sign] : [],
+      );
+}
+
 /** The tooltip of one action, with the keys of this device. */
 function titleOf(id: FormatActionId): string {
   const action = formatActionOf(id);
-  const signs =
-    action.keys === null
-      ? []
-      : keyHintParts(action.keys).flatMap((part) =>
-          part.kind === 'key' ? [part.cap.sign] : [],
-        );
-  return formatToolTitle(action.label, signs, appleKeyboard);
+  return formatToolTitle(action.label, signsOf(action.keys), appleKeyboard);
 }
+
+/**
+ * The blocks of the slash menu, with the keys of this device (issue 259).
+ * The platform cannot change while the page is open, so they are built once.
+ */
+export const toolSlashCommands = slashMenuCommands((keys) =>
+  keySignsText(signsOf(keys), appleKeyboard),
+);
 
 /** The row of formatting tools of one open note. */
 export function FormatToolbar({
@@ -82,10 +102,62 @@ export function FormatToolbar({
       (tool) => !tool.disabled,
     );
 
+  // A row wider than the screen hides tools at an end, so a control at that
+  // end states it and scrolls the row (issue 261).
+  const [overflow, setOverflow] = useState<StripOverflow>({
+    start: false,
+    end: false,
+  });
+  useEffect(() => {
+    const row = rowRef.current;
+    if (row === null) return;
+    const measure = (): void => {
+      const next = stripOverflow(row);
+      setOverflow((current) =>
+        current.start === next.start && current.end === next.end
+          ? current
+          : next,
+      );
+    };
+    measure();
+    row.addEventListener('scroll', measure, { passive: true });
+    const resize = new ResizeObserver(measure);
+    resize.observe(row);
+    return () => {
+      row.removeEventListener('scroll', measure);
+      resize.disconnect();
+    };
+  }, []);
+
+  /** Scrolls the row by most of its width, toward one end. */
+  const scrollRow = (direction: 1 | -1): void => {
+    const row = rowRef.current;
+    if (row === null) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    row.scrollBy({
+      left: direction * row.clientWidth * 0.8,
+      behavior: reduced ? 'auto' : 'smooth',
+    });
+  };
+
   let place = 0;
   return (
     <div className={formatToolbarFrameClassName()}>
-      <div className={formatToolbarColumnClassName()}>
+      <div className={`${formatToolbarColumnClassName()} ${formatToolbarBandClassName()}`}>
+        {overflow.start ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label={formatToolbarScrollWords.start}
+            icon={<ChevronLeftIcon />}
+            tabIndex={-1}
+            onClick={() => {
+              scrollRow(-1);
+            }}
+          />
+        ) : null}
+        <div className={formatToolbarRowSlotClassName()}>
         <div
           ref={rowRef}
           role="toolbar"
@@ -149,6 +221,20 @@ export function FormatToolbar({
             </div>
           ))}
         </div>
+        </div>
+        {overflow.end ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label={formatToolbarScrollWords.end}
+            icon={<ChevronRightIcon />}
+            tabIndex={-1}
+            onClick={() => {
+              scrollRow(1);
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

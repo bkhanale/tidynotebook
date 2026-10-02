@@ -93,4 +93,10 @@ declares all of them. The published page draws the same constructs with
 descendant variants in `apps/server/src/routes/published-document.ts`, which
 `tests/integration/published-styles.test.ts` holds to the built stylesheet. A
 code block is one card on both surfaces: in the editor, its first and its last
-visible line carry the top and the bottom edge and the radius.
+visible line carry the top and the bottom edge and the radius, and a layer of
+`packages/editor/src/code-controls.ts` puts the bar of its language and its
+copy action at the top of the card
+([decision 0174](../decisions/0174-a-code-block-carries-its-language-and-a-copy-action.md)).
+The find panel of `packages/editor/src/search-panel.ts` and the completion
+list, which holds the slash menu of `packages/editor/src/slash-menu.ts`, are
+surfaces of the design system too.

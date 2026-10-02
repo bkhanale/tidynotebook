@@ -17,6 +17,9 @@ import {
   formatToolbarFrameClassName,
   formatToolGroupClassName,
   formatToolTitle,
+  keySignsText,
+  slashMenuCommands,
+  stripOverflow,
   tableActions,
   toolApplies,
   toolbarFocusTarget,
@@ -223,5 +226,57 @@ await test('the move tools apply only where the list item can go', () => {
     formatPaletteRows(first).find((row) => row.action === 'move-item-down')
       ?.keys,
     'Alt + Down arrow',
+  );
+});
+
+await test('the slash menu offers every block tool of the row, in its order', () => {
+  // Issue 259. The menu reads the one list of the tools, so a block tool
+  // that joins the row joins the menu, and no inline tool or move is a block.
+  const commands = slashMenuCommands((keys) => `keys of ${keys}`);
+  assert.deepEqual(
+    commands.map((command) => command.id),
+    [
+      'heading-1',
+      'heading-2',
+      'heading-3',
+      'bullet-list',
+      'ordered-list',
+      'task-list',
+      'quote',
+      'table',
+    ],
+  );
+  assert.ok(commands[0]?.keywords.includes('h1'));
+  assert.equal(commands[0]?.hint, 'keys of Cmd or Ctrl + 1');
+  // The table has no key, so its row states none.
+  assert.equal(commands.at(-1)?.hint, null);
+});
+
+await test('key caps join as the keyboard of the device writes them', () => {
+  assert.equal(keySignsText(['⌘', 'B'], true), '⌘B');
+  assert.equal(keySignsText(['Ctrl', 'B'], false), 'Ctrl + B');
+});
+
+await test('the ends of a row that scrolls state where tools hide', () => {
+  assert.deepEqual(
+    stripOverflow({ scrollLeft: 0, scrollWidth: 660, clientWidth: 360 }),
+    { start: false, end: true },
+  );
+  assert.deepEqual(
+    stripOverflow({ scrollLeft: 150, scrollWidth: 660, clientWidth: 360 }),
+    { start: true, end: true },
+  );
+  assert.deepEqual(
+    stripOverflow({ scrollLeft: 300, scrollWidth: 660, clientWidth: 360 }),
+    { start: true, end: false },
+  );
+  // A row that fits, as on a desktop, hides nothing.
+  assert.deepEqual(
+    stripOverflow({ scrollLeft: 0, scrollWidth: 640, clientWidth: 640 }),
+    { start: false, end: false },
+  );
+  assert.deepEqual(
+    stripOverflow({ scrollLeft: 0, scrollWidth: 641, clientWidth: 640 }),
+    { start: false, end: false },
   );
 });

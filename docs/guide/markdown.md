@@ -24,6 +24,15 @@ through, Inline code, Link, Bullet list, Ordered list, Task list, Block quote,
 Table, Move item up and Move item down. Select a tool again to remove its
 format. Hold the pointer on a tool to see its key.
 
+You can also type `/` at the start of a line, or after a space, to open a
+menu of the blocks of the row: the three headings, the three lists, Block
+quote and Table. Type more letters to narrow the menu, for example `/bul` or
+`/h2`. Press the Up and Down arrows to move in the menu, and Enter or Tab to
+choose. Escape closes the menu and keeps the slash. You can also select a
+block with the pointer. The block takes the line, and the slash and the
+letters after it go. A slash inside a word, an address, code or a formula
+opens no menu.
+
 Table writes a small table with two columns and one empty row. Type the name of
 the first column. Press Tab to go to the next cell, and Shift and Tab to go
 back. Press Enter to go to the cell below, and Shift and Enter to go up. Tab in
@@ -74,9 +83,11 @@ Press Ctrl + Z or Cmd + Z to put the item back.
 
 ## Tools on a narrow screen and with a keyboard
 
-On a narrow screen, swipe the row sideways to reach the other tools. Every tool
-is also in the command palette: open it with Ctrl + P or Cmd + P and type the
-name of the tool.
+On a phone, the row stands at the foot of the note, just above the keyboard,
+so the tools are next to the text that you type. Swipe the row sideways to
+reach the other tools, or select the arrow at the end of the row that shows
+when more tools are there. Every tool is also in the command palette: open it
+with Ctrl + P or Cmd + P and type the name of the tool.
 
 With a keyboard, press Tab to reach the row and the arrow keys to move
 between the tools. Press Enter to use a tool. The cursor then goes back to the

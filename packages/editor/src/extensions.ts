@@ -12,7 +12,11 @@
  * list. The formatting keys run before the CodeMirror defaults, so `Enter`
  * continues a list before the plain newline applies.
  */
-import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
+import {
+  acceptCompletion,
+  autocompletion,
+  completionKeymap,
+} from '@codemirror/autocomplete';
 import { pasteURLAsLink } from '@codemirror/lang-markdown';
 import { openSearchPanel, search } from '@codemirror/search';
 import { EditorState, Prec, type Extension } from '@codemirror/state';
@@ -37,6 +41,7 @@ import { listMarkerCaret } from './list-marker.ts';
 import { typedFenceOpeners } from './fence-close.ts';
 import { tableControls } from './table-controls.ts';
 import { codeControls } from './code-controls.ts';
+import { slashMenuCompletion } from './slash-menu.ts';
 import { tableGridEditing } from './table-grid.ts';
 
 /** Opens the find panel with its replace field. */
@@ -54,7 +59,9 @@ export function editorCommands(): Extension {
     search({ top: true, createPanel: createSearchPanel }),
     EditorState.phrases.of(editorPhrases),
     autocompletion({
-      override: [noteLinkCompletion],
+      // The list of notes after `[[` and `](`, and the slash menu of the
+      // blocks (issue 259).
+      override: [noteLinkCompletion, slashMenuCompletion],
       icons: false,
       activateOnTyping: true,
       closeOnBlur: true,
@@ -88,7 +95,11 @@ export function editorCommands(): Extension {
     // `markdown()` registers its own `Enter` handler with high precedence.
     // These two keymaps sit above it, so completion accepts first and the
     // list continuation of this package is the one that runs.
-    Prec.highest(keymap.of(completionKeymap)),
+    // Tab chooses the row of an open list as Enter does, and it moves on to
+    // the formatting keys when no list is open.
+    Prec.highest(
+      keymap.of([...completionKeymap, { key: 'Tab', run: acceptCompletion }]),
+    ),
     Prec.highest(keymap.of(formattingKeymap)),
     keymap.of([
       ...noteSearchKeymap,
