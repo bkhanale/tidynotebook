@@ -790,6 +790,11 @@ export type FilePageToken = string;
 export type FilePath = string;
 
 /**
+ * The parts of the head that a file read carries. `text` is the Markdown alone, for a reader that shows the text. `full` is the Markdown and the whole document of the note, for an editor that merges later work.
+ */
+export type FileReadContent = 'text' | 'full';
+
+/**
  * One immutable revision. Its identity, its parents, and its content never change after acceptance.
  */
 export type FileRevision = {
@@ -850,7 +855,7 @@ export type FileRevision = {
      */
     readonly serverTime: string;
     /**
-     * The whole document of the note at this revision, so a reader can start from it and stay able to merge later work. Null for an attachment revision.
+     * The whole document of the note at this revision, so a reader can start from it and stay able to merge later work. Null for an attachment revision, and for a file read that asked for the text alone.
      */
     readonly document: DocumentUpdate | null;
     /**
@@ -2974,6 +2979,11 @@ export type IfMatch = EntityTagCondition;
  * Entity tag that the client already holds, or a list of them. The answer is 304 with no body when one of them names the current head. The value * means any representation, so it answers 304 for a file that exists.
  */
 export type IfNoneMatch = EntityTagCondition;
+
+/**
+ * The parts of the head that the answer carries. `text` answers the Markdown and a null document. `full` also answers the document of the note, and it is the value when the parameter is absent, so a caller that names none reads what it read before.
+ */
+export type FileReadContent2 = FileReadContent;
 
 /**
  * Largest number of history items to return. Defaults to 50.
@@ -6340,7 +6350,12 @@ export type GetFileData = {
          */
         fileId: Uuid;
     };
-    query?: never;
+    query?: {
+        /**
+         * The parts of the head that the answer carries. `text` answers the Markdown and a null document. `full` also answers the document of the note, and it is the value when the parameter is absent, so a caller that names none reads what it read before.
+         */
+        content?: FileReadContent;
+    };
     url: '/api/workspaces/{workspaceId}/files/{fileId}';
 };
 

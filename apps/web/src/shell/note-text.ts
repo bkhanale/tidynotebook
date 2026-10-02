@@ -20,7 +20,11 @@ export type ServerNoteText = (
 
 /** The head text of one note through the generated `getFile`. */
 const serverNoteText: ServerNoteText = async (workspaceId, fileId) => {
-  const result = await getFile({ path: { workspaceId, fileId } });
+  // A template needs the text and no document (record 0168).
+  const result = await getFile({
+    path: { workspaceId, fileId },
+    query: { content: 'text' },
+  });
   if (result.error !== undefined || result.data === undefined) return null;
   const text = result.data.head?.text;
   return typeof text === 'string' ? text : null;

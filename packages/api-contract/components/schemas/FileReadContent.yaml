@@ -1,0 +1,8 @@
+type: string
+description: >-
+  The parts of the head that a file read carries. `text` is the Markdown
+  alone, for a reader that shows the text. `full` is the Markdown and the
+  whole document of the note, for an editor that merges later work.
+enum:
+  - text
+  - full

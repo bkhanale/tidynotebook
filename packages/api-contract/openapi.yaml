@@ -217,6 +217,8 @@ components:
       $ref: './components/parameters/IfMatch.yaml'
     IfNoneMatch:
       $ref: './components/parameters/IfNoneMatch.yaml'
+    FileReadContent:
+      $ref: './components/parameters/FileReadContent.yaml'
     HistoryLimit:
       $ref: './components/parameters/HistoryLimit.yaml'
     SearchQuery:
@@ -562,6 +564,8 @@ components:
       $ref: './components/schemas/CheckpointMessage.yaml'
     FileSortOrder:
       $ref: './components/schemas/FileSortOrder.yaml'
+    FileReadContent:
+      $ref: './components/schemas/FileReadContent.yaml'
     FilePageToken:
       $ref: './components/schemas/FilePageToken.yaml'
     WorkspaceFileSummary:

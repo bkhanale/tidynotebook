@@ -298,6 +298,54 @@ await test('a created file is readable with a strong entity tag', async () => {
   assert.equal(raw.includes('changesetId'), false);
 });
 
+await test('a read names the parts of the head that it carries', async () => {
+  // Issue 264. Every read carried the text and the whole document, so a
+  // reader that shows the text received more than twice its text.
+  const file = await newFile('notes/parts.md', '# parts\nOne line.\n');
+  const plain = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+  });
+  const text = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+    query: { content: 'text' },
+  });
+  const full = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+    query: { content: 'full' },
+  });
+  // A caller that names no value reads what it read before: the text and
+  // the document.
+  assert.equal(plain.data?.head?.text, '# parts\nOne line.\n');
+  assert.equal(typeof plain.data?.head?.document, 'string');
+  assert.deepEqual(full.data, plain.data);
+  // The text alone carries no document, and the same head and tag.
+  assert.equal(text.data?.head?.text, '# parts\nOne line.\n');
+  assert.equal(text.data?.head?.document, null);
+  assert.equal(text.data?.head?.revisionId, file.revisionId);
+  assert.equal(
+    responseOf(text.response).headers.get('etag'),
+    `"${file.revisionId}"`,
+  );
+  assert.ok(
+    Number(responseOf(text.response).headers.get('content-length')) <
+      Number(responseOf(plain.response).headers.get('content-length')),
+  );
+  // Any other value is outside the contract.
+  const refused = await server.app.inject({
+    method: 'GET',
+    url: `/api/workspaces/${workspaceId}/files/${file.fileId}?content=document`,
+    headers: { cookie, origin: 'http://127.0.0.1' },
+  });
+  assert.equal(refused.statusCode, 400);
+  assert.equal(
+    readProperty(JSON.parse(refused.body), 'code'),
+    'invalid_request',
+  );
+});
+
 await test('a deeply nested note path stays durable', async () => {
   const path = 'work/plans/next/outline.md';
   const file = await newFile(path, '# Nested note\n');

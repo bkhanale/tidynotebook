@@ -188,7 +188,10 @@ export function matchesNoneMatch(
 }
 
 /** The public members of one revision. */
-function revisionBody(revision: RevisionRecord): Record<string, unknown> {
+function revisionBody(
+  revision: RevisionRecord,
+  content: FileReadContent = 'full',
+): Record<string, unknown> {
   return {
     revisionId: revision.revisionId,
     fileId: revision.fileId,
@@ -207,12 +210,26 @@ function revisionBody(revision: RevisionRecord): Record<string, unknown> {
     epoch: revision.epoch,
     merged: revision.merged,
     // The document of the note, as base64, when this revision is its head.
-    // A reader starts from it and merges its own work into it.
+    // A reader starts from it and merges its own work into it. A reader that
+    // shows the text asks for it alone, and gets no document (record 0168).
     document:
-      revision.document === null
+      revision.document === null || content === 'text'
         ? null
         : Buffer.from(revision.document).toString('base64'),
   };
+}
+
+/** The parts of the head that a file read carries (record 0168). */
+export type FileReadContent = 'text' | 'full';
+
+/**
+ * The parts of the head that one file read asks for.
+ *
+ * The boundary has checked the value against the contract, so anything but
+ * `text` is the default `full`, which an earlier client reads by naming none.
+ */
+export function fileReadContent(request: FastifyRequest): FileReadContent {
+  return readProperty(request.query, 'content') === 'text' ? 'text' : 'full';
 }
 
 /** The public members of one accepted revision. */
@@ -686,7 +703,8 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
           headRevisionId: found.file.headRevisionId,
           createdAt: found.file.createdAt,
           updatedAt: found.file.updatedAt,
-          head: head === null ? null : revisionBody(head),
+          head:
+            head === null ? null : revisionBody(head, fileReadContent(request)),
         },
       };
     },

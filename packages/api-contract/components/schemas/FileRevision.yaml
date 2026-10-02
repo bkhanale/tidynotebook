@@ -115,7 +115,8 @@ properties:
     description: >-
       The whole document of the note at this revision, so a reader can
       start from it and stay able to merge later work. Null for an
-      attachment revision.
+      attachment revision, and for a file read that asked for the text
+      alone.
   epoch:
     oneOf:
       - $ref: './DocumentEpoch.yaml'

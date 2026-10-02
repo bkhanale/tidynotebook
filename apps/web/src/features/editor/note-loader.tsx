@@ -168,8 +168,11 @@ export function NoteEditorLoader({
           return;
         }
       }
+      // The editor starts from the document of the server, so it reads the
+      // text and the document together (records 0084, 0168).
       const result = await getFile({
         path: { workspaceId, fileId },
+        query: { content: 'full' },
       });
       if (cancelled) return;
       if (result.error !== undefined || result.data === undefined) {

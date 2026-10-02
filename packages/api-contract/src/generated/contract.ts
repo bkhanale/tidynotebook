@@ -2349,7 +2349,7 @@ export const sharedDefinitions: JsonSchema = {
         }
       ],
       "readOnly": true,
-      "description": "The whole document of the note at this revision, so a reader can start from it and stay able to merge later work. Null for an attachment revision."
+      "description": "The whole document of the note at this revision, so a reader can start from it and stay able to merge later work. Null for an attachment revision, and for a file read that asked for the text alone."
     },
     "Shared91": {
       "oneOf": [
@@ -5884,6 +5884,13 @@ export const operations: readonly OperationEntry[] = [
         "explode": false
       },
       {
+        "name": "content",
+        "location": "query",
+        "required": false,
+        "style": "form",
+        "explode": true
+      },
+      {
         "name": "if-none-match",
         "location": "header",
         "required": false,
@@ -5899,7 +5906,16 @@ export const operations: readonly OperationEntry[] = [
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {},
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The parts of the head that a file read carries. `text` is the Markdown alone, for a reader that shows the text. `full` is the Markdown and the whole document of the note, for an editor that merges later work.",
+            "enum": [
+              "text",
+              "full"
+            ]
+          }
+        },
         "additionalProperties": false
       },
       "headers": {

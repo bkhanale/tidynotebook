@@ -94,6 +94,14 @@ A caller must not lose work when two changes race.
 The rules behind these are in
 [Files, revisions, and atomic changes](files-and-revisions.md).
 
+## The size of an answer
+
+A read carries what its reader uses. `getFile` answers the document of a note
+only for a reader that asks for the full head, and a reader that shows the
+text asks for the text alone. The default keeps the full head, so a bundle of
+an earlier release still opens a note
+([record 0168](../decisions/0168-a-note-read-carries-the-document-only-for-an-editor.md)).
+
 ## Errors
 
 Every failure is an RFC 9457 problem document with a stable application code.

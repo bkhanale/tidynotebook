@@ -1,0 +1,12 @@
+name: content
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  The parts of the head that the answer carries. `text` answers the
+  Markdown and a null document. `full` also answers the document of the
+  note, and it is the value when the parameter is absent, so a caller
+  that names none reads what it read before.
+schema:
+  $ref: '../schemas/FileReadContent.yaml'

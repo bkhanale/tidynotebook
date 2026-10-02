@@ -3,7 +3,8 @@ get:
   summary: Read a file and the content of its accepted head.
   description: >-
     Reports the metadata of one live file and the Markdown of its accepted
-    head revision. The answer carries a strong entity tag that names that
+    head revision, and the document of the note unless the caller asks for
+    the text alone. The answer carries a strong entity tag that names that
     revision, so a later conditional read answers 304 and a later
     conditional write answers 412 when the head has moved. If-None-Match
     with that tag, or with *, answers 304. A deleted file answers 404; its
@@ -14,6 +15,7 @@ get:
     - $ref: '../components/parameters/RequestId.yaml'
     - $ref: '../components/parameters/WorkspaceId.yaml'
     - $ref: '../components/parameters/FileId.yaml'
+    - $ref: '../components/parameters/FileReadContent.yaml'
     - $ref: '../components/parameters/IfNoneMatch.yaml'
   responses:
     '200':

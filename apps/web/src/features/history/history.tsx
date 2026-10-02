@@ -239,7 +239,11 @@ function HistoryDetail({
 
   /** Reads the head of the file as the server holds it now. */
   const readHead = useCallback(async (): Promise<FileHead> => {
-    const result = await getFile({ path: { workspaceId, fileId } });
+    // History shows the text of the head and no document (record 0168).
+    const result = await getFile({
+      path: { workspaceId, fileId },
+      query: { content: 'text' },
+    });
     if (result.error !== undefined || result.data === undefined) {
       const code = result.response?.status ?? 0;
       if (code === 410) return { status: 'purged' };

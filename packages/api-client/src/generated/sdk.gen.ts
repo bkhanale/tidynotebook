@@ -887,7 +887,7 @@ export const deleteFile = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Read a file and the content of its accepted head.
  *
- * Reports the metadata of one live file and the Markdown of its accepted head revision. The answer carries a strong entity tag that names that revision, so a later conditional read answers 304 and a later conditional write answers 412 when the head has moved. If-None-Match with that tag, or with *, answers 304. A deleted file answers 404; its revisions stay readable.
+ * Reports the metadata of one live file and the Markdown of its accepted head revision, and the document of the note unless the caller asks for the text alone. The answer carries a strong entity tag that names that revision, so a later conditional read answers 304 and a later conditional write answers 412 when the head has moved. If-None-Match with that tag, or with *, answers 304. A deleted file answers 404; its revisions stay readable.
  */
 export const getFile = <ThrowOnError extends boolean = false>(options: Options<GetFileData, ThrowOnError>): RequestResult<GetFileResponses, GetFileErrors, ThrowOnError> => (options.client ?? client).get<GetFileResponses, GetFileErrors, ThrowOnError>({
     security: [{
