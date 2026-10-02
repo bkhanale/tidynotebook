@@ -53,7 +53,7 @@ import {
   type SyntaxNodeRef,
   type Tree,
 } from '@lezer/common';
-import { glyph } from './icon-mark.ts';
+import { glyph } from '@notesapp/ui';
 import {
   alertMarkerLength,
   alertTitle,
@@ -331,7 +331,7 @@ class RuleWidget extends WidgetType {
  * colour of the ink fill.
  *
  * The drawing is the line of `CheckIcon` on the one grid of the icon set,
- * which `./icon-mark.ts` holds for the editor. Its points come from
+ * which `glyph` of `@notesapp/ui` draws. Its points come from
  * `@notesapp/markdown`, which draws the same mark on the published page.
  */
 function taskCheckMark(): SVGElement {

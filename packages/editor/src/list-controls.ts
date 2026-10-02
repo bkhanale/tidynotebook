@@ -20,7 +20,7 @@ import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
 import { gripPointerQuery } from './editor-theme.ts';
-import { glyph, gripParts } from './icon-mark.ts';
+import { glyph, gripParts } from '@notesapp/ui';
 import {
   listItemAt,
   moveListItemSpec,

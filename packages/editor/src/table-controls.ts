@@ -29,7 +29,7 @@
 import { Facet, type Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
-import { glyph, gripParts, plusParts } from './icon-mark.ts';
+import { glyph, gripParts, plusParts } from '@notesapp/ui';
 import { dragStep, followPointer, type DragInput } from './pointer-drag.ts';
 import { cellFormatContext, type FormatContext } from './format-context.ts';
 import {

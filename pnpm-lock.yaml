@@ -503,6 +503,9 @@ importers:
       '@notesapp/note-document':
         specifier: workspace:*
         version: link:../note-document
+      '@notesapp/ui':
+        specifier: workspace:*
+        version: link:../ui
       diff:
         specifier: 'catalog:'
         version: 9.0.0

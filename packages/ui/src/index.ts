@@ -105,6 +105,17 @@ export {
   touchFieldText,
 } from './control-classes.ts';
 export { defaultIconSize, iconAttributes, iconGrid } from './icon-grid.ts';
+export type { GlyphPart } from './glyph-parts.ts';
+export {
+  arrowDownParts,
+  arrowUpParts,
+  checkParts,
+  closeParts,
+  copyParts,
+  gripParts,
+  plusParts,
+} from './glyph-parts.ts';
+export { glyph } from './glyph.ts';
 export type { SelectOption } from './controls.tsx';
 export {
   Badge,

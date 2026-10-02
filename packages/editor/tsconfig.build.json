@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "jsx": "react-jsx",
     "lib": ["ES2024", "DOM"],
     "composite": true,
     "declaration": true,
@@ -14,6 +15,7 @@
   "exclude": ["src/**/*.test.ts"],
   "references": [
     { "path": "../markdown/tsconfig.build.json" },
-    { "path": "../note-document/tsconfig.build.json" }
+    { "path": "../note-document/tsconfig.build.json" },
+    { "path": "../ui/tsconfig.build.json" }
   ]
 }

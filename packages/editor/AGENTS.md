@@ -99,5 +99,4 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/list-move.ts`        | Moves a list item among its siblings (0106)  |
 | `src/list-controls.ts`    | The grip that drags a list item (0106)       |
 | `src/format-context.ts`   | Where the caret stands for the tools (0094)  |
-| `src/icon-mark.ts`        | The one glyph grid of the editor             |
 | `src/spell-check.ts`      | What the browser spell check skips (0103)    |

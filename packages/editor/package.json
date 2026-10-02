@@ -29,6 +29,7 @@
     "@lezer/markdown": "1.7.2",
     "@notesapp/markdown": "workspace:*",
     "@notesapp/note-document": "workspace:*",
+    "@notesapp/ui": "workspace:*",
     "diff": "catalog:",
     "y-codemirror.next": "0.3.6",
     "yjs": "catalog:"

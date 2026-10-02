@@ -19,8 +19,8 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
   `edgeControlClassName` at a frame edge, `controlStripClassName` for a row
   that scrolls (0094), and `focusOutline` with `focusOutlineInset`.
   One element takes one colour class, a tone is in a recipe, and a class is
-  whole, as Tailwind reads the text. `src/icon-grid.ts` is the grid of an icon:
-  a 24 viewport, a stroke of 1.5, the sizes 16 and 20, and its attributes.
+  whole, as Tailwind reads the text. `src/icon-grid.ts` is the grid of an icon
+  (24, 1.5, 16 and 20); `src/glyph.ts` draws `glyph-parts.ts` in plain DOM.
 - `src/layout.tsx` holds the page frame, `pageGutter`, and the row of every
   page from `layout-classes.ts` (0137). `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
