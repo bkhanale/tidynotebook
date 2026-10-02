@@ -32,6 +32,7 @@
     "@codemirror/language": "catalog:",
     "@codemirror/legacy-modes": "6.5.4",
     "@lezer/common": "catalog:",
+    "@notesapp/core": "workspace:*",
     "@lezer/highlight": "catalog:",
     "@types/hast": "3.0.5",
     "@types/mdast": "catalog:",

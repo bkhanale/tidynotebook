@@ -66,6 +66,24 @@ await test('each form of a wiki link becomes a standard link', () => {
   assert.equal(home('[[Plan.md]]'), '[Plan.md](Projects/Plan.md)');
 });
 
+await test('an embed is a picture only for an image type of the workspace', () => {
+  // The converter read svg, avif and bmp as pictures, which no workspace
+  // keeps, so a vault that held one wrote a picture of nothing.
+  const resolveAll = wikiLinkResolver([
+    'a.md',
+    'attachments/x.svg',
+    'attachments/y.JPG',
+  ]);
+  assert.equal(
+    convertWikiLinks('![[x.svg]]', 'a.md', resolveAll).text,
+    '![[x.svg]]',
+  );
+  assert.equal(
+    convertWikiLinks('![[y.JPG]]', 'a.md', resolveAll).text,
+    '![y.JPG](attachments/y.JPG)',
+  );
+});
+
 await test('a target that does not resolve keeps its text', () => {
   for (const text of [
     '[[Missing]]',

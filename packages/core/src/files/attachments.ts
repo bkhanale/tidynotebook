@@ -16,6 +16,31 @@ export const allowedMediaTypes = [
 
 export type AttachmentMediaType = (typeof allowedMediaTypes)[number];
 
+/**
+ * The file extension of each accepted image, in lower case, with no dot.
+ *
+ * An import reads the type of an image of an archive from its name, and the
+ * converter of wiki links reads which embed is a picture, from this one list.
+ */
+export const attachmentExtensions: Readonly<
+  Record<string, AttachmentMediaType>
+> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+};
+
+/** The media type that the name of an image states, or `null`. */
+export function attachmentMediaTypeOf(
+  path: string,
+): AttachmentMediaType | null {
+  const dot = path.lastIndexOf('.');
+  if (dot === -1 || dot < path.lastIndexOf('/')) return null;
+  return attachmentExtensions[path.slice(dot + 1).toLowerCase()] ?? null;
+}
+
 /** True when a media type is an accepted attachment image type. */
 export function isAllowedMediaType(
   value: string,

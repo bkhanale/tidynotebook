@@ -43,6 +43,7 @@ import { pipeline } from 'node:stream/promises';
 import { Busboy } from '@fastify/busboy';
 import type { FastifyRequest } from 'fastify';
 import {
+  attachmentMediaTypeOf,
   commitChangeset,
   createAttachmentChangeset,
   createFileChangeset,
@@ -100,14 +101,6 @@ import {
   type ArchiveEntry,
   type ArchiveSource,
 } from './unzip.ts';
-
-const imageTypes = new Map([
-  ['.png', 'image/png'],
-  ['.jpg', 'image/jpeg'],
-  ['.jpeg', 'image/jpeg'],
-  ['.gif', 'image/gif'],
-  ['.webp', 'image/webp'],
-] as const);
 
 /**
  * The most bytes of Markdown that one changeset of an import holds.
@@ -271,11 +264,9 @@ async function receiveArchive(
   return size;
 }
 
+/** The image type that the name of an entry states, from the list of core. */
 function mediaType(path: string): string | null {
-  const lower = path.toLowerCase();
-  for (const [suffix, type] of imageTypes)
-    if (lower.endsWith(suffix)) return type;
-  return null;
+  return attachmentMediaTypeOf(path);
 }
 
 async function livePaths(

@@ -23,6 +23,7 @@
  * `wikiLinkResolver` resolves a target the way Obsidian does, from a list of
  * the paths of a workspace or of an archive. Nothing here reads a store.
  */
+import { attachmentMediaTypeOf } from '@notesapp/core';
 import type { Nodes } from 'mdast';
 import { visit } from 'unist-util-visit';
 import { headingSlug } from './heading-slug.ts';
@@ -217,9 +218,6 @@ type Range = { readonly from: number; readonly to: number };
 /** A wiki link as the source writes it, without its brackets. */
 const wikiLink = /\[\[([^[\]\n]+)\]\]/g;
 
-/** The picture suffixes that an embed draws as a picture. */
-const pictureSuffix = /\.(?:png|jpe?g|gif|webp|svg|avif|bmp)$/i;
-
 /** An alias of an embedded picture that states its size, such as `300x200`. */
 const pictureSize = /^\d+(?:x\d+)?$/;
 
@@ -277,7 +275,9 @@ function converted(
   const path = resolve(parts.target, sourcePath);
   if (path === null) return null;
   const written = parts.target;
-  if (embed && pictureSuffix.test(path)) {
+  // An embed draws a picture of an image type that a workspace keeps, from
+  // the one list of `@notesapp/core`.
+  if (embed && attachmentMediaTypeOf(path) !== null) {
     const name = written.slice(written.lastIndexOf('/') + 1);
     const alt =
       parts.alias === '' || pictureSize.test(parts.alias) ? name : parts.alias;

@@ -205,6 +205,8 @@ export type {
 } from './files/attachments.ts';
 export {
   allowedMediaTypes,
+  attachmentExtensions,
+  attachmentMediaTypeOf,
   attachmentStates,
   createAttachmentChangeset,
   isAllowedMediaType,

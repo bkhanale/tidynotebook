@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   allowedMediaTypes,
+  attachmentExtensions,
+  attachmentMediaTypeOf,
   attachmentStates,
   isAllowedMediaType,
   isAttachmentState,
@@ -48,4 +50,22 @@ await test('every declared attachment state is accepted', () => {
 await test('a state outside the list is refused', () => {
   for (const value of ['deleted', 'pending', 'Finalized', ''])
     assert.equal(isAttachmentState(value), false, value);
+});
+
+await test('the name of an image states one accepted media type', () => {
+  // One list for the import and the wiki links (review of record 0172).
+  assert.equal(attachmentMediaTypeOf('attachments/a.PNG'), 'image/png');
+  assert.equal(attachmentMediaTypeOf('a/b.jpeg'), 'image/jpeg');
+  assert.equal(attachmentMediaTypeOf('a/b.jpg'), 'image/jpeg');
+  for (const path of [
+    'a.svg',
+    'a.avif',
+    'a.bmp',
+    'a.md',
+    'folder.png/a',
+    'png',
+  ])
+    assert.equal(attachmentMediaTypeOf(path), null, path);
+  for (const type of Object.values(attachmentExtensions))
+    assert.ok(allowedMediaTypes.includes(type), type);
 });
