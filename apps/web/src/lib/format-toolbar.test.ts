@@ -18,6 +18,7 @@ import {
   formatToolGroupClassName,
   formatToolTitle,
   keySignsText,
+  pressKeepsTextFocus,
   slashMenuCommands,
   stripOverflow,
   tableActions,
@@ -278,5 +279,51 @@ await test('the ends of a row that scrolls state where tools hide', () => {
   assert.deepEqual(
     stripOverflow({ scrollLeft: 0, scrollWidth: 641, clientWidth: 640 }),
     { start: false, end: false },
+  );
+});
+
+await test('a press on a phone keeps the focus and the keyboard in the text', () => {
+  // Review of issue 261: a tap on a tool or on a scroll arrow gave it the
+  // focus, so the keyboard of a phone closed and opened again.
+  for (const pointerType of ['mouse', 'touch', 'pen'])
+    for (const composing of [false, true])
+      assert.equal(
+        pressKeepsTextFocus({ control: 'scroll', pointerType, composing }),
+        true,
+        `${pointerType} on an arrow`,
+      );
+  assert.equal(
+    pressKeepsTextFocus({
+      control: 'tool',
+      pointerType: 'touch',
+      composing: false,
+    }),
+    true,
+  );
+  assert.equal(
+    pressKeepsTextFocus({
+      control: 'tool',
+      pointerType: 'pen',
+      composing: false,
+    }),
+    true,
+  );
+  // A mouse gives the tool the focus, and so does a finger while the text
+  // composes, because the focus ends the composition before the action.
+  assert.equal(
+    pressKeepsTextFocus({
+      control: 'tool',
+      pointerType: 'mouse',
+      composing: false,
+    }),
+    false,
+  );
+  assert.equal(
+    pressKeepsTextFocus({
+      control: 'tool',
+      pointerType: 'touch',
+      composing: true,
+    }),
+    false,
   );
 });

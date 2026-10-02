@@ -236,6 +236,33 @@ export function toolbarFocusTarget(
   return null;
 }
 
+/** One press of a pointer on a control of the band of tools. */
+export type ToolbarPress = {
+  /** A tool of the row, or a control that scrolls the row. */
+  readonly control: 'tool' | 'scroll';
+  /** The `pointerType` of the press: `mouse`, `touch` or `pen`. */
+  readonly pointerType: string;
+  /** Whether the text holds an IME composition. */
+  readonly composing: boolean;
+};
+
+/**
+ * Whether a press keeps the focus in the note text (issue 261).
+ *
+ * The band prevents the default of a press that keeps the focus, so the
+ * control never takes it. A control that scrolls the row only moves the row,
+ * so it never takes the focus. On a phone, a tool that took the focus would
+ * close the keyboard and open it again, so a tool that a finger or a pen
+ * presses keeps the focus in the text, and its action runs at the caret.
+ * While the text composes, a tool takes the focus as a mouse tool does,
+ * because that ends the composition, and a format action never runs inside
+ * one. The action then gives the focus back to the text.
+ */
+export function pressKeepsTextFocus(press: ToolbarPress): boolean {
+  if (press.control === 'scroll') return true;
+  return press.pointerType !== 'mouse' && !press.composing;
+}
+
 /**
  * The classes of the band that holds the row, above the note text.
  *

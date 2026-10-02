@@ -21,9 +21,11 @@
  * is disabled, because a table line is a row. A table carries its own
  * controls for rows and columns, so the row never changes (record 0096).
  *
- * A tool takes the focus when it is pressed. That ends an IME composition in
+ * A press of a mouse gives a tool the focus. That ends an IME composition in
  * the editor before the action runs, and the action then gives the focus back
- * to the editor.
+ * to the editor. A finger on a phone keeps the focus in the text, so the
+ * keyboard stays open, and a control that scrolls the row never takes the
+ * focus (`pressKeepsTextFocus`).
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
@@ -40,12 +42,14 @@ import {
   formatToolbarScrollWords,
   stripOverflow,
   type StripOverflow,
+  type ToolbarPress,
   formatToolbarFrameClassName,
   formatToolbarLabel,
   formatToolGroupClassName,
   formatToolTitle,
   formatToolbar,
   keySignsText,
+  pressKeepsTextFocus,
   slashMenuCommands,
   toolApplies,
   toolbarFocusTarget,
@@ -142,11 +146,41 @@ export function FormatToolbar({
     });
   };
 
+  // Whether the note text holds an IME composition, which a press reads.
+  const composing = useRef(false);
+  useEffect(() => {
+    const start = (): void => {
+      composing.current = true;
+    };
+    const end = (): void => {
+      composing.current = false;
+    };
+    document.addEventListener('compositionstart', start, true);
+    document.addEventListener('compositionend', end, true);
+    return () => {
+      document.removeEventListener('compositionstart', start, true);
+      document.removeEventListener('compositionend', end, true);
+    };
+  }, []);
+
   let place = 0;
   return (
     <div className={formatToolbarFrameClassName()}>
       <div
         className={`${formatToolbarColumnClassName()} ${formatToolbarBandClassName()}`}
+        onPointerDown={(event): void => {
+          const target = event.target;
+          const control =
+            target instanceof Element ? target.closest('button') : null;
+          if (control === null) return;
+          const press: ToolbarPress = {
+            control:
+              rowRef.current?.contains(control) === true ? 'tool' : 'scroll',
+            pointerType: event.pointerType,
+            composing: composing.current,
+          };
+          if (pressKeepsTextFocus(press)) event.preventDefault();
+        }}
       >
         {overflow.start ? (
           <Button
