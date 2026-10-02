@@ -14,9 +14,8 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
 
 - `parse.ts` gives the mdast tree with source offsets. `render.ts` gives
   sanitized HTML. `links.ts` extracts note links and attachment references.
-  `plain-text.ts` is the one plain text rule: `readableText` gives the words
-  a reader sees, which the search index holds and the device search reads
-  (0162, 0167), and `indexNote` gives the links and that text from one parse.
+  `plain-text.ts` is the one plain text rule, `readableText`, which search
+  indexes and quotes (0162, 0167); `indexNote` gives links and text at once.
 - `policy.ts` classifies a URL. `limits.ts` holds the limits and
   `MarkdownLimitError`, `math.ts` and `math-syntax.ts` the math rules,
   `alerts.ts` the alert marker and `ordered-markers.ts` the style and label of
@@ -32,8 +31,7 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
   renderer and KaTeX in the deferred chunks. A module here runs nothing when
   it loads, and a stylesheet belongs to the caller that renders the markup.
 - No input and no output of any kind happens here. No attachment is fetched
-  and no diagram is rendered. A caller resolves those through typed
-  resolvers.
+  and no diagram is rendered. A caller resolves those through typed resolvers.
 
 ## Allowed imports
 
