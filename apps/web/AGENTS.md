@@ -94,6 +94,7 @@ on each rule below.
 | `src/shell/header-slot.tsx`                   | Where a route fills the header    |
 | `src/lib/note-menu.ts`                        | The rows of the note menu         |
 | `src/lib/note-name-field.ts`                  | The name field of the open note   |
+| `src/lib/note-auto-name.ts`                   | The name a heading gives (0163)   |
 | `src/shell/action-icons.tsx`                  | The one glyph of every action     |
 | `src/shell/workspaces.tsx`                    | The workspace switcher            |
 | `src/shell/sidebar-view-bar.tsx`              | The view bar of the sidebar       |

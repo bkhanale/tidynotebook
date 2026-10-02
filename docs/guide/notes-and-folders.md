@@ -7,18 +7,26 @@ name, sort, move, find, and remove a note.
 
 Select **All notes** or a folder name to choose where a new note goes. Then
 select **New note**, the plus button above the tree, or **New note** in the
-command palette. You can also use
-**New note in this folder** in a folder menu. The note opens at once with a
-name such as `New note`, and the name is selected so you can type over it. A
-new note is empty, and until you select Save it lives on your device only. The
-sidebar marks it **Local**.
+command palette. You can also use **New note in this folder** in a folder
+menu. The note opens at once with a name such as `New note`, and the cursor is
+in the note, so you can write at once. A new note goes to your server when a
+connection is there. Until then the sidebar marks it **Local**.
 
 ## Name a note
 
-The name is the last part of the line at the top of the screen. Select it and
-type. The name is kept when you press **Enter** or select something else.
-**Enter** then puts the cursor in the note, so you can write at once. Press
-**Escape** to keep the name that the note had.
+Start a new note with a heading, for example `# Trip to Lisbon`. When you
+pause, the note takes the heading as its name. While the name is still the
+name that the heading gave, it follows the heading when you change it. When
+the folder already holds a note of that name, the note takes the name with a
+number after it, for example `Trip to Lisbon 2`. A note that starts with text
+and not with a heading keeps its name. Links to the note from other notes
+follow a new name.
+
+To give a note a name of your own, select the name, which is the last part of
+the line at the top of the screen, and type. The name is kept when you press
+**Enter** or select something else. **Enter** then puts the cursor in the
+note. Press **Escape** to keep the name that the note had. A name that you
+type stays when the heading changes. A daily note keeps the name of its date.
 
 - A name needs no `.md` ending. If you type one it is removed, because every
   note is already a Markdown file.

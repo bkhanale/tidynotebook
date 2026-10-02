@@ -48,12 +48,14 @@ it, and **Escape** or a tap outside it to close it.
 
 ## Your first note
 
-1. Select **New note**, the plus button in the sidebar. The note opens at once and its name is
-   selected, so you can type the name over it.
-2. Press **Tab** or select the text area, and start writing. Markdown works
-   here. See [Markdown](markdown.md).
-3. Stop typing for a moment. The note saves itself and makes a version.
-   **Ctrl + S**, or **Cmd + S** on a Mac, makes a version at once.
+1. Select **New note**, the plus button in the sidebar. The note opens at once
+   with the cursor in it.
+2. Start with a heading, for example `# My first note`, and write. Markdown
+   works here. See [Markdown](markdown.md).
+3. Stop typing for a moment. The note saves itself, makes a version, and takes
+   the heading as its name. **Ctrl + S**, or **Cmd + S** on a Mac, makes a
+   version at once. See [Notes and folders](notes-and-folders.md) to give a
+   note a name of your own.
 
 The line at the bottom of the sidebar tells you where your work is. It reads
 **Everything is saved to the server.** when your server has it. See

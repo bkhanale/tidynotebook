@@ -34,8 +34,6 @@ import {
 } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { PublicationScope } from '@notesapp/core';
-import { generateUUID } from '@notesapp/core';
-import { createNote } from '@notesapp/sync';
 import {
   AnchoredMenu,
   Badge,
@@ -56,14 +54,14 @@ import { useDeleteNotice } from '../features/trash/trash.tsx';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { applyMoves } from '../features/folders/apply-moves.ts';
 import { downloadNote } from '../features/export/export.ts';
+import { duplicateNote } from '../features/notes/duplicate-note.ts';
 import { actionIcon } from './action-icons.tsx';
 import { useFiles, type OpenFoldersControl } from './files.tsx';
 import { useRowWindow } from './row-window.ts';
 import type { TreeDrag } from './tree-drag.ts';
 import type { DragItem } from '../lib/folder-moves.ts';
 import type { TreeNode } from '../lib/note-list.ts';
-import { freeCopyPath, newNoteDraft } from '../lib/new-note-draft.ts';
-import { baseNameOf, displayNoteName, folderOf } from '../lib/note-name.ts';
+import { baseNameOf, displayNoteName } from '../lib/note-name.ts';
 import { copyNoteLink, noteAddress } from '../lib/copy-link.ts';
 import { copyText } from '../platform.ts';
 import {
@@ -492,22 +490,15 @@ export function NoteTree({
           });
           return;
         }
-        const fileId = generateUUID();
+        let fileId: string;
         try {
-          await createNote(
-            activeStore,
-            newNoteDraft({
-              accountId,
-              workspaceId,
-              path: freeCopyPath(
-                files.notes.map((note) => note.path),
-                folderOf(target.path),
-                name,
-              ),
-              ids: { fileId, workingCopyId: generateUUID() },
-              text: cached.text,
-            }),
-          );
+          fileId = await duplicateNote(activeStore, {
+            accountId,
+            workspaceId,
+            path: target.path,
+            text: cached.text,
+            takenPaths: files.notes.map((note) => note.path),
+          });
         } catch {
           setMessage({
             tone: 'problem',

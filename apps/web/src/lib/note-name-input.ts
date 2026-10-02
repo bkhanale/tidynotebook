@@ -13,7 +13,13 @@ export function noteNameInputPolicy(): NoteNameInputPolicy {
   return { autoComplete: 'off' };
 }
 
-/** A coarse touch screen needs the native tap to open its keyboard. */
-export function shouldFocusNewNoteNameOnOpen(coarseTouch: boolean): boolean {
+/**
+ * Whether a new note takes the focus as it opens.
+ *
+ * The caret goes into the text of a new note, where its first heading names
+ * it (record 0163). A coarse touch screen needs the native tap to open its
+ * keyboard, so it waits for that tap.
+ */
+export function shouldFocusNewNoteOnOpen(coarseTouch: boolean): boolean {
   return !coarseTouch;
 }

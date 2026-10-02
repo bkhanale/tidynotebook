@@ -68,7 +68,7 @@ export function useCreateNote(
         }
         setError(null);
         await navigate(`/w/${workspaceId}/notes/${fileId}`, {
-          state: { focusNoteName: true, noteName: displayNoteName(path) },
+          state: { focusNoteText: true, noteName: displayNoteName(path) },
         });
       })();
     },

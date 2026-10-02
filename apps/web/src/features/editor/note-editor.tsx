@@ -26,7 +26,6 @@ import { finalizeAttachment, uploadAttachment } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { classifyUrl, portableRelativePath } from '@notesapp/markdown';
 import {
-  createNote,
   isLocalStorageError,
   saveCheckpointMessage,
   type Draft,
@@ -91,7 +90,6 @@ import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
 import { useInsertTemplate } from './insert-template.ts';
 import { useCopyNote } from './copy-note.tsx';
-import { freeCopyPath } from '../../lib/new-note-draft.ts';
 import {
   baseNameOf,
   displayNoteName,
@@ -99,7 +97,9 @@ import {
   folderOf,
 } from '../../lib/note-name.ts';
 import { commitNoteName } from '../../lib/note-name-commit.ts';
-import { shouldFocusNewNoteNameOnOpen } from '../../lib/note-name-input.ts';
+import { shouldFocusNewNoteOnOpen } from '../../lib/note-name-input.ts';
+import { useHeadingName } from './heading-name.ts';
+import { duplicateNote as makeCopy } from '../notes/duplicate-note.ts';
 import { OutlinePanel } from './outline.tsx';
 import { useDeleteNotice } from '../trash/trash.tsx';
 import { createDiagramFrame, diagramFramePath } from '../../diagram/frame.ts';
@@ -163,7 +163,8 @@ export type NoteEditorProps = {
   readonly initialPath: string;
   readonly initialWorkingCopyId?: string | undefined;
   readonly initialSequence?: number | undefined;
-  readonly focusName?: boolean | undefined;
+  /** A new note: the caret goes into its text (record 0163). */
+  readonly focusText?: boolean | undefined;
   readonly onOpenLink?: ((target: LinkTarget) => void) | undefined;
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
   /** Opens the Move to folder dialog that the note screen owns. */
@@ -219,7 +220,7 @@ function NoteEditorBody({
   initialPath,
   initialWorkingCopyId,
   initialSequence = 0,
-  focusName = false,
+  focusText = false,
   onOpenLink,
   onQueued,
   onMoveToFolder,
@@ -360,16 +361,16 @@ function NoteEditorBody({
   );
 
   useEffect(() => {
-    if (!focusName) return;
+    if (!focusText) return;
     if (
-      !shouldFocusNewNoteNameOnOpen(
+      !shouldFocusNewNoteOnOpen(
         window.matchMedia('(hover: none) and (pointer: coarse)').matches,
       )
     )
       return;
-    nameInputRef.current?.focus();
-    nameInputRef.current?.select();
-  }, [focusName]);
+    viewRef.current?.focus();
+  }, [focusText]);
+  const headingName = useHeadingName(initialText, validPathRef, bufferRef);
 
   const live = useRef({
     store,
@@ -412,6 +413,19 @@ function NoteEditorBody({
     folderRef.current = folderOf(next);
     validPathRef.current = next;
     setPathError('');
+    setName(displayNoteName(baseNameOf(next)));
+    headingName.adopt(bufferRef.current);
+  };
+
+  /** Gives an automatic name the heading at a version (record 0163). */
+  const followHeading = (): void => {
+    const next = nameTypingRef.current
+      ? null
+      : headingName.next(noteList.notes, fileId);
+    if (next === null) return;
+    validPathRef.current = next;
+    sequenceRef.current += 1;
+    nameEditPendingRef.current = true;
     setName(displayNoteName(baseNameOf(next)));
   };
 
@@ -600,6 +614,7 @@ function NoteEditorBody({
     if (bufferWasReplaced()) return Promise.resolve(false);
     if (versionedSequenceRef.current === sequenceRef.current)
       return Promise.resolve(false);
+    followHeading();
     // The name was checked when the person kept it. Another note can take
     // the same name later, from another tab or device, and the server would
     // refuse the save, so the reason stands on the note instead.
@@ -1251,33 +1266,18 @@ function NoteEditorBody({
   /** Copies the open note into a new note beside it. */
   const duplicateNote = useCallback((): void => {
     const current = live.current;
-    const copyId = generateUUID();
-    const copy: Draft = {
-      accountId: current.accountId,
-      workspaceId: current.workspaceId,
-      workingCopyId: generateUUID(),
-      fileId: copyId,
-      baseRevisionId: null,
+    void makeCopy(current.store, {
+      ...current,
+      path: validPathRef.current,
       text: bufferRef.current,
-      path: freeCopyPath(
-        noteList.notes.map((entry) => entry.path),
-        folderRef.current,
-        displayNoteName(baseNameOf(validPathRef.current)),
-      ),
-      deleted: false,
-      sequence: 1,
-    };
-    void (async (): Promise<void> => {
-      try {
-        await createNote(current.store, copy);
-      } catch (failure: unknown) {
+      takenPaths: noteList.notes.map((entry) => entry.path),
+    }).then(
+      (copyId) => navigate(`/w/${current.workspaceId}/notes/${copyId}`),
+      (failure: unknown) =>
         setStorageError(
           isLocalStorageError(failure) ? failure.kind : 'aborted',
-        );
-        return;
-      }
-      void navigate(`/w/${current.workspaceId}/notes/${copyId}`);
-    })();
+        ),
+    );
   }, [noteList.notes, navigate]);
 
   /** Deletes the open note, tells the person, and leaves for the note list. */
@@ -1415,7 +1415,7 @@ function NoteEditorBody({
         name={name}
         nameError={pathError}
         nameInputRef={nameInputRef}
-        selectOnFirstFocus={focusName}
+        selectOnFirstFocus={focusText}
         onNameChange={typeName}
         onNameCommit={commitName}
         onNameRevert={revertName}

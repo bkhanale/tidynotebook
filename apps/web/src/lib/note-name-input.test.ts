@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   noteNameInputPolicy,
-  shouldFocusNewNoteNameOnOpen,
+  shouldFocusNewNoteOnOpen,
 } from './note-name-input.ts';
 
 await test('the note name does not ask for saved personal data', () => {
@@ -11,7 +11,7 @@ await test('the note name does not ask for saved personal data', () => {
   assert.deepEqual(noteNameInputPolicy(), { autoComplete: 'off' });
 });
 
-await test('a touch screen waits for a native tap on the new note name', () => {
-  assert.equal(shouldFocusNewNoteNameOnOpen(true), false);
-  assert.equal(shouldFocusNewNoteNameOnOpen(false), true);
+await test('a touch screen waits for a native tap on a new note', () => {
+  assert.equal(shouldFocusNewNoteOnOpen(true), false);
+  assert.equal(shouldFocusNewNoteOnOpen(false), true);
 });

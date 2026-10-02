@@ -142,10 +142,10 @@ export function NoteEditorLoader({
   statusKind.current = status.kind;
   const [linkNotice, setLinkNotice] = useState('');
   const routeState: unknown = location.state;
-  const focusName =
+  const focusText =
     routeState !== null &&
     typeof routeState === 'object' &&
-    Object.fromEntries(Object.entries(routeState))['focusNoteName'] === true;
+    Object.fromEntries(Object.entries(routeState))['focusNoteText'] === true;
 
   useEffect(() => {
     let cancelled = false;
@@ -385,7 +385,7 @@ export function NoteEditorLoader({
         initialPath={status.path}
         initialWorkingCopyId={status.workingCopyId}
         initialSequence={status.sequence}
-        focusName={focusName}
+        focusText={focusText}
         onMoveToFolder={onMoveToFolder}
         onPublish={onPublish}
         onHeadReplaced={readAgain}

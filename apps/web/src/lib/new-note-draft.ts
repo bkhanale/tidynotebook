@@ -19,9 +19,10 @@ export type NewNoteIds = {
 /**
  * The first free path of a name inside one folder: the name itself, then the
  * name with 2, 3 and so on after it. Two paths that differ only in case are
- * one name, as the workspace treats them.
+ * one name, as the workspace treats them. New note, Duplicate and the name
+ * a heading gives (record 0163) all take a free name this way.
  */
-function freeNumberedPath(
+export function freeNamedPath(
   takenPaths: readonly string[],
   folder: string,
   name: string,
@@ -45,7 +46,7 @@ export function freeNotePath(
   takenPaths: readonly string[],
   folder: string,
 ): string {
-  return freeNumberedPath(takenPaths, folder, 'New note');
+  return freeNamedPath(takenPaths, folder, 'New note');
 }
 
 /** Picks a free name for the copy of a note beside it, `Plan copy` first. */
@@ -54,7 +55,7 @@ export function freeCopyPath(
   folder: string,
   baseName: string,
 ): string {
-  return freeNumberedPath(takenPaths, folder, `${baseName} copy`);
+  return freeNamedPath(takenPaths, folder, `${baseName} copy`);
 }
 
 /**
