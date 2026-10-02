@@ -28,6 +28,7 @@
  */
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { menuSurfaceStyle } from '@notesapp/ui';
 
 /**
  * Every custom property the adapter reads from the built stylesheet.
@@ -276,8 +277,9 @@ export function inlineHtmlRules(): Record<string, Record<string, string>> {
  * the recipes of `packages/ui`, so these rules place it and nothing more:
  * the chrome plane of the band, its divider, and the space between the
  * controls. The completion list, the list of `[[` and of the slash menu, is
- * DOM of CodeMirror that no class reaches, so it takes the values of the
- * menu of `menuSurfaceClassName` and of a row of `rowClassName`: the card
+ * DOM of CodeMirror that no class reaches, so it takes `menuSurfaceStyle`,
+ * the values of the classes of a menu, and the values of a row of
+ * `rowClassName`: the card
  * plane, the subtle edge, the menu radius and the overlay step, rows of the
  * control step at the row height with the row radius, the hover fill, and
  * the fill of a chosen row for the row the keys stand on.
@@ -334,14 +336,10 @@ export function panelRules(): Record<
         'color-mix(in srgb, var(--notes-focus) 40%, transparent)',
     },
     '.cm-tooltip': {
-      backgroundColor: 'var(--notes-surface-card)',
+      ...menuSurfaceStyle,
       color: 'var(--notes-text)',
-      border: '1px solid var(--notes-border-subtle)',
-      borderRadius: 'var(--radius-lg)',
-      boxShadow: 'var(--shadow-overlay)',
     },
     '.cm-tooltip.cm-tooltip-autocomplete': {
-      padding: 'var(--spacing)',
       overflow: 'hidden',
     },
     '.cm-tooltip.cm-tooltip-autocomplete > ul': {

@@ -496,16 +496,62 @@ export function checkboxClassNames(
 }
 
 /**
+ * The parts of the surface of a menu: each class and the value it sets.
+ *
+ * One table states both, so the classes of a menu and the style of a menu
+ * that no class reaches cannot drift. `theme-variables.test.ts` holds each
+ * value to the theme variable that its class reads.
+ */
+const menuSurfaceParts = [
+  {
+    classes: 'rounded-lg',
+    property: 'borderRadius',
+    value: 'var(--radius-lg)',
+  },
+  {
+    classes: 'border border-edge-subtle',
+    property: 'border',
+    value: '1px solid var(--notes-border-subtle)',
+  },
+  {
+    classes: 'bg-card',
+    property: 'backgroundColor',
+    value: 'var(--notes-surface-card)',
+  },
+  { classes: 'p-1', property: 'padding', value: 'var(--spacing)' },
+  {
+    classes: 'shadow-overlay',
+    property: 'boxShadow',
+    value: 'var(--shadow-overlay)',
+  },
+] as const;
+
+/**
  * The surface of a menu, as classes: a raised card of the overlay step.
  *
  * `rounded-lg`, the subtle edge of a raised surface and the card plane, with
  * a small inset for its rows (records 0052 and 0065). A menu of `menu.tsx`
- * reads it, and the typed adapter of the editor draws the completion list of
- * the editor with the same values, because CodeMirror builds that list.
+ * reads it.
  */
 export function menuSurfaceClassName(): string {
-  return `flex flex-col rounded-lg border border-edge-subtle bg-card p-1 shadow-overlay ${transitionRaise}`;
+  return `flex flex-col ${menuSurfaceParts.map((part) => part.classes).join(' ')} ${transitionRaise}`;
 }
+
+/**
+ * The surface of a menu, as style values, for a typed adapter whose menu no
+ * class reaches: the completion list of the editor, which CodeMirror builds.
+ */
+export const menuSurfaceStyle: Readonly<Record<string, string>> =
+  Object.fromEntries(
+    menuSurfaceParts.map((part) => [part.property, part.value]),
+  );
+
+/** The class and the value of each part of the surface of a menu. */
+export const menuSurfaceValues: readonly {
+  readonly classes: string;
+  readonly property: string;
+  readonly value: string;
+}[] = menuSurfaceParts;
 
 /**
  * The text step of a field under touch.

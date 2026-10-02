@@ -29,6 +29,8 @@ import {
   focusOutlineInset,
   kbdClassName,
   menuSurfaceClassName,
+  menuSurfaceStyle,
+  menuSurfaceValues,
   rowClassName,
   selectClassName,
   inlineFieldClassName,
@@ -820,4 +822,22 @@ await test('a menu is a raised card with the menu radius and the overlay step', 
   ])
     assert.ok(surface.includes(part), part);
   assert.ok(!surface.includes('border-edge'));
+});
+
+await test('the style of a menu that no class reaches is the style of its classes', () => {
+  // Review of issue 247: the completion list of the editor wrote the values
+  // of the menu surface by hand.
+  const surface = menuSurfaceClassName().split(' ');
+  for (const part of menuSurfaceValues) {
+    for (const name of part.classes.split(' '))
+      assert.ok(surface.includes(name), name);
+    assert.equal(menuSurfaceStyle[part.property], part.value);
+  }
+  assert.deepEqual(Object.keys(menuSurfaceStyle).sort(), [
+    'backgroundColor',
+    'border',
+    'borderRadius',
+    'boxShadow',
+    'padding',
+  ]);
 });

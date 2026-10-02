@@ -212,6 +212,14 @@ export const publishedTaskBoxClasses =
   '[&_.task-list-item_input]:size-4 [&_.task-list-item_input]:appearance-none [&_.task-list-item_input]:rounded-sm [&_.task-list-item_input]:border [&_.task-list-item_input]:border-edge [&_.task-list-item_input]:bg-app [&_.task-list-item_input]:align-middle';
 
 /**
+ * The classes of a code figure of the note: `codeFigureClassName` of
+ * `packages/ui/src/code-figure.ts`, written out, as `publishedButtonClasses` is.
+ * `tests/integration/published-styles.test.ts` holds this copy to it.
+ */
+export const publishedCodeFigureClasses =
+  '[&_figure.notes-code]:relative [&_figure.notes-code]:mx-0 [&_figure.notes-code]:my-4 [&_figure.notes-code_pre]:my-0 [&_figure.notes-code_pre]:pt-11 md:[&_figure.notes-code_pre]:pt-10 [&_.notes-code-label]:absolute [&_.notes-code-label]:left-4 [&_.notes-code-label]:top-3 [&_.notes-code-label]:z-10 [&_.notes-code-label]:font-mono [&_.notes-code-label]:text-control [&_.notes-code-label]:text-muted';
+
+/**
  * The typography of the note body.
  *
  * The markup comes from the sanitized renderer, so no class attribute of this
@@ -282,9 +290,7 @@ export const noteBodyClasses = [
   // A code block is a figure with its language in a bar at the top of the
   // card, and the script of the page puts the copy action at the other end
   // of the bar (record 0174), as `code-controls.ts` of the editor draws it.
-  // The language is a value, so it keeps the code face and the quiet colour.
-  '[&_figure.notes-code]:relative [&_figure.notes-code]:mx-0 [&_figure.notes-code]:my-4 [&_figure.notes-code_pre]:my-0 [&_figure.notes-code_pre]:pt-11 md:[&_figure.notes-code_pre]:pt-10',
-  '[&_.notes-code-label]:absolute [&_.notes-code-label]:left-4 [&_.notes-code-label]:top-3 [&_.notes-code-label]:font-mono [&_.notes-code-label]:text-control [&_.notes-code-label]:text-muted',
+  publishedCodeFigureClasses,
   // A code span is a word inside a sentence: the quietest tint and the small
   // radius of a hint, as `.cm-np-code` draws it.
   '[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:bg-hover [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.25 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-note-mono',

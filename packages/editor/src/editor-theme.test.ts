@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { menuSurfaceStyle } from '@notesapp/ui';
 import { gripPointerQuery, noteSurfaceStyle } from './editor-theme.ts';
 
 /** One rule of the surface style, as CodeMirror declares it. */
@@ -493,6 +494,11 @@ await test('the completion list is a menu of the design and its rows are rows', 
   // Issue 247. The list had square corners and a selected row in the ink
   // fill, which read as a black row. It takes the menu and row values now.
   const list = rule('.cm-tooltip');
+  // Review of issue 247: the list wrote the values of the menu by hand. It
+  // reads the one table of the menu surface of `packages/ui`.
+  for (const [property, value] of Object.entries(menuSurfaceStyle))
+    assert.equal(list[property], value, property);
+  assert.equal(list.padding, 'var(--spacing)');
   assert.equal(list.borderRadius, 'var(--radius-lg)');
   assert.equal(list.boxShadow, 'var(--shadow-overlay)');
   assert.equal(list.backgroundColor, 'var(--notes-surface-card)');

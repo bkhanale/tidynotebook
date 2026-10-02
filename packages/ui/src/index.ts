@@ -103,6 +103,8 @@ export {
   focusOutlineInset,
   kbdClassName,
   menuSurfaceClassName,
+  menuSurfaceStyle,
+  menuSurfaceValues,
   rowClassName,
   touchFieldText,
 } from './control-classes.ts';
@@ -118,6 +120,7 @@ export {
   plusParts,
 } from './glyph-parts.ts';
 export { glyph } from './glyph.ts';
+export { codeFigureClassName } from './code-figure.ts';
 export type { CopyControlWords, CopyState } from './copy-action.ts';
 export { copiedForMs, copyCodeWords, copyControlWords } from './copy-action.ts';
 export type { SelectOption } from './controls.tsx';

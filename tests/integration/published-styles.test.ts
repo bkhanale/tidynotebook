@@ -33,12 +33,14 @@ import {
   builtStylesheetHrefs,
   documentStylesheetHrefs,
   publishedButtonClasses,
+  publishedCodeFigureClasses,
   publishedDocumentClasses,
   publishedFieldClasses,
   publishedTaskBoxClasses,
 } from '@notesapp/server';
 import {
   buttonClassName,
+  codeFigureClassName,
   defaultThemeFor,
   fieldClassName,
   taskBoxClassName,
@@ -47,6 +49,8 @@ import {
   transitionSurface,
 } from '@notesapp/ui';
 import {
+  codeBlockClass,
+  codeLabelClass,
   codeTokenClasses,
   orderedMarkerStyle,
   orderedMarkerStyles,
@@ -353,4 +357,22 @@ await test('the field of the published page is the field recipe', () => {
     classesOf(publishedFieldClasses),
     withoutMotion(classesOf(fieldClassName()), transitionField),
   );
+});
+
+await test('the code figure of the published page is the code figure recipe', () => {
+  // Review of record 0174: the published page and the documentation site
+  // each wrote the classes of a code figure, and they differed.
+  assert.deepEqual(
+    classesOf(publishedCodeFigureClasses),
+    classesOf(codeFigureClassName),
+  );
+  assert.ok(
+    publishedDocumentClasses.includes(`[&_figure.${codeBlockClass}]:relative`),
+  );
+  for (const name of classesOf(codeFigureClassName))
+    assert.ok(
+      name.includes(`[&_figure.${codeBlockClass}`) ||
+        name.includes(`[&_.${codeLabelClass}]`),
+      name,
+    );
 });

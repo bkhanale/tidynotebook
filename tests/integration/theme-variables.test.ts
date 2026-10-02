@@ -34,6 +34,7 @@ import {
   fieldClassName,
   importedThemeFamily,
   kbdClassName,
+  menuSurfaceValues,
   rowClassName,
   selectClassName,
   sidebarViewClassName,
@@ -420,4 +421,25 @@ await test('the first paint states the appearance of the variant it paints', () 
   );
   assert.equal(github.attributes.get('data-theme'), 'light');
   assert.equal(github.style.get('colorScheme'), 'light');
+});
+
+await test('the style of a menu that no class reaches reads the variables of its classes', async () => {
+  // Review of issue 247: the completion list of the editor wrote the values
+  // of the menu surface by hand. One table of `packages/ui` states each class
+  // and its value, and each value reads the variable that its class reads.
+  for (const part of menuSurfaceValues) {
+    const compiled = await buildCss(part.classes.split(' '));
+    const names = [...part.value.matchAll(/var\((--[\w-]+)\)/g)].map(
+      (found) => found[1] ?? '',
+    );
+    assert.ok(names.length > 0, part.value);
+    for (const name of names) {
+      assert.ok(stylesheetSource.includes(name), `${name} is in the theme`);
+      assert.ok(
+        compiled.includes(`var(${name}`) ||
+          part.classes.split(' ').some((token) => `--${token}` === name),
+        `${part.classes} reads ${name}`,
+      );
+    }
+  }
 });
