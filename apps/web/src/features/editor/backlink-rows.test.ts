@@ -1,6 +1,12 @@
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import test from 'node:test';
-import { backlinksState, type BacklinkRow } from './backlink-rows.ts';
+import {
+  backlinksEmptyMessage,
+  backlinksState,
+  serverBacklinkRead,
+  serverBacklinkRows,
+  type BacklinkRow,
+} from './backlink-rows.ts';
 
 /** One row, as either answer reports it. */
 function row(fileId: string, path: string): BacklinkRow {
@@ -69,5 +75,66 @@ await test('the device states the newer path of a note', () => {
   deepStrictEqual(
     state.rows.map((item) => item.path),
     ['new name.md'],
+  );
+});
+
+await test('a note the server does not hold asks nothing and is empty', () => {
+  // The defect this covers: a new note asked the server for its links before
+  // its first save, the server answered not found, and an online person read
+  // that the full list needs a connection.
+  strictEqual(
+    serverBacklinkRead({ known: true, localOnly: true, online: true }),
+    'empty',
+  );
+  const state = backlinksState([], []);
+  strictEqual(state.kind, 'ready');
+  if (state.kind !== 'ready') return;
+  strictEqual(state.partial, false);
+  strictEqual(
+    backlinksEmptyMessage(state.partial, true),
+    'No notes link here. Add a link to this note from another note.',
+  );
+});
+
+await test('the server is asked only for a note it holds, while online', () => {
+  strictEqual(
+    serverBacklinkRead({ known: true, localOnly: false, online: true }),
+    'ask',
+  );
+  strictEqual(
+    serverBacklinkRead({ known: true, localOnly: false, online: false }),
+    'none',
+  );
+  // A note made on this device has no server link offline either.
+  strictEqual(
+    serverBacklinkRead({ known: true, localOnly: true, online: false }),
+    'empty',
+  );
+  // Until the note list answers, the panel does not guess.
+  strictEqual(
+    serverBacklinkRead({ known: false, localOnly: false, online: true }),
+    'wait',
+  );
+});
+
+await test('not found from the server is an empty list, not a failure', () => {
+  deepStrictEqual(serverBacklinkRows({ status: 404, rows: null }), []);
+  strictEqual(serverBacklinkRows({ status: 500, rows: null }), null);
+  strictEqual(serverBacklinkRows({ status: 0, rows: null }), null);
+  deepStrictEqual(
+    serverBacklinkRows({ status: 200, rows: [row('a', 'a.md')] }),
+    [row('a', 'a.md')],
+  );
+});
+
+await test('an empty partial list names the missing part truly', () => {
+  strictEqual(
+    backlinksEmptyMessage(true, false),
+    'This device finds no link to this note. The full list needs a connection.',
+  );
+  // Online, the cause is not the connection.
+  strictEqual(
+    backlinksEmptyMessage(true, true),
+    'This device finds no link to this note. The server did not answer.',
   );
 });

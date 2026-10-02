@@ -19,10 +19,15 @@ import { localBacklinks, type LocalStore } from '@notesapp/sync';
 import { Button, rowClassName } from '@notesapp/ui';
 import { Link } from 'react-router';
 import { displayNoteName } from '../../lib/note-name.ts';
+import { useFiles } from '../../shell/files.tsx';
 import {
+  backlinksEmptyMessage,
   backlinksState,
+  serverBacklinkRead,
+  serverBacklinkRows,
   type BacklinkRow,
   type BacklinksState,
+  type ServerBacklinkRead,
 } from './backlink-rows.ts';
 import { useOnline } from './save-status.tsx';
 
@@ -32,7 +37,7 @@ function useBacklinks(
   accountId: string,
   workspaceId: string,
   fileId: string,
-  online: boolean,
+  read: ServerBacklinkRead,
   attempt: number,
 ): BacklinksState {
   const [state, setState] = useState<BacklinksState>({ kind: 'loading' });
@@ -40,30 +45,37 @@ function useBacklinks(
   useEffect(() => {
     let cancelled = false;
     setState({ kind: 'loading' });
+    if (read === 'wait') return;
     const device = store
       .listSearchFiles(accountId, workspaceId)
       .then((files) => localBacklinks(fileId, files))
       .catch((): readonly BacklinkRow[] | null => null);
     // A request with no connection cannot answer, so the device answers alone
-    // and the list is marked. The hook reads again when the connection
-    // returns, because `online` is one of its inputs.
-    const server = online
-      ? listBacklinks({ path: { workspaceId, fileId } }).then((answer) =>
-          answer.error !== undefined || answer.data === undefined
-            ? null
-            : answer.data.backlinks.map((item): BacklinkRow => ({
-                fileId: item.fileId,
-                path: item.path,
-              })),
-        )
-      : Promise.resolve(null);
+    // and the list is marked. A note that the server does not hold has no
+    // server link, so nothing is asked. The hook reads again when either
+    // fact changes, because `read` is one of its inputs.
+    const server =
+      read === 'ask'
+        ? listBacklinks({ path: { workspaceId, fileId } }).then((answer) =>
+            serverBacklinkRows({
+              status: answer.response?.status ?? 0,
+              rows:
+                answer.error !== undefined || answer.data === undefined
+                  ? null
+                  : answer.data.backlinks.map((item): BacklinkRow => ({
+                      fileId: item.fileId,
+                      path: item.path,
+                    })),
+            }),
+          )
+        : Promise.resolve(read === 'empty' ? [] : null);
     void Promise.all([server, device]).then(([serverRows, deviceRows]) => {
       if (!cancelled) setState(backlinksState(serverRows, deviceRows));
     });
     return () => {
       cancelled = true;
     };
-  }, [store, accountId, workspaceId, fileId, online, attempt]);
+  }, [store, accountId, workspaceId, fileId, read, attempt]);
 
   return state;
 }
@@ -81,13 +93,20 @@ export function Backlinks({
   readonly fileId: string;
 }): ReactNode {
   const online = useOnline();
+  const files = useFiles();
+  const note = files.notes.find((item) => item.fileId === fileId);
+  const read = serverBacklinkRead({
+    known: note !== undefined || !files.loading,
+    localOnly: note?.localOnly ?? false,
+    online,
+  });
   const [attempt, setAttempt] = useState(0);
   const state = useBacklinks(
     store,
     accountId,
     workspaceId,
     fileId,
-    online,
+    read,
     attempt,
   );
 
@@ -112,9 +131,7 @@ export function Backlinks({
   if (state.rows.length === 0)
     return (
       <p className="m-0 text-control text-muted">
-        {state.partial
-          ? 'This device finds no link to this note. The full list needs a connection.'
-          : 'No notes link here. Add a link to this note from another note.'}
+        {backlinksEmptyMessage(state.partial, online)}
       </p>
     );
   return (

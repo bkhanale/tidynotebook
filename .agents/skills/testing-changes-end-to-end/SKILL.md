@@ -125,10 +125,9 @@ Rules that keep a run true:
 - Pass `{ ready: '<text>' }` to `screenshotBoth` when a screen fills in after
   its requests end. A color scheme belongs to a device, so a screenshot of a
   tab is in the scheme of its device.
-- `device.problems` lists failed requests and page errors. Two are expected:
-  a note that the device just made answers 404 to its backlinks until the
-  server holds it, and a headless browser refuses persistent storage, so the
-  notice about offline work appears on every note.
+- `device.problems` lists failed requests and page errors. None is expected,
+  so read each one. A headless browser refuses persistent storage, so every
+  new device shows one quiet notice about offline data until **Close**.
 
 ### 4. Read what it produced
 
