@@ -51,6 +51,15 @@ type SnapshotSlice = Pick<
   | 'cacheServerNote'
 >;
 
+/**
+ * The file that one change of many files names: the file itself when the
+ * transaction wrote one, and `null`, the whole workspace, when it wrote more.
+ */
+export function workspaceChangeFile(fileIds: readonly string[]): string | null {
+  const unique = new Set(fileIds);
+  return unique.size === 1 ? (fileIds[0] ?? null) : null;
+}
+
 export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
   const { serverOrigin, db, tables, nowIso, publish } = ctx;
 
@@ -447,13 +456,16 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
         ),
       );
       if (activated === null) return;
-      for (const fileId of activated.fileIds)
-        publish({
-          accountId: activated.accountId,
-          workspaceId: activated.workspaceId,
-          fileId,
-          kind: 'file',
-        });
+      // One transaction wrote every file of the workspace, so it announces
+      // one change of the workspace and not one for each file. A listener
+      // reads again once, where a thousand changes made it read a thousand
+      // times (record 0176).
+      publish({
+        accountId: activated.accountId,
+        workspaceId: activated.workspaceId,
+        fileId: workspaceChangeFile(activated.fileIds),
+        kind: 'file',
+      });
       publish({
         accountId: activated.accountId,
         workspaceId: activated.workspaceId,
@@ -707,20 +719,34 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
           },
         ),
       );
-      for (const change of changes) {
-        const fileId = change.file?.fileId ?? change.purgedFileId;
+      // A purge is announced for its file, because a screen of that file
+      // closes on it. The files that took work are one change, of the file
+      // when the page names one and of the workspace when it names more
+      // (record 0176). A record of neither kind only moved the cursor.
+      for (const change of changes)
+        if (change.purgedFileId !== null)
+          publish({
+            accountId,
+            workspaceId,
+            fileId: change.purgedFileId,
+            kind: 'purge',
+          });
+      const written = changes.flatMap((change) =>
+        change.file === null ? [] : [change.file.fileId],
+      );
+      if (written.length > 0)
         publish({
           accountId,
           workspaceId,
-          fileId,
-          kind:
-            change.purgedFileId !== null
-              ? 'purge'
-              : fileId === null
-                ? 'cursor'
-                : 'file',
+          fileId: workspaceChangeFile(written),
+          kind: 'file',
         });
-      }
+      if (
+        changes.some(
+          (change) => change.file === null && change.purgedFileId === null,
+        )
+      )
+        publish({ accountId, workspaceId, fileId: null, kind: 'cursor' });
     },
 
     async forgetPurgedFiles(

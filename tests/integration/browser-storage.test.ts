@@ -1416,6 +1416,141 @@ await test('snapshot activation and clearing publish committed invalidations', a
   await store.close();
 });
 
+await test('one snapshot of many files announces one change of the workspace', async () => {
+  // Record 0176. The activation of a thousand notes announced a thousand
+  // changes, and each listener read the whole area again for each of them.
+  const backend = createBackend('snapshot-one-change');
+  const store = await openLocalStore(origin, backend.options());
+  const otherStore = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const files = [randomUUID(), randomUUID(), randomUUID()];
+  const changes: string[] = [];
+  const unsubscribe = otherStore.subscribe((change) => {
+    changes.push(`${change.kind}:${change.fileId ?? 'all'}`);
+  });
+  const revisions = files.map((_, index) => `rev-${String(index)}`);
+  await store.stageSnapshot(account, workspace, 'many', revisions, '9');
+  for (const [index, fileId] of files.entries()) {
+    const text = `# ${String(index)}\n`;
+    await store.storeSnapshotRevision(account, workspace, {
+      token: 'many',
+      revisionId: `rev-${String(index)}`,
+      fileId,
+      path: `notes/${String(index)}.md`,
+      kind: 'note',
+      deleted: false,
+      digest: await contentDigest(text),
+      text,
+      document: startDocument(text),
+      epoch: 1,
+      serverTime: null,
+    });
+  }
+  await store.activateSnapshot('many');
+  assert.deepEqual(changes, ['file:all', 'cursor:all']);
+  unsubscribe();
+  await otherStore.close();
+  await store.close();
+});
+
+await test('a feed page of many files announces one change and each purge', async () => {
+  const backend = createBackend('feed-one-change');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const gone = randomUUID();
+  const draft = draftOf(account, workspace, gone, 'copy-gone', 'gone\n');
+  await store.saveDraft(draft);
+  await store.acknowledge(
+    account,
+    acceptanceOf(await store.checkpoint(draft, null, 'text'), account, '1'),
+  );
+  const changes: string[] = [];
+  const unsubscribe = store.subscribe((change) => {
+    changes.push(`${change.kind}:${change.fileId ?? 'all'}`);
+  });
+  const remote = async (fileId: string, text: string) => ({
+    file: {
+      fileId,
+      revisionId: `rev-${fileId}`,
+      path: `notes/${fileId}.md`,
+      fileKind: 'note' as const,
+      document: null,
+      deleted: false,
+      digest: await contentDigest(text),
+      text,
+    },
+    purgedFileId: null,
+  });
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      await remote(randomUUID(), 'one\n'),
+      await remote(randomUUID(), 'two\n'),
+      { file: null, purgedFileId: gone },
+    ],
+    '2',
+  );
+  assert.deepEqual(changes, [`purge:${gone}`, 'file:all']);
+  changes.length = 0;
+  // A page of one file still names it.
+  const single = randomUUID();
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [await remote(single, 'three\n')],
+    '3',
+  );
+  assert.deepEqual(changes, [`file:${single}`]);
+  unsubscribe();
+  await store.close();
+});
+
+await test('document work announces its own kind, marked for the tab that wrote it', async () => {
+  // Record 0175. The work of the open editor announced a file change, so
+  // the file list, the loader and the editor itself read again on each key.
+  const backend = createBackend('document-change');
+  const store = await openLocalStore(origin, backend.options());
+  const otherStore = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const own: LocalChange[] = [];
+  const other: LocalChange[] = [];
+  const stopOwn = store.subscribe((change) => own.push(change));
+  const stopOther = otherStore.subscribe((change) => other.push(change));
+  const typed = replaceDocumentText(startDocument(''), 'typed\n');
+  assert.ok(typed.ok);
+  await store.mergeNoteWork(
+    account,
+    workspace,
+    fileId,
+    encodeDocumentDelta(
+      typed.value.document,
+      documentStateVector(startDocument('')),
+    ),
+  );
+  const change = {
+    accountId: account,
+    workspaceId: workspace,
+    fileId,
+    kind: 'document',
+  } as const;
+  assert.deepEqual(own, [{ ...change, sameTab: true }]);
+  assert.deepEqual(other, [change]);
+  const stored = await store.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    stored === null ? null : readDocumentText(stored.bytes),
+    'typed\n',
+  );
+  stopOwn();
+  stopOther();
+  await otherStore.close();
+  await store.close();
+});
+
 await test('browser stores share a fallback bus without BroadcastChannel', async () => {
   const windowDescriptor = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -2031,7 +2166,13 @@ await test('forgetting a purged file removes every local trace of it', async () 
   unsubscribe();
 
   assert.deepEqual(changes, [
-    { accountId: account, workspaceId: workspace, fileId: file, kind: 'purge' },
+    {
+      accountId: account,
+      workspaceId: workspace,
+      fileId: file,
+      kind: 'purge',
+      sameTab: true,
+    },
   ]);
   assert.deepEqual(await store.listLocalFiles(account, workspace), []);
   assert.deepEqual(await store.listAcceptedFiles(account, workspace), []);
@@ -2079,7 +2220,13 @@ await test('a purge marker forgets the queue and recovery, not only the file row
   unsubscribe();
 
   assert.deepEqual(changes, [
-    { accountId: account, workspaceId: workspace, fileId: file, kind: 'purge' },
+    {
+      accountId: account,
+      workspaceId: workspace,
+      fileId: file,
+      kind: 'purge',
+      sameTab: true,
+    },
   ]);
   assert.deepEqual(await store.listLocalFiles(account, workspace), []);
   assert.deepEqual(await store.pending(account, workspace), []);
@@ -3070,8 +3217,15 @@ await test('a sign-in deletes the idle data of every other account', async () =>
       await store.isAttachmentPinned(absent, idle, 'b'.repeat(64)),
       false,
     );
+    // The store of this tab marks the changes it announces (record 0175).
     assert.deepEqual(resets, [
-      { accountId: absent, workspaceId: idle, fileId: null, kind: 'reset' },
+      {
+        accountId: absent,
+        workspaceId: idle,
+        fileId: null,
+        kind: 'reset',
+        sameTab: true,
+      },
     ]);
     // Every partition with work stays as it was.
     assert.equal((await store.pending(absent, queued)).length, 1);
@@ -3401,6 +3555,7 @@ await test('one commit makes one Review and a later merge makes another', async 
         workspaceId: workspace,
         fileId: file,
         kind: 'review',
+        sameTab: true,
       },
     ]);
     const left = await store.listReviews(account, workspace, file);

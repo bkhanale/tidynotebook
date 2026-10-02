@@ -451,7 +451,10 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
           },
         ),
       );
-      publish({ accountId, workspaceId, fileId, kind: 'file' });
+      // Only the document took work. The file list, the heads and the path
+      // stand, so the readers of those wait for a change of their own
+      // (record 0175).
+      publish({ accountId, workspaceId, fileId, kind: 'document' });
       return merged;
     },
 

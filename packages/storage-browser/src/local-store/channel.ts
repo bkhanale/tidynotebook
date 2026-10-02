@@ -18,6 +18,7 @@ const changeKinds = [
   'draft',
   'queue',
   'file',
+  'document',
   'purge',
   'conflict',
   'review',

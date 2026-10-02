@@ -217,6 +217,22 @@ await test('a reconnect sends the set again after ready', async () => {
   harness.coordinator.stop();
 });
 
+await test('a stream that closes wakes every engine for the poll', async () => {
+  // Record 0176. An engine rests on the long safety interval while a set is
+  // accepted, so a closed stream left it there until the stream came back,
+  // and the save of another device waited for the reconnect.
+  const harness = new Harness();
+  await harness.accepted([first]);
+  assert.deepEqual(harness.wakes, ['*']);
+  harness.handlers?.onClose();
+  assert.equal(harness.coordinator.healthy(), false);
+  assert.deepEqual(harness.wakes, ['*', '*']);
+  // A second close with no accepted set changes no rest.
+  harness.handlers?.onClose();
+  assert.deepEqual(harness.wakes, ['*', '*']);
+  harness.coordinator.stop();
+});
+
 await test('an ended session stops the stream for good', async () => {
   const harness = new Harness();
   await harness.accepted([first]);

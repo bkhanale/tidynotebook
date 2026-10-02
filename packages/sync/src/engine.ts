@@ -65,7 +65,12 @@ import {
   type SyncContext,
   type SyncNotice,
 } from './queue.ts';
-import { pullNew, pullPages, type SnapshotNetwork } from './snapshot.ts';
+import {
+  pagesPerTurn,
+  pullNew,
+  pullPages,
+  type SnapshotNetwork,
+} from './snapshot.ts';
 import {
   protocolFit,
   servedProtocolOfProblem,
@@ -437,6 +442,22 @@ export function createSyncEngine(
     }
   }
 
+  /**
+   * Whether a save waits while a pull runs: a wake came, and the queue of
+   * this workspace holds work. A wake for a notice alone lets the pull read
+   * on, so a backlog still drains in long turns.
+   */
+  async function saveWaits(): Promise<boolean> {
+    if (!wakeRequested) return false;
+    try {
+      return (await local.pending(accountId, workspaceId)).some(
+        (entry) => entry.state !== 'conflict',
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async function loop(signal: AbortSignal): Promise<void> {
     const ownerId = options.ownerId ?? newId();
     const lease: LeaseGate = options.lease ?? {
@@ -506,27 +527,47 @@ export function createSyncEngine(
           continue;
         }
         lost = false;
+        // The protocol read of this pass ends with the pass when the session
+        // check stops it early.
+        const pass = new AbortController();
+        const endPass = (): void => {
+          pass.abort();
+        };
+        signal.addEventListener('abort', endPass, { once: true });
         try {
-          const check = await verifyOnce(signal);
-          if (check === 'paused' || check === 'other-account') {
-            noteSession(check);
-            if (!(await rest(interval(), signal))) return;
-            continue;
-          }
-          if (check !== 'ok') {
-            noteSession('access-lost');
-            if (!(await rest(interval(), signal))) return;
-            continue;
-          }
-          noteSession('ok');
           const ctx: SyncContext = {
-            signal,
+            signal: pass.signal,
             sleep,
             random,
             id: newId,
             announce,
           };
-          const fit = await readProtocolFit(ctx);
+          // The session and the protocol are read at the same time, which
+          // saves one round trip before a save (record 0176). Nothing is
+          // sent before both answered, so a session of another account and
+          // a client that does not fit still send nothing (records 0086,
+          // 0113).
+          const protocolRead = readProtocolFit(ctx).then(
+            (fit) => ({ read: true as const, fit }),
+            (error: unknown) => ({ read: false as const, error }),
+          );
+          const check = await verifyOnce(signal);
+          if (check === 'paused' || check === 'other-account') {
+            endPass();
+            noteSession(check);
+            if (!(await rest(interval(), signal))) return;
+            continue;
+          }
+          if (check !== 'ok') {
+            endPass();
+            noteSession('access-lost');
+            if (!(await rest(interval(), signal))) return;
+            continue;
+          }
+          noteSession('ok');
+          const protocol = await protocolRead;
+          if (!protocol.read) throw protocol.error;
+          const fit = protocol.fit;
           if (fit === null) {
             if (!(await rest(interval(), signal))) return;
             continue;
@@ -571,6 +612,8 @@ export function createSyncEngine(
             workspaceId,
             operations,
             ctx,
+            pagesPerTurn,
+            saveWaits,
           );
           const pulled = read.outcome;
           if (read.more) wakeRequested = true;
@@ -591,6 +634,9 @@ export function createSyncEngine(
             noteCycleError(`local-${error.kind}`);
           else throw error;
           if (!(await rest(interval(), signal))) return;
+        } finally {
+          endPass();
+          signal.removeEventListener('abort', endPass);
         }
       }
     } finally {

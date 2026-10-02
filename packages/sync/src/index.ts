@@ -83,7 +83,12 @@ export type {
   SnapshotItemData,
   SnapshotNetwork,
 } from './snapshot.ts';
-export { pagesPerTurn, pullNew, pullPages } from './snapshot.ts';
+export {
+  pagesPerTurn,
+  pullNew,
+  pullPages,
+  snapshotFetchConcurrency,
+} from './snapshot.ts';
 export type { LeaseStore, WorkerLease } from './lease.ts';
 export {
   createLeaseKeeper,

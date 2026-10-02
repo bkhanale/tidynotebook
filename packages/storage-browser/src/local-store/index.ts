@@ -122,8 +122,12 @@ export async function openLocalStore(
       if (change === null) return;
       notify(change);
     };
+  // A listener of this store hears that this tab wrote the change. Another
+  // tab, and another store on the fallback bus, hears it without the mark.
   const publish = (change: LocalChange): void => {
-    notify(change);
+    const here: LocalChange = { ...change, sameTab: true };
+    for (const listener of listeners)
+      listener(ownedListeners.has(listener) ? here : change);
     channel?.postMessage(change);
   };
   const backend: {

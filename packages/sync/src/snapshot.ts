@@ -138,6 +138,14 @@ export async function pullNew(
   return (await pullPage(local, accountId, workspaceId, net, ctx)).outcome;
 }
 
+/**
+ * How many revisions a snapshot reads at a time (record 0176).
+ *
+ * Half of the six connections that a browser opens to one host, as the
+ * precache of record 0044 takes, so a screen keeps a share of them.
+ */
+export const snapshotFetchConcurrency = 3;
+
 /** The pages that one turn reads at most before it yields (record 0130). */
 export const pagesPerTurn = 10;
 
@@ -148,7 +156,8 @@ export const pagesPerTurn = 10;
  * A page that held changes can have a successor, so the loop reads again, and
  * an empty page proves the end of the feed. `more` is true when the turn ended
  * before that proof, and the caller schedules another turn after it yields.
- * Each page moves the cursor in its own transaction, as before.
+ * `saveWaits` ends the turn early after a page, so a save never waits for a
+ * long backlog. Each page moves the cursor in its own transaction, as before.
  */
 export async function pullPages(
   local: LocalStore,
@@ -157,11 +166,15 @@ export async function pullPages(
   net: SnapshotNetwork,
   ctx: SyncContext,
   maxPages: number = pagesPerTurn,
+  saveWaits: () => Promise<boolean> = () => Promise.resolve(false),
 ): Promise<{ readonly outcome: PullOutcome; readonly more: boolean }> {
   for (let page = 0; page < maxPages; page += 1) {
     const read = await pullPage(local, accountId, workspaceId, net, ctx);
     if (read.outcome !== 'done' || !read.more)
       return { outcome: read.outcome, more: false };
+    // A save that waits goes first: the turn ends between two pages, and
+    // the next pass pushes before it reads on (record 0176).
+    if (await saveWaits()) return { outcome: 'done', more: true };
   }
   return { outcome: 'done', more: true };
 }
@@ -258,34 +271,74 @@ async function fullSnapshot(
     revisionIds,
     started.value.cursor,
   );
-  for (const revisionId of revisionIds) {
-    const fetched = await sendWithRetry(ctx, (signal) =>
-      net.revision(revisionId, signal),
-    );
-    if (fetched === null) return { status: 'deferred' };
-    if (!fetched.ok) {
-      if (fetched.problem.status === 401) return { status: 'paused' };
-      if (fetched.problem.status === 403) return { status: 'access-lost' };
-      if (fetched.problem.status === 404 || fetched.problem.status === 410)
-        throw new SnapshotRestartNeeded('revision-purged');
-      throw new SyncFailedError(fetched.problem.code, fetched.problem.status);
+  // The revisions are immutable and independent, so a few are read at a
+  // time. One at a time, a workspace of a thousand notes took most of the
+  // time of a first sync, and a save of the device waited for all of it
+  // (record 0176). The first stop of a reader stops the others at their
+  // next revision.
+  let next = 0;
+  let stop: FreshSnapshot | null = null;
+  let failure: unknown = null;
+  const reader = async (): Promise<void> => {
+    while (stop === null && failure === null && next < revisionIds.length) {
+      const revisionId = revisionIds[next];
+      next += 1;
+      if (revisionId === undefined) return;
+      try {
+        const fetched = await sendWithRetry(ctx, (signal) =>
+          net.revision(revisionId, signal),
+        );
+        if (fetched === null) {
+          stop ??= { status: 'deferred' };
+          return;
+        }
+        if (!fetched.ok) {
+          if (fetched.problem.status === 401) {
+            stop ??= { status: 'paused' };
+            return;
+          }
+          if (fetched.problem.status === 403) {
+            stop ??= { status: 'access-lost' };
+            return;
+          }
+          if (fetched.problem.status === 404 || fetched.problem.status === 410)
+            throw new SnapshotRestartNeeded('revision-purged');
+          throw new SyncFailedError(
+            fetched.problem.code,
+            fetched.problem.status,
+          );
+        }
+        const revision = fetched.value;
+        await local.storeSnapshotRevision(accountId, workspaceId, {
+          token,
+          revisionId: revision.revisionId,
+          fileId: revision.fileId,
+          path: revision.path,
+          kind: revision.fileKind,
+          deleted: revision.deleted,
+          digest: revision.digest,
+          text: revision.text,
+          document:
+            revision.document === null
+              ? null
+              : bytesOfBase64(revision.document),
+          epoch: revision.epoch,
+          serverTime: revision.serverTime,
+        });
+      } catch (error: unknown) {
+        failure ??= error;
+        return;
+      }
     }
-    const revision = fetched.value;
-    await local.storeSnapshotRevision(accountId, workspaceId, {
-      token,
-      revisionId: revision.revisionId,
-      fileId: revision.fileId,
-      path: revision.path,
-      kind: revision.fileKind,
-      deleted: revision.deleted,
-      digest: revision.digest,
-      text: revision.text,
-      document:
-        revision.document === null ? null : bytesOfBase64(revision.document),
-      epoch: revision.epoch,
-      serverTime: revision.serverTime,
-    });
-  }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(snapshotFetchConcurrency, revisionIds.length) },
+      reader,
+    ),
+  );
+  if (failure !== null) throw failure;
+  if (stop !== null) return stop;
   try {
     await local.activateSnapshot(token);
   } catch (error: unknown) {

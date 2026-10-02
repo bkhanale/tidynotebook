@@ -49,6 +49,7 @@ await test('every kind of the port is accepted', () => {
     'draft',
     'queue',
     'file',
+    'document',
     'purge',
     'conflict',
     'review',
@@ -112,4 +113,24 @@ await test('an inherited member cannot pass the check', () => {
     kind: 'draft',
   });
   assert.equal(localChangeOf(inherited), null);
+});
+
+await test('a message of another tab never claims to come from this tab', () => {
+  // Record 0175. The mark tells an editor that it wrote the change itself,
+  // so a message that carries it is read without it.
+  assert.deepEqual(
+    localChangeOf({
+      accountId: 'account-1',
+      workspaceId: 'workspace-1',
+      fileId: 'file-1',
+      kind: 'document',
+      sameTab: true,
+    }),
+    {
+      accountId: 'account-1',
+      workspaceId: 'workspace-1',
+      fileId: 'file-1',
+      kind: 'document',
+    },
+  );
 });

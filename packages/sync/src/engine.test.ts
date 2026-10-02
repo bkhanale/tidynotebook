@@ -42,7 +42,11 @@ import {
   type SyncContext,
   type SyncNotice,
 } from './queue.ts';
-import { pullNew, type SnapshotNetwork } from './snapshot.ts';
+import {
+  pullNew,
+  snapshotFetchConcurrency,
+  type SnapshotNetwork,
+} from './snapshot.ts';
 import { createSyncEngine, type EngineOperations } from './engine.ts';
 
 const accountId = 'account-1';
@@ -2706,4 +2710,290 @@ await test('an engine on a gate waits for a lost lease and goes on', async () =>
   controller.abort();
   engine.stop();
   await running;
+});
+
+await test('a save that waits ends a pull turn between two pages', async () => {
+  // Record 0176. A turn reads up to ten pages, and a save made during a
+  // long backlog waited for the whole turn.
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '0');
+  const reads: string[] = [];
+  const feed = membershipFeed(25, reads);
+  let readsAtCommit: number | null = null;
+  let engine: ReturnType<typeof createSyncEngine> | null = null;
+  const ops = stubOperations({
+    changes: (cursor, signal) => {
+      if (cursor === '2') {
+        store.enqueue(
+          queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-late'),
+        );
+        engine?.requestSync();
+      }
+      return feed(cursor, signal);
+    },
+    commit: () => {
+      readsAtCommit = reads.length;
+      return Promise.resolve({
+        ok: true as const,
+        value: accepted('mutation-late', ['rev-a'], '99'),
+      });
+    },
+  });
+  engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-yield',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => readsAtCommit !== null);
+  // The page of cursor 2 asked for the save, and the turn ended after it.
+  assert.equal(readsAtCommit, 3);
+  await waitFor(() => reads.at(-1) === '25');
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('a wake for a notice alone lets the pull read its whole turn', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '0');
+  const reads: string[] = [];
+  const feed = membershipFeed(25, reads);
+  let engine: ReturnType<typeof createSyncEngine> | null = null;
+  let accountReads = 0;
+  const ops = stubOperations({
+    changes: (cursor, signal) => {
+      if (cursor === '2') engine?.requestSync();
+      return feed(cursor, signal);
+    },
+    verifySession: () => {
+      accountReads += 1;
+      return Promise.resolve({ ok: true as const, value: { accountId } });
+    },
+  });
+  engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-notice',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => reads.at(-1) === '25');
+  // Pages 0 to 9 are one turn, 10 to 19 the next, 20 to 25 the last. The
+  // first check of the run and one check for each turn read the session.
+  assert.equal(accountReads, 4);
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('a pass reads the session and the protocol at the same time', async () => {
+  // Record 0176. The two reads one after the other cost one round trip
+  // before every save.
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '5');
+  let protocolAsked = false;
+  let releaseSession: () => void = () => {};
+  let sessionChecks = 0;
+  const ops = stubOperations({
+    verifySession: () => {
+      sessionChecks += 1;
+      // The first check of the run comes before any pass.
+      if (sessionChecks === 1)
+        return Promise.resolve({ ok: true as const, value: { accountId } });
+      return new Promise((resolve) => {
+        releaseSession = () => {
+          resolve({ ok: true as const, value: { accountId } });
+        };
+      });
+    },
+    syncProtocol: () => {
+      protocolAsked = true;
+      return Promise.resolve({
+        ok: true as const,
+        value: { versions: [syncProtocolVersion] },
+      });
+    },
+    changes: (cursor) =>
+      Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      }),
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-parallel',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => sessionChecks === 2);
+  await waitFor(() => protocolAsked);
+  releaseSession();
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('a pass of another account sends nothing though the protocol answered', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  const notices: SyncNotice[] = [];
+  const ops = stubOperations({
+    verifySession: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: { accountId: 'account-other' },
+      }),
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-other',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+    announce: (notice) => {
+      notices.push(notice);
+    },
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() =>
+    notices.some(
+      (notice) => notice.kind === 'paused' && notice.reason === 'other-account',
+    ),
+  );
+  assert.equal(ops.commitCalls.length, 0);
+  assert.equal((await store.pending(accountId, workspaceId)).length, 1);
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('a snapshot reads a few revisions at a time and activates them all', async () => {
+  // Record 0176. One revision at a time, a first sync of a thousand notes
+  // took most of the time that a save of the device waited.
+  const store = new FakeStore();
+  const count = 7;
+  const ids = Array.from(
+    { length: count },
+    (_, index) => `rev-${String(index)}`,
+  );
+  let inFlight = 0;
+  let widest = 0;
+  const ops = stubOperations({
+    start: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: { token: 'token-wide', cursor: '40', itemCount: count },
+      }),
+    page: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: {
+          token: 'token-wide',
+          cursor: '40',
+          items: ids.map((revisionId, index) => ({
+            fileId: `file-${String(index)}`,
+            revisionId,
+            path: `notes/${String(index)}.md`,
+            fileKind: 'note' as const,
+            deleted: false,
+          })),
+          nextPosition: null,
+        },
+      }),
+    revision: async (revisionId) => {
+      inFlight += 1;
+      widest = Math.max(widest, inFlight);
+      await new Promise((resolve) => setImmediate(resolve));
+      inFlight -= 1;
+      const index = ids.indexOf(revisionId);
+      return {
+        ok: true as const,
+        value: {
+          fileId: `file-${String(index)}`,
+          revisionId,
+          path: `notes/${String(index)}.md`,
+          fileKind: 'note' as const,
+          deleted: false,
+          digest: `digest-${String(index)}`,
+          text: `# ${String(index)}\n`,
+          document: 'AAEC',
+          epoch: 1,
+          serverTime: '2026-10-02T10:00:00.000Z',
+        },
+      };
+    },
+    changes: (cursor) =>
+      Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      }),
+  });
+  const notices: SyncNotice[] = [];
+  const outcome = await pullNew(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, []),
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(widest, snapshotFetchConcurrency);
+  assert.equal(store.staged.get('token-wide')?.state, 'active');
+  assert.deepEqual(notices, [{ kind: 'snapshot-activated', count }]);
+});
+
+await test('a snapshot that one revision refuses stops every reader', async () => {
+  const store = new FakeStore();
+  const ids = ['rev-0', 'rev-1', 'rev-2', 'rev-3', 'rev-4', 'rev-5'];
+  const asked: string[] = [];
+  const ops = stubOperations({
+    start: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: { token: 'token-stop', cursor: '41', itemCount: ids.length },
+      }),
+    page: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: {
+          token: 'token-stop',
+          cursor: '41',
+          items: ids.map((revisionId, index) => ({
+            fileId: `file-${String(index)}`,
+            revisionId,
+            path: `notes/${String(index)}.md`,
+            fileKind: 'note' as const,
+            deleted: false,
+          })),
+          nextPosition: null,
+        },
+      }),
+    revision: (revisionId) => {
+      asked.push(revisionId);
+      return Promise.resolve({
+        ok: false as const,
+        problem: { status: 401, code: 'unauthorized', fileIds: [] },
+      });
+    },
+  });
+  const outcome = await pullNew(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext([], []),
+  );
+  assert.equal(outcome, 'paused');
+  assert.equal(asked.length, snapshotFetchConcurrency);
+  assert.notEqual(store.staged.get('token-stop')?.state, 'active');
 });

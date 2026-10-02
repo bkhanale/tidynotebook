@@ -19,6 +19,9 @@
  * engines read on their own interval, which is the fallback for an old
  * server, a closed stream, and notices that are off.
  *
+ * A stream that closes wakes every engine, so each reads at once and then
+ * rests on its poll interval until a set is accepted again.
+ *
  * The transport reconnects on its own. `session_ended`, `malformed`, a frame
  * that the client cannot read, and a stream of another account stop the
  * stream for this coordinator: reconnecting would repeat the refusal.
@@ -219,7 +222,12 @@ export function createNoticeCoordinator(
       onMessage,
       onClose: () => {
         ready = false;
+        const wasHealthy = accepted !== null;
         setAccepted(null);
+        // The engines rest on the long safety interval while a set is
+        // accepted. Without the stream they read now, and then on the poll
+        // interval until a set is accepted again (record 0176).
+        if (wasHealthy) ports.wakeAll();
       },
     });
   };

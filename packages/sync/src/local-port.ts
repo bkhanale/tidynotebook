@@ -115,7 +115,13 @@ export type LegacyReceipt =
  *
  * `conflict` names a change of the Needs attention list: a save the server
  * refused for good, or a recovery copy that was kept or removed. `review`
- * names a Review of the note that was recorded or cleared.
+ * names a Review of the note that was recorded or cleared. `document` names
+ * local work that an open editor wrote into the document of a note, and
+ * nothing else: no path, no head and no file list changed (record 0175).
+ *
+ * `fileId` is `null` when the change can concern any file of the workspace,
+ * such as a snapshot or a feed page that wrote many files in one
+ * transaction (record 0176).
  */
 export type LocalChange = {
   readonly accountId: string;
@@ -125,11 +131,18 @@ export type LocalChange = {
     | 'draft'
     | 'queue'
     | 'file'
+    | 'document'
     | 'purge'
     | 'conflict'
     | 'review'
     | 'cursor'
     | 'reset';
+  /**
+   * Present when the store of this tab wrote the change, absent when another
+   * tab did. An open editor reads it to skip the echo of its own document
+   * work (record 0175).
+   */
+  readonly sameTab?: true;
 };
 
 /** One file as it must appear in local navigation. */
@@ -1046,7 +1059,8 @@ export type LocalStore = {
    * Every write reads the stored row again inside the same transaction and
    * merges into it, so two tabs that write before either reads the other
    * cannot lose work (record 0085). The answer is the document after the
-   * merge, so the caller can join the work of the other tab.
+   * merge, so the caller can join the work of the other tab. The write
+   * announces a `document` change (record 0175).
    */
   mergeNoteWork(
     accountId: string,
