@@ -41,6 +41,18 @@ export const defaultPageSize = 100;
  */
 export const maxListedFiles = 1000;
 
+/**
+ * The largest number of files that the list of a notes area collects.
+ *
+ * The tree and All notes render a window of their rows (record 0165), so the
+ * count of the list no longer bounds the work of a screen, and the list of
+ * the area reads every page. The list stopped at {@link maxListedFiles}, so a
+ * workspace of 1010 notes showed 1000 of them (issue 256). This bound only
+ * keeps a server that never ends its pages from holding the device for ever,
+ * and it is above the number of entries that one export archive holds.
+ */
+export const maxNoteListFiles = 100_000;
+
 /** One file together with the content of its accepted head. */
 export type FileWithHead = {
   readonly file: FileRecord;

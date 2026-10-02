@@ -217,6 +217,7 @@ export {
   fileSort,
   listFiles,
   maxListedFiles,
+  maxNoteListFiles,
   maxPageSize,
   pageSize,
   readFile,

@@ -21,7 +21,6 @@ import {
   type ReactNode,
 } from 'react';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
-import { maxListedFiles } from '@notesapp/core';
 import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import { useLocalQuery } from '../local-state.ts';
@@ -33,7 +32,7 @@ import {
 } from '../lib/empty-folders.ts';
 import {
   fileListLimitNotice,
-  loadBoundedFiles,
+  loadNoteList,
   type BoundedFiles,
 } from '../lib/file-load.ts';
 import { msUntilRevalidate } from '../lib/revalidate.ts';
@@ -105,15 +104,14 @@ const listPageSize = 100;
  * previous one through its cursor instead of scanning from the front. The
  * sidebar shows a folder tree, so it asks for the path order.
  *
- * The loop stops at `maxListedFiles`, which is the one bound that the server
- * and this device share. A mount therefore makes a small, fixed number of
- * calls, and it holds a list of a known size. A bigger area keeps its other
- * notes: search reads the server, so it opens a note that this list left out.
+ * The loop reads every page, because the tree and All notes render a window
+ * of their rows (record 0165). `loadNoteList` holds the one bound, which only
+ * stops a server that never ends its pages.
  */
 function loadFiles(
   workspaceId: string,
 ): Promise<BoundedFiles<WorkspaceFileSummary>> {
-  return loadBoundedFiles<WorkspaceFileSummary>(async (cursor) => {
+  return loadNoteList<WorkspaceFileSummary>(async (cursor) => {
     const page: { readonly cursor?: string } =
       cursor === null ? {} : { cursor };
     const result = await listFiles({
@@ -123,7 +121,7 @@ function loadFiles(
     if (result.error !== undefined || result.data === undefined)
       throw new Error(problemMessage(result.error));
     return { files: result.data.files, nextCursor: result.data.nextCursor };
-  }, maxListedFiles);
+  });
 }
 
 /** The list before the first answer of the server, and after a failure. */

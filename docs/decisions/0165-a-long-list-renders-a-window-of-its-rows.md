@@ -27,6 +27,9 @@ The tree has the same cost with its folders open. See
   row is out of it. Every heading of All notes stays in the document, so the
   list of sections works (record 0137). All notes keeps its scroll offset for
   the session.
+- The list of the notes area reads every page, up to `maxNoteListFiles` of
+  `packages/core/src/files/read.ts`, which only stops a server that never
+  ends its pages. It stopped at `maxListedFiles`, so 1010 notes showed 1000.
 - The module is our own and not `@tanstack/react-virtual`: the rows of a list
   share one stride (record 0065), the library writes through a `style`
   attribute that `tools/check-design-rules.mjs` refuses, and it would add a

@@ -12,6 +12,7 @@
  * calls the page reader that it is given, which is a generated operation in
  * the application and a small fake in the test.
  */
+import { maxNoteListFiles } from '@notesapp/core';
 
 /** One page of a file listing, whatever the row type is. */
 export type FilePageResult<Row> = {
@@ -59,6 +60,20 @@ export async function loadBoundedFiles<Row>(
     if (page.files.length === 0) return { files, reachedLimit: true };
     cursor = page.nextCursor;
   }
+}
+
+/**
+ * Every file of a notes area, page after page (record 0165).
+ *
+ * The tree and All notes render a window of their rows, so the list reads
+ * every page up to `maxNoteListFiles` of `@notesapp/core`, which only stops a
+ * server that never ends its pages. It stopped at `maxListedFiles`, and a
+ * workspace of 1010 notes showed 1000 of them (issue 256).
+ */
+export function loadNoteList<Row>(
+  readPage: ReadFilePage<Row>,
+): Promise<BoundedFiles<Row>> {
+  return loadBoundedFiles(readPage, maxNoteListFiles);
 }
 
 /** A count and its word, for example `1 note` and `3 notes`. */

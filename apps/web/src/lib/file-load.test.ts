@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   fileListLimitNotice,
   loadBoundedFiles,
+  loadNoteList,
   notePhrase,
   type FilePageResult,
   type ReadFilePage,
@@ -111,4 +112,35 @@ await test('a count carries its whole phrase', () => {
     ),
     true,
   );
+});
+
+await test('the list of a notes area holds every note of 1010 and more', async () => {
+  // Issue 256: All notes showed 1001 of 1011 notes, because the list of the
+  // area stopped at maxListedFiles. The tree and All notes render a window of
+  // their rows, so the list reads every page (record 0165).
+  const total = 1011;
+  let calls = 0;
+  const read = (cursor: string | null): Promise<FilePageResult<string>> => {
+    calls += 1;
+    const start = cursor === null ? 0 : Number(cursor);
+    const end = Math.min(start + 100, total);
+    return Promise.resolve({
+      files: Array.from({ length: end - start }, (_unused, index) =>
+        String(start + index),
+      ),
+      nextCursor: end < total ? String(end) : null,
+    });
+  };
+  const loaded = await loadNoteList(read);
+  assert.equal(loaded.files.length, total);
+  assert.equal(loaded.reachedLimit, false);
+  assert.equal(calls, 11);
+});
+
+await test('the list of a notes area still stops a server that never ends', async () => {
+  const pages = endlessPages(500);
+  const loaded = await loadNoteList(pages.read);
+  assert.equal(loaded.reachedLimit, true);
+  assert.equal(loaded.files.length, 100_000);
+  assert.equal(pages.calls(), 200);
 });
