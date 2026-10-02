@@ -68,8 +68,8 @@ on each rule below.
 - No class that writes a control: read `buttonClassName`, `rowClassName`,
   `fieldClassName`, `kbdClassName` and `focusOutline` from `@notesapp/ui`
   (0065). No `uppercase`, no `tracking-wide` or wider, no `font-bold` or
-  heavier, no `border-dashed`, no off-scale radius, no bare `rounded`, and
-  nothing scales on press. No colour class that names no `--color-*` token.
+  heavier, no `border-dashed`, no off-scale radius, no bare `rounded`, no
+  opacity that fades a control, and nothing scales on press. No colour class that names no `--color-*` token.
 - No icon `size` other than 16 or 20 (0065). No `border-edge` or `ring-edge`
   outside the drop target of `lib/tree-row.ts` (0063). No `focus:` except the
   edge and the ring of a field; `focus-visible:` is the treatment. No family

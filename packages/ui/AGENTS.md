@@ -70,8 +70,8 @@ and the stylesheet fallbacks to one registry.
   family name or `font-family`: the face is declared in it alone (0061).
 - No arbitrary value, no `style=`, no `dangerouslySetInnerHTML`, no `text-xs`
   or `text-sm`, no off-scale radius, no bare `rounded`, no `uppercase`, no
-  `tracking-wide` or wider, no `font-bold` or heavier, no `border-dashed`, and
-  nothing scales on press.
+  `tracking-wide` or wider, no `font-bold` or heavier, no `border-dashed`, no
+  opacity that fades a control, and nothing scales on press.
 - No icon `size` other than 16 or 20 (0065). No `border-edge` or `ring-edge`
   except a checkbox, a task box and a drop target (0063). No `focus:` where
   `focus-visible:` is meant. No built in shadow utility (0052), no duration,

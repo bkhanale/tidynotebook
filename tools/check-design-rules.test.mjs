@@ -394,6 +394,29 @@ await test('a filter that makes a colour fails', () => {
   assert.equal(textRules['colour-filter']('text-strong'), null);
 });
 
+await test('a control that fades with an opacity fails', () => {
+  const screen = 'packages/ui/src/menu.tsx';
+  // The defect this covers: a disabled button faded to half of its ink fill
+  // and still read as the action of the screen.
+  assert.notEqual(
+    textRules['faded-control']('disabled:opacity-50', screen),
+    null,
+  );
+  assert.notEqual(textRules['faded-control']('opacity-75', screen), null);
+  assert.notEqual(textRules['faded-control']('hover:opacity-5', screen), null);
+  assert.equal(textRules['faded-control']('opacity-0', screen), null);
+  assert.equal(textRules['faded-control']('opacity-100', screen), null);
+  assert.equal(textRules['faded-control']('disabled:text-muted', screen), null);
+  // The motion module fades an element in from none.
+  assert.equal(
+    textRules['faded-control'](
+      'motion-safe:starting:opacity-0',
+      'packages/ui/src/motion.ts',
+    ),
+    null,
+  );
+});
+
 await test('motion outside the one motion module fails', () => {
   const screen = 'apps/web/src/screen.tsx';
   assert.notEqual(textRules['raw-motion']('transition-colors', screen), null);

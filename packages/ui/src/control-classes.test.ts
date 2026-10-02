@@ -21,6 +21,7 @@ import {
   calendarNoteMarkClassName,
   compactButtonVisualClassName,
   controlStripClassName,
+  disabledButtonSurface,
   edgeControlClassName,
   fieldClassName,
   focusOutline,
@@ -37,6 +38,8 @@ import {
   type FrameEdge,
 } from './control-classes.ts';
 import { defaultIconSize } from './icon-grid.ts';
+import { contrastRatio, textContrastMinimum } from './theme.ts';
+import { themes } from './themes/index.ts';
 
 /** Every button appearance, with the name a failure message reads. */
 const variants: readonly ButtonVariant[] = [
@@ -256,6 +259,69 @@ await test('only the secondary button carries an edge', () => {
       variant,
     );
   }
+});
+
+await test('a disabled button reads as unavailable and not as the action', () => {
+  // The defect this covers: a disabled primary button took half of its ink
+  // fill, so the Save button of Settings was a grey filled button that read
+  // as the action of the screen.
+  for (const variant of variants) {
+    const parts = buttonClassName({ variant }).split(' ');
+    const surface = disabledButtonSurface[variant];
+    assert.ok(!parts.some((part) => part.includes('opacity')), variant);
+    assert.ok(parts.includes('disabled:text-muted'), variant);
+    assert.ok(parts.includes(`disabled:${surface}`), variant);
+    // The hover of a disabled button keeps the same surface.
+    assert.ok(parts.includes(`disabled:hover:${surface}`), variant);
+    assert.ok(parts.includes('disabled:cursor-not-allowed'), variant);
+  }
+  assert.equal(disabledButtonSurface.primary, 'bg-hover');
+  assert.equal(disabledButtonSurface.danger, 'bg-hover');
+  // A compact button carries the state on its group.
+  const visual = compactButtonVisualClassName({
+    variant: 'primary',
+    iconOnly: true,
+  }).split(' ');
+  assert.ok(visual.includes('group-disabled:bg-hover'));
+  assert.ok(visual.includes('group-disabled:group-hover:bg-hover'));
+  assert.ok(visual.includes('group-disabled:text-muted'));
+});
+
+await test('a disabled row reads as unavailable with no opacity', () => {
+  for (const options of [{}, { selected: true }, { danger: true }]) {
+    const parts = rowClassName(options).split(' ');
+    assert.ok(!parts.some((part) => part.includes('opacity')));
+    assert.ok(parts.includes('disabled:text-muted'));
+    assert.ok(parts.includes('disabled:cursor-not-allowed'));
+  }
+  // A row with a hover keeps its resting fill and the muted text under the
+  // pointer.
+  for (const options of [{}, { danger: true }]) {
+    const parts = rowClassName(options).split(' ');
+    assert.ok(parts.includes('disabled:hover:bg-transparent'));
+    assert.ok(parts.includes('disabled:hover:text-muted'));
+  }
+  // A container row is never a control, so it states no disabled state.
+  assert.ok(!rowClassName({ interactive: false }).includes('disabled:'));
+});
+
+await test('the label of a disabled button reads on every palette', () => {
+  // The muted text on each surface a disabled button rests on. A transparent
+  // ghost button takes the plane under it, which the theme rules already hold.
+  const tokenOf = {
+    'bg-hover': 'surfaceHover',
+    'bg-card': 'surfaceCard',
+  } as const;
+  for (const theme of themes)
+    for (const variant of variants) {
+      const surface = disabledButtonSurface[variant];
+      if (surface === 'bg-transparent') continue;
+      const fill = theme.tokens[tokenOf[surface]];
+      assert.ok(
+        contrastRatio(theme.tokens.textMuted, fill) >= textContrastMinimum,
+        `${theme.id} ${variant}`,
+      );
+    }
 });
 
 await test('a button names one appearance and one size', () => {

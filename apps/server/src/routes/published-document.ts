@@ -299,7 +299,7 @@ export const footClasses = 'mt-12 text-control text-muted';
  * before it compares.
  */
 export const publishedButtonClasses =
-  'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 bg-accent-fill text-on-accent hover:bg-accent-fill-hover min-h-11 px-3 md:min-h-8';
+  'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed bg-accent-fill text-on-accent hover:bg-accent-fill-hover disabled:bg-hover disabled:hover:bg-hover disabled:text-muted min-h-11 px-3 md:min-h-8';
 
 /** The classes of the password field. See {@link publishedButtonClasses}. */
 export const publishedFieldClasses =

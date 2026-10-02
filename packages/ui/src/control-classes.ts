@@ -63,17 +63,60 @@ function buttonVariantClassName(
 ): string {
   const danger = tone === 'danger';
   const hover = interaction === 'group' ? 'group-hover:' : 'hover:';
-  return variant === 'secondary'
-    ? danger
-      ? `border border-edge-line bg-card text-danger shadow-raised ${hover}bg-danger-surface`
-      : `border border-edge-line bg-card text-strong shadow-raised ${hover}bg-hover`
-    : variant === 'ghost'
+  const resting =
+    variant === 'secondary'
       ? danger
-        ? `bg-transparent text-danger ${hover}bg-danger-surface`
-        : `bg-transparent text-strong ${hover}bg-hover`
-      : variant === 'danger'
-        ? `bg-danger-fill text-on-danger ${hover}bg-danger-fill-hover`
-        : `bg-accent-fill text-on-accent ${hover}bg-accent-fill-hover`;
+        ? `border border-edge-line bg-card text-danger shadow-raised ${hover}bg-danger-surface`
+        : `border border-edge-line bg-card text-strong shadow-raised ${hover}bg-hover`
+      : variant === 'ghost'
+        ? danger
+          ? `bg-transparent text-danger ${hover}bg-danger-surface`
+          : `bg-transparent text-strong ${hover}bg-hover`
+        : variant === 'danger'
+          ? `bg-danger-fill text-on-danger ${hover}bg-danger-fill-hover`
+          : `bg-accent-fill text-on-accent ${hover}bg-accent-fill-hover`;
+  return `${resting} ${disabledButtonClassName(variant, interaction)}`;
+}
+
+/**
+ * The surface a disabled button rests on, by variant.
+ *
+ * A filled button gives up its fill, because the fill is what states that
+ * this is the action of the screen. Every other button keeps its surface.
+ * Each of these is a fill that `theme-rules.ts` holds the muted text to, so
+ * an unavailable label still reads on every palette.
+ */
+export const disabledButtonSurface: Readonly<
+  Record<ButtonVariant, 'bg-hover' | 'bg-card' | 'bg-transparent'>
+> = {
+  primary: 'bg-hover',
+  danger: 'bg-hover',
+  secondary: 'bg-card',
+  ghost: 'bg-transparent',
+};
+
+/**
+ * The appearance of a disabled button, as classes.
+ *
+ * A disabled button states that it is unavailable with its own colours: the
+ * muted text on the surface of `disabledButtonSurface`, in every state. An
+ * opacity on the whole control did that before, and it made a colour at paint
+ * time that no contrast test could see: the ink fill of a primary button at
+ * half strength was a grey fill that still read as the action of the screen.
+ *
+ * The hover of a disabled button names the same surface. A variant prefix
+ * outranks the plain class, and the second prefix outranks the hover of the
+ * resting recipe, so the outcome does not depend on the order of the
+ * stylesheet. A compact button carries the state on its `group`.
+ */
+function disabledButtonClassName(
+  variant: ButtonVariant,
+  interaction: 'button' | 'group',
+): string {
+  const surface = disabledButtonSurface[variant];
+  const state = interaction === 'group' ? 'group-disabled:' : 'disabled:';
+  const hover = interaction === 'group' ? 'group-hover:' : 'hover:';
+  return `${state}${surface} ${state}${hover}${surface} ${state}text-muted`;
 }
 
 /**
@@ -129,7 +172,7 @@ export function buttonClassName(
         ? 'min-h-11 px-2.5 md:min-h-7'
         : 'min-h-11 px-3 md:min-h-8';
   return [
-    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline ${transitionSurface} ${compact ? 'focus-visible:outline-none' : focusOutline} disabled:cursor-not-allowed disabled:opacity-50`,
+    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline ${transitionSurface} ${compact ? 'focus-visible:outline-none' : focusOutline} disabled:cursor-not-allowed`,
     variantClass,
     sizeClass,
     options.className ?? '',
@@ -297,9 +340,19 @@ export function rowClassName(
         ? 'hover:bg-hover'
         : 'hover:bg-hover hover:text-strong'
       : '';
+  // A row that is a button can be disabled, such as a menu row that cannot
+  // run now. It takes the muted text and keeps its fill under the pointer,
+  // the way a disabled button does, and no opacity makes a colour of it. A
+  // marked row states no hover, so it has none to undo.
+  const disabled = interactive
+    ? marked
+      ? 'disabled:cursor-not-allowed disabled:text-muted'
+      : 'disabled:cursor-not-allowed disabled:text-muted disabled:hover:bg-transparent disabled:hover:text-muted'
+    : '';
   return [
     `flex min-h-11 items-center gap-2 rounded-md px-2 text-control ${colour} no-underline ${transitionSurface} md:min-h-7`,
     interactive ? 'cursor-pointer' : '',
+    disabled,
     interactive
       ? options.inset === false
         ? focusOutline

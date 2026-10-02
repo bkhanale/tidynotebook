@@ -76,7 +76,10 @@ no screen writes its own (record 0065).
   `shadow-raised`. `ghost` is an icon only action and a Cancel. `danger` is a
   destructive confirmation, and a quiet button that starts one takes the
   danger tone from the recipe. `md` is 32 px, `sm` is 28 px, and `compact`
-  keeps the touch target and draws a smaller surface inside it.
+  keeps the touch target and draws a smaller surface inside it. A disabled
+  button takes the muted text, and a filled one gives up its fill for
+  `bg-hover`, so it never reads as the action. No control fades with an
+  opacity.
 - `rowClassName`: every clickable row, in the tree, a list, a menu, the palette
   and the sidebar footer. 28 px on a desktop, `rounded-md`, `hover:bg-hover`.
   The open or chosen row is `bg-active text-strong font-medium`. No ring. A row

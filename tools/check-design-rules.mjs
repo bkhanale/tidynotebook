@@ -39,6 +39,9 @@
  * - `colour-filter`: a filter utility that changes a colour, such as
  *   `brightness-110`. A colour comes from the palette, so a hover fill reads a
  *   derived name of decision 0057 and never a filter.
+ * - `faded-control`: an opacity utility between none and all, outside
+ *   `packages/ui/src/motion.ts`. A faded control makes a colour that no
+ *   contrast rule holds, so a disabled control takes the muted text instead.
  * - `raw-motion`: a transition, a duration, or an easing utility outside
  *   `packages/ui/src/motion.ts`, which is the one motion scale of decision
  *   0054.
@@ -199,6 +202,9 @@ const shadowUtility = /(?:^|[\s:])(shadow(?:-[a-z0-9]+)?)(?![\w-])/g;
 // `contrast-more:` preference variant is not a filter.
 const colourFilter =
   /(?:^|[\s:])((?:brightness|saturate|contrast|hue-rotate)-\d+|(?:grayscale|invert|sepia)(?:-\d+)?)(?![\w-])/;
+// An opacity that keeps part of a colour. `opacity-0` hides and
+// `opacity-100` shows, and the motion module fades an element in from none.
+const fadedOpacity = /(?:^|[\s:])(opacity-(?:[1-9]\d?|0\.\d+))(?![\w-])/;
 const motionUtility =
   /(?:^|[\s:])((?:transition(?:-[a-z]+)?|duration-[a-z0-9]+|ease-[a-z]+))(?![\w-])/g;
 const markdownSuffix = /\.md\b/;
@@ -295,6 +301,14 @@ export const textRules = {
     const found = colourFilter.exec(text);
     return found
       ? `Filter utility ${found[1]} makes a colour that no contrast rule holds. Read a name from the palette.`
+      : null;
+  },
+  /** @param {string} text @param {string} path @returns {string | null} */
+  'faded-control'(text, path) {
+    if (path === motionModule) return null;
+    const found = fadedOpacity.exec(text);
+    return found
+      ? `Opacity utility ${found[1]} makes a colour that no contrast rule holds. A disabled control takes text-muted.`
       : null;
   },
   /** @param {string} text @param {string} path @returns {string | null} */

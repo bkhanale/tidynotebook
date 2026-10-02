@@ -441,14 +441,14 @@ export function Checkbox({
 }): ReactNode {
   return (
     <label
-      className={`inline-flex min-h-11 items-center gap-2 text-control text-strong md:min-h-8 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+      className={`inline-flex min-h-11 items-center gap-2 text-control md:min-h-8 ${disabled ? 'cursor-not-allowed text-muted' : 'cursor-pointer text-strong'}`}
       htmlFor={id}
     >
       <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
         <input
           id={id}
           type="checkbox"
-          className={`peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill disabled:cursor-not-allowed ${focusOutline}`}
+          className={`peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill disabled:cursor-not-allowed disabled:checked:border-edge disabled:checked:bg-hover ${focusOutline}`}
           checked={checked}
           disabled={disabled}
           aria-describedby={describedBy}
@@ -456,7 +456,7 @@ export function Checkbox({
             onChange(event.target.checked);
           }}
         />
-        <CheckIcon className="pointer-events-none absolute inset-0 hidden text-on-accent peer-checked:block" />
+        <CheckIcon className="pointer-events-none absolute inset-0 hidden text-on-accent peer-checked:block peer-disabled:text-muted" />
       </span>
       <span>{label}</span>
     </label>
