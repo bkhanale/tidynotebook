@@ -199,6 +199,7 @@ and needs no record.
 | [0166](0166-history-shows-a-version-as-the-note-and-as-a-difference.md)               | History shows a version as the note and as a difference                         |
 | [0167](0167-search-reads-the-words-of-any-language-as-a-reader-sees-them.md)          | Search reads the words of any language as a reader sees them                    |
 | [0168](0168-a-note-read-carries-the-document-only-for-an-editor.md)                   | A note read carries the document only for an editor                             |
+| [0169](0169-the-server-compresses-a-large-json-read.md)                               | The server compresses a large JSON read                                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -700,3 +701,7 @@ Record 0168 answers
 [issue 264](https://github.com/bkhanale/notesapp/issues/264). A note read
 carries the document of the note only for a reader that asks for it, and a
 reader that shows the text asks for the text alone.
+
+Record 0169 answers the same issue. The server compresses the JSON answer of
+a large read itself, as record 0013 asks of delivery, and leaves a write and
+an answer that sets a cookie as they are.
