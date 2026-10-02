@@ -193,6 +193,10 @@ and needs no record.
 | [0159](0159-one-highlighter-colours-code-on-both-surfaces.md)                         | One highlighter colours code on both surfaces                                   |
 | [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
 | [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
+| [0163](0163-a-new-note-takes-its-name-from-its-first-heading.md)                      | A new note takes its name from its first heading                                |
+| [0164](0164-the-tree-is-one-list-of-rows-with-a-selection.md)                         | The tree is one list of rows with a selection                                   |
+| [0165](0165-a-long-list-renders-a-window-of-its-rows.md)                              | A long list renders a window of its rows                                        |
+| [0166](0166-history-shows-a-version-as-the-note-and-as-a-difference.md)               | History shows a version as the note and as a difference                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -659,3 +663,19 @@ Records 0161 and 0162 answer issues of the
 0161 holds a render failure at the nearest route boundary, so a failure in one
 page leaves the frame. Record 0162 makes a search excerpt the plain text of
 its Markdown, at the server and on the device.
+Records 0163 to 0165 follow
+[design 023](../design/023-names-the-tree-and-long-lists.md). Record 0163
+names a note from its first heading while its name is automatic, at the
+boundary of a version, and answers
+[issue 252](https://github.com/bkhanale/notesapp/issues/252). Record 0164 makes
+the tree one list of rows with the tree role, a selection of many rows, one
+menu for a row, a right click and the keys, and a rename in place, and answers
+[issue 245](https://github.com/bkhanale/notesapp/issues/245) and
+[issue 255](https://github.com/bkhanale/notesapp/issues/255). Record 0165
+renders a window of the rows of a long list, with a module of our own, and
+answers [issue 256](https://github.com/bkhanale/notesapp/issues/256).
+
+Record 0166 answers
+[issue 254](https://github.com/bkhanale/notesapp/issues/254). History groups
+its versions by day with a time that differs, marks the current version, and
+opens a version as a difference and as a read-only preview of the note.
