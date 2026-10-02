@@ -53,6 +53,14 @@ export async function migrateSearchIndex(
   await client.connect();
   let rewrittenRows = 0;
   try {
+    // A run that stops before the migration of the rule, as an upgrade test
+    // does, has rows with no rule to read. The run after it makes them again.
+    const ruled = await client.query(
+      `select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'search_index'
+         and column_name = 'text_rule'`,
+    );
+    if (ruled.rows.length === 0) return { rewrittenRows };
     for (;;) {
       // Each batch writes the current rule into every row it read, so the
       // next read starts after them and the loop ends.
