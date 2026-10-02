@@ -22,6 +22,7 @@
  */
 import { indentUnit } from '@codemirror/language';
 import {
+  countColumn,
   EditorSelection,
   EditorState,
   type ChangeSpec,
@@ -640,14 +641,16 @@ function holdingItem(
   quote: string,
   indent: string,
 ): ListLine | null {
-  if (indent === '' || indent.includes('\t')) return null;
+  // A tab and spaces are compared by the columns they reach, so a list that
+  // is indented with tabs nests as one indented with spaces.
+  const width = (text: string): number => countColumn(text, state.tabSize);
+  const own = width(indent);
+  if (own === 0) return null;
   for (let at = number - 1; at >= 1; at -= 1) {
     const inner = textInsideQuote(state.doc.line(at).text, quote);
     if (inner === null) return null;
     if (inner.trim() === '') continue;
-    const above = indentOf(inner);
-    if (above.length >= indent.length) continue;
-    if (above.includes('\t')) return null;
+    if (width(indentOf(inner)) >= own) continue;
     return parseListLine(inner);
   }
   return null;

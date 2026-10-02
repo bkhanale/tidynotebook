@@ -391,6 +391,24 @@ await test('Enter on an empty nested item moves it out one level', () => {
   }
 });
 
+await test('Enter on an empty item of a tab-indented list moves it out one level', () => {
+  // The defect this covers: a list nested with tabs had no holding item, so
+  // Enter on an empty nested item ended the whole list.
+  for (const [source, expected] of [
+    ['- one\n\t- two\n\t- ‸', '- one\n\t- two\n- ‸'],
+    ['1. one\n\t- a\n\t- ‸', '1. one\n\t- a\n2. ‸'],
+    [
+      '- one\n\t- two\n\t\t- three\n\t\t- ‸',
+      '- one\n\t- two\n\t\t- three\n\t- ‸',
+    ],
+    // A tab and four spaces reach one column, so they are one level.
+    ['- one\n    - two\n\t- ‸', '- one\n    - two\n- ‸'],
+  ] as const) {
+    const state = stateOf(source);
+    assert.equal(applied(state, continueBlockSpec(state)), expected, source);
+  }
+});
+
 await test('an empty item amid a list splits it with blank lines', () => {
   const middle = stateOf('- one\n- ‸\n- three');
   assert.equal(
