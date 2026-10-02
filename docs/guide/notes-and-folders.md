@@ -100,7 +100,8 @@ type is in the list before you save it. A narrow window hides this side panel.
 
 ## Remove a note or a folder
 
-Open the row menu of a note and select **Delete note**. Open the row menu of a
-folder and select **Delete folder**. The action runs at once. A bar offers
-**Undo** for a few seconds. A folder action moves every note under the folder
-to Trash. See [Trash](trash.md).
+Open the row menu of a note or a folder and select **Move to Trash**. The
+note menu in the header and the command palette offer the same action for the
+open note. The action runs at once. A bar offers **Restore** for a few
+seconds. A folder action moves every note under the folder to Trash. See
+[Trash](trash.md).

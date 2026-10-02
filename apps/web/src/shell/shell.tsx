@@ -175,6 +175,7 @@ import {
   treeRowNameClassName,
 } from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
+import { moveNoteToTrashPaletteLabel, noteTrashRow } from '../lib/note-menu.ts';
 import { baseNameOf, displayNoteName } from '../lib/note-name.ts';
 import { initialOf } from '../lib/initial.ts';
 import { workspaceAfterRemoval } from '../lib/workspace-choice.ts';
@@ -314,9 +315,9 @@ function NoteRow({
         triggerClassName={rowActionClassName}
         items={[
           {
-            id: 'delete-note',
-            label: 'Delete',
-            icon: actionIcon('delete'),
+            id: noteTrashRow.id,
+            label: noteTrashRow.label,
+            icon: actionIcon(noteTrashRow.icon),
             danger: true,
             onSelect: onDelete,
           },
@@ -524,9 +525,9 @@ function TreeView({
                     onSelect: () => onPublishFolder(node.fullPath),
                   },
                   {
-                    id: 'delete-folder',
-                    label: 'Delete folder',
-                    icon: actionIcon('delete'),
+                    id: noteTrashRow.id,
+                    label: noteTrashRow.label,
+                    icon: actionIcon(noteTrashRow.icon),
                     danger: true,
                     onSelect: () => onDeleteFolder(node.fullPath),
                   },
@@ -1751,10 +1752,10 @@ function ShellFrame({
               ? []
               : [
                   {
-                    id: 'delete-note',
-                    label: 'Delete this note',
+                    id: 'move-note-to-trash',
+                    label: moveNoteToTrashPaletteLabel,
                     keywords: 'delete trash remove',
-                    icon: 'delete' as const,
+                    icon: noteTrashRow.icon,
                     run: noteActions.deleteAndLeave,
                   },
                 ]),

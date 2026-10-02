@@ -163,6 +163,7 @@ export const actionIconNames = [
   'move-down',
   'move-left',
   'move-right',
+  'move-to-trash',
   'move-up',
   'new-folder',
   'new-note',

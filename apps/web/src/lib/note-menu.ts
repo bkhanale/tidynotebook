@@ -16,6 +16,13 @@
  * Each row names a glyph of `lib/palette-items.ts`, so the menu, the palette
  * and the sidebar cannot show three marks for one action (decision 0065).
  *
+ * The move to Trash has one name on every surface: the note menu, a row of
+ * the tree, a folder row, a selection and the command palette (issue 245).
+ * In Trash, Delete removes a note for good, so a move to Trash never reads
+ * Delete. This module is the one place that writes those words, and
+ * `note-menu.test.ts` refuses any other source that draws the glyph of the
+ * move or writes a Delete label for it.
+ *
  * This module is pure, so a unit test holds the order and the rows.
  */
 import type { ActionIconName } from './palette-items.ts';
@@ -23,8 +30,9 @@ import type { ActionIconName } from './palette-items.ts';
 /**
  * What one row of the note menu can run.
  *
- * `delete` is in the list because it is a row of the menu, and it is not in
- * {@link noteMenuRows} because it is the pinned row below the separator.
+ * `move-to-trash` is in the list because it is a row of the menu, and it is
+ * not in {@link noteMenuRows} because it is the pinned row below the
+ * separator.
  */
 export type NoteMenuAction =
   | 'history'
@@ -34,7 +42,7 @@ export type NoteMenuAction =
   | 'duplicate'
   | 'attach-image'
   | 'export'
-  | 'delete';
+  | 'move-to-trash';
 
 /** One row of the note menu, before a screen gives it a glyph and a handler. */
 export type NoteMenuRow = {
@@ -62,11 +70,17 @@ const allRows: readonly NoteMenuRow[] = [
   { id: 'export', label: 'Export as Markdown', icon: 'export' },
 ];
 
-/** The pinned row that destroys the note. */
+/** The one name of the action that moves a note or a folder to Trash. */
+export const moveToTrashLabel = 'Move to Trash';
+
+/** The same action as a row of the command palette, which names its object. */
+export const moveNoteToTrashPaletteLabel = 'Move this note to Trash';
+
+/** The pinned row that moves the note to Trash. */
 export const noteTrashRow: NoteMenuRow = {
-  id: 'delete',
-  label: 'Move to Trash',
-  icon: 'delete',
+  id: 'move-to-trash',
+  label: moveToTrashLabel,
+  icon: 'move-to-trash',
 };
 
 /**

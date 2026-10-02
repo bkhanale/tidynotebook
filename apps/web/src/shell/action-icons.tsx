@@ -94,6 +94,7 @@ const actionIcons: Readonly<
   'move-down': ArrowDownIcon,
   'move-left': ArrowLeftIcon,
   'move-right': ArrowRightIcon,
+  'move-to-trash': TrashIcon,
   'move-up': ArrowUpIcon,
   'new-folder': FolderPlusIcon,
   'new-note': PlusIcon,

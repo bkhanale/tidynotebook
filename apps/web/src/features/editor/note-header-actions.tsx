@@ -81,7 +81,7 @@ export function NoteHeaderActions({
     duplicate: onDuplicate,
     'attach-image': onAttachImage,
     export: onExport,
-    delete: onDelete,
+    'move-to-trash': onDelete,
   };
 
   const items: MenuItem[] = noteMenuRows({
