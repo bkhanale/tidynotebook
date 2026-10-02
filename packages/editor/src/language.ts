@@ -11,14 +11,18 @@
  * language built here.
  *
  * Code inside a fence is parsed by a second language when one is known for
- * the info string. Those languages load on demand, so the initial bundle
- * carries none of them.
+ * the info string. The list of those languages and the map of their tokens
+ * live in `@notesapp/markdown`, which highlights the published page with the
+ * same parsers (record 0159), so a fence reads one way on both surfaces. The
+ * parsers load on demand, so the initial bundle carries none of them.
  */
 import { markdown } from '@codemirror/lang-markdown';
 import { yamlFrontmatter } from '@codemirror/lang-yaml';
 import {
   ensureSyntaxTree,
+  defineLanguageFacet,
   HighlightStyle,
+  Language,
   LanguageDescription,
   LanguageSupport,
   syntaxHighlighting,
@@ -26,55 +30,62 @@ import {
 } from '@codemirror/language';
 import type { EditorState, Extension } from '@codemirror/state';
 import { GFM } from '@lezer/markdown';
-import { tags } from '@lezer/highlight';
+import {
+  codeLanguageOf,
+  codeLanguages as fenceLanguages,
+  codeTokenTags,
+  loadCodeParser,
+  type CodeLanguage,
+  type CodeToken,
+} from '@notesapp/markdown';
 import { footnoteMarkdownExtension } from './footnote-syntax.ts';
 import { mathMarkdownExtension } from './math-syntax.ts';
 
 /**
+ * The CodeMirror language of one entry of the shared list.
+ *
+ * The language wraps the bare Lezer parser of `@notesapp/markdown`, so the
+ * editor highlights exactly the tokens that the published page highlights.
+ */
+async function fenceSupport(language: CodeLanguage): Promise<LanguageSupport> {
+  const parser = await loadCodeParser(language);
+  return new LanguageSupport(
+    new Language(defineLanguageFacet(), parser, [], language.name),
+  );
+}
+
+/**
  * The languages a fenced code block can be highlighted with.
  *
- * Each entry loads on first use. An unknown info string is not an error: the
- * fence body stays plain monospaced text with the language label visible.
+ * One description for each entry of the shared list of `@notesapp/markdown`,
+ * in its order. Each entry loads on first use. An unknown info string is not
+ * an error: the fence body stays plain monospaced text with the language
+ * label visible.
  */
-export const codeLanguages: readonly LanguageDescription[] = [
-  LanguageDescription.of({
-    name: 'javascript',
-    alias: ['js', 'jsx', 'node'],
-    extensions: ['js', 'mjs', 'cjs', 'jsx'],
-    load: () =>
-      import('@codemirror/lang-javascript').then((module) =>
-        module.javascript({ jsx: true }),
-      ),
-  }),
-  LanguageDescription.of({
-    name: 'typescript',
-    alias: ['ts', 'tsx'],
-    extensions: ['ts', 'mts', 'cts', 'tsx'],
-    load: () =>
-      import('@codemirror/lang-javascript').then((module) =>
-        module.javascript({ jsx: true, typescript: true }),
-      ),
-  }),
-  LanguageDescription.of({
-    name: 'json',
-    extensions: ['json'],
-    load: () =>
-      import('@codemirror/lang-javascript').then((module) =>
-        module.javascript(),
-      ),
-  }),
-  LanguageDescription.of({
-    name: 'css',
-    extensions: ['css'],
-    load: () => import('@codemirror/lang-css').then((module) => module.css()),
-  }),
-  LanguageDescription.of({
-    name: 'html',
-    alias: ['htm', 'xhtml'],
-    extensions: ['html', 'htm'],
-    load: () => import('@codemirror/lang-html').then((module) => module.html()),
-  }),
-];
+export const codeLanguages: readonly LanguageDescription[] = fenceLanguages.map(
+  (language) =>
+    LanguageDescription.of({
+      name: language.name,
+      alias: [...language.aliases],
+      extensions: [...language.extensions],
+      load: () => fenceSupport(language),
+    }),
+);
+
+/**
+ * The language of the info string of one fence, or `null`.
+ *
+ * The shared rule of `codeLanguageOf` decides it, so the renderer and the
+ * editor pick one language for one fence.
+ */
+export function fenceLanguageOf(info: string): LanguageDescription | null {
+  const language = codeLanguageOf(info);
+  if (language === null) return null;
+  return (
+    codeLanguages.find((description) => description.name === language.name) ??
+    null
+  );
+}
 
 /**
  * The colours of code inside a fence.
@@ -107,74 +118,29 @@ export const syntaxTokenNames = [
   'punctuation',
 ] as const;
 
-function syntaxColour(name: (typeof syntaxTokenNames)[number]): string {
-  return `var(--notes-syntax-${name})`;
+/** The colour of one code token, from the palette of the active theme. */
+function tokenColour(token: CodeToken): string {
+  return token === 'invalid'
+    ? 'var(--notes-danger-text)'
+    : `var(--notes-syntax-${token})`;
 }
 
 /**
  * The highlight specs for code inside a fence.
  *
- * A Markdown tag never appears here. A heading, strong text, emphasis, and a
- * link are Markdown constructs, and the live preview decorations in
- * `./live-preview.ts` style those from the note typography (`--notes-text-*`
- * and `--notes-accent-*`). If this style also carried `tags.heading`,
- * `tags.strong`, or `tags.link`, it would repaint the Markdown heading, the
- * bold run, and the link with the code palette, so the note text would take a
- * code colour. Exported so a unit test can hold that rule.
+ * One spec for each token of `codeTokenTags` in `@notesapp/markdown`, which
+ * is the one map from a Lezer tag to a code token. The renderer writes its
+ * classes from the same map, so a token of the editor and a token of the
+ * published page take one colour. A comment leans, on both surfaces.
+ * Exported so a unit test can hold the boundary of the map.
  */
-export const codeHighlightSpecs = [
-  {
-    tag: [
-      tags.keyword,
-      tags.controlKeyword,
-      tags.moduleKeyword,
-      tags.definitionKeyword,
-      tags.operatorKeyword,
-    ],
-    color: syntaxColour('keyword'),
-  },
-  {
-    tag: [tags.string, tags.special(tags.string), tags.regexp],
-    color: syntaxColour('string'),
-  },
-  {
-    // `tags.meta` is not here, and it cannot be. The Markdown grammar marks
-    // every marker of a note, the list mark, the quote mark, the emphasis
-    // mark and the table separator, with `tags.processingInstruction`, which
-    // `@lezer/highlight` defines as a child of `tags.meta`, and a highlight
-    // style paints a child through its parent. One entry for the meta token
-    // of a language therefore painted every marker of every note in the
-    // comment colour and leaned it, in a span inside the decoration, where no
-    // rule of the adapter could reach it.
-    tag: [tags.comment, tags.lineComment, tags.blockComment],
-    color: syntaxColour('comment'),
-    fontStyle: 'italic',
-  },
-  {
-    tag: [tags.number, tags.bool, tags.null, tags.atom],
-    color: syntaxColour('number'),
-  },
-  {
-    tag: [tags.tagName, tags.typeName, tags.className, tags.namespace],
-    color: syntaxColour('tag'),
-  },
-  {
-    tag: [
-      tags.attributeName,
-      tags.propertyName,
-      tags.function(tags.variableName),
-      tags.function(tags.propertyName),
-    ],
-    color: syntaxColour('attribute'),
-  },
-  {
-    tag: [tags.operator, tags.punctuation, tags.separator, tags.bracket],
-    color: syntaxColour('punctuation'),
-  },
-  { tag: tags.invalid, color: 'var(--notes-danger-text)' },
-] as const;
+export const codeHighlightSpecs = codeTokenTags.map((entry) => ({
+  tag: [...entry.tags],
+  color: tokenColour(entry.token),
+  ...(entry.token === 'comment' ? { fontStyle: 'italic' } : {}),
+}));
 
-const codeHighlightStyle = HighlightStyle.define([...codeHighlightSpecs]);
+const codeHighlightStyle = HighlightStyle.define(codeHighlightSpecs);
 
 /**
  * The Markdown language support of the note editor.
@@ -187,7 +153,7 @@ export function noteMarkdown(): LanguageSupport {
   return yamlFrontmatter({
     content: markdown({
       extensions: [GFM, mathMarkdownExtension, footnoteMarkdownExtension],
-      codeLanguages: [...codeLanguages],
+      codeLanguages: fenceLanguageOf,
     }),
   });
 }

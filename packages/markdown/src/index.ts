@@ -69,5 +69,30 @@ export {
 } from './math.ts';
 export type { ExcerptText } from './plain-text.ts';
 export { plainExcerpt } from './plain-text.ts';
+export type { CodeLanguage } from './code-languages.ts';
+export {
+  codeLanguageOf,
+  codeLanguages,
+  loadCodeParser,
+} from './code-languages.ts';
+export type { CodeToken, CodeTokenTags } from './code-tokens.ts';
+export {
+  codeTokenClass,
+  codeTokenClasses,
+  codeTokenNames,
+  codeTokenTags,
+} from './code-tokens.ts';
+export type {
+  AuthorAttribute,
+  AuthorAttributeValue,
+  HtmlTag,
+} from './html-elements.ts';
+export {
+  authorElements,
+  authorStrippedElements,
+  previewHtmlElements,
+  previewHtmlTag,
+} from './html-elements.ts';
+export { taskMarkClass, taskMarkPoints } from './task-mark.ts';
 export type { NoteTarget, RenderMarkdownOptions } from './render.ts';
 export { headingSlug, renderMarkdown } from './render.ts';

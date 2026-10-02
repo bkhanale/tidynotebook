@@ -178,6 +178,89 @@ function quoteLevel(level: number): Record<string, string> {
 }
 
 /**
+ * The look of each inline HTML element that the live preview draws.
+ *
+ * `live-preview.ts` marks the text between the two tags of one element of
+ * `previewHtmlElements` in `@notesapp/markdown` with `cm-np-html-<name>`
+ * (record 0157). Each rule here is the look that the published page gives the
+ * same element in `apps/server/src/routes/published-document.ts`, so a key, a
+ * mark and a subscript read alike on both surfaces. A subscript, a
+ * superscript and small text take the sizes of the stylesheet that both
+ * surfaces load, which Tailwind writes for the elements themselves.
+ */
+export function inlineHtmlRules(): Record<string, Record<string, string>> {
+  const strong = {
+    fontWeight: 'var(--font-weight-note-heading)',
+    color: 'var(--notes-text-strong)',
+  };
+  const lean = { fontStyle: 'italic' };
+  const struck = {
+    textDecoration: 'line-through',
+    color: 'var(--notes-text-muted)',
+  };
+  const code = {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--text-note-mono)',
+    backgroundColor: 'var(--notes-surface-hover)',
+    borderRadius: 'var(--radius-sm)',
+    paddingInline: 'calc(var(--spacing) * 1.5)',
+    paddingBlock: 'calc(var(--spacing) * 0.25)',
+  };
+  return {
+    '.cm-np-html-b': strong,
+    '.cm-np-html-strong': strong,
+    '.cm-np-html-i': lean,
+    '.cm-np-html-em': lean,
+    '.cm-np-html-cite': lean,
+    '.cm-np-html-dfn': lean,
+    '.cm-np-html-var': lean,
+    '.cm-np-html-del': struck,
+    '.cm-np-html-s': struck,
+    '.cm-np-html-strike': struck,
+    '.cm-np-html-ins': { textDecoration: 'underline' },
+    '.cm-np-html-u': { textDecoration: 'underline' },
+    '.cm-np-html-abbr': { textDecoration: 'underline dotted' },
+    '.cm-np-html-code': code,
+    '.cm-np-html-samp': code,
+    // A key is a hint inside a sentence: the code face, the divider edge and
+    // the small radius of a hint (record 0063).
+    '.cm-np-html-kbd': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--text-note-mono)',
+      backgroundColor: 'var(--notes-surface)',
+      border: '1px solid var(--notes-border-line)',
+      borderRadius: 'var(--radius-sm)',
+      paddingInline: 'var(--spacing)',
+    },
+    // A mark is the tone surface of the accent with the strong text on it,
+    // the one fill of the palette that states a tone without the accent ink.
+    '.cm-np-html-mark': {
+      backgroundColor: 'var(--notes-accent-surface)',
+      color: 'var(--notes-text-strong)',
+      borderRadius: 'var(--radius-sm)',
+      paddingInline: 'calc(var(--spacing) * 0.5)',
+    },
+    '.cm-np-html-sub': {
+      fontSize: '75%',
+      lineHeight: '0',
+      position: 'relative',
+      verticalAlign: 'baseline',
+      bottom: '-0.25em',
+    },
+    '.cm-np-html-sup': {
+      fontSize: '75%',
+      lineHeight: '0',
+      position: 'relative',
+      verticalAlign: 'baseline',
+      top: '-0.5em',
+    },
+    '.cm-np-html-small': { fontSize: '80%' },
+    '.cm-np-html-q::before': { content: 'open-quote' },
+    '.cm-np-html-q::after': { content: 'close-quote' },
+  };
+}
+
+/**
  * The complete note surface style for one palette.
  *
  * The palette only decides whether CodeMirror treats the editor as dark;
@@ -882,6 +965,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       fontSize: 'var(--text-note-mono)',
       color: 'var(--notes-text-muted)',
     },
+    ...inlineHtmlRules(),
 
     // The space above and below a picture, a diagram and display math is a
     // padding of the widget and never a margin. The editor measures the box

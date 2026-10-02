@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Root } from 'hast';
+import type { Element, Root } from 'hast';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import { unified } from 'unified';
@@ -147,6 +147,101 @@ await test('safe heading fragments are namespaced', () => {
     href: '#user-content-a-fragment',
   });
   assert.deepEqual(classifyUrl('#bad.fragment'), { kind: 'blocked' });
+});
+
+/** Sanitizes one hand-built tree with the schema alone. */
+async function sanitized(children: Root['children']): Promise<string> {
+  const processor = unified()
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeStringify);
+  return processor.stringify(await processor.run({ type: 'root', children }));
+}
+
+await test('the schema keeps an author element and refuses its unsafe attributes', async () => {
+  // Record 0157. The renderer applies the author list first, and the schema is
+  // the second gate behind it, so it refuses the same neighbours on its own.
+  assert.equal(
+    await sanitized([
+      {
+        type: 'element',
+        tagName: 'kbd',
+        properties: { onClick: 'x()', style: 'color:red', title: 't' },
+        children: [{ type: 'text', value: 'K' }],
+      },
+      {
+        type: 'element',
+        tagName: 'details',
+        properties: { open: true, onToggle: 'x()' },
+        children: [{ type: 'text', value: 'D' }],
+      },
+      {
+        type: 'element',
+        tagName: 'script',
+        properties: {},
+        children: [{ type: 'text', value: 'gone' }],
+      },
+      {
+        type: 'element',
+        tagName: 'style',
+        properties: {},
+        children: [{ type: 'text', value: 'gone' }],
+      },
+    ]),
+    '<kbd>K</kbd><details open>D</details>',
+  );
+});
+
+await test('the schema keeps the code token classes and no other class', async () => {
+  // Record 0159. A token of highlighted code is one span of a fixed class.
+  assert.equal(
+    await sanitized([
+      {
+        type: 'element',
+        tagName: 'span',
+        properties: { className: ['notes-code-keyword', 'notes-code-evil'] },
+        children: [{ type: 'text', value: 'const' }],
+      },
+    ]),
+    '<span class="notes-code-keyword">const</span>',
+  );
+});
+
+await test('the schema keeps the check mark of a task and no other drawing', async () => {
+  const mark = (points: string, viewBox: string): Element => ({
+    type: 'element',
+    tagName: 'svg',
+    properties: { className: ['notes-task-mark'], viewBox },
+    children: [
+      {
+        type: 'element',
+        tagName: 'polyline',
+        properties: { points },
+        children: [],
+      },
+    ],
+  });
+  const item = (child: Element): Element => ({
+    type: 'element',
+    tagName: 'ul',
+    properties: {},
+    children: [
+      { type: 'element', tagName: 'li', properties: {}, children: [child] },
+    ],
+  });
+  assert.equal(
+    await sanitized([item(mark('20 6 9 17 4 12', '0 0 24 24'))]),
+    '<ul><li><svg class="notes-task-mark" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg></li></ul>',
+  );
+  // Another drawing keeps no shape, and a mark outside an item does not stay.
+  assert.equal(
+    await sanitized([item(mark('0 0 24 24', '0 0 1 1'))]),
+    '<ul><li><svg class="notes-task-mark"><polyline></polyline></svg></li></ul>',
+  );
+  // Outside an item the drawing loses its frame, and a line with no frame
+  // draws nothing.
+  assert.ok(
+    !(await sanitized([mark('20 6 9 17 4 12', '0 0 24 24')])).includes('<svg'),
+  );
 });
 
 await test('surrounding white space is ignored', () => {

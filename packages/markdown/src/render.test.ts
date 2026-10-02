@@ -81,7 +81,7 @@ await test('a language class that is not a plain word is dropped', async () => {
   assert.ok(!html.includes('class='));
 });
 
-await test('raw HTML and its content are dropped', async () => {
+await test('a script leaves with its content and a raw picture leaves', async () => {
   const html = await renderMarkdown(
     '<script>alert(1)</script>\n\ntext <img src="x" onerror="alert(2)"> more\n',
   );
@@ -89,6 +89,135 @@ await test('raw HTML and its content are dropped', async () => {
   assert.ok(!html.includes('alert(1)'));
   assert.ok(!html.includes('onerror'));
   assert.ok(html.includes('text  more'));
+});
+
+await test('the HTML of an author keeps its safe elements', async () => {
+  // Issue 235. Every HTML node left with its tags, so `hi<br>next` became one
+  // word, a key and a subscript read as plain text, and the title of a folded
+  // block disappeared. Record 0157 keeps the safe set of the GitHub renderer.
+  const inline = await renderMarkdown(
+    'Press <kbd>Ctrl</kbd>, H<sub>2</sub>O, x<sup>2</sup>, <mark>m</mark>, <ins>i</ins>, <del>d</del>, <s>s</s>, <abbr title="HyperText">HTML</abbr>, hi<br>next.\n',
+  );
+  assert.equal(
+    inline,
+    '<p>Press <kbd>Ctrl</kbd>, H<sub>2</sub>O, x<sup>2</sup>, <mark>m</mark>, <ins>i</ins>, <del>d</del>, <s>s</s>, <abbr title="HyperText">HTML</abbr>, hi<br>next.</p>',
+  );
+  const folded = await renderMarkdown(
+    '<details open>\n<summary>More</summary>\n\nHidden *text*\n\n</details>\n',
+  );
+  assert.equal(
+    folded,
+    '<details open>\n<summary>More</summary>\n<p>Hidden <em>text</em></p>\n</details>',
+  );
+});
+
+await test('an unsafe neighbour of a safe element leaves', async () => {
+  // Each pair is the HTML of an author and what a reader receives. A safe
+  // element keeps its tags and loses every attribute that its list does not
+  // name, and an element outside the list keeps its words.
+  const cases: readonly (readonly [string, string])[] = [
+    [
+      '<kbd onclick="x()" style="color:red" class="katex" id="submit">K</kbd>',
+      '<p><kbd>K</kbd></p>',
+    ],
+    [
+      '<details ontoggle="x()" open>\n<summary>S</summary>\n</details>',
+      '<details open>\n<summary>S</summary>\n</details>',
+    ],
+    ['<a href="javascript:alert(1)">words</a>', '<p>words</p>'],
+    ['<a href="https://example.com">words</a>', '<p>words</p>'],
+    ['<img src="https://example.com/a.png" onerror="x()">', ''],
+    ['<pre data-diagram="mermaid">graph</pre>', '<pre>graph</pre>'],
+    ['<span data-math="inline">x^2</span>', '<p><span>x^2</span></p>'],
+    ['<input type="checkbox" checked disabled>', ''],
+    ['<iframe src="https://example.com">fallback</iframe>', ''],
+    ['<style>p { color: red }</style>', ''],
+    // A template and an object do not start an HTML block, so the paragraph
+    // around each one stays, and it is empty.
+    ['<template><p>t</p></template>', '<p></p>'],
+    ['<object data="x.swf">o</object>', '<p></p>'],
+    ['<form action="https://example.com"><button>Send</button></form>', 'Send'],
+    [
+      '<table><tr><td colspan="0" rowspan="2" align="justify" style="x">c</td></tr></table>',
+      '<table><tbody><tr><td rowspan="2">c</td></tr></tbody></table>',
+    ],
+    [
+      '<ol start="3" type="a"><li>three</li></ol>',
+      '<ol start="3"><li>three</li></ol>',
+    ],
+    // The check mark of the renderer is not an element of the author list.
+    [
+      '<svg class="notes-task-mark"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+      '<p></p>',
+    ],
+  ];
+  for (const [source, expected] of cases)
+    assert.equal(await renderMarkdown(`${source}\n`), expected, source);
+});
+
+await test('an element of the renderer cannot be forged with its mark', async () => {
+  // The mark of an element of the renderer is new for each render, so an
+  // author who writes the attribute gains nothing: the element is the work of
+  // the author and gets the author list.
+  const html = await renderMarkdown(
+    '<pre data-notes-renderer="x-0" data-diagram="mermaid">graph</pre>\n\n<a data-notes-renderer="x-1" href="https://example.com">words</a>\n',
+  );
+  assert.equal(html, '<pre>graph</pre>\n<p>words</p>');
+});
+
+await test('an alert keeps its words in a note that holds HTML', async () => {
+  // The HTML parse joins the line ending after the marker with the text of
+  // the alert, and the alert rule once removed that whole text node.
+  const html = await renderMarkdown(
+    '> [!NOTE]\n> Press <kbd>K</kbd> to go on.\n',
+  );
+  assert.equal(
+    html,
+    '<blockquote class="notes-alert" data-alert="note"><p class="notes-alert-title">Note</p>\n<p>Press <kbd>K</kbd> to go on.</p>\n</blockquote>',
+  );
+});
+
+await test('a note with HTML keeps the elements of the renderer as they are', async () => {
+  // The HTML parse runs only when a note holds HTML, and the renderer gives
+  // its own elements back their exact properties after it, so the two paths
+  // write one footnote in one form.
+  const plain = await renderMarkdown('a[^1]\n\n[^1]: b\n');
+  const mixed = await renderMarkdown('a[^1] <kbd>K</kbd>\n\n[^1]: b\n');
+  assert.ok(plain.includes('data-footnote-ref aria-describedby'), plain);
+  assert.ok(mixed.includes('data-footnote-ref aria-describedby'), mixed);
+});
+
+await test('code in a fence of a known language is highlighted', async () => {
+  // Issue 237 and record 0159. The tokens and their classes come from the one
+  // list of languages and the one map of tokens that the editor reads.
+  assert.equal(
+    await renderMarkdown('```ts\nconst a: number = 1; // c\n```\n'),
+    '<pre><code class="language-ts"><span class="notes-code-keyword">const</span> a<span class="notes-code-punctuation">:</span> <span class="notes-code-tag">number</span> <span class="notes-code-punctuation">=</span> <span class="notes-code-number">1</span><span class="notes-code-punctuation">;</span> <span class="notes-code-comment">// c</span>\n</code></pre>',
+  );
+  // A script inside HTML is parsed as JavaScript, as the editor parses it.
+  const page = await renderMarkdown(
+    '```html\n<script>let x = "s"</script>\n```\n',
+  );
+  assert.ok(page.includes('<span class="notes-code-keyword">let</span>'), page);
+  assert.ok(page.includes('<span class="notes-code-string">"s"</span>'), page);
+  // An unknown language and a fence with no info string stay plain text.
+  assert.equal(
+    await renderMarkdown('```cobol\nMOVE A TO B.\n```\n'),
+    '<pre><code class="language-cobol">MOVE A TO B.\n</code></pre>',
+  );
+  assert.equal(
+    await renderMarkdown('```\nconst a = 1;\n```\n'),
+    '<pre><code>const a = 1;\n</code></pre>',
+  );
+});
+
+await test('highlighted code keeps hostile text inert', async () => {
+  const html = await renderMarkdown(
+    '```html\n<img src=x onerror="alert(1)"></code></pre><script>x</script>\n```\n',
+  );
+  assert.ok(!html.includes('<img'), html);
+  assert.ok(!html.includes('<script'), html);
+  assert.ok(html.includes('&#x3C;'), html);
 });
 
 await test('headings get unique namespaced fragment identifiers', async () => {

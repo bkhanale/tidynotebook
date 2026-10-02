@@ -956,6 +956,62 @@ await test('a hard break and raw HTML keep their source', () => {
   assert.equal(visibleText(doc), doc);
 });
 
+await test('an inline HTML element draws its text and hides its tags', () => {
+  // Issue 235 and record 0157. The editor showed `<kbd>` and `<sub>` as source
+  // in the code colour while the published page draws them, so the preview
+  // draws the same inline elements between their two tags.
+  const doc = 'Press <kbd>Ctrl</kbd>, H<sub>2</sub>O and <mark>this</mark>.\n';
+  const found = describe(doc);
+  const at = (text: string): number => doc.indexOf(text);
+  assert.ok(has(found, 'mark', 'cm-np-html-kbd', at('Ctrl'), at('</kbd>')));
+  assert.ok(has(found, 'mark', 'cm-np-html-sub', at('2</sub>'), at('</sub>')));
+  assert.ok(has(found, 'mark', 'cm-np-html-mark', at('this'), at('</mark>')));
+  assert.equal(visibleText(doc), 'Press Ctrl, H2O and this.\n');
+  assert.ok(!has(found, 'mark', 'cm-np-html'));
+});
+
+await test('an inline HTML element shows its tags while the selection touches it', () => {
+  const doc = 'Press <kbd>Ctrl</kbd> now.\n';
+  const inside = doc.indexOf('Ctrl') + 1;
+  const found = describe(doc, { from: inside, to: inside });
+  assert.ok(has(found, 'mark', 'cm-np-html-kbd'));
+  assert.ok(has(found, 'mark', 'cm-np-html', doc.indexOf('<kbd>')));
+  assert.equal(visibleText(doc, { from: inside, to: inside }), doc);
+});
+
+await test('a tag with no partner, an attribute or a block stays source', () => {
+  for (const doc of [
+    'An open <kbd>key with no end.\n',
+    'A <kbd class="x">key</kbd> with an attribute.\n',
+    'A line<br>break.\n',
+    '<details>\n<summary>Title</summary>\n</details>\n',
+    'Nested <kbd><kbd>K</kbd> and more.\n',
+  ]) {
+    const found = describe(doc);
+    assert.ok(has(found, 'mark', 'cm-np-html'), doc);
+    assert.equal(
+      found.filter((item) => item.kind === 'hide').length,
+      doc.startsWith('Nested') ? 2 : 0,
+      doc,
+    );
+  }
+});
+
+await test('a nested pair of one element draws the outer pair', () => {
+  const doc = 'A <b>bold <b>more</b> text</b> end.\n';
+  const found = describe(doc);
+  assert.ok(
+    has(
+      found,
+      'mark',
+      'cm-np-html-b',
+      doc.indexOf('bold'),
+      doc.lastIndexOf('</b>'),
+    ),
+  );
+  assert.equal(visibleText(doc), 'A bold more text end.\n');
+});
+
 await test('an entity is left exactly as written', () => {
   assert.equal(visibleText('five &amp; six\n'), 'five &amp; six\n');
 });

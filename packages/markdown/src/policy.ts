@@ -13,6 +13,13 @@
  */
 import type { Options as SanitizeSchema } from 'rehype-sanitize';
 import { alertTones } from './alerts.ts';
+import { codeTokenClasses } from './code-tokens.ts';
+import {
+  authorElements,
+  authorStrippedElements,
+  type AuthorAttribute,
+} from './html-elements.ts';
+import { taskMarkClass, taskMarkPoints } from './task-mark.ts';
 
 /**
  * Shape of a canonical identifier, as written in stored Markdown.
@@ -178,18 +185,57 @@ export function allowsExternalImage(href: string): boolean {
 const namespacedId = /^user-content-[A-Za-z0-9]/;
 const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
 
+/** The attribute list of every element of the schema, by tag name. */
+type SchemaAttributes = NonNullable<SanitizeSchema['attributes']>;
+
+/** One attribute of the author list, as the sanitizer names it. */
+function schemaAttribute(
+  attribute: AuthorAttribute,
+): SchemaAttributes[string][number] {
+  return attribute.value.kind === 'word'
+    ? [attribute.name, ...attribute.value.words]
+    : attribute.name;
+}
+
+/**
+ * Adds the elements and the attributes of the author list to the schema.
+ *
+ * `./html-elements.ts` is the one list of the HTML that an author may write
+ * (record 0157). The renderer applies it first, and this schema names the
+ * same elements and attributes again, so the sanitizer stays the last gate
+ * behind it and the two cannot drift.
+ */
+function withAuthorAttributes(
+  renderer: Readonly<SchemaAttributes>,
+): SchemaAttributes {
+  const merged: SchemaAttributes = { ...renderer };
+  for (const [tagName, attributes] of authorElements)
+    merged[tagName] = [
+      ...(renderer[tagName] ?? []),
+      ...attributes.map(schemaAttribute),
+    ];
+  return merged;
+}
+
+/** Every element of the schema, the renderer set and the author set. */
+function withAuthorElements(renderer: readonly string[]): string[] {
+  return [...new Set([...renderer, ...authorElements.keys()])].sort();
+}
+
 /**
  * The sanitization schema for rendered notes.
  *
  * It is written out rather than derived from the rehype-sanitize GitHub
- * schema. That schema keeps elements and attributes that only raw HTML can
- * produce, and raw HTML never reaches this stage. An explicit list is also
- * easier to review: every element below is one that the renderer itself emits.
+ * schema. The renderer lists the elements that it emits itself below, and
+ * `./html-elements.ts` lists the elements that an author may write, which the
+ * renderer has already applied (record 0157). An explicit list is easier to
+ * review than a derived one.
  *
  * Additions over the plain CommonMark set are the GFM table elements, the
- * disabled task-list checkbox, the footnote section with its back references,
- * the alert attributes of a block quote, and the placeholder elements for
- * math and diagrams.
+ * disabled task-list checkbox and its check mark, the footnote section with
+ * its back references, the alert attributes of a block quote, the token
+ * classes of highlighted code (record 0159), and the placeholder elements
+ * for math and diagrams.
  *
  * An image source accepts `https` as well as an internal path, because
  * decision 0067 loads an external picture. An image element runs no script,
@@ -224,7 +270,7 @@ const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
  * it cannot carry markup, and it holds no URL.
  */
 export const sanitizeSchema: SanitizeSchema = {
-  strip: ['script', 'style'],
+  strip: [...authorStrippedElements],
   clobber: [],
   clobberPrefix: '',
   protocols: {
@@ -237,14 +283,18 @@ export const sanitizeSchema: SanitizeSchema = {
   ancestors: {
     input: ['li'],
     li: ['ol', 'ul'],
+    // The check mark of a task box stands beside the box, inside its item.
+    polyline: ['svg'],
+    svg: ['li'],
     tbody: ['table'],
     td: ['table'],
+    tfoot: ['table'],
     th: ['table'],
     thead: ['table'],
     tr: ['table'],
   },
   required: { input: { type: 'checkbox', disabled: true } },
-  tagNames: [
+  tagNames: withAuthorElements([
     'a',
     'blockquote',
     'br',
@@ -263,11 +313,13 @@ export const sanitizeSchema: SanitizeSchema = {
     'li',
     'ol',
     'p',
+    'polyline',
     'pre',
     'section',
     'span',
     'strong',
     'sup',
+    'svg',
     'table',
     'tbody',
     'td',
@@ -275,8 +327,8 @@ export const sanitizeSchema: SanitizeSchema = {
     'thead',
     'tr',
     'ul',
-  ],
-  attributes: {
+  ]),
+  attributes: withAuthorAttributes({
     blockquote: [
       ['className', 'notes-alert'],
       ['dataAlert', ...alertTones],
@@ -320,6 +372,9 @@ export const sanitizeSchema: SanitizeSchema = {
     ],
     ol: ['start', ['className', 'contains-task-list']],
     p: [['className', 'notes-alert-title']],
+    // The check mark of `./task-mark.ts`, with exactly the values that the
+    // renderer writes, so no other drawing passes.
+    polyline: [['points', taskMarkPoints]],
     pre: [
       ['dataDiagram', 'mermaid'],
       ['dataFrontmatter', 'yaml'],
@@ -330,12 +385,23 @@ export const sanitizeSchema: SanitizeSchema = {
       ['id', namespacedId],
     ],
     sup: [['id', namespacedId]],
+    svg: [
+      ['className', taskMarkClass],
+      ['viewBox', '0 0 24 24'],
+      ['fill', 'none'],
+      ['stroke', 'currentColor'],
+      ['strokeWidth', '1.5'],
+      ['strokeLinecap', 'round'],
+      ['strokeLinejoin', 'round'],
+      ['ariaHidden', 'true'],
+    ],
     span: [
       ['dataMath', 'inline', 'display'],
       ['dataBlocked', 'link', 'image'],
       'ariaHidden',
       [
         'className',
+        ...codeTokenClasses,
         'notes-math',
         'notes-math-inline',
         'notes-math-display',
@@ -376,5 +442,5 @@ export const sanitizeSchema: SanitizeSchema = {
     th: [['align', 'center', 'left', 'right']],
     ul: [['className', 'contains-task-list']],
     '*': [],
-  },
+  }),
 };

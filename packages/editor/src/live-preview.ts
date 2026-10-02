@@ -55,6 +55,8 @@ import {
   alertToneOf,
   footnoteIdentifier,
   orderedMarkerLabel,
+  previewHtmlTag,
+  taskMarkPoints,
   type AlertTone,
 } from '@notesapp/markdown';
 import { taskToggleAt } from './commands.ts';
@@ -305,11 +307,12 @@ class RuleWidget extends WidgetType {
  * colour of the ink fill.
  *
  * The drawing is the line of `CheckIcon` on the one grid of the icon set,
- * which `./icon-mark.ts` holds for the editor.
+ * which `./icon-mark.ts` holds for the editor. Its points come from
+ * `@notesapp/markdown`, which draws the same mark on the published page.
  */
 function taskCheckMark(): SVGElement {
   return glyph('cm-np-task-mark', [
-    { kind: 'polyline', points: '20 6 9 17 4 12' },
+    { kind: 'polyline', points: taskMarkPoints },
   ]);
 }
 
@@ -603,6 +606,52 @@ export function buildPreview(
     // block.
     const last = to > from && doc.lineAt(to).from === to ? to - 1 : to;
     lineClass(last, last, `${className}-close`);
+  };
+
+  /** The closing tags that an opening tag already drew, by offset. */
+  const drawnClosingTags = new Set<number>();
+
+  /**
+   * Draws one inline HTML element between its two tags (record 0157).
+   *
+   * The Lezer tree gives each tag of a paragraph as one `HTMLTag` node, so an
+   * opening tag of an element of `previewHtmlElements` finds its closing tag
+   * among the nodes that follow it in the same parent. The text between them
+   * takes the look of the element, and the two tags follow the reveal rule of
+   * an inline construct: hidden, until the selection touches the element.
+   *
+   * Answers whether the tag was drawn. A tag with no partner, a tag with an
+   * attribute and a tag of another element stay quiet source.
+   */
+  const inlineHtml = (open: SyntaxNode): boolean => {
+    const tag = previewHtmlTag(doc.sliceString(open.from, open.to));
+    if (tag === null) return false;
+    if (tag.closing) return drawnClosingTags.has(open.from);
+    let depth = 0;
+    for (let next = open.nextSibling; next !== null; next = next.nextSibling) {
+      if (next.name !== 'HTMLTag') continue;
+      const other = previewHtmlTag(doc.sliceString(next.from, next.to));
+      if (other === null || other.name !== tag.name) continue;
+      if (!other.closing) {
+        depth += 1;
+        continue;
+      }
+      if (depth > 0) {
+        depth -= 1;
+        continue;
+      }
+      drawnClosingTags.add(next.from);
+      mark(open.to, next.from, `cm-np-html-${tag.name}`);
+      if (touches(open.from, next.to)) {
+        mark(open.from, open.to, 'cm-np-html');
+        mark(next.from, next.to, 'cm-np-html');
+      } else {
+        hide(open.from, open.to);
+        hide(next.from, next.to);
+      }
+      return true;
+    }
+    return false;
   };
 
   /** The text of one line with its quote marks removed. */
@@ -1285,6 +1334,8 @@ export function buildPreview(
       mark(node.from, node.to, 'cm-np-hard-break');
       return false;
     }
+
+    if (name === 'HTMLTag' && inlineHtml(node.node)) return false;
 
     if (
       name === 'HTMLBlock' ||

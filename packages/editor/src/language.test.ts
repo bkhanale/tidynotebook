@@ -13,7 +13,13 @@ import { syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { tags, type Tag } from '@lezer/highlight';
 import {
+  codeLanguages as fenceLanguages,
+  codeTokenNames,
+} from '@notesapp/markdown';
+import {
   codeHighlightSpecs,
+  codeLanguages,
+  fenceLanguageOf,
   noteMarkdown,
   parsedWhole,
   syntaxTokenNames,
@@ -69,6 +75,39 @@ await test('the code style still paints the code constructs', () => {
       painted.includes(codeTag),
       'the code highlight style is complete',
     );
+});
+
+await test('the fence languages are the one list of the renderer', () => {
+  // Record 0159. The published page highlights a fence with the list of
+  // `@notesapp/markdown`, so the editor builds its languages from the same
+  // entries, in the same order, and a new entry reaches both surfaces.
+  assert.deepEqual(
+    codeLanguages.map((description) => description.name),
+    fenceLanguages.map((language) => language.name),
+  );
+  for (const language of fenceLanguages) {
+    const description = codeLanguages.find(
+      (entry) => entry.name === language.name,
+    );
+    for (const alias of language.aliases)
+      assert.ok(description?.alias.includes(alias), alias);
+  }
+  // One rule names the language of a fence on both surfaces.
+  assert.equal(fenceLanguageOf('TS')?.name, 'typescript');
+  assert.equal(fenceLanguageOf('js title="a"')?.name, 'javascript');
+  assert.equal(fenceLanguageOf('cobol'), null);
+});
+
+await test('every code colour but the invalid one is a syntax colour', () => {
+  // `invalid` takes the danger colour of the palette, and every other token
+  // of the shared map is a name of the syntax group of a theme.
+  for (const token of codeTokenNames)
+    if (token !== 'invalid')
+      assert.ok(
+        syntaxTokenNames.some((name) => name === token),
+        `${token} is no syntax colour`,
+      );
+  assert.equal(codeHighlightSpecs.length, codeTokenNames.length);
 });
 
 await test('the syntax contract keeps the heading and link names', () => {

@@ -15,13 +15,34 @@ import { renderMarkdown } from './render.ts';
 
 const html = await renderMarkdown(corpusMarkdown);
 
-await test('the corpus renders no script element and no raw HTML', () => {
+await test('the corpus renders no script element and no unsafe HTML', () => {
   assert.ok(!html.includes('<script'));
   assert.ok(!html.includes('raw block'));
-  assert.ok(!html.includes('<b>'));
-  assert.ok(!html.includes('<span onclick'));
-  // The text around a raw element survives; only the markup is dropped.
-  assert.ok(html.includes('Inline raw bold text and span text.'));
+  assert.ok(!html.includes('onclick'));
+  // Record 0157. A safe element keeps its tags and loses every attribute that
+  // the author list does not name.
+  assert.ok(
+    html.includes('Inline raw <b>bold text</b> and <span>span text</span>.'),
+  );
+});
+
+await test('the corpus keeps the safe HTML elements and their words', () => {
+  // Record 0157 and issue 235: each of these lost its meaning, and a line
+  // break joined two words, when every HTML node was dropped.
+  for (const kept of [
+    '<kbd>Ctrl</kbd> + <kbd>S</kbd>',
+    'H<sub>2</sub>O',
+    'x<sup>2</sup>',
+    '<mark>marked</mark>',
+    'one<br>two',
+    '<details>\n<summary>Folded title</summary>\n<p>Folded <em>body</em> text.</p>\n</details>',
+  ])
+    assert.ok(html.includes(kept), kept);
+  // A raw link and an unknown element lose their tags and keep their words,
+  // so a link never skips the URL policy and no word of the author is lost.
+  assert.ok(html.includes('a raw link and kept words.'));
+  assert.ok(!html.includes('example.com/raw'));
+  assert.ok(!html.includes('unknown-tag'));
 });
 
 await test('the corpus renders no event handler attribute', () => {
@@ -82,15 +103,21 @@ await test('the corpus renders a GFM table with alignment', () => {
   assert.ok(html.includes('<td align="right">1</td>'));
 });
 
-await test('task items render as disabled checkboxes', () => {
+/** The check mark that the renderer writes after the box of a task. */
+const taskMark =
+  '<svg class="notes-task-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+await test('task items render as disabled checkboxes with the check mark', () => {
+  // Record 0033. The page draws the box from the theme and shows the mark
+  // only while the box is checked, so every task carries the same mark.
   assert.ok(
     html.includes(
-      '<li class="task-list-item"><input type="checkbox" checked disabled> finished task</li>',
+      `<li class="task-list-item"><input type="checkbox" checked disabled>${taskMark} finished task</li>`,
     ),
   );
   assert.ok(
     html.includes(
-      '<li class="task-list-item"><input type="checkbox" disabled> open task</li>',
+      `<li class="task-list-item"><input type="checkbox" disabled>${taskMark} open task</li>`,
     ),
   );
 });
@@ -176,9 +203,11 @@ await test('a block quote nests and carries no presentation', () => {
   assert.equal(deepest, 2);
 });
 
-await test('an unclosed fence renders as a code block', () => {
+await test('an unclosed fence renders as a highlighted code block', () => {
   assert.ok(
-    html.includes('<pre><code class="language-js">const unclosed = true;\n'),
+    html.includes(
+      '<pre><code class="language-js"><span class="notes-code-keyword">const</span> unclosed <span class="notes-code-punctuation">=</span> <span class="notes-code-number">true</span><span class="notes-code-punctuation">;</span>\n</code></pre>',
+    ),
   );
 });
 

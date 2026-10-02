@@ -32,7 +32,9 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * text in four forms, a note link, a reference link, a
  * malformed note identifier, blocked URL schemes, an attachment image, an
  * external image, a blocked image, raw HTML including a script element and an
- * `onerror` attribute, both inline math pairs, display math, a Mermaid fence,
+ * `onerror` attribute, the safe HTML elements of record 0157 with a raw link
+ * and an unknown element whose words stay, a folded `details` block, both
+ * inline math pairs, display math, a Mermaid fence,
  * a hard line break, six ATX heading levels, both setext heading levels, an
  * ordered list with a start number, an ordered list nested three deep with a
  * lazy number and a bullet list inside it, an alert quote, both thematic break
@@ -100,6 +102,16 @@ Unsafe links: [click me](javascript:alert(1)), [encoded](data:text/html;base64,P
 <img src="x" onerror="alert(3)">
 
 Inline raw <b>bold text</b> and <span onclick="alert(4)">span text</span>.
+
+Keys and marks: <kbd>Ctrl</kbd> + <kbd>S</kbd>, H<sub>2</sub>O, x<sup>2</sup>, <mark>marked</mark>,
+one<br>two, a <a href="https://example.com/raw">raw link</a> and <unknown-tag>kept words</unknown-tag>.
+
+<details>
+<summary>Folded title</summary>
+
+Folded *body* text.
+
+</details>
 
 Prices stay text: $5 and $10 today.
 
