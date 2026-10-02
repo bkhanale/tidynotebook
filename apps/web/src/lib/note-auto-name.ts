@@ -29,6 +29,9 @@ import {
 /** The most characters a name from a heading takes. */
 export const maxHeadingNameLength = 60;
 
+/** The most bytes that one stored segment of a path holds. */
+const maxStoredBytes = 255;
+
 /** The placeholder of a new note, with or without its number. */
 const placeholder = /^New note(?: [2-9]\d*| 1\d+)?$/u;
 
@@ -64,12 +67,26 @@ export function nameFromHeading(heading: string): string | null {
     .replace(/[/\\]/gu, '-')
     .replace(/\s+/gu, ' ')
     .trim();
-  if ([...name].length > maxHeadingNameLength) {
-    const cut = [...name].slice(0, maxHeadingNameLength).join('');
+  // The cut counts what a person reads as one character, so it never splits
+  // an emoji or a letter with its accent.
+  const graphemes = Array.from(
+    new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(name),
+    (part) => part.segment,
+  );
+  // A stored name is at most 255 bytes with its suffix, and a character
+  // outside ASCII takes up to four of them, so the cut also stops there.
+  const encoder = new TextEncoder();
+  let kept = Math.min(graphemes.length, maxHeadingNameLength);
+  while (
+    kept > 0 &&
+    encoder.encode(`${graphemes.slice(0, kept).join('')}.md`).length >
+      maxStoredBytes
+  )
+    kept -= 1;
+  if (kept < graphemes.length) {
+    const cut = graphemes.slice(0, kept).join('');
     const space = cut.lastIndexOf(' ');
-    name = (
-      space > maxHeadingNameLength / 2 ? cut.slice(0, space) : cut
-    ).trim();
+    name = (space > kept / 2 ? cut.slice(0, space) : cut).trim();
   }
   // A name that ends in the storage suffix would lose it as a name.
   name = displayNoteName(name).trim();

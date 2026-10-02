@@ -135,6 +135,11 @@ await test('a long heading is cut at a word', () => {
   const name = nameFromHeading(long) ?? '';
   assert.ok(name.length <= maxHeadingNameLength);
   assert.ok(name.endsWith('word'));
+  // A cut never splits a character that a person reads as one, and it
+  // stops where the name and its suffix fill the 255 bytes of a segment.
+  const flag = '\u{1F1F5}\u{1F1F9}';
+  assert.equal(nameFromHeading(flag.repeat(70)), flag.repeat(31));
+  assert.equal(nameFromHeading(flag.repeat(3)), flag.repeat(3));
 });
 
 await test('the placeholder of a new note is automatic', () => {
