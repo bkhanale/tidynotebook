@@ -19,11 +19,13 @@ is a heading (issue 252). See
   number, or the name that the heading gave, with or without the number that
   kept it free. Any other name is the choice of a person and stops the rule.
   No flag is stored: the name carries the fact. A daily note (record 0099) is
-  never renamed.
+  never renamed. Until the daily note settings answer, as on a fresh device
+  with no connection, the default layout of `packages/core` guards it.
 - The open editor applies the rule at the boundary of a version (record 0022)
   in `checkpointNow` of `apps/web/src/features/editor/note-editor.tsx`, so one
-  version holds the new heading and the new name. It waits while the name
-  field holds words that a person is typing.
+  version holds the new heading and the new name, and only after input since
+  the last version, so a note that only opens writes nothing (record 0133). It
+  waits while the name field holds words that a person is typing.
 - The name is the first free one in the folder, with a number after it as New
   note takes. It holds no slash, no backslash and no control character, and
   it is at most 60 characters, cut at a word.

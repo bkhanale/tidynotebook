@@ -1,20 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { previewStructureOf } from '@notesapp/editor';
 import {
   automaticPath,
-  firstBlockOf,
+  dailyGuardLayout,
   followsHeading,
+  headingNameOf,
+  headingStep,
   isPlaceholderName,
   maxHeadingNameLength,
   nameFromHeading,
 } from './note-auto-name.ts';
 
-/** The heading name of a text, read with the one grammar as the editor does. */
-function headingOf(text: string): string | null {
-  const first = previewStructureOf(firstBlockOf(text))[0];
-  return first?.kind === 'heading' ? nameFromHeading(first.text) : null;
-}
+/** The heading name of a text, as the editor reads it. */
+const headingOf = headingNameOf;
 
 const notes = [
   { fileId: 'own', path: 'Trips/New note.md' },
@@ -149,4 +147,74 @@ await test('the placeholder of a new note is automatic', () => {
   assert.ok(!isPlaceholderName('New note 1'));
   assert.ok(!isPlaceholderName('New notes'));
   assert.ok(followsHeading('New note 3', null));
+});
+
+/** One boundary of a version of a new note that a person wrote in. */
+const moment = {
+  path: 'Trips/New note.md',
+  text: '# Trip to Porto\n\nPack the bags.',
+  lastHeading: null,
+  dailyLayout: { folder: 'Journal', format: 'YYYY-MM-DD' },
+  typing: false,
+  edited: true,
+  notes,
+  fileId: 'own',
+} as const;
+
+await test('a boundary after input gives the note the name of its heading', () => {
+  assert.deepEqual(headingStep(moment), {
+    path: 'Trips/Trip to Porto.md',
+    lastHeading: 'Trip to Porto',
+  });
+});
+
+await test('a note that only opened keeps its name', () => {
+  // The review of the merged branch: a note named New note with a heading,
+  // from an import or an older client, was renamed when it opened and wrote
+  // a version with no input (record 0133).
+  assert.deepEqual(headingStep({ ...moment, edited: false }), {
+    path: null,
+    lastHeading: null,
+  });
+});
+
+await test('a name that a person is typing keeps its words', () => {
+  assert.equal(headingStep({ ...moment, typing: true }).path, null);
+});
+
+await test('a daily note keeps the name of its date', () => {
+  assert.equal(
+    headingStep({
+      ...moment,
+      path: 'Journal/2026-10-02.md',
+      notes: [{ fileId: 'own', path: 'Journal/2026-10-02.md' }],
+      lastHeading: '2026-10-02',
+      text: '# 2026-10-02 Friday',
+    }).path,
+    null,
+  );
+});
+
+await test('the rule holds with no answer of the daily note settings', () => {
+  // The review of the merged branch: a fresh device with no connection has
+  // no daily note settings, and the rule never ran (record 0163).
+  assert.equal(
+    headingStep({ ...moment, dailyLayout: null }).path,
+    'Trips/Trip to Porto.md',
+  );
+  // Until the settings answer, the default layout guards a daily note.
+  assert.deepEqual(dailyGuardLayout(null), {
+    folder: 'Daily notes',
+    format: 'YYYY-MM-DD',
+  });
+  assert.equal(
+    headingStep({
+      ...moment,
+      dailyLayout: null,
+      path: 'Daily notes/2026-10-02.md',
+      lastHeading: '2026-10-02',
+      text: '# 2026-10-02 Friday',
+    }).path,
+    null,
+  );
 });

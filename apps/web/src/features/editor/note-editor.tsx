@@ -96,7 +96,10 @@ import {
   duplicateNameProblem,
   folderOf,
 } from '../../lib/note-name.ts';
-import { commitNoteName } from '../../lib/note-name-commit.ts';
+import {
+  commitNoteName,
+  nameStillPending,
+} from '../../lib/note-name-commit.ts';
 import { shouldFocusNewNoteOnOpen } from '../../lib/note-name-input.ts';
 import { useHeadingName } from './heading-name.ts';
 import { duplicateNote as makeCopy } from '../notes/duplicate-note.ts';
@@ -419,9 +422,14 @@ function NoteEditorBody({
 
   /** Gives an automatic name the heading at a version (record 0163). */
   const followHeading = (): void => {
-    const next = nameTypingRef.current
-      ? null
-      : headingName.next(noteList.notes, fileId);
+    const next = headingName.next({
+      notes: noteList.notes,
+      fileId,
+      typing: nameTypingRef.current,
+      edited:
+        sequenceRef.current !==
+        (versionedSequenceRef.current ?? initialSequence),
+    });
     if (next === null) return;
     validPathRef.current = next;
     sequenceRef.current += 1;
@@ -551,6 +559,7 @@ function NoteEditorBody({
     const isDeleting = isDeletedRef.current;
     const current = live.current;
     const savedSequence = sequenceRef.current;
+    const savedPath = validPathRef.current;
     setDraftPending(true);
     const startedAt = performance.now();
     try {
@@ -559,10 +568,10 @@ function NoteEditorBody({
       // A newer keystroke may have arrived while the write ran; only that
       // newer write clears the pending flag.
       if (sequenceRef.current === savedSequence) setDraftPending(false);
-      // The store now holds the name of this field, so the next snapshot is
-      // newer than the field. A move that landed while the name was pending is
-      // adopted by the queue read below.
-      nameEditPendingRef.current = false;
+      // The store holds the name of this draft. A newer name, such as the
+      // name of a heading that a version gave while this write ran, stays
+      // pending, so the queue read below cannot put the older path back.
+      nameEditPendingRef.current = nameStillPending(savedPath, validPathRef);
       setStorageError(null);
       await refreshQueue.current();
       return true;

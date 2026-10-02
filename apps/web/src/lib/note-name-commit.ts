@@ -69,3 +69,19 @@ export function noteNameKey(key: string, composing: boolean): NoteNameKey {
   if (key === 'Escape') return 'revert';
   return null;
 }
+
+/**
+ * Whether the name of the open note is still newer than the store after a
+ * draft write.
+ *
+ * A draft write states the path the note had when the write started. The
+ * name can move while the write runs, for example to the name of a heading
+ * at a version (record 0163). The store then holds the older path, and the
+ * editor must not adopt it from the next queue read.
+ */
+export function nameStillPending(
+  savedPath: string,
+  current: { readonly current: string },
+): boolean {
+  return current.current !== savedPath;
+}

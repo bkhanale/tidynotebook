@@ -16,8 +16,14 @@
  * the version (record 0037).
  *
  * The functions are pure, so `note-auto-name.test.ts` states every rule. The
- * caller reads the heading with the one grammar of `@notesapp/editor`.
+ * heading is read with the one grammar of `@notesapp/editor`.
  */
+import {
+  dailyNoteDate,
+  defaultDailyNoteLayout,
+  type DailyNoteLayout,
+} from '@notesapp/core';
+import { previewStructureOf } from '@notesapp/editor';
 import { freeNamedPath } from './new-note-draft.ts';
 import {
   baseNameOf,
@@ -146,4 +152,76 @@ export function automaticPath(input: {
     .filter((note) => note.fileId !== input.fileId)
     .map((note) => note.path);
   return freeNamedPath(taken, folderOf(input.currentPath), heading);
+}
+
+/**
+ * The name that the first line of a text gives, when that line is a heading.
+ * The one grammar reads the first block alone, so a version of a long note
+ * does not parse the whole note for its name.
+ */
+export function headingNameOf(text: string): string | null {
+  const first = previewStructureOf(firstBlockOf(text))[0];
+  return first?.kind === 'heading' ? nameFromHeading(first.text) : null;
+}
+
+/**
+ * The layout that guards a daily note from the rule (record 0099).
+ *
+ * A daily note keeps the name of its date. The settings of the member say
+ * where daily notes live, and a fresh device with no connection has no
+ * answer yet. The rule must still hold with no connection (record 0163), so
+ * the default layout guards a note until the settings answer: a note at a
+ * path of the default layout keeps its name, and every other note follows
+ * its heading.
+ */
+export function dailyGuardLayout(
+  settings: DailyNoteLayout | null,
+): DailyNoteLayout {
+  return settings ?? defaultDailyNoteLayout;
+}
+
+/** What one boundary of a version reads for the name of the open note. */
+export type HeadingStepInput = {
+  readonly path: string;
+  readonly text: string;
+  /** The heading name the editor last read, or `null`. */
+  readonly lastHeading: string | null;
+  /** The daily note layout of the member, or `null` before it answers. */
+  readonly dailyLayout: DailyNoteLayout | null;
+  /** The name field holds words that a person is typing. */
+  readonly typing: boolean;
+  /**
+   * A person wrote in the note since its last version. A note that only
+   * opened writes no version (record 0133), so its heading renames nothing.
+   */
+  readonly edited: boolean;
+  readonly notes: readonly { readonly fileId: string; readonly path: string }[];
+  readonly fileId: string;
+};
+
+/** The outcome of one boundary: a new path or none, and the heading read. */
+export type HeadingStep = {
+  readonly path: string | null;
+  readonly lastHeading: string | null;
+};
+
+/**
+ * Decides at one boundary of a version whether the open note takes the name
+ * of its heading. A name a person is typing, a note with no input since its
+ * last version and a daily note keep their name.
+ */
+export function headingStep(input: HeadingStepInput): HeadingStep {
+  const keep = { path: null, lastHeading: input.lastHeading };
+  if (input.typing || !input.edited) return keep;
+  if (dailyNoteDate(input.path, dailyGuardLayout(input.dailyLayout)) !== null)
+    return keep;
+  const heading = headingNameOf(input.text);
+  const path = automaticPath({
+    currentPath: input.path,
+    lastHeading: input.lastHeading,
+    heading,
+    notes: input.notes,
+    fileId: input.fileId,
+  });
+  return path === null ? keep : { path, lastHeading: heading };
 }

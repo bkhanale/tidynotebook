@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { commitNoteName, noteNameKey } from './note-name-commit.ts';
+import {
+  commitNoteName,
+  nameStillPending,
+  noteNameKey,
+} from './note-name-commit.ts';
 
 const notes = [
   { fileId: 'original', path: 'Work/Plan.md' },
@@ -79,4 +83,12 @@ await test('Enter keeps the name and Escape gives it up', () => {
   assert.equal(noteNameKey('a', false), null);
   // Enter that ends an IME composition writes the composed characters.
   assert.equal(noteNameKey('Enter', true), null);
+});
+
+await test('a name that moved while a draft wrote stays pending', () => {
+  // The review of the merged branch: a draft write that started with the
+  // old path cleared the pending name, and the next queue read put the old
+  // path back over the name of the heading.
+  assert.equal(nameStillPending('New note.md', { current: 'Plan.md' }), true);
+  assert.equal(nameStillPending('Plan.md', { current: 'Plan.md' }), false);
 });
