@@ -61,12 +61,13 @@ of a line reads the tree. `packages/editor/src/keymaps.ts` holds the keys.
   CommonMark joins a line of text under a paragraph as a lazy continuation, and
   the published page then showed the next words inside the last item. An empty
   nested item moves out one level instead.
-- Enter at the end of a line that opens a fence or display math writes the
-  closer, unless the tree already closes that block, or the block holds text
-  and the person did not just type its opener. `typedFenceOpeners` keeps the
-  openers typed on the line of the caret, so a fence typed above prose closes
-  and a fence of code whose language a person edits does not. Only a line
-  whose text can open a fence is parsed.
+- Typing a fence opener and Enter never changes how the text below reads.
+  `typedFenceOpeners` keeps the openers typed on the line of the caret, and
+  Enter at the end of one always writes the closer. Enter at the end of an
+  opener that was there before writes it only when the tree does not close
+  the block and the block holds no text, so a fence of code whose language a
+  person edits stays whole. Only a line whose text can open a fence is
+  parsed.
   `packages/editor/src/fence-close.ts` holds the rule.
 - Home is a smart Home. On a list or a quoted line it goes to the start of the
   text after the markers, and a second press goes to the start of the line,

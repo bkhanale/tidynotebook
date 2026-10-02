@@ -212,6 +212,48 @@ await test('a fence typed above text closes, and the text stays outside it', () 
   );
 });
 
+await test('a fence typed above prose and a later fence leaves both as they were', () => {
+  // The defect this covers: the tree paired the typed opener with the
+  // opener of the later fence, so Enter wrote no closer, the prose read as
+  // code and the later fence lost its language.
+  const state = afterTyping(
+    '‸\nSome prose.\n\n```py\nprint(1)\n```\n\nAfter.',
+    '```js',
+  );
+  const spec = closeFenceSpec(state);
+  assert.ok(spec !== null);
+  const next = parsedWhole(state.update(spec).state);
+  assert.equal(
+    next.doc.toString(),
+    '```js\n\n```\nSome prose.\n\n```py\nprint(1)\n```\n\nAfter.',
+  );
+  const blocks: string[] = [];
+  syntaxTree(next).iterate({
+    enter: (node) => {
+      if (node.name === 'FencedCode') {
+        const info = node.node.getChild('CodeInfo');
+        blocks.push(
+          `FencedCode:${info === null ? '' : next.doc.sliceString(info.from, info.to)}`,
+        );
+        return false;
+      }
+      if (node.name === 'Paragraph') {
+        blocks.push(`Paragraph:${next.doc.sliceString(node.from, node.to)}`);
+        return false;
+      }
+      return true;
+    },
+  });
+  assert.deepEqual(blocks, [
+    'FencedCode:js',
+    'Paragraph:Some prose.',
+    'FencedCode:py',
+    'Paragraph:After.',
+  ]);
+  // An opener that was there before still keeps the closer below it.
+  assert.equal(enteredOn(afterTyping('```‸\ncode\n```', 'js')), null);
+});
+
 await test('editing the language of a fence of code does not close it', () => {
   // The line opened the fence before the person came to it, so the lines
   // below are code.

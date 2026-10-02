@@ -21,8 +21,10 @@
  * note, the text is code, and a closer under the opener would turn it into
  * prose. `typedFenceOpeners` keeps the openers that the person typed, so
  * Enter knows which history a line has. A paste is not typing, so a pasted
- * opener is not one of them. That keeps every existing document whole,
- * including one where the new opener takes the closer of a later block. The
+ * opener is not one of them. For a typed opener the closer is always
+ * written, because typing a fence opener and Enter never changes how the
+ * text below reads: a closer that the tree finds below a typed opener is the
+ * opener of a later fence, and the later fence stays a fence. The
  * new lines repeat the container of the opener: the quote marks stay, and a
  * list marker becomes the spaces of its width, so the block stays inside the
  * item or the quote.
@@ -182,9 +184,9 @@ function continuationPrefix(
  * with no closer, or null.
  *
  * The command declines for a selection that is not one caret, for a caret
- * that is not at the end of the line, for a line that opens nothing, for a
- * block that already has its closer, and for a block that already holds text
- * when the person did not type its opener.
+ * that is not at the end of the line, and for a line that opens nothing. For
+ * an opener that the person did not just type, it also declines when the
+ * block already has its closer or already holds text.
  * The text of the line is read first, so Enter on a line that cannot open a
  * fence never parses the note.
  */
@@ -198,10 +200,17 @@ export function closeFenceSpec(state: EditorState): TransactionSpec | null {
   const markName = fenceMarks[block.name] ?? '';
   const marks = block.getChildren(markName);
   const opening = marks[0];
-  if (opening === undefined || marks.length > 1) return null;
-  // A fence that holds text is code that the person wrote, unless they have
-  // just typed its opener above that text.
-  if (holdsText(state, block) && !typedOpenerAt(state, line.from)) return null;
+  if (opening === undefined) return null;
+  // Typing a fence opener and Enter never changes how the text below reads.
+  // Before the person typed the opener, the lines below it were not in this
+  // block, so for a typed opener the closer is always written: a closer that
+  // the tree finds below is the opener of a later fence, and the text a
+  // typed fence holds is the prose that was there before.
+  if (!typedOpenerAt(state, line.from)) {
+    // An opener that was there before keeps its block: a closer below closes
+    // it, and the text it holds is code.
+    if (marks.length > 1 || holdsText(state, block)) return null;
+  }
   const prefix = continuationPrefix(state, line, opening.from);
   const closer = state.doc.sliceString(opening.from, opening.to);
   const insert = `\n${prefix}\n${prefix}${closer}`;
