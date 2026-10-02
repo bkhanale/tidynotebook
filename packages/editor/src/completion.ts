@@ -1,11 +1,17 @@
 /**
- * Completion of links to other notes.
+ * Completion of links to other notes, and the wiki form at the border.
  *
- * v0.1 links notes with standard Markdown links (decision D4). This module
- * offers the note list when the person types `](`, and it accepts the
+ * Notes link with standard Markdown links (records 0004 and 0171). This
+ * module offers the note list when the person types `](`, and it accepts the
  * familiar `[[` trigger as well. Both insert the same standard link, so no
  * `[[` ever stays in the text and the stored file is plain Markdown that any
  * other editor reads.
+ *
+ * A person who types a whole `[[Note]]` instead of choosing from the list
+ * gets the same link when they type its closing brackets and the note is
+ * there, through `convertWikiLinks` of `@notesapp/markdown`, the one
+ * converter that a paste and an import call too. A `[[` that names no note
+ * stays the text the person typed.
  *
  * The note list arrives through a facet. The editor package never reads the
  * database, the local store, or the API client; the note screen injects what
@@ -17,7 +23,23 @@ import {
   type CompletionResult,
   type CompletionSource,
 } from '@codemirror/autocomplete';
-import { Compartment, Facet, type Extension } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+import {
+  Compartment,
+  EditorSelection,
+  Facet,
+  type EditorState,
+  type Extension,
+} from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import type { SyntaxNode } from '@lezer/common';
+import {
+  convertWikiLinks,
+  portableRelativePath,
+  standardNoteLink,
+  wikiLinkResolver,
+  type WikiResolver,
+} from '@notesapp/markdown';
 
 /** One note the completion can link to. */
 export type NoteChoice = {
@@ -78,51 +100,45 @@ export function noteFolder(path: string): string {
 }
 
 /**
- * The path of `target` seen from the folder of `from`.
+ * The Markdown link text for one note, seen from the open note.
  *
- * Both inputs are stored note paths. The result keeps `../` steps out of the
- * common folder and never starts with `./`, because a bare relative path is
- * what a Markdown reader expects.
+ * `standardNoteLink` of `@notesapp/markdown` writes it: the portable relative
+ * path that every link between notes holds, and the name of the note as an
+ * escaped label, so a name with brackets or a `#` still gives one link.
  */
-export function relativeNotePath(from: string, target: string): string {
-  const fromParts = from.split('/');
-  fromParts.pop();
-  const targetParts = target.split('/');
-  const name = targetParts.pop() ?? '';
-  let shared = 0;
-  while (
-    shared < fromParts.length &&
-    shared < targetParts.length &&
-    fromParts[shared] === targetParts[shared]
-  )
-    shared += 1;
-  const up = fromParts.length - shared;
-  const steps = [
-    ...Array.from({ length: up }, () => '..'),
-    ...targetParts.slice(shared),
-    name,
-  ];
-  return steps.join('/');
+export function noteLinkText(source: NoteLinkSource, target: string): string {
+  return standardNoteLink(source.currentPath, target, noteDisplayName(target));
+}
+
+/** The resolver of the wiki links of one note list, built once per list. */
+const resolvers = new WeakMap<NoteLinkSource, WikiResolver>();
+
+/** The resolver of the wiki links of the notes that a state knows. */
+export function noteResolverOf(source: NoteLinkSource): WikiResolver {
+  const known = resolvers.get(source);
+  if (known !== undefined) return known;
+  const made = wikiLinkResolver(source.notes.map((note) => note.path));
+  resolvers.set(source, made);
+  return made;
 }
 
 /**
- * Escapes the characters that would end a Markdown link destination.
+ * The text of a paste or of typed brackets with its wiki links converted.
  *
- * Spaces and parentheses are the only ones a note path can hold, so the
- * escape stays small and the destination stays readable.
+ * Only a target that is a note of the list becomes a link (record 0171), so
+ * text that names no note reaches the document as the person wrote it.
  */
-export function markdownDestination(path: string): string {
-  return path
-    .replaceAll('%', '%25')
-    .replaceAll(' ', '%20')
-    .replaceAll('(', '%28')
-    .replaceAll(')', '%29');
-}
-
-/** The Markdown link text for one note, seen from the open note. */
-export function noteLinkText(source: NoteLinkSource, target: string): string {
-  const relative = relativeNotePath(source.currentPath, target);
-  return `[${noteDisplayName(target)}](${markdownDestination(relative)})`;
+export function withNoteLinks(state: EditorState, text: string): string {
+  const source = state.facet(noteLinkSourceFacet);
+  if (source.notes.length === 0 || !text.includes('[[')) return text;
+  try {
+    return convertWikiLinks(text, source.currentPath, noteResolverOf(source))
+      .text;
+  } catch {
+    // A text over the limits of the parser is never a short paste. It goes
+    // in as it is, and the note shows its own refusal.
+    return text;
+  }
 }
 
 /** Ranks a note against the typed text; lower sorts first, null excludes. */
@@ -165,12 +181,11 @@ function destinationOption(
   closing: string,
 ): Completion {
   const folder = noteFolder(note.path);
-  const relative = relativeNotePath(source.currentPath, note.path);
   return {
     label: noteDisplayName(note.path),
     ...(folder === '' ? {} : { detail: folder }),
     type: 'text',
-    apply: `${markdownDestination(relative)}${closing}`,
+    apply: `${portableRelativePath(source.currentPath, note.path)}${closing}`,
   };
 }
 
@@ -206,7 +221,11 @@ export const noteLinkCompletion: CompletionSource = (
       linkOption(source, note),
     );
     if (options.length === 0) return null;
-    return { from: wiki.from, to: context.pos, options, filter: false };
+    // Closing brackets that already stand after the caret belong to the wiki
+    // form, so the link takes their place as well.
+    const after = context.state.doc.sliceString(context.pos, context.pos + 2);
+    const to = context.pos + (after === ']]' ? 2 : after.startsWith(']') ? 1 : 0);
+    return { from: wiki.from, to, options, filter: false };
   }
 
   const inline = context.matchBefore(/\]\([^)\s\n]*/);
@@ -227,3 +246,82 @@ export const noteLinkCompletion: CompletionSource = (
     filter: false,
   };
 };
+
+/** The blocks and spans in which a typed wiki link stays text. */
+const literalNodes = new Set([
+  'FencedCode',
+  'CodeBlock',
+  'InlineCode',
+  'InlineMath',
+  'MathBlock',
+  'HTMLBlock',
+  'HTMLTag',
+  'CommentBlock',
+  'Autolink',
+  'URL',
+  'Frontmatter',
+]);
+
+/** Whether a position stands inside code, math, HTML or an address. */
+function insideLiteral(state: EditorState, pos: number): boolean {
+  for (
+    let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1);
+    node !== null;
+    node = node.parent
+  )
+    if (literalNodes.has(node.name)) return true;
+  return false;
+}
+
+/** The text before the caret of a wiki link that one `]` more closes. */
+const openWikiLink = /(?:!)?\[\[[^[\]\n]+\]$/;
+
+/**
+ * The change that one typed `]` makes at `pos`, or `null` for none.
+ *
+ * When the bracket closes a `[[Note]]` and the note is there, the wiki form
+ * becomes a standard link (record 0171). A backslash before the brackets
+ * escapes them, and inside code, math, HTML or an address the bracket is
+ * text.
+ */
+export function typedWikiLink(
+  state: EditorState,
+  pos: number,
+): { readonly from: number; readonly insert: string } | null {
+  const line = state.doc.lineAt(pos);
+  const before = state.doc.sliceString(line.from, pos);
+  const found = openWikiLink.exec(before);
+  if (found === null) return null;
+  const start = line.from + found.index;
+  let slashes = 0;
+  for (let at = start - 1; at >= line.from; at -= 1) {
+    if (state.doc.sliceString(at, at + 1) !== '\\') break;
+    slashes += 1;
+  }
+  if (slashes % 2 === 1 || insideLiteral(state, start)) return null;
+  const written = `${found[0]}]`;
+  const linked = withNoteLinks(state, written);
+  return linked === written ? null : { from: start, insert: linked };
+}
+
+/**
+ * Turns a typed `[[Note]]` into a standard link when its last bracket is
+ * typed and the note is there (record 0171).
+ *
+ * The change replaces the wiki form in the same transaction as the bracket,
+ * so one undo brings the typed text back.
+ */
+export const wikiLinkInput: Extension = EditorView.inputHandler.of(
+  (view, from, to, text) => {
+    if (text !== ']' || from !== to || view.state.readOnly) return false;
+    const change = typedWikiLink(view.state, from);
+    if (change === null) return false;
+    view.dispatch({
+      changes: { from: change.from, to: from, insert: change.insert },
+      selection: EditorSelection.cursor(change.from + change.insert.length),
+      userEvent: 'input.type',
+      scrollIntoView: true,
+    });
+    return true;
+  },
+);

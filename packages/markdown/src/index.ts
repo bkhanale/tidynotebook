@@ -100,4 +100,12 @@ export {
 } from './html-elements.ts';
 export { taskMarkClass, taskMarkPoints } from './task-mark.ts';
 export type { NoteTarget, RenderMarkdownOptions } from './render.ts';
-export { headingSlug, renderMarkdown } from './render.ts';
+export { renderMarkdown } from './render.ts';
+export type { WikiConversion, WikiResolver } from './wiki-links.ts';
+export {
+  convertWikiLinks,
+  noteLinkLabel,
+  standardNoteLink,
+  wikiLinkResolver,
+} from './wiki-links.ts';
+export { headingSlug } from './heading-slug.ts';

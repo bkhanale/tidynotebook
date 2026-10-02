@@ -14,15 +14,16 @@ import {
 } from '@codemirror/autocomplete';
 import { EditorState } from '@codemirror/state';
 import {
-  markdownDestination,
   noteDisplayName,
   noteFolder,
   noteLinkCompletion,
   noteLinkSource,
   noteLinkText,
-  relativeNotePath,
+  typedWikiLink,
+  withNoteLinks,
   type NoteLinkSource,
 } from './completion.ts';
+import { noteMarkdown } from './language.ts';
 
 /** The note list every test in this file uses. */
 const source: NoteLinkSource = {
@@ -54,20 +55,22 @@ function complete(
   return result;
 }
 
-await test('a relative path steps out of the shared folder', () => {
+await test('a link steps out of the shared folder of the open note', () => {
   assert.equal(
-    relativeNotePath('projects/alpha.md', 'inbox.md'),
-    '../inbox.md',
+    noteLinkText(source, 'inbox.md'),
+    '[inbox](../inbox.md)',
   );
   assert.equal(
-    relativeNotePath('projects/alpha.md', 'projects/beta.md'),
-    'beta.md',
+    noteLinkText(source, 'projects/beta plan.md'),
+    '[beta plan](beta%20plan.md)',
   );
   assert.equal(
-    relativeNotePath('inbox.md', 'archive/2024/old.md'),
-    'archive/2024/old.md',
+    noteLinkText(
+      { notes: [], currentPath: 'a/b/c.md' },
+      'a/x/y.md',
+    ),
+    '[y](../x/y.md)',
   );
-  assert.equal(relativeNotePath('a/b/c.md', 'a/x/y.md'), '../x/y.md');
 });
 
 await test('the display name drops the folder and the suffix', () => {
@@ -76,9 +79,17 @@ await test('the display name drops the folder and the suffix', () => {
   assert.equal(noteFolder('inbox.md'), '');
 });
 
-await test('a destination escapes the characters that would end it', () => {
-  assert.equal(markdownDestination('beta plan.md'), 'beta%20plan.md');
-  assert.equal(markdownDestination('a(b).md'), 'a%28b%29.md');
+await test('a link holds a name that a link would end', () => {
+  // A `#` ended the destination at a fragment, and a bracket ended the label,
+  // so the link reached no note (record 0171).
+  assert.equal(
+    noteLinkText(source, 'projects/C# [draft] (v2).md'),
+    '[C# \\[draft\\] (v2)](C%23%20[draft]%20%28v2%29.md)',
+  );
+  assert.equal(
+    noteLinkText(source, 'projects/Why? 100%.md'),
+    '[Why? 100%](Why%3F%20100%25.md)',
+  );
 });
 
 await test('typing the inline trigger offers the other notes', () => {
@@ -127,6 +138,14 @@ await test('the double bracket trigger inserts a standard link', () => {
   assert.ok(!String(option?.apply).includes('[['));
 });
 
+await test('the double bracket trigger takes the closing brackets after it', () => {
+  // A person who typed `[[]]` and then the name between the brackets leaves
+  // no bracket behind when they choose a note.
+  assert.equal(complete('See [[be‸]] now')?.to, 10);
+  assert.equal(complete('See [[be‸] now')?.to, 9);
+  assert.equal(complete('See [[be‸ now')?.to, 8);
+});
+
 await test('the link text of one note is relative to the open note', () => {
   assert.equal(
     noteLinkText(source, 'archive/2024/old note.md'),
@@ -140,4 +159,56 @@ await test('an empty note list offers nothing', () => {
 
 await test('plain text opens no completion', () => {
   assert.equal(complete('Just typing‸'), null);
+});
+
+/** A state of the note grammar, with the note list, at the caret `‸`. */
+function noteState(text: string): { state: EditorState; at: number } {
+  const at = text.indexOf('‸');
+  return {
+    state: EditorState.create({
+      doc: text.replace('‸', ''),
+      selection: { anchor: at },
+      extensions: [noteMarkdown(), noteLinkSource(source)],
+    }),
+    at,
+  };
+}
+
+await test('a typed last bracket turns a wiki link into a standard link', () => {
+  // Record 0171. The note is there, so the wiki form becomes the link that
+  // the list writes, and the typed text is replaced in one change.
+  const typed = noteState('See [[beta plan]‸ now');
+  assert.deepEqual(typedWikiLink(typed.state, typed.at), {
+    from: 4,
+    insert: '[beta plan](beta%20plan.md)',
+  });
+  const aliased = noteState('See [[../inbox|the inbox]‸');
+  assert.deepEqual(typedWikiLink(aliased.state, aliased.at), {
+    from: 4,
+    insert: '[the inbox](../inbox.md)',
+  });
+});
+
+await test('a typed last bracket keeps a wiki link that names no note', () => {
+  for (const text of [
+    'See [[nowhere]‸',
+    'See \\[[beta plan]‸',
+    'See `[[beta plan]‸`',
+    '```\n[[beta plan]‸\n```',
+    'See [beta plan]‸',
+  ]) {
+    const typed = noteState(text);
+    assert.equal(typedWikiLink(typed.state, typed.at), null, text);
+  }
+});
+
+await test('a paste of wiki links links the notes that are there', () => {
+  const { state } = noteState('‸');
+  assert.equal(
+    withNoteLinks(state, 'Read [[beta plan]], [[old note|the old one]] and [[gone]].'),
+    'Read [beta plan](beta%20plan.md), [the old one](../archive/2024/old%20note.md) and [[gone]].',
+  );
+  assert.equal(withNoteLinks(state, 'No links here.'), 'No links here.');
+  const empty = EditorState.create({ doc: '' });
+  assert.equal(withNoteLinks(empty, '[[beta plan]]'), '[[beta plan]]');
 });

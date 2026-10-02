@@ -30,6 +30,27 @@ function folder(path: string): readonly string[] {
   return parts;
 }
 
+/**
+ * The characters that a path segment cannot hold as they are, with their
+ * escape, in the order the escape runs.
+ *
+ * A space and a parenthesis would end a Markdown destination, `#` and `?`
+ * would start a fragment and a query, and `<` and `>` would start or end a
+ * destination of their own. `%` comes first, so an escape is never escaped
+ * twice. Every other character stays as the name holds it, so a link reads
+ * like its note.
+ */
+const pathEscapes: readonly (readonly [string, string])[] = [
+  ['%', '%25'],
+  [' ', '%20'],
+  ['(', '%28'],
+  [')', '%29'],
+  ['#', '%23'],
+  ['?', '%3F'],
+  ['<', '%3C'],
+  ['>', '%3E'],
+];
+
 /** Returns the portable path of `targetPath` seen from `sourcePath`. */
 export function portableRelativePath(
   sourcePath: string,
@@ -48,12 +69,10 @@ export function portableRelativePath(
     ...Array.from({ length: source.length - shared }, () => '..'),
     ...target.slice(shared),
   ];
-  return parts
-    .join('/')
-    .replaceAll('%', '%25')
-    .replaceAll(' ', '%20')
-    .replaceAll('(', '%28')
-    .replaceAll(')', '%29');
+  return pathEscapes.reduce(
+    (path, [character, escape]) => path.replaceAll(character, escape),
+    parts.join('/'),
+  );
 }
 
 function destinationRange(

@@ -71,7 +71,7 @@ through the editor path, so both surfaces must agree on structure.
   refuses each one by name.
 - No `fetch` and no storage. A caller passes an `attachmentHref` resolver, and
   a surface that opens some notes and not others passes a `noteHref` resolver.
-- No wiki link syntax. A link between notes is a standard Markdown link.
+- No wiki link in the grammar: `wiki-links.ts` converts one at the border (0171).
 - No unsanitized HTML path, no second HTML parser and no second highlighter.
   Every render goes through `rehype-sanitize` with `policy.ts`.
 - No unbounded parse. Every entry point refuses a document over the limits
@@ -84,7 +84,8 @@ through the editor path, so both surfaces must agree on structure.
 | ------------------------ | ------------------------------------------- |
 | `src/index.ts`           | The one public entry point                  |
 | `src/parse.ts`           | The parser and its extension set            |
-| `src/render.ts`          | `renderMarkdown` and heading slugs          |
+| `src/render.ts`          | `renderMarkdown`                            |
+| `src/wiki-links.ts`      | The one converter of wiki links (0171)      |
 | `src/policy.ts`          | The sanitizer schema and the URL policy     |
 | `src/html-elements.ts`   | The HTML that an author may write (0157)    |
 | `src/code-languages.ts`  | The one list of fence languages (0159)      |

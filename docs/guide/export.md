@@ -55,6 +55,13 @@ Open **Settings** from the header menu and find the **Import** card. Select
 **Import workspace**, then select a zip file that contains Markdown files and
 images. The import keeps each file path and each relative link.
 
+You can import an Obsidian vault as a zip file. The import leaves out the
+`.obsidian` folder and other hidden files. It puts each image that is not in
+the `attachments` folder into that folder, and the links to the image follow
+it. A wiki link such as `[[Plan]]` or `![[photo.png]]` becomes a normal
+Markdown link when the archive holds its note or its image. A wiki link to
+something that is not in the archive stays as text.
+
 An imported path must not be in use. If a path is in use, rename or remove that
 file before you import the zip file again.
 

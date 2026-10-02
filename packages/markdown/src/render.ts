@@ -73,6 +73,7 @@ import {
   authorStrippedElements,
   neutralizeAuthorTags,
 } from './html-elements.ts';
+import { headingSlug } from './heading-slug.ts';
 import { markdownLimits, MarkdownLimitError } from './limits.ts';
 import { createMarkdownProcessor, parseMarkdown } from './parse.ts';
 import { renderMath } from './math.ts';
@@ -664,15 +665,6 @@ function headingText(node: Element): string {
   };
   collect(node.children);
   return value;
-}
-
-/** One safe fragment identifier derived from heading text. */
-export function headingSlug(value: string): string {
-  return value
-    .normalize('NFKD')
-    .toLocaleLowerCase('en-US')
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 /** Adds unique, namespaced identifiers to headings for safe fragments. */

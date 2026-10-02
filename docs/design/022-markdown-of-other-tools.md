@@ -85,8 +85,9 @@ work. Its parts:
 - A target resolves the way Obsidian resolves it. A path with a folder names
   that path, from the folder of the note first and then from the root. A bare
   name matches every note of that name, case aside. One match is the target.
-  Several prefer the one in the folder of the note, then the shortest path,
-  and a tie stays unresolved, because a guess would link the wrong note.
+  Several prefer the one in the folder of the note, then the one of the
+  fewest folders, and a tie stays unresolved, because a guess would link the
+  wrong note.
 - `[[Note|label]]` takes the label, `[[Note#Heading]]` the fragment of the
   heading, and `![[image.png]]` becomes a picture. An embed of a note becomes
   a link, because no surface draws one note inside another.

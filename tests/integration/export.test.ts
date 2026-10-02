@@ -709,6 +709,112 @@ function zip64Archive(files: number): Buffer<ArrayBuffer> {
   return Buffer.concat([record, locator, end]);
 }
 
+/** A zip archive of stored entries, as an archiver of a desktop writes it. */
+function storedArchive(
+  files: readonly (readonly [string, string | Buffer])[],
+): Buffer<ArrayBuffer> {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const [path, value] of files) {
+    const name = Buffer.from(path, 'utf8');
+    const data = typeof value === 'string' ? Buffer.from(value, 'utf8') : value;
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x0403_4b50, 0);
+    local.writeUInt16LE(20, 4);
+    // Bit 11 states that the name is UTF-8.
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt32LE(crc32(data), 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x0201_4b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt32LE(crc32(data), 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, name, data);
+    centrals.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const directory = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x0605_4b50, 0);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, directory, end]);
+}
+
+await test('an Obsidian vault imports with its links and its pictures', async () => {
+  // Record 0171, issue 241. The import refused a picture outside the
+  // attachments folder and the settings folder of the vault, and every wiki
+  // link stayed text.
+  const vault = storedArchive([
+    ['Vault/.obsidian/app.json', '{}'],
+    [
+      'Vault/Home.md',
+      'See [[Plan]] and [[Plan#Next steps|the steps]].\n\n![[Pasted image.png]]\n\n![a dog](img/dog.png)\n\nNo note [[Missing]] and `[[Plan]]` in code.\n',
+    ],
+    ['Vault/Projects/Plan.md', '# Plan\n\n## Next steps\n\nBack to [[Home]].\n'],
+    ['Vault/Pasted image.png', pngBytes],
+    ['Vault/img/dog.png', pngBytes],
+    ['.DS_Store', 'not a note'],
+  ]);
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Imported vault' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  assert.match(targetId, /^[0-9a-f-]{36}$/);
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File([vault], 'vault.zip', { type: 'application/zip' }),
+    },
+  });
+  assert.equal(imported.error, undefined, JSON.stringify(imported.error));
+  assert.deepEqual(imported.data, { notes: 2, attachments: 2 });
+  const back = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.deepEqual([...back.keys()].sort(), [
+    'Vault/Home.md',
+    'Vault/Projects/Plan.md',
+    'attachments/Vault/Pasted image.png',
+    'attachments/Vault/img/dog.png',
+  ]);
+  assert.equal(
+    back.get('Vault/Home.md')?.toString('utf8'),
+    'See [Plan](Projects/Plan.md) and [the steps](Projects/Plan.md#next-steps).\n\n![Pasted image.png](../attachments/Vault/Pasted%20image.png)\n\n![a dog](../attachments/Vault/img/dog.png)\n\nNo note [[Missing]] and `[[Plan]]` in code.\n',
+  );
+  assert.equal(
+    back.get('Vault/Projects/Plan.md')?.toString('utf8'),
+    '# Plan\n\n## Next steps\n\nBack to [Home](../Home.md).\n',
+  );
+  assert.equal(
+    Buffer.compare(
+      back.get('attachments/Vault/Pasted image.png') ?? Buffer.alloc(0),
+      pngBytes,
+    ),
+    0,
+  );
+});
+
 await test('an import refusal names its real cause', async () => {
   // Issue 243. Every refusal of the reader came back as invalid content,
   // whose title names a digest that does not match.

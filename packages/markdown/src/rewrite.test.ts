@@ -1,10 +1,44 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { extractLinks } from './links.ts';
+import { classifyUrl } from './policy.ts';
 import {
   mapRelativeReferences,
   migrateLegacyReferences,
+  portableRelativePath,
   rewriteRelativeReferences,
 } from './rewrite.ts';
+
+await test('a portable path reaches every note name that a path may hold', () => {
+  // A name with `#` or `?` gave a destination that ended at the fragment or
+  // the query, so the link reached no note (record 0171).
+  for (const target of [
+    'C# notes.md',
+    'What? Why.md',
+    'plan (draft) 100%.md',
+    'a <b> c.md',
+    'deep/folder/caf\u00e9 & tea.md',
+  ]) {
+    const destination = portableRelativePath('notes/source.md', target);
+    const resolved = classifyUrl(destination, 'notes/source.md');
+    assert.equal(resolved.kind, 'relative', destination);
+    assert.equal(
+      resolved.kind === 'relative' ? resolved.path : '',
+      target,
+      destination,
+    );
+    const links = extractLinks(`[x](${destination})`, 'notes/source.md');
+    assert.deepEqual(
+      links.map((link) => link.targetPath),
+      [target],
+      destination,
+    );
+  }
+  assert.equal(
+    portableRelativePath('a/b.md', 'a/C# 50%.md'),
+    'C%23%2050%25.md',
+  );
+});
 
 await test('a move rewrites inbound links and links inside the moved note', () => {
   const moved = new Map([

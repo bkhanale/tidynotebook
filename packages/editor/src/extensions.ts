@@ -20,6 +20,7 @@ import {
   noteLinkCompartment,
   noteLinkCompletion,
   noteLinkSource,
+  wikiLinkInput,
   type NoteLinkSource,
 } from './completion.ts';
 import { touchFieldQuery } from './editor-theme.ts';
@@ -166,6 +167,9 @@ export function editorCommands(): Extension {
       closeOnBlur: true,
     }),
     noteLinkCompartment.of(noteLinkSource({ notes: [], currentPath: '' })),
+    // A typed `[[Note]]` becomes a standard link at its last bracket when the
+    // note is there (record 0171).
+    wikiLinkInput,
     pasteURLAsLink,
     markdownPaste,
     // Every edit of a person, a paste included, renumbers the ordered lists

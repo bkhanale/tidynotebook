@@ -22,9 +22,9 @@ where a vault keeps none. See
   writes `[[Note]]`, `[[Note|label]]`, `[[Note#Heading]]`, `[[folder/Note]]`
   and `![[image.png]]` as a link or a picture, an embed of a note as a link.
 - A target resolves as in Obsidian: a path from the folder of the note, then
-  from the root, then a bare name among all notes, case aside. Of several
-  matches, the one in the folder of the note wins, then the shortest path. A
-  tie stays text.
+  from the root, then the end of a longer path, and a bare name among all
+  files, case aside. Of several matches, the one in the folder of the note
+  wins, then the one of the fewest folders. A tie stays text.
 - The destination is `portableRelativePath` of `rewrite.ts`, which encodes
   `%`, a space, `(`, `)`, `#`, `?`, `<` and `>`. `noteLinkLabel` escapes the
   label. The list after `[[` writes the same link.
