@@ -191,6 +191,7 @@ and needs no record.
 | [0157](0157-a-note-keeps-a-safe-set-of-html-elements.md)                              | A note keeps a safe set of HTML elements                                        |
 | [0158](0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)                  | A published diagram draws in the frame of the editor                            |
 | [0159](0159-one-highlighter-colours-code-on-both-surfaces.md)                         | One highlighter colours code on both surfaces                                   |
+| [0160](0160-an-unclosed-tag-never-takes-the-rest-of-a-note.md)                        | An unclosed tag never takes the rest of a note                                  |
 | [0161](0161-a-render-failure-stops-at-the-nearest-route-boundary.md)                  | A render failure stops at the nearest route boundary                            |
 | [0162](0162-a-search-excerpt-is-the-plain-text-of-its-markdown.md)                    | A search excerpt is the plain text of its Markdown                              |
 | [0163](0163-a-new-note-takes-its-name-from-its-first-heading.md)                      | A new note takes its name from its first heading                                |
@@ -653,13 +654,15 @@ Record 0156 adds GFM footnotes to the editor grammar, a container block for a
 definition and an inline reference, with the label rule of the renderer, so a
 footnote has one meaning in the editor and on the published page.
 
-Records 0157 to 0159 follow
+Records 0157 to 0160 follow
 [design 021](../design/021-the-published-page-draws-what-the-editor-draws.md).
 Record 0157 keeps a safe set of the HTML elements that an author writes and
 keeps the text of every other one. Record 0158 draws a diagram of a published
 page in the frame of the editor, with one script file that the content policy
 names by its address. Record 0159 colours code on the published page and in
-the editor with one list of languages and one map of tokens.
+the editor with one list of languages and one map of tokens. Record 0160 makes
+an unclosed tag keep the rest of a note, bounds the nesting of its HTML, and
+names the diagram files at an IPv6 host.
 
 Records 0161 and 0162 answer issues of the
 [product audit of 2026-10-02](../audits/2026-10-02/product-audit.md). Record

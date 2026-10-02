@@ -165,3 +165,5 @@ the name of the note.
   a published diagram draws in the frame of the editor.
 - [0159](../decisions/0159-one-highlighter-colours-code-on-both-surfaces.md):
   one highlighter colours code on both surfaces.
+- [0160](../decisions/0160-an-unclosed-tag-never-takes-the-rest-of-a-note.md):
+  an unclosed tag never takes the rest of a note.
