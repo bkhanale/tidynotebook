@@ -1,5 +1,5 @@
 /**
- * Wiki links of other tools, as standard links (record 0171).
+ * Wiki links of other tools, as standard links (record 0172).
  *
  * Record 0004 stores a link between notes as a standard Markdown link, and no
  * surface reads the wiki form `[[Note]]`. A note from Obsidian, or a page
@@ -302,7 +302,7 @@ export function convertWikiLinks(
 ): WikiConversion {
   if (!source.includes('[[')) return { text: source, count: 0 };
   // The parser removes a leading byte order mark before it counts offsets.
-  const shift = source.startsWith('﻿') ? 1 : 0;
+  const shift = source.startsWith('\uFEFF') ? 1 : 0;
   const literal: Range[] = [];
   const cells: Range[] = [];
   visit(parseMarkdown(source), (node: Nodes) => {

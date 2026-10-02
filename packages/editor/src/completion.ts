@@ -1,7 +1,7 @@
 /**
  * Completion of links to other notes, and the wiki form at the border.
  *
- * Notes link with standard Markdown links (records 0004 and 0171). This
+ * Notes link with standard Markdown links (records 0004 and 0172). This
  * module offers the note list when the person types `](`, and it accepts the
  * familiar `[[` trigger as well. Both insert the same standard link, so no
  * `[[` ever stays in the text and the stored file is plain Markdown that any
@@ -125,7 +125,7 @@ export function noteResolverOf(source: NoteLinkSource): WikiResolver {
 /**
  * The text of a paste or of typed brackets with its wiki links converted.
  *
- * Only a target that is a note of the list becomes a link (record 0171), so
+ * Only a target that is a note of the list becomes a link (record 0172), so
  * text that names no note reaches the document as the person wrote it.
  */
 export function withNoteLinks(state: EditorState, text: string): string {
@@ -280,7 +280,7 @@ const openWikiLink = /(?:!)?\[\[[^[\]\n]+\]$/;
  * The change that one typed `]` makes at `pos`, or `null` for none.
  *
  * When the bracket closes a `[[Note]]` and the note is there, the wiki form
- * becomes a standard link (record 0171). A backslash before the brackets
+ * becomes a standard link (record 0172). A backslash before the brackets
  * escapes them, and inside code, math, HTML or an address the bracket is
  * text.
  */
@@ -306,7 +306,7 @@ export function typedWikiLink(
 
 /**
  * Turns a typed `[[Note]]` into a standard link when its last bracket is
- * typed and the note is there (record 0171).
+ * typed and the note is there (record 0172).
  *
  * The change replaces the wiki form in the same transaction as the bracket,
  * so one undo brings the typed text back.

@@ -31,6 +31,7 @@ import { listControls } from './list-controls.ts';
 import { listMarkerCaret } from './list-marker.ts';
 import { typedFenceOpeners } from './fence-close.ts';
 import { tableControls } from './table-controls.ts';
+import { codeControls } from './code-controls.ts';
 import { tableGridEditing } from './table-grid.ts';
 
 /**
@@ -168,7 +169,7 @@ export function editorCommands(): Extension {
     }),
     noteLinkCompartment.of(noteLinkSource({ notes: [], currentPath: '' })),
     // A typed `[[Note]]` becomes a standard link at its last bracket when the
-    // note is there (record 0171).
+    // note is there (record 0172).
     wikiLinkInput,
     pasteURLAsLink,
     markdownPaste,
@@ -190,6 +191,8 @@ export function editorCommands(): Extension {
     tableControls(),
     // A list item carries a grip that drags it to a new place (record 0106).
     listControls(),
+    // A code block carries its language and a copy action (record 0174).
+    codeControls(),
     // `markdown()` registers its own `Enter` handler with high precedence.
     // These two keymaps sit above it, so completion accepts first and the
     // list continuation of this package is the one that runs.

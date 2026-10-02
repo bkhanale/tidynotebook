@@ -1,4 +1,4 @@
-# 0172. A fence language is a CodeMirror language of the one list
+# 0173. A fence language is a CodeMirror language of the one list
 
 - Status: Accepted
 - Date: 2026-10-02

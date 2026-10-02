@@ -99,7 +99,7 @@ await test('each language gives the tokens of its own grammar', async () => {
   assert.ok(page.includes(`${string}:"s"`), page.join(' '));
 });
 
-await test('each new language of record 0172 colours its own code', async () => {
+await test('each new language of record 0173 colours its own code', async () => {
   const keyword = codeTokenClass('keyword');
   const string = codeTokenClass('string');
   const comment = codeTokenClass('comment');
@@ -133,7 +133,7 @@ await test('each new language of record 0172 colours its own code', async () => 
 });
 
 await test('the renderer and the editor share one language object', async () => {
-  // Record 0172. The parser of the renderer is the parser of the language
+  // Record 0173. The parser of the renderer is the parser of the language
   // that the editor mounts, so one token cannot read two ways.
   for (const language of codeLanguages) {
     const loaded = await loadCodeLanguage(language);
@@ -142,7 +142,7 @@ await test('the renderer and the editor share one language object', async () => 
 });
 
 await test('a code block reads the label of its language or its own word', () => {
-  // Record 0173.
+  // Record 0174.
   assert.equal(codeBlockLabel('py'), 'Python');
   assert.equal(codeBlockLabel('Bash title="a"'), 'Shell');
   assert.equal(codeBlockLabel('c++'), 'C++');

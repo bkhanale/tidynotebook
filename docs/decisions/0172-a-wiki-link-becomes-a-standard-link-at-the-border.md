@@ -1,4 +1,4 @@
-# 0171. A wiki link becomes a standard link at the border
+# 0172. A wiki link becomes a standard link at the border
 
 - Status: Accepted
 - Date: 2026-10-02

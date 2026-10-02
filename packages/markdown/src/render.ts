@@ -61,11 +61,16 @@ import remarkRehype from 'remark-rehype';
 import { visit } from 'unist-util-visit';
 import { alertMarkerLength, alertTitle, alertToneOf } from './alerts.ts';
 import {
+  codeBlockLabel,
   codeLanguageOf,
   loadCodeParser,
   loadedCodeParser,
 } from './code-languages.ts';
-import { codeHighlighter } from './code-tokens.ts';
+import {
+  codeBlockClass,
+  codeHighlighter,
+  codeLabelClass,
+} from './code-tokens.ts';
 import {
   authorElements,
   authorNestingDepth,
@@ -174,6 +179,10 @@ function codeText(node: Code, value: string): ElementContent[] {
 /**
  * Renders a fenced or indented code block.
  *
+ * Every block other than a diagram is a `figure` of the class
+ * `notes-code`, with its label in a `figcaption` when it has one (record
+ * 0174).
+ *
  * A `mermaid` fence stays a diagram placeholder that keeps its source. The
  * editor and the published page draw it inside an isolated frame; HTML never
  * renders it inline. Every other block becomes normal preformatted code with a
@@ -192,7 +201,25 @@ function codeBlock(node: Code): Element {
       : {},
     children: codeText(node, `${node.value}\n`),
   };
-  return { type: 'element', tagName: 'pre', properties: {}, children: [code] };
+  const pre: Element = {
+    type: 'element',
+    tagName: 'pre',
+    properties: {},
+    children: [code],
+  };
+  // A block is a figure with its language as its caption (record 0174), so a
+  // reader reads the language with no script, and the script of a published
+  // page puts the copy action on the figure.
+  const label = codeBlockLabel(node.lang ?? '');
+  return {
+    type: 'element',
+    tagName: 'figure',
+    properties: { className: [codeBlockClass] },
+    children:
+      label === null
+        ? [pre]
+        : [textElement('figcaption', { className: codeLabelClass }, label), pre],
+  };
 }
 
 /** Reads a string property, or `null` when it is absent or not a string. */

@@ -182,7 +182,7 @@ async function afterCommand(
 }
 
 await test('a fence indents and comments in the way of its language', async () => {
-  // Record 0172. A fence took a bare parser and lost the editing of its
+  // Record 0173. A fence took a bare parser and lost the editing of its
   // language, so Enter after a block opener kept the indentation of the line
   // above and the comment key wrote nothing.
   assert.equal(

@@ -78,7 +78,29 @@ await test('an internal note link carries no rel attribute', async () => {
 await test('a language class that is not a plain word is dropped', async () => {
   const html = await renderMarkdown('```c++ evil"\ncode\n```\n');
   assert.ok(html.includes('<pre><code>code\n</code></pre>'));
-  assert.ok(!html.includes('class='));
+  assert.ok(!html.includes('language-'));
+  // The label names the language, and the rest of the info string leaves.
+  assert.ok(html.includes('<figcaption class="notes-code-label">C++</figcaption>'));
+  assert.ok(!html.includes('evil'));
+});
+
+await test('a code block is a figure with its language as its caption', async () => {
+  // Record 0174. A reader reads the language of a block with no script.
+  assert.equal(
+    await renderMarkdown('```py\nx = 1\n```\n'),
+    '<figure class="notes-code"><figcaption class="notes-code-label">Python</figcaption><pre><code class="language-py">x <span class="notes-code-punctuation">=</span> <span class="notes-code-number">1</span>\n</code></pre></figure>',
+  );
+  assert.equal(
+    await renderMarkdown('    indented\n'),
+    '<figure class="notes-code"><pre><code>indented\n</code></pre></figure>',
+  );
+  // An author can write a figure and a caption, and never the classes of
+  // the renderer, so no figure of an author reads as a code block.
+  const forged = await renderMarkdown(
+    '<figure class="notes-code"><figcaption class="notes-code-label">x</figcaption></figure>\n',
+  );
+  assert.ok(!forged.includes('notes-code'), forged);
+  assert.ok(forged.includes('<figure>'), forged);
 });
 
 await test('a script reads as text and a raw picture leaves', async () => {
@@ -231,7 +253,7 @@ await test('code in a fence of a known language is highlighted', async () => {
   // list of languages and the one map of tokens that the editor reads.
   assert.equal(
     await renderMarkdown('```ts\nconst a: number = 1; // c\n```\n'),
-    '<pre><code class="language-ts"><span class="notes-code-keyword">const</span> a<span class="notes-code-punctuation">:</span> <span class="notes-code-tag">number</span> <span class="notes-code-punctuation">=</span> <span class="notes-code-number">1</span><span class="notes-code-punctuation">;</span> <span class="notes-code-comment">// c</span>\n</code></pre>',
+    '<figure class="notes-code"><figcaption class="notes-code-label">TypeScript</figcaption><pre><code class="language-ts"><span class="notes-code-keyword">const</span> a<span class="notes-code-punctuation">:</span> <span class="notes-code-tag">number</span> <span class="notes-code-punctuation">=</span> <span class="notes-code-number">1</span><span class="notes-code-punctuation">;</span> <span class="notes-code-comment">// c</span>\n</code></pre></figure>',
   );
   // A script inside HTML is parsed as JavaScript, as the editor parses it.
   const page = await renderMarkdown(
@@ -242,11 +264,11 @@ await test('code in a fence of a known language is highlighted', async () => {
   // An unknown language and a fence with no info string stay plain text.
   assert.equal(
     await renderMarkdown('```cobol\nMOVE A TO B.\n```\n'),
-    '<pre><code class="language-cobol">MOVE A TO B.\n</code></pre>',
+    '<figure class="notes-code"><figcaption class="notes-code-label">cobol</figcaption><pre><code class="language-cobol">MOVE A TO B.\n</code></pre></figure>',
   );
   assert.equal(
     await renderMarkdown('```\nconst a = 1;\n```\n'),
-    '<pre><code>const a = 1;\n</code></pre>',
+    '<figure class="notes-code"><pre><code>const a = 1;\n</code></pre></figure>',
   );
 });
 
@@ -361,7 +383,7 @@ await test('a new line keeps code and alerts as they are', async () => {
   // the line after an alert marker starts the alert with no empty line.
   assert.equal(
     await renderMarkdown('```\na\nb\n```\n'),
-    '<pre><code>a\nb\n</code></pre>',
+    '<figure class="notes-code"><pre><code>a\nb\n</code></pre></figure>',
   );
   assert.equal(
     await renderMarkdown('`one\ntwo`\n'),

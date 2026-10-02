@@ -15,7 +15,7 @@
  *   dollars. An unclosed block runs to the end of its container. The opening
  *   line ends a paragraph above it, as a code fence does.
  * - Inline math is `$$...$$`, `\(...\)` or `$...$` on one line. One dollar
- *   opens by the rule of Pandoc (record 0170), so a price stays text: no
+ *   opens by the rule of Pandoc (record 0171), so a price stays text: no
  *   space after the opening dollar, no space before the closing dollar, and
  *   no digit after it. `dollarMathEnd` of `@notesapp/markdown` is the scan.
  *

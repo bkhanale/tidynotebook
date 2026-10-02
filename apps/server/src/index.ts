@@ -149,10 +149,10 @@ export {
   secretDigest,
 } from './auth/publication-secrets.ts';
 export {
-  publishedDiagramContentPolicy,
+  publishedScriptContentPolicy,
   publishedDocumentContentPolicy,
   publishedDocumentHeaders,
-  type PublishedDiagramAssets,
+  type PublishedPageAssets,
 } from './plugins/security-headers.ts';
 export {
   assetHashLength,
@@ -160,8 +160,8 @@ export {
   cacheControlFor,
   documentStylesheetHrefs,
   publishedDiagramFrameHref,
-  publishedDiagramScriptFile,
-  publishedDiagramScriptHref,
+  publishedPageScriptFile,
+  publishedPageScriptHref,
 } from './plugins/static-assets.ts';
 export {
   publishedButtonClasses,

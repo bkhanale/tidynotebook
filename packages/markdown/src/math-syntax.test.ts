@@ -22,7 +22,7 @@ import { parseMarkdown } from './parse.ts';
 
 await test('remark-math reads no single dollar of its own', () => {
   // Its rule is the rule of a code span, which reads `$5 and $10` as a
-  // formula, so `math-dollar.ts` reads one dollar instead (record 0170).
+  // formula, so `math-dollar.ts` reads one dollar instead (record 0171).
   assert.equal(singleDollarTextMath, false);
 });
 

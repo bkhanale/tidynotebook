@@ -3,7 +3,7 @@
  *
  * An archive of an export holds notes at their folder paths and pictures in
  * `attachments/`. An Obsidian vault holds the same Markdown with three
- * differences (record 0171): pictures beside the notes, the folder of the
+ * differences (record 0172): pictures beside the notes, the folder of the
  * settings of Obsidian with the other hidden entries of a file system, and
  * wiki links. This module states what the import does with each, as pure
  * functions, so a unit test holds every case and the handler of

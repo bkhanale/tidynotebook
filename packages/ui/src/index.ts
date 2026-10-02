@@ -116,6 +116,7 @@ export {
   plusParts,
 } from './glyph-parts.ts';
 export { glyph } from './glyph.ts';
+export { copiedForMs, copyCodeWords } from './copy-action.ts';
 export type { SelectOption } from './controls.tsx';
 export {
   Badge,

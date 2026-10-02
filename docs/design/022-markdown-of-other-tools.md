@@ -171,11 +171,11 @@ so it needs no script at all.
 
 ## Decisions
 
-- [0170](../decisions/0170-one-dollar-opens-math-by-the-rule-of-pandoc.md):
+- [0171](../decisions/0171-one-dollar-opens-math-by-the-rule-of-pandoc.md):
   one dollar opens math by the rule of Pandoc.
-- [0171](../decisions/0171-a-wiki-link-becomes-a-standard-link-at-the-border.md):
+- [0172](../decisions/0172-a-wiki-link-becomes-a-standard-link-at-the-border.md):
   a wiki link becomes a standard link at the border.
-- [0172](../decisions/0172-a-fence-language-is-a-codemirror-language-of-the-one-list.md):
+- [0173](../decisions/0173-a-fence-language-is-a-codemirror-language-of-the-one-list.md):
   a fence language is a CodeMirror language of the one list.
-- [0173](../decisions/0173-a-code-block-carries-its-language-and-a-copy-action.md):
+- [0174](../decisions/0174-a-code-block-carries-its-language-and-a-copy-action.md):
   a code block carries its language and a copy action.

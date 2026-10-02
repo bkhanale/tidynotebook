@@ -1,5 +1,5 @@
 /**
- * The languages of a fenced code block (records 0159 and 0172).
+ * The languages of a fenced code block (records 0159 and 0173).
  *
  * This is the one list of the languages that a fence can name. Each entry
  * loads a `Language` of `@codemirror/language`: the language of its
@@ -14,7 +14,7 @@
  * a view mounts it. Each one loads on first use with a dynamic import, so a
  * bundle that never meets a fence of a language carries none of it, and a
  * module here still runs nothing when it loads. This is the one module of the
- * package that imports a CodeMirror package (record 0172).
+ * package that imports a CodeMirror package (record 0173).
  *
  * Markdown is not on the list: the token map of `./code-tokens.ts` gives a
  * Markdown construct no code colour (record 0159), so a Markdown fence reads
@@ -297,7 +297,7 @@ export function codeLanguageOf(info: string): CodeLanguage | null {
 }
 
 /**
- * The label of a code block with one info string, or `null` (record 0173).
+ * The label of a code block with one info string, or `null` (record 0174).
  *
  * A listed language reads its own name, any other info string reads its
  * first word as the author wrote it, and a block with no info string has no

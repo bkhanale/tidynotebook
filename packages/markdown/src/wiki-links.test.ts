@@ -1,5 +1,5 @@
 /**
- * The converter of wiki links (record 0171).
+ * The converter of wiki links (record 0172).
  *
  * Each form of Obsidian becomes the standard link that a note stores, a
  * target that does not resolve keeps its text, and a `[[` in code, in math,
@@ -202,8 +202,8 @@ await test('every converted link reaches the note it names', () => {
 
 await test('a byte order mark keeps the offsets of the source', () => {
   assert.equal(
-    convertWikiLinks('﻿A `[[Plan]]` and [[Plan]].', 'Vault/Home.md', resolve)
+    convertWikiLinks('\uFEFFA `[[Plan]]` and [[Plan]].', 'Vault/Home.md', resolve)
       .text,
-    '﻿A `[[Plan]]` and [Plan](Projects/Plan.md).',
+    '\uFEFFA `[[Plan]]` and [Plan](Projects/Plan.md).',
   );
 });

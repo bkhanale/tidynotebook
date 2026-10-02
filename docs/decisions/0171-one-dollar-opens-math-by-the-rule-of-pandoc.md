@@ -1,4 +1,4 @@
-# 0170. One dollar opens math by the rule of Pandoc
+# 0171. One dollar opens math by the rule of Pandoc
 
 - Status: Accepted
 - Date: 2026-10-02

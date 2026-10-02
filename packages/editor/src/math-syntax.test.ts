@@ -115,7 +115,7 @@ function rendererFormulas(doc: string): readonly string[] {
 }
 
 await test('one dollar opens math where the renderer opens it', () => {
-  // Record 0170. The two grammars read one rule, so a formula, a price and an
+  // Record 0171. The two grammars read one rule, so a formula, a price and an
   // escaped dollar mean the same thing in the note and on the published page.
   for (const doc of [
     'A formula $x^2$ in a sentence.',

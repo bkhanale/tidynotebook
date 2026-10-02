@@ -365,14 +365,14 @@ export function builtStylesheetHrefs(
 }
 
 /**
- * The name of the diagram script of a published page, with its hash.
+ * The name of the one script of a published page, with its hash.
  *
  * `publishedDiagramScript` in `apps/web/vite.config.ts` writes the file under
  * this name (record 0158), and `tests/integration/web-build.test.ts` holds the
  * two together.
  */
-export const publishedDiagramScriptFile =
-  /^published-diagrams-[A-Za-z0-9_-]{8}\.js$/;
+export const publishedPageScriptFile =
+  /^published-page-[A-Za-z0-9_-]{8}\.js$/;
 
 /**
  * The address of the diagram frame document of the build.
@@ -385,7 +385,7 @@ export const publishedDiagramScriptFile =
 export const publishedDiagramFrameHref = '/src/diagram/frame.html';
 
 /**
- * The address of the diagram script of a published page, or `null`.
+ * The address of the one script of a published page, or `null`.
  *
  * The build writes one such file. A deployment that serves no built assets,
  * or a build with no frame document, answers `null`, and a published page
@@ -394,7 +394,7 @@ export const publishedDiagramFrameHref = '/src/diagram/frame.html';
  * @param webDirectory the built web directory, which holds `assets/` and the
  *   frame document.
  */
-export function publishedDiagramScriptHref(
+export function publishedPageScriptHref(
   webDirectory: string,
 ): string | null {
   if (statFile(join(webDirectory, publishedDiagramFrameHref)) === null)
@@ -405,7 +405,7 @@ export function publishedDiagramScriptHref(
   } catch {
     return null;
   }
-  const found = names.filter((name) => publishedDiagramScriptFile.test(name));
+  const found = names.filter((name) => publishedPageScriptFile.test(name));
   // Two files of one name would leave the choice of script to chance, so a
   // build that holds them answers none and the page stays readable.
   return found.length === 1 ? `/assets/${found[0] ?? ''}` : null;

@@ -177,6 +177,11 @@ export const articleClasses = [
   '[&_.notes-alert-title]:mb-1 [&_.notes-alert-title]:font-note-heading',
   '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-surface [&_pre]:p-4 [&_pre]:pr-20 [&_pre]:font-mono [&_pre]:text-note-mono [&_pre]:leading-relaxed',
   '[&_code]:font-mono [&_code]:text-note-mono',
+  // A code block is a figure with its language at the top of the card, as the
+  // renderer writes it (record 0174), and the copy button of the site stands
+  // at the other end of that top.
+  '[&_figure.notes-code]:relative [&_figure.notes-code]:mx-0 [&_figure.notes-code]:my-4 [&_figure.notes-code_pre]:my-0 [&_figure.notes-code_pre]:pt-12',
+  '[&_.notes-code-label]:absolute [&_.notes-code-label]:left-4 [&_.notes-code-label]:top-3 [&_.notes-code-label]:z-10 [&_.notes-code-label]:font-mono [&_.notes-code-label]:text-control [&_.notes-code-label]:text-muted',
   '[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:bg-surface [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:text-strong',
   '[&_hr]:my-8 [&_hr]:border-edge-line',
   '[&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-ui',

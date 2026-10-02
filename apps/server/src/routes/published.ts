@@ -26,10 +26,11 @@
  * through the one sanitized renderer, builds the addresses of the page, and
  * writes the headers of decision 0047.
  *
- * **A diagram is the one script.** A note that holds a diagram names the
- * diagram script of the build, and its content policy names that file and the
- * frame document by their exact address on the host of the request (record
- * 0158). Every other page keeps the policy that refuses every script.
+ * **One file is the one script.** A note that holds a diagram or a code
+ * block names the script of a published page, and its content policy names
+ * that file, and for a diagram the frame document, by their exact address on
+ * the host of the request (records 0158 and 0174). Every other page keeps the
+ * policy that refuses every script.
  */
 import {
   isReportReason,
@@ -45,7 +46,11 @@ import {
   type ReaderRefusalCause,
   type SecretDigest,
 } from '@notesapp/core';
-import { renderMarkdown, type NoteTarget } from '@notesapp/markdown';
+import {
+  codeBlockClass,
+  renderMarkdown,
+  type NoteTarget,
+} from '@notesapp/markdown';
 import type {
   AttachmentStore,
   PublicationReport,
@@ -54,10 +59,10 @@ import type {
 } from '@notesapp/storage-server';
 import { PublishedLinkUnavailableError } from '../plugins/problem.ts';
 import {
-  publishedDiagramContentPolicy,
+  publishedScriptContentPolicy,
   publishedDocumentHeaders,
   publishedDocumentHeadersWith,
-  type PublishedDiagramAssets,
+  type PublishedPageAssets,
 } from '../plugins/security-headers.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import {
@@ -102,11 +107,11 @@ export type PublishedDependencies = {
   /** The stylesheets of the built application document. */
   readonly stylesheets: () => readonly string[];
   /**
-   * The diagram script and the frame document of the build, or `null` when
-   * the build holds none (record 0158). It is read only for a note that holds
-   * a diagram.
+   * The script of a published page and the diagram frame document of the
+   * build, or `null` when the build holds none (records 0158 and 0174). It is
+   * read only for a note that holds a diagram or a code block.
    */
-  readonly diagrams: () => PublishedDiagramAssets | null;
+  readonly pageScript: () => PublishedPageAssets | null;
   /**
    * The renderer of a note, `renderMarkdown` unless a test counts its calls.
    * The handlers keep each body that it gives in a bounded cache.
@@ -121,28 +126,35 @@ export type PublishedDependencies = {
 /** The placeholder of a diagram, as `renderMarkdown` writes it. */
 const diagramPlaceholder = '<pre data-diagram="mermaid">';
 
-/** The script of one page that draws its diagrams, with its policy. */
-type DiagramPage = { readonly script: string; readonly policy: string };
+/** The figure of a code block, as `renderMarkdown` writes it (record 0174). */
+const codeBlockFigure = `<figure class="${codeBlockClass}">`;
+
+/** The script of one page, with its policy. */
+type ScriptPage = { readonly script: string; readonly policy: string };
 
 /**
- * The diagram script of one page and its content policy, or `null`.
+ * The script of one page and its content policy, or `null`.
  *
- * Only a note whose sanitized body holds a diagram placeholder gets one. The
- * renderer is the one producer of the placeholder, so the text of an author
- * cannot ask for the script. A build with no script, and a host that a policy
- * cannot name, answer `null`, and the page shows the source of each diagram.
+ * Only a note whose sanitized body holds a diagram placeholder or a code
+ * block gets one, and only a diagram brings the frame into the policy. The
+ * renderer is the one producer of both, because an author writes no class
+ * and no data attribute, so the text of an author cannot ask for the script.
+ * A build with no script, and a host that a policy cannot name, answer
+ * `null`, and the page shows the source of each diagram and each block with
+ * no copy action.
  */
-function diagramPageOf(
+function pageScriptOf(
   view: PublishedPageView,
   host: string | undefined,
-  diagrams: () => PublishedDiagramAssets | null,
-): DiagramPage | null {
-  if (view.kind !== 'note' || !view.body.includes(diagramPlaceholder))
-    return null;
-  // The files of the build are read only for a note that holds a diagram.
-  const assets = diagrams();
+  pageScript: () => PublishedPageAssets | null,
+): ScriptPage | null {
+  if (view.kind !== 'note') return null;
+  const frames = view.body.includes(diagramPlaceholder);
+  if (!frames && !view.body.includes(codeBlockFigure)) return null;
+  // The files of the build are read only for a note that needs the script.
+  const assets = pageScript();
   if (assets === null) return null;
-  const policy = publishedDiagramContentPolicy(host, assets);
+  const policy = publishedScriptContentPolicy(host, assets, frames);
   return policy === null ? null : { script: assets.script, policy };
 }
 
@@ -313,7 +325,7 @@ export function createPublishedHandlers(
     note: string | null,
     host: string | undefined,
   ): Promise<HandlerResult> => {
-    const diagrams = diagramPageOf(view, host, parts.diagrams);
+    const scripted = pageScriptOf(view, host, parts.pageScript);
     return {
       status: 200,
       mediaType: 'text/html',
@@ -324,12 +336,12 @@ export function createPublishedHandlers(
         // of a folder link opens the note that the reader asked for.
         formAction: pageAddress(token, null, note),
         reportHref: reportAddress(token),
-        diagramScript: diagrams?.script ?? null,
+        pageScript: scripted?.script ?? null,
       }),
       headers:
-        diagrams === null
+        scripted === null
           ? publishedDocumentHeaders
-          : publishedDocumentHeadersWith(diagrams.policy),
+          : publishedDocumentHeadersWith(scripted.policy),
     };
   };
 

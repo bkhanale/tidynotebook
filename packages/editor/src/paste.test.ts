@@ -125,7 +125,7 @@ await test('Markdown characters in pasted text are escaped', () => {
 });
 
 await test('a dollar of pasted text stays a dollar', () => {
-  // One dollar opens math (record 0170), so the text of a web page that
+  // One dollar opens math (record 0171), so the text of a web page that
   // names a price range or a variable keeps each dollar as text.
   assert.equal(
     htmlToMarkdown('<p>from $a$ to $5</p>'),

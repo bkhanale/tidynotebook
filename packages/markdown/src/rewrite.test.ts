@@ -11,7 +11,7 @@ import {
 
 await test('a portable path reaches every note name that a path may hold', () => {
   // A name with `#` or `?` gave a destination that ended at the fragment or
-  // the query, so the link reached no note (record 0171).
+  // the query, so the link reached no note (record 0172).
   for (const target of [
     'C# notes.md',
     'What? Why.md',

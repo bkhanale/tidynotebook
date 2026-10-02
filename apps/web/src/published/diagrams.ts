@@ -1,12 +1,10 @@
 /**
- * The one script of a published page, which draws its diagrams (record 0158).
+ * The diagrams of a published page (record 0158).
  *
- * The server writes a published page with no script, and it names this file
- * only when the note holds a diagram. The content policy of that page names
- * this file and the frame document by their exact address, so nothing else
- * runs. The build emits this module alone, with no import, as
- * `assets/published-diagrams-<hash>.js` (`publishedDiagramScript` in
- * `apps/web/vite.config.ts`).
+ * `./page.ts`, the one script of a published page, starts this. The server
+ * names the script only when the note holds a diagram or a code block, and
+ * the content policy of a page with a diagram names the script and the frame
+ * document by their exact address, so nothing else runs.
  *
  * Each placeholder is the source of the diagram in a code block, which is what
  * a reader with no script reads. The script puts the sandboxed frame of
@@ -61,8 +59,12 @@ function drawDiagrams(prefersDark: boolean): void {
   drawn = next;
 }
 
-const preference = window.matchMedia(darkPreferenceQuery);
-drawDiagrams(preference.matches);
-preference.addEventListener('change', (event) => {
-  drawDiagrams(event.matches);
-});
+/** Draws every diagram of the page, and draws them again on a new palette. */
+export function startDiagrams(): void {
+  if (document.querySelector(publishedDiagramSelector) === null) return;
+  const preference = window.matchMedia(darkPreferenceQuery);
+  drawDiagrams(preference.matches);
+  preference.addEventListener('change', (event) => {
+    drawDiagrams(event.matches);
+  });
+}

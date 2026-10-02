@@ -69,13 +69,13 @@ import {
 } from './plugins/problem.ts';
 import {
   baseSecurityHeaders,
-  type PublishedDiagramAssets,
+  type PublishedPageAssets,
 } from './plugins/security-headers.ts';
 import {
   builtStylesheetHrefs,
   documentStylesheetHrefs,
   publishedDiagramFrameHref,
-  publishedDiagramScriptHref,
+  publishedPageScriptHref,
   sendStaticFile,
   servesApplicationShell,
   servesBrowserAssets,
@@ -698,22 +698,23 @@ async function composeApp(
     const emitted = builtStylesheetHrefs(resolve(webDist, 'assets'));
     return [...shell, ...emitted.filter((href) => !shell.includes(href))];
   };
-  // A note that holds a diagram draws it with the one diagram script of the
-  // build, in the frame that the editor uses (record 0158). A deployment that
-  // serves no built assets answers none, and the page shows the source.
-  // The files of one build do not change while it serves, so the build is
-  // read once, at the first note that holds a diagram.
-  let diagramAssets: { readonly value: PublishedDiagramAssets | null } | null =
+  // A note that holds a diagram or a code block runs the one script of a
+  // published page, which draws a diagram in the frame that the editor uses
+  // and copies a code block (records 0158 and 0174). A deployment that serves
+  // no built assets answers none, and the page shows the source of each
+  // diagram and each block with no copy action. The files of one build do not
+  // change while it serves, so the build is read once, at the first such note.
+  let pageAssets: { readonly value: PublishedPageAssets | null } | null =
     null;
-  const publishedDiagrams = (): PublishedDiagramAssets | null => {
-    if (diagramAssets !== null) return diagramAssets.value;
+  const publishedPage = (): PublishedPageAssets | null => {
+    if (pageAssets !== null) return pageAssets.value;
     const script =
-      webDist === null ? null : publishedDiagramScriptHref(webDist);
-    diagramAssets = {
+      webDist === null ? null : publishedPageScriptHref(webDist);
+    pageAssets = {
       value:
         script === null ? null : { script, frame: publishedDiagramFrameHref },
     };
-    return diagramAssets.value;
+    return pageAssets.value;
   };
   // The cause of a reader refusal reaches the operator and reaches no answer.
   // The sink is filled once the instance exists, as the protocol sink below
@@ -810,7 +811,7 @@ async function composeApp(
           attachments,
           hasher: createPublicationHasher(auth.auth),
           stylesheets: publishedStylesheets,
-          diagrams: publishedDiagrams,
+          pageScript: publishedPage,
           recordRefusal: (cause) => refusals.record?.(cause),
         },
         ...(options?.lifecycle === undefined

@@ -49,7 +49,7 @@ import {
   createPublicationCleanup,
   createPublicationHasher,
   loadServerConfig,
-  publishedDiagramContentPolicy,
+  publishedScriptContentPolicy,
   publishedDocumentContentPolicy,
   type ServerConfig,
   sessionAllowedBy,
@@ -154,7 +154,7 @@ const stylesheet = '/assets/published-test.css';
 
 /** The diagram files that a build would hold (record 0158). */
 const diagramAssets = {
-  script: '/assets/published-diagrams-TestTest.js',
+  script: '/assets/published-page-TestTest.js',
   frame: '/src/diagram/frame.html',
 };
 
@@ -170,7 +170,7 @@ const server = await startTestServer({
         attachments,
         hasher,
         stylesheets: () => [stylesheet],
-        diagrams: () => diagramAssets,
+        pageScript: () => diagramAssets,
         render: (source, options) => {
           renders.push(source);
           return renderMarkdown(source, options);
@@ -507,7 +507,7 @@ await test('a mermaid fence names the diagram script and keeps its source', asyn
   // that the reader asked, and nothing else.
   const policy = page.response.headers.get('content-security-policy') ?? '';
   const host = new URL(server.baseUrl).host;
-  assert.equal(policy, publishedDiagramContentPolicy(host, diagramAssets));
+  assert.equal(policy, publishedScriptContentPolicy(host, diagramAssets, true));
   const directives = policy.split('; ');
   assert.ok(directives.includes(`script-src ${host}${diagramAssets.script}`));
   assert.ok(directives.includes(`frame-src ${host}${diagramAssets.frame}`));
@@ -517,6 +517,30 @@ await test('a mermaid fence names the diagram script and keeps its source', asyn
   // A note with no diagram names no script.
   const plain = await readPage(folder.token, { note: dayTwoId });
   assert.ok(!plain.html.includes('<script'));
+});
+
+await test('a code block shows its language and names the script with no frame', async () => {
+  // Issue 242 and record 0174. A code block reads its language with no
+  // script, and the one script of the page puts the copy action on it, so a
+  // note of code names that script and frames nothing.
+  const page = await readPage(folder.token, { note: elementsId });
+  assert.ok(
+    page.html.includes(
+      '<figure class="notes-code"><figcaption class="notes-code-label">TypeScript</figcaption><pre><code class="language-ts">',
+    ),
+    page.html,
+  );
+  assert.ok(
+    page.html.includes(`<script src="${diagramAssets.script}" defer></script>`),
+  );
+  const policy = page.response.headers.get('content-security-policy') ?? '';
+  const host = new URL(server.baseUrl).host;
+  assert.equal(
+    policy,
+    publishedScriptContentPolicy(host, diagramAssets, false),
+  );
+  assert.ok(!policy.includes('frame-src'), policy);
+  assert.ok(policy.includes(`script-src ${host}${diagramAssets.script}`));
 });
 
 await test('a second read of a published note renders nothing again', async () => {

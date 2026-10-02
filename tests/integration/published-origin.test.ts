@@ -66,7 +66,7 @@ async function writeBuild(): Promise<string> {
   // The diagram script of a published page and the frame that it loads
   // (record 0158).
   await writeFile(
-    join(directory, 'assets/published-diagrams-Origin01.js'),
+    join(directory, 'assets/published-page-Origin01.js'),
     'void 0;',
   );
   await mkdir(join(directory, 'src/diagram'), { recursive: true });
@@ -247,13 +247,13 @@ await test('a published diagram loads its script and its frame from the publishe
   assert.equal(page.statusCode, 200);
   assert.ok(
     page.body.includes(
-      '<script src="/assets/published-diagrams-Origin01.js" defer></script>',
+      '<script src="/assets/published-page-Origin01.js" defer></script>',
     ),
   );
   const policy = String(page.headers['content-security-policy']);
   assert.ok(
     policy.includes(
-      'script-src pages.test/assets/published-diagrams-Origin01.js;',
+      'script-src pages.test/assets/published-page-Origin01.js;',
     ),
     policy,
   );
@@ -262,7 +262,7 @@ await test('a published diagram loads its script and its frame from the publishe
     policy,
   );
   assert.ok(policy.includes("frame-ancestors 'none'"), policy);
-  const script = await onPages('GET', '/assets/published-diagrams-Origin01.js');
+  const script = await onPages('GET', '/assets/published-page-Origin01.js');
   assert.equal(script.statusCode, 200);
   assert.match(
     String(script.headers['content-type']),

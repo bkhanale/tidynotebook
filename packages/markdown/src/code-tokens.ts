@@ -61,7 +61,7 @@ export const codeTokenTags: readonly CodeTokenTags[] = [
   {
     token: 'string',
     // An inserted line of a diff takes the colour of a string, as the green
-    // of a diff reads in most palettes (record 0172).
+    // of a diff reads in most palettes (record 0173).
     tags: [tags.string, tags.special(tags.string), tags.regexp, tags.inserted],
   },
   {
@@ -89,6 +89,12 @@ export const codeTokenTags: readonly CodeTokenTags[] = [
   // A deleted line of a diff takes the danger colour of the invalid token.
   { token: 'invalid', tags: [tags.invalid, tags.deleted] },
 ];
+
+/** The class of the figure that holds one code block in rendered HTML. */
+export const codeBlockClass = 'notes-code';
+
+/** The class of the label of one code block in rendered HTML (record 0174). */
+export const codeLabelClass = 'notes-code-label';
 
 /** The class of one code token in rendered HTML. */
 export function codeTokenClass(token: CodeToken): string {

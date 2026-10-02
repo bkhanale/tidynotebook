@@ -95,6 +95,12 @@ export const gripPointerQuery = '(hover: hover) and (pointer: fine)';
  */
 export const touchFieldQuery = '(pointer: coarse)';
 
+/**
+ * The height of the bar of a code block: one small control on a desktop, and
+ * the touch target of a control under a finger, in the coarse rule below.
+ */
+const codeBarHeight = 'calc(var(--spacing) * 10)';
+
 /** The heading ramp, level by level. */
 const headings: ReadonlyArray<readonly [string, string]> = [
   ['var(--text-note-h1)', 'var(--text-note-h1--line-height)'],
@@ -425,11 +431,44 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderInline: '1px solid var(--notes-border-subtle)',
       paddingInline: 'calc(var(--spacing) * 4)',
     },
+    // The first line of the card keeps the room of the bar that carries the
+    // language and the copy action of the block (record 0174), one control
+    // high, so the bar never covers a letter of the code.
     '.cm-np-code-block-open': {
       borderTop: '1px solid var(--notes-border-subtle)',
       borderStartStartRadius: 'var(--radius-lg)',
       borderStartEndRadius: 'var(--radius-lg)',
-      paddingBlockStart: 'calc(var(--spacing) * 3)',
+      paddingBlockStart: codeBarHeight,
+    },
+    // The bar of a code block (record 0174) stands in one layer over the text,
+    // as the controls of a table do, at the top of the card of its block: the
+    // label of the language at the start, on the line of the code, and the
+    // copy control at the end. Only the control takes a press.
+    '.cm-np-code-controls': {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      width: '0',
+      height: '0',
+      zIndex: '2',
+      pointerEvents: 'none',
+    },
+    '.cm-np-code-bar': {
+      position: 'absolute',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      boxSizing: 'border-box',
+      height: codeBarHeight,
+      paddingInlineStart: 'calc(var(--spacing) * 4)',
+      paddingInlineEnd: 'calc(var(--spacing) * 1)',
+    },
+    '.cm-np-code-bar[hidden]': { display: 'none' },
+    '.cm-np-code-bar button': { pointerEvents: 'auto' },
+    '.cm-np-code-label': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--text-control)',
+      color: 'var(--notes-text-muted)',
     },
     '.cm-np-code-block-close': {
       borderBottom: '1px solid var(--notes-border-subtle)',
@@ -876,6 +915,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // little way into the cell, so a tap on the text of a short header cell
     // still reaches the text.
     '@media (pointer: coarse)': {
+      // A finger takes the 44 px target of a control, so the bar and the room
+      // that the card keeps for it grow to that.
+      '.cm-np-code-bar': { height: 'calc(var(--spacing) * 12)' },
+      '.cm-np-code-block-open': {
+        paddingBlockStart: 'calc(var(--spacing) * 12)',
+      },
       '.cm-np-table-handle-row': {
         width: 'calc(var(--spacing) * 6)',
         height: 'calc(var(--spacing) * 10)',

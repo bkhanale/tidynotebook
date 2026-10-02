@@ -14,7 +14,7 @@ diff for History.
 ## What lives here and what does not
 
 - `create-editor.ts` builds one instance; `extensions.ts`, `language.ts` with
-  the fence languages and code tokens of `@notesapp/markdown` (0172),
+  the fence languages and code tokens of `@notesapp/markdown` (0173),
   `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
 - `document-binding.ts` joins the live document of an open note to one view
   (0082), and `openBoundNote` is what a screen uses. A bound editor takes its
@@ -72,7 +72,7 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 - No widget outside an image, a Mermaid diagram and display math, and no text
   decoration above a widget (204). A table stays text; only its model and
   writer change its rows and columns (0096).
-- One dollar opens math through `dollarMathEnd` of `@notesapp/markdown` (0170).
+- One dollar opens math through `dollarMathEnd` of `@notesapp/markdown` (0171).
 - No network call, no database, no token storage, no `@notesapp/api-client`.
   No colour value: the theme adapter reads `--notes-*` and `--notes-syntax-*`.
 - No replacement of the editor document during a React render, a theme

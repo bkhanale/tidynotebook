@@ -9,7 +9,7 @@
  * The rule:
  *
  * - Inline math uses `$$...$$`, `\(...\)` or `$...$` on one line.
- * - One dollar opens math by the rule of Pandoc (record 0170), so a note that
+ * - One dollar opens math by the rule of Pandoc (record 0171), so a note that
  *   says "It costs $5 and $10 today" holds prices and not a formula. The
  *   opening dollar has no dollar before it, and the character after it is
  *   not a space and not a dollar. The closing dollar has a character before

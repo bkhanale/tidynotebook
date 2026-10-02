@@ -5,8 +5,8 @@
  * pages, so a block list that names a page of a stranger never blocks the
  * application. That origin serves the reader path of a link, its attachments
  * and its report page (record 0119), the stylesheet and font files that the
- * page names (record 0123), and the diagram script and the diagram frame of a
- * note that holds a diagram (record 0158). It serves no other operation, no
+ * page names (record 0123), and the one script of a published page with the
+ * diagram frame (records 0158 and 0174). It serves no other operation, no
  * cookie, and no application shell. The application origin answers a reader address with
  * a temporary redirect, because a browser keeps a permanent one forever and
  * an operator can move the published origin later.
@@ -16,7 +16,7 @@
  */
 import {
   publishedDiagramFrameHref,
-  publishedDiagramScriptFile,
+  publishedPageScriptFile,
 } from './static-assets.ts';
 
 /** The operations of the reader path, which the published origin serves. */
@@ -36,8 +36,9 @@ const pageFile = /^\/assets\/[A-Za-z0-9._-]+\.(?:css|woff2)$/;
  * Whether the published origin serves the built file at one path.
  *
  * A stylesheet or a font under `/assets/` qualifies, because the page of a
- * link names those. The one script that qualifies is the diagram script of
- * record 0158, with the frame document that it loads. No other script of the
+ * link names those. The one script that qualifies is the script of a
+ * published page (records 0158 and 0174), with the frame document that it
+ * loads for a diagram. No other script of the
  * build does, so the origin of a stranger never serves the application.
  */
 export function publishedOriginServesFile(path: string): boolean {
@@ -45,7 +46,7 @@ export function publishedOriginServesFile(path: string): boolean {
   if (pageFile.test(path)) return true;
   if (path === publishedDiagramFrameHref) return true;
   const name = path.startsWith('/assets/') ? path.slice('/assets/'.length) : '';
-  return publishedDiagramScriptFile.test(name);
+  return publishedPageScriptFile.test(name);
 }
 
 /** What the gate does with one request. */

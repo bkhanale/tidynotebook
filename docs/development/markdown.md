@@ -68,7 +68,7 @@ engines import it.
   dollar by the rule of Pandoc, on one line. One dollar opens before a
   character that is not a space and closes after one, with no digit after
   it, so a price stays text
-  ([decision 0170](../decisions/0170-one-dollar-opens-math-by-the-rule-of-pandoc.md)).
+  ([decision 0171](../decisions/0171-one-dollar-opens-math-by-the-rule-of-pandoc.md)).
   A pair that its line does not close stays text.
 - Display math is a doubled dollar fence on its own line.
 
@@ -116,7 +116,7 @@ renderer and the editor read both, so a fence has one set of colours
 ([decision 0159](../decisions/0159-one-highlighter-colours-code-on-both-surfaces.md)).
 Each entry is a CodeMirror language: the renderer reads its parser and the
 editor mounts it whole, so a fence also keeps the editing of its language
-([decision 0172](../decisions/0172-a-fence-language-is-a-codemirror-language-of-the-one-list.md)).
+([decision 0173](../decisions/0173-a-fence-language-is-a-codemirror-language-of-the-one-list.md)).
 The published page draws a diagram in the frame of the editor with one script
 that its policy names, and shows the source with no script
 ([decision 0158](../decisions/0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)).

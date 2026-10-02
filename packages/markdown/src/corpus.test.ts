@@ -169,7 +169,7 @@ await test('math renders to sanitized KaTeX and diagrams stay source', () => {
   assert.ok(html.includes('class="notes-math notes-math-inline"'));
   // The three inline forms of the delimiter rule reach the math stage, so
   // the corpus holds three inline math spans and no leftover parenthesis
-  // pair. The one dollar form opens by the rule of Pandoc (record 0170), so
+  // pair. The one dollar form opens by the rule of Pandoc (record 0171), so
   // the prices and the escaped dollar of the corpus stay text.
   assert.equal(
     html.split('class="notes-math notes-math-inline"').length - 1,

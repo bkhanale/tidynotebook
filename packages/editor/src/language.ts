@@ -13,7 +13,7 @@
  * Code inside a fence is parsed by a second language when one is known for
  * the info string. The list of those languages and the map of their tokens
  * live in `@notesapp/markdown`, which highlights the published page with the
- * same languages (records 0159 and 0172), so a fence reads one way on both
+ * same languages (records 0159 and 0173), so a fence reads one way on both
  * surfaces, and its indentation and comment markers are those of its
  * language. The languages load on demand, so the initial bundle carries none
  * of them.
@@ -45,7 +45,7 @@ import { mathMarkdownExtension } from './math-syntax.ts';
  * The CodeMirror language of one entry of the shared list.
  *
  * It is the one language object that the renderer highlights with (record
- * 0172), so the editor highlights exactly the tokens that the published page
+ * 0173), so the editor highlights exactly the tokens that the published page
  * highlights, and a fence takes the indentation, the folding data and the
  * comment markers of its language.
  */

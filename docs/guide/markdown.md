@@ -129,6 +129,12 @@ Ruby, TOML and Diff. Inside such a fence, Enter indents the next line the way
 the language does, and Ctrl + / or Cmd + / turns the line into a comment of
 that language. Code in another language shows as plain text.
 
+Each code block shows the name of its language at the top, and a **Copy**
+button at the other end. Select **Copy**, or press Tab to reach it and then
+Enter, and the code of the block goes to the clipboard without the fences.
+The button says **Copied** for a moment. A published page shows the same name
+and the same button.
+
 A task box is a real checkbox. Select it to tick the line. A table shows as a
 grid of cells, and the note stores it as a GitHub table. A long cell wraps
 onto more lines, so each column takes the width that its text needs. A table

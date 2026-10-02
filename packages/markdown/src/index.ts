@@ -84,6 +84,8 @@ export {
 } from './code-languages.ts';
 export type { CodeToken, CodeTokenTags } from './code-tokens.ts';
 export {
+  codeBlockClass,
+  codeLabelClass,
   codeTokenClass,
   codeTokenClasses,
   codeTokenNames,

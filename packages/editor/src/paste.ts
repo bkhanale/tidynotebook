@@ -204,7 +204,7 @@ export function parseHtml(html: string): HtmlNode[] {
 /**
  * Escapes the Markdown characters that would change the meaning of text.
  *
- * A dollar is one of them, because one dollar opens math (record 0170).
+ * A dollar is one of them, because one dollar opens math (record 0171).
  */
 function escapeMarkdown(value: string): string {
   return value.replace(/([\\`*[\]$])/g, '\\$1');
@@ -527,7 +527,7 @@ export function normalizePastedUrl(text: string): string {
  * Inside a code fence every paste stays literal. A URL over a selection
  * becomes a link, and rich text becomes Markdown only when the conversion
  * actually adds something over the plain text alternative. A wiki link whose
- * note is there becomes a standard link in either case (record 0171).
+ * note is there becomes a standard link in either case (record 0172).
  */
 export const markdownPaste: Extension = EditorView.domEventHandlers({
   paste: (event: ClipboardEvent, view: EditorView): boolean => {
@@ -555,7 +555,7 @@ export const markdownPaste: Extension = EditorView.domEventHandlers({
 
     // Rich text becomes Markdown when that adds something over the plain
     // text. A wiki link of the text then becomes a standard link when its
-    // note is there (record 0171), which is the one change a plain paste
+    // note is there (record 0172), which is the one change a plain paste
     // takes, so a page of a vault pastes with working links.
     const html = data.getData('text/html');
     const converted = html === '' ? '' : htmlToMarkdown(html);

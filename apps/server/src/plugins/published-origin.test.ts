@@ -72,17 +72,17 @@ await test('the published origin serves the diagram script and frame, and no oth
       method,
       url,
     }).kind;
-  assert.equal(decide('/assets/published-diagrams-M0Ar9lYV.js'), 'serve');
+  assert.equal(decide('/assets/published-page-M0Ar9lYV.js'), 'serve');
   assert.equal(decide('/src/diagram/frame.html'), 'serve');
   assert.equal(decide('/src/diagram/frame.html', 'POST'), 'refuse');
   // A name that is close to the script is still not the script.
-  assert.equal(decide('/assets/published-diagrams-M0Ar9lYV.js.map'), 'refuse');
+  assert.equal(decide('/assets/published-page-M0Ar9lYV.js.map'), 'refuse');
   assert.equal(decide('/assets/published-diagrams.js'), 'refuse');
   assert.equal(decide('/assets/published-links-BgGi9BLm.js'), 'refuse');
   assert.equal(decide('/src/diagram/frame-main.ts'), 'refuse');
   assert.equal(decide('/src/diagram/other.html'), 'refuse');
   assert.equal(
-    publishedOriginServesFile('/assets/../published-diagrams-M0Ar9lYV.js'),
+    publishedOriginServesFile('/assets/../published-page-M0Ar9lYV.js'),
     false,
   );
 });

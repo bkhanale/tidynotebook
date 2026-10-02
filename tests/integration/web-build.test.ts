@@ -19,11 +19,11 @@ import {
   assetHashLength,
   cacheControlFor,
   publishedDiagramFrameHref,
-  publishedDiagramScriptFile,
-  publishedDiagramScriptHref,
+  publishedPageScriptFile,
+  publishedPageScriptHref,
 } from '@notesapp/server';
 import { diagramFramePath } from '../../apps/web/src/diagram/frame.ts';
-import { publishedDiagramScriptName } from '../../apps/web/vite.config.ts';
+import { publishedPageScriptName } from '../../apps/web/vite.config.ts';
 import { appIcons, iconHashLength } from '../../apps/web/src/pwa/icons.ts';
 import {
   builtScripts,
@@ -175,11 +175,11 @@ await test('the build writes one self-contained diagram script for a published p
   // Record 0158. The content policy of a published page names one script of
   // the build by its address, so the script loads no chunk, and the server
   // finds it by the name that the build gives it.
-  const href = publishedDiagramScriptHref(distribution);
+  const href = publishedPageScriptHref(distribution);
   assert.ok(href !== null, 'the server finds no diagram script in the build');
   const name = href.slice('/assets/'.length);
-  assert.match(name, publishedDiagramScriptFile);
-  assert.ok(name.startsWith(`${publishedDiagramScriptName}-`));
+  assert.match(name, publishedPageScriptFile);
+  assert.ok(name.startsWith(`${publishedPageScriptName}-`));
   assert.ok(cacheControlFor(href).includes('immutable'));
   const script = await readFile(join(distribution, href), 'utf8');
   // A classic script with no import: the page names it with no module type.

@@ -1,5 +1,5 @@
 /**
- * Inline math on one dollar, as a micromark text construct (record 0170).
+ * Inline math on one dollar, as a micromark text construct (record 0171).
  *
  * `math-syntax.ts` states the rule of Pandoc: one dollar opens a formula when
  * no dollar stands before it and the next character is not a space and not a
@@ -90,7 +90,8 @@ function tokenizeMathTextDollar(
   ok: State,
   nok: State,
 ): State {
-  const self = this;
+  // The code before the dollar, read when the dollar is reached.
+  const previous = (): Code => this.previous;
   /** The last character of the formula so far. */
   let last = '';
   return start;
@@ -99,7 +100,7 @@ function tokenizeMathTextDollar(
     if (code !== dollar) return nok(code);
     // A dollar after a dollar is part of a run of two, which remark-math
     // reads, or a run that opens nothing.
-    if (self.previous === dollar) return nok(code);
+    if (previous() === dollar) return nok(code);
     effects.enter('mathText');
     effects.enter('mathTextSequence');
     effects.consume(code);

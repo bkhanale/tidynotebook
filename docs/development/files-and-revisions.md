@@ -63,7 +63,7 @@ syntax and no title lookup, so a rename of the target never breaks a link. See
 link becomes a standard link at the border, from the link list, typed
 brackets, a paste or an import, through `convertWikiLinks` of
 `packages/markdown/src/wiki-links.ts`
-([decision 0171](../decisions/0171-a-wiki-link-becomes-a-standard-link-at-the-border.md)).
+([decision 0172](../decisions/0172-a-wiki-link-becomes-a-standard-link-at-the-border.md)).
 
 The accepted body of a note is indexed by the paths that it links to.
 `packages/storage-server/src/workspace-store/portable-links.ts` writes the

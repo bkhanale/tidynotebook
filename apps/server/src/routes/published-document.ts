@@ -18,10 +18,12 @@
  * module, and no event attribute, so the content policy of
  * `plugins/security-headers.ts` refuses every script source. The password form
  * is therefore a plain form that sends the form encoding of HTML, and the
- * server answers this document again. A note that holds a diagram is the one
- * exception: the page names the diagram script of the build, which draws each
- * diagram in the frame of the editor, and its policy names that one file
- * (record 0158). With no script the page shows the source of the diagram.
+ * server answers this document again. A note that holds a diagram or a code
+ * block is the one exception: the page names the one script of a published
+ * page, which draws each diagram in the frame of the editor and puts a copy
+ * action on each code block, and its policy names that one file (records
+ * 0158 and 0174). With no script the page shows the source of each diagram
+ * and each block with its label.
  *
  * **Presentation comes from the built application stylesheet.** The document
  * loads the stylesheet of the shell, so the page cannot drift from the theme.
@@ -109,12 +111,13 @@ export type PublishedDocumentInput = {
    */
   readonly reportHref?: string | null;
   /**
-   * The address of the diagram script of the build, or `null`.
+   * The address of the script of a published page, or `null`.
    *
-   * Only a note that holds a diagram carries it (record 0158), and the
+   * Only a note that holds a diagram or a code block carries it (records
+   * 0158 and 0174), and the
    * content policy of the page names the same address.
    */
-  readonly diagramScript?: string | null;
+  readonly pageScript?: string | null;
 };
 
 /**
@@ -276,6 +279,12 @@ export const noteBodyClasses = [
   // raised surface and the card radius, as `.cm-np-code-block-line` draws it.
   // The code inside it keeps the size of the block.
   '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-edge-subtle [&_pre]:bg-surface [&_pre]:px-4 [&_pre]:py-3 [&_pre]:font-mono [&_pre]:text-note-mono',
+  // A code block is a figure with its language in a bar at the top of the
+  // card, and the script of the page puts the copy action at the other end
+  // of the bar (record 0174), as `code-controls.ts` of the editor draws it.
+  // The language is a value, so it keeps the code face and the quiet colour.
+  '[&_figure.notes-code]:relative [&_figure.notes-code]:mx-0 [&_figure.notes-code]:my-4 [&_figure.notes-code_pre]:my-0 [&_figure.notes-code_pre]:pt-11 md:[&_figure.notes-code_pre]:pt-10',
+  '[&_.notes-code-label]:absolute [&_.notes-code-label]:left-4 [&_.notes-code-label]:top-3 [&_.notes-code-label]:font-mono [&_.notes-code-label]:text-control [&_.notes-code-label]:text-muted',
   // A code span is a word inside a sentence: the quietest tint and the small
   // radius of a hint, as `.cm-np-code` draws it.
   '[&_:not(pre)>code]:rounded-sm [&_:not(pre)>code]:bg-hover [&_:not(pre)>code]:px-1.5 [&_:not(pre)>code]:py-0.25 [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-note-mono',
@@ -523,9 +532,9 @@ export function publishedDocument(input: PublishedDocumentInput): string {
   // is a file of the build: the page holds no inline script.
   const script =
     input.view.kind === 'note' &&
-    input.diagramScript !== undefined &&
-    input.diagramScript !== null
-      ? `<script src="${escapeAttribute(input.diagramScript)}" defer></script>\n    `
+    input.pageScript !== undefined &&
+    input.pageScript !== null
+      ? `<script src="${escapeAttribute(input.pageScript)}" defer></script>\n    `
       : '';
   return `<!doctype html>
 <html lang="en">

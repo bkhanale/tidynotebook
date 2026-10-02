@@ -258,11 +258,11 @@ await test('a note with a diagram names the one diagram script and no inline one
     view,
     stylesheets: ['/assets/a.css'],
     formAction: '/published/abc',
-    diagramScript: '/assets/published-diagrams-M0Ar9lYV.js',
+    pageScript: '/assets/published-page-M0Ar9lYV.js',
   });
   assert.ok(
     html.includes(
-      '<script src="/assets/published-diagrams-M0Ar9lYV.js" defer></script>',
+      '<script src="/assets/published-page-M0Ar9lYV.js" defer></script>',
     ),
   );
   assert.equal(html.split('<script').length - 1, 1);
@@ -276,7 +276,7 @@ await test('a note with a diagram names the one diagram script and no inline one
     view: { kind: 'locked' },
     stylesheets: [],
     formAction: '/published/abc',
-    diagramScript: '/assets/published-diagrams-M0Ar9lYV.js',
+    pageScript: '/assets/published-page-M0Ar9lYV.js',
   });
   assert.ok(!locked.includes('<script'));
 });

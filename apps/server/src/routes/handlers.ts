@@ -26,7 +26,7 @@ import { createWorkspaceHandlers } from './workspaces.ts';
 import type { ReadinessProbe } from './health.ts';
 import { configurationProbe, createServiceHandlers } from './health.ts';
 import type { HandlerMap } from '../plugins/register.ts';
-import type { PublishedDiagramAssets } from '../plugins/security-headers.ts';
+import type { PublishedPageAssets } from '../plugins/security-headers.ts';
 import type { renderMarkdown } from '@notesapp/markdown';
 
 import {
@@ -115,10 +115,11 @@ export type PublicationDependencies = {
   /** The stylesheets of the built application document. */
   readonly stylesheets: () => readonly string[];
   /**
-   * The diagram script and the frame document of the build (record 0158). A
-   * composition that leaves it out serves every diagram as its source.
+   * The script of a published page and the diagram frame document of the
+   * build (records 0158 and 0174). A composition that leaves it out serves
+   * every diagram as its source and every code block with no copy action.
    */
-  readonly diagrams?: () => PublishedDiagramAssets | null;
+  readonly pageScript?: () => PublishedPageAssets | null;
   /** The renderer of a published note, for a test that counts its calls. */
   readonly render?: typeof renderMarkdown;
   /** Where the cause of a reader refusal goes, for the operator only. */
@@ -280,7 +281,7 @@ export function createHandlers(
             secrets: secretDigest,
             hasher: published.hasher,
             stylesheets: published.stylesheets,
-            diagrams: published.diagrams ?? (() => null),
+            pageScript: published.pageScript ?? (() => null),
             ...(published.render === undefined
               ? {}
               : { render: published.render }),

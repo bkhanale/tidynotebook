@@ -21,7 +21,7 @@
  *   `./math-syntax.ts`, which the live preview parser reads as well, so both
  *   engines open math at the same place. remark-math gives `$$...$$` only, so
  *   `./math-parens.ts` adds the `\(...\)` pair and `./math-dollar.ts` the
- *   one dollar of the rule of Pandoc (record 0170).
+ *   one dollar of the rule of Pandoc (record 0171).
  * - Every entry point is bounded. The size and nesting checks in `./limits.ts`
  *   run before the parser sees the text, and the tree depth is checked after.
  *

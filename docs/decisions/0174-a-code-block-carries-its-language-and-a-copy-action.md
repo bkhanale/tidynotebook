@@ -1,4 +1,4 @@
-# 0173. A code block carries its language and a copy action
+# 0174. A code block carries its language and a copy action
 
 - Status: Accepted
 - Date: 2026-10-02

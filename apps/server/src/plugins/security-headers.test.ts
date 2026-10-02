@@ -7,7 +7,7 @@ import {
   dataContentPolicy,
   framedDocumentContentPolicy,
   inlineScriptHashes,
-  publishedDiagramContentPolicy,
+  publishedScriptContentPolicy,
   publishedDocumentContentPolicy,
   publishedDocumentHeaders,
   publishedDocumentHeadersWith,
@@ -153,22 +153,23 @@ await test('the published page names no origin and no cache', () => {
 
 /** The diagram files of a build, as the composition names them. */
 const diagramAssets = {
-  script: '/assets/published-diagrams-M0Ar9lYV.js',
+  script: '/assets/published-page-M0Ar9lYV.js',
   frame: '/src/diagram/frame.html',
 };
 
 await test('a page with a diagram names one script and one frame and nothing more', () => {
   // Record 0158. The policy of a note that holds a diagram is the policy of
   // every other page with two exact sources, on the host of the request.
-  const policy = publishedDiagramContentPolicy(
+  const policy = publishedScriptContentPolicy(
     'pages.example.net',
     diagramAssets,
+    true,
   );
   assert.ok(policy !== null);
   const directives = policy.split('; ');
   assert.ok(
     directives.includes(
-      'script-src pages.example.net/assets/published-diagrams-M0Ar9lYV.js',
+      'script-src pages.example.net/assets/published-page-M0Ar9lYV.js',
     ),
   );
   assert.ok(
@@ -193,9 +194,41 @@ await test('a page with a diagram names one script and one frame and nothing mor
   assert.ok(directives.includes("frame-ancestors 'none'"));
   // A port of the host stays with it, because the page was opened there.
   assert.ok(
-    publishedDiagramContentPolicy('127.0.0.1:32771', diagramAssets)?.includes(
+    publishedScriptContentPolicy('127.0.0.1:32771', diagramAssets, true)?.includes(
       'script-src 127.0.0.1:32771/assets/',
     ),
+  );
+});
+
+await test('a page with code and no diagram names the script and no frame', () => {
+  // Record 0174. The copy action of a code block needs the script, and only a
+  // diagram needs the frame, so a page of code frames nothing.
+  const policy = publishedScriptContentPolicy(
+    'pages.example.net',
+    diagramAssets,
+    false,
+  );
+  assert.ok(policy !== null);
+  const directives = policy.split('; ');
+  assert.ok(
+    directives.includes(
+      'script-src pages.example.net/assets/published-page-M0Ar9lYV.js',
+    ),
+  );
+  assert.ok(!policy.includes('frame-src'), policy);
+  assert.deepEqual(
+    directives.filter((directive) => !directive.startsWith('script-src')),
+    publishedDocumentContentPolicy
+      .split('; ')
+      .filter((directive) => !directive.startsWith('script-src')),
+  );
+  // A frame that a policy cannot name does not matter to a page of code.
+  assert.ok(
+    publishedScriptContentPolicy(
+      'pages.example.net',
+      { ...diagramAssets, frame: 'https://elsewhere.example/frame.html' },
+      false,
+    ) !== null,
   );
 });
 
@@ -211,22 +244,22 @@ await test('a host or a path that a policy cannot name gives no diagram script',
     'https://pages.example.net',
   ])
     assert.equal(
-      publishedDiagramContentPolicy(host, diagramAssets),
+      publishedScriptContentPolicy(host, diagramAssets, true),
       null,
       String(host),
     );
   assert.equal(
-    publishedDiagramContentPolicy('pages.example.net', {
+    publishedScriptContentPolicy('pages.example.net', {
       ...diagramAssets,
       script: '/assets/a.js; script-src *',
-    }),
+    }, true),
     null,
   );
   assert.equal(
-    publishedDiagramContentPolicy('pages.example.net', {
+    publishedScriptContentPolicy('pages.example.net', {
       ...diagramAssets,
       frame: 'https://elsewhere.example/frame.html',
-    }),
+    }, true),
     null,
   );
 });
@@ -235,7 +268,7 @@ await test('a page at an IPv6 host names the two files of its own origin', () =>
   // Review R5. A source expression has no IPv6 form, so a page opened at a
   // bracketed IPv6 host drew no diagram at all.
   for (const host of ['[::1]', '[::1]:8080', '[2001:db8::7]:443']) {
-    const policy = publishedDiagramContentPolicy(host, diagramAssets);
+    const policy = publishedScriptContentPolicy(host, diagramAssets, true);
     assert.ok(policy !== null, host);
     const directives = policy.split('; ');
     assert.ok(directives.includes("script-src 'self'"), policy);

@@ -753,7 +753,7 @@ function storedArchive(
 }
 
 await test('an Obsidian vault imports with its links and its pictures', async () => {
-  // Record 0171, issue 241. The import refused a picture outside the
+  // Record 0172, issue 241. The import refused a picture outside the
   // attachments folder and the settings folder of the vault, and every wiki
   // link stayed text.
   const vault = storedArchive([

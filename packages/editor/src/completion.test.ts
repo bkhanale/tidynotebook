@@ -81,7 +81,7 @@ await test('the display name drops the folder and the suffix', () => {
 
 await test('a link holds a name that a link would end', () => {
   // A `#` ended the destination at a fragment, and a bracket ended the label,
-  // so the link reached no note (record 0171).
+  // so the link reached no note (record 0172).
   assert.equal(
     noteLinkText(source, 'projects/C# [draft] (v2).md'),
     '[C# \\[draft\\] (v2)](C%23%20[draft]%20%28v2%29.md)',
@@ -175,7 +175,7 @@ function noteState(text: string): { state: EditorState; at: number } {
 }
 
 await test('a typed last bracket turns a wiki link into a standard link', () => {
-  // Record 0171. The note is there, so the wiki form becomes the link that
+  // Record 0172. The note is there, so the wiki form becomes the link that
   // the list writes, and the typed text is replaced in one change.
   const typed = noteState('See [[beta plan]‸ now');
   assert.deepEqual(typedWikiLink(typed.state, typed.at), {

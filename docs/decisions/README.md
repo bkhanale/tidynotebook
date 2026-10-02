@@ -202,11 +202,11 @@ and needs no record.
 | [0168](0168-a-note-read-carries-the-document-only-for-an-editor.md)                   | A note read carries the document only for an editor                             |
 | [0169](0169-the-server-compresses-a-large-json-read.md)                               | The server compresses a large JSON read                                         |
 | [0170](0170-an-archive-job-is-bounded-in-number-in-disk-and-in-time.md)               | An archive job is bounded in number, in disk and in time                        |
+| [0171](0171-one-dollar-opens-math-by-the-rule-of-pandoc.md)                           | One dollar opens math by the rule of Pandoc                                     |
+| [0172](0172-a-wiki-link-becomes-a-standard-link-at-the-border.md)                     | A wiki link becomes a standard link at the border                               |
+| [0173](0173-a-fence-language-is-a-codemirror-language-of-the-one-list.md)             | A fence language is a CodeMirror language of the one list                       |
+| [0174](0174-a-code-block-carries-its-language-and-a-copy-action.md)                   | A code block carries its language and a copy action                             |
 | [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
-| [0170](0170-one-dollar-opens-math-by-the-rule-of-pandoc.md)                           | One dollar opens math by the rule of Pandoc                                     |
-| [0171](0171-a-wiki-link-becomes-a-standard-link-at-the-border.md)                     | A wiki link becomes a standard link at the border                               |
-| [0172](0172-a-fence-language-is-a-codemirror-language-of-the-one-list.md)             | A fence language is a CodeMirror language of the one list                       |
-| [0173](0173-a-code-block-carries-its-language-and-a-copy-action.md)                   | A code block carries its language and a copy action                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -719,14 +719,15 @@ and every entry before its first commit.
 Record 0178 follows record 0170. The code generator writes a typed address
 for an operation that a browser reads itself, and the export of a workspace
 downloads through it in every browser, with no blob.
-Records 0170 to 0173 follow
-[design 022](../design/022-markdown-of-other-tools.md). Record 0170 opens
+
+Records 0171 to 0174 follow
+[design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens
 inline math on one dollar by the rule of Pandoc, so a price stays text, and
 answers [issue 240](https://github.com/bkhanale/notesapp/issues/240). Record
-0171 turns a wiki link into a standard link when it enters a note, from the
+0172 turns a wiki link into a standard link when it enters a note, from the
 list, the typed brackets, a paste or an import, and answers
-[issue 241](https://github.com/bkhanale/notesapp/issues/241). Records 0172 and
-0173 answer [issue 242](https://github.com/bkhanale/notesapp/issues/242): each
+[issue 241](https://github.com/bkhanale/notesapp/issues/241). Records 0173 and
+0174 answer [issue 242](https://github.com/bkhanale/notesapp/issues/242): each
 fence language of the one list is a CodeMirror language, so both surfaces
 share its parser and the editor its editing, and a code block carries its
 language and a copy action in the note and on a published page.

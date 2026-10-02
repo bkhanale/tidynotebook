@@ -13,7 +13,11 @@
  */
 import type { Options as SanitizeSchema } from 'rehype-sanitize';
 import { alertTones } from './alerts.ts';
-import { codeTokenClasses } from './code-tokens.ts';
+import {
+  codeBlockClass,
+  codeLabelClass,
+  codeTokenClasses,
+} from './code-tokens.ts';
 import {
   authorElements,
   authorStrippedElements,
@@ -333,6 +337,10 @@ export const sanitizeSchema: SanitizeSchema = {
     'ul',
   ]),
   attributes: withAuthorAttributes({
+    // A code block and its label (record 0174). An author writes no class, so
+    // only the renderer gives a figure these names.
+    figure: [['className', codeBlockClass]],
+    figcaption: [['className', codeLabelClass]],
     blockquote: [
       ['className', 'notes-alert'],
       ['dataAlert', ...alertTones],

@@ -18,7 +18,7 @@ authentication routes on one origin, and it holds no domain rule.
   handler per operation id and the body lives in its area file. `published.ts` is the
   reader path of a published link and its report (0119), `published-document.ts`
   writes its one document (0031, 0047, 0146), and `publications.ts` holds the owner
-  operations. `import-layout.ts` places the files of an import (0171).
+  operations. `import-layout.ts` places the files of an import (0172).
   `sync-notices.ts` serves the notice stream and checks its origin (0128,
   0129). `legal.ts` serves the terms and the privacy notice of the operator,
   and `legal-document.ts` writes their page like the published page (0140).
@@ -75,7 +75,7 @@ request that no generated operation can express uses `app.inject()`.
 - No handwritten HTTP transport. `better-auth.ts` is the one listed protocol file.
 - No message text outside `src/auth/messages.ts`, and no message that a person
   with no session can cause outside the budgeted transport of `mail.ts` (0141).
-- No actor helper in `src/routes/published.ts`, no script but the diagram file (0158),
+- No actor helper in `src/routes/published.ts`, no script but the page file (0158, 0174),
   no second stylesheet, no uncached HTML and no shell under `/published/` (0031, 0047).
 
 ## Key files

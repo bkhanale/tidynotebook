@@ -10,7 +10,7 @@ import {
   matchesEntityTag,
   mimeTypeFor,
   publishedDiagramFrameHref,
-  publishedDiagramScriptHref,
+  publishedPageScriptHref,
   servesApplicationShell,
   servesBrowserAssets,
   stylesheetHrefs,
@@ -231,24 +231,24 @@ await test('the diagram script of a published page is the one file of its name',
     await mkdir(join(directory, 'assets'));
     await mkdir(join(directory, 'src/diagram'), { recursive: true });
     await writeFile(
-      join(directory, 'assets/published-diagrams-M0Ar9lYV.js'),
+      join(directory, 'assets/published-page-M0Ar9lYV.js'),
       '',
     );
     await writeFile(join(directory, 'assets/published-links-BgGi9BLm.js'), '');
     // No frame document yet, so no script.
-    assert.equal(publishedDiagramScriptHref(directory), null);
+    assert.equal(publishedPageScriptHref(directory), null);
     await writeFile(join(directory, publishedDiagramFrameHref), '');
     assert.equal(
-      publishedDiagramScriptHref(directory),
-      '/assets/published-diagrams-M0Ar9lYV.js',
+      publishedPageScriptHref(directory),
+      '/assets/published-page-M0Ar9lYV.js',
     );
     await writeFile(
-      join(directory, 'assets/published-diagrams-ZZZZZZZZ.js'),
+      join(directory, 'assets/published-page-ZZZZZZZZ.js'),
       '',
     );
-    assert.equal(publishedDiagramScriptHref(directory), null);
+    assert.equal(publishedPageScriptHref(directory), null);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-  assert.equal(publishedDiagramScriptHref(join(directory, 'gone')), null);
+  assert.equal(publishedPageScriptHref(join(directory, 'gone')), null);
 });

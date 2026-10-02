@@ -107,9 +107,9 @@ export const framedDocumentContentPolicy = [
  *
  * `script-src 'none'` is the rule of decision 0031. The page holds no script,
  * so an injected one cannot run even if a later change let one through the
- * sanitizer. The one exception is a note that holds a diagram, whose policy
- * `publishedDiagramContentPolicy` below names one file of the build by its
- * exact address (record 0158). `style-src` has no `'unsafe-inline'`, so a `<style>` element
+ * sanitizer. The one exception is a note that holds a diagram or a code
+ * block, whose policy `publishedScriptContentPolicy` below names one file of
+ * the build by its exact address (records 0158 and 0174). `style-src` has no `'unsafe-inline'`, so a `<style>` element
  * cannot apply. `style-src-attr` allows a `style` attribute, because KaTeX
  * places each row and each script of a formula with one (decision 0142). The
  * math sanitizer of `@notesapp/markdown` is the one producer of such an
@@ -135,9 +135,9 @@ export const publishedDocumentContentPolicy = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-/** The files that a published page loads to draw its diagrams. */
-export type PublishedDiagramAssets = {
-  /** The address of the one diagram script of the build, on this origin. */
+/** The files that a published page loads for its diagrams and its code. */
+export type PublishedPageAssets = {
+  /** The address of the one script of a published page, on this origin. */
   readonly script: string;
   /** The address of the sandboxed diagram frame, on this origin. */
   readonly frame: string;
@@ -153,35 +153,40 @@ const ipv6Host = /^\[[0-9a-f:.]+\](?::\d{1,5})?$/;
 const policyPath = /^\/[A-Za-z0-9._/-]+$/;
 
 /**
- * Content policy of a published page whose note holds a diagram (record 0158).
+ * Content policy of a published page whose note holds a diagram or a code
+ * block (records 0158 and 0174).
  *
- * It is the policy above with two more sources, each one exact. `script-src`
- * names the one diagram script of the build and `frame-src` the one frame
- * document, both by their full path on the host of the request, so no other
- * file of this origin runs and no other document is framed. A host source
- * with no scheme takes the scheme of the page, so the two files load the way
- * the page did. There is still no `'self'`, no inline script, no hash, no
- * `'unsafe-eval'` and no other origin, and `frame-ancestors 'none'` stays.
+ * It is the policy above with one more source, or two, each one exact.
+ * `script-src` names the one script of a published page by its full path on
+ * the host of the request, so no other file of this origin runs. A note that
+ * holds a diagram, and only such a note, also names the one frame document in
+ * `frame-src`, so no other document is framed. A host source with no scheme
+ * takes the scheme of the page, so the files load the way the page did. There
+ * is still no `'self'`, no inline script, no hash, no `'unsafe-eval'` and no
+ * other origin, and `frame-ancestors 'none'` stays.
  *
  * A source expression of a content policy has no form for an IPv6 literal, so
- * a page opened at a bracketed IPv6 host names the two files with `'self'`.
- * The published origin serves no other script (record 0118), and the
- * application origin serves only its own build, so the page still runs only a
- * file of this build.
+ * a page opened at a bracketed IPv6 host names the files with `'self'`. The
+ * published origin serves no other script (record 0118), and the application
+ * origin serves only its own build, so the page still runs only a file of
+ * this build.
  *
  * The answer is `null` when the host or a path cannot be written as a source.
- * The page then names no script and shows the source of each diagram.
+ * The page then names no script, shows the source of each diagram, and shows
+ * each code block with no copy action.
  *
  * @param host the `Host` header of the request, which the host allowlist of
  *   `app.ts` already accepted.
+ * @param frames whether the note holds a diagram, which needs the frame.
  */
-export function publishedDiagramContentPolicy(
+export function publishedScriptContentPolicy(
   host: string | undefined,
-  assets: PublishedDiagramAssets,
+  assets: PublishedPageAssets,
+  frames: boolean,
 ): string | null {
   const name = (host ?? '').trim().toLowerCase();
-  if (!policyPath.test(assets.script) || !policyPath.test(assets.frame))
-    return null;
+  if (!policyPath.test(assets.script)) return null;
+  if (frames && !policyPath.test(assets.frame)) return null;
   const literal = ipv6Host.test(name);
   if (!literal && !policyHost.test(name)) return null;
   const script = literal ? "'self'" : `${name}${assets.script}`;
@@ -192,7 +197,7 @@ export function publishedDiagramContentPolicy(
       directive === "script-src 'none'" ? `script-src ${script}` : directive,
     )
     .flatMap((directive) =>
-      directive.startsWith('connect-src')
+      frames && directive.startsWith('connect-src')
         ? [directive, `frame-src ${frame}`]
         : [directive],
     )
@@ -203,7 +208,7 @@ export function publishedDiagramContentPolicy(
  * The headers of one published page, with its content policy.
  *
  * Every page of a link carries the same three rules below. Only the content
- * policy changes, for a note that holds a diagram.
+ * policy changes, for a note that holds a diagram or a code block.
  */
 export function publishedDocumentHeadersWith(
   policy: string,

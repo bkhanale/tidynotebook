@@ -3,7 +3,7 @@
  *
  * `renderMarkdown` gives each heading an identifier from this slug, and a link
  * that names a heading, such as the fragment of a converted wiki link
- * (record 0171), writes the same slug. It lives apart from the renderer, so a
+ * (record 0172), writes the same slug. It lives apart from the renderer, so a
  * module that needs the slug loads no part of the HTML pipeline.
  */
 
