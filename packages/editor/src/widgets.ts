@@ -337,12 +337,29 @@ export function findRichRegions(state: EditorState): readonly RichWidget[] {
       }
       if (name === 'InlineMath') {
         const text = node.node.getChild('MathText');
+        // A run of dollars can span the lines of its paragraph, as remark
+        // reads it, so the marks of a quote and the indent of a list on a
+        // later line belong to the note and not to the formula.
+        let content = '';
+        if (text !== null) {
+          let at = text.from;
+          for (const mark of [
+            ...node.node.getChildren('QuoteMark'),
+            ...text.getChildren('QuoteMark'),
+          ].sort((left, right) => left.from - right.from)) {
+            if (mark.from < text.from || mark.to > text.to) continue;
+            content += slice(at, mark.from);
+            at = mark.to;
+          }
+          content += slice(at, text.to);
+          content = content.replace(/\n[ \t]+/g, '\n');
+        }
         found.push({
           from: node.from,
           to: node.to,
           kind: 'math-inline',
           source: slice(node.from, node.to),
-          content: text === null ? '' : slice(text.from, text.to),
+          content,
           destination: '',
           block: false,
         });

@@ -65,7 +65,8 @@ one break of each kind.
 engines import it.
 
 - Inline math is a doubled dollar pair, a backslash parenthesis pair, or one
-  dollar by the rule of Pandoc, on one line. One dollar opens before a
+  dollar by the rule of Pandoc. A dollar run closes on a run of its own size
+  and can span lines; the other two forms stay on one line. One dollar opens before a
   character that is not a space and closes after one, with no digit after
   it, so a price stays text
   ([decision 0171](../decisions/0171-one-dollar-opens-math-by-the-rule-of-pandoc.md)).

@@ -8,7 +8,9 @@
  *
  * The rule:
  *
- * - Inline math uses `$$...$$`, `\(...\)` or `$...$` on one line.
+ * - Inline math uses `\(...\)` or `$...$` on one line, or a run of two or
+ *   more dollars, which remark-math reads like a code span: it closes on a
+ *   run of its own size and can span the lines of its paragraph.
  * - One dollar opens math by the rule of Pandoc (record 0171), so a note that
  *   says "It costs $5 and $10 today" holds prices and not a formula. The
  *   opening dollar has no dollar before it, and the character after it is

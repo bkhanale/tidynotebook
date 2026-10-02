@@ -14,7 +14,9 @@
  *   closes on a later line whose only content is a run of at least as many
  *   dollars. An unclosed block runs to the end of its container. The opening
  *   line ends a paragraph above it, as a code fence does.
- * - Inline math is `$$...$$`, `\(...\)` or `$...$` on one line. One dollar
+ * - Inline math is `\(...\)` or `$...$` on one line, or a run of two or
+ *   more dollars that closes on a run of its own size and can span the lines
+ *   of its paragraph, as remark-math reads it. One dollar
  *   opens by the rule of Pandoc (record 0171), so a price stays text: no
  *   space after the opening dollar, no space before the closing dollar, and
  *   no digit after it. `dollarMathEnd` of `@notesapp/markdown` is the scan.
@@ -130,6 +132,53 @@ function parseMathBlock(cx: BlockContext, line: Line): boolean {
   return true;
 }
 
+/** Where the last formula of a dollar run ended, for each inline section. */
+const formulaEnds = new WeakMap<InlineContext, number>();
+
+/**
+ * Parses one inline formula in a run of two or more dollars, or answers -1.
+ *
+ * This is the rule of the dollar pair of remark-math, which reads it like a
+ * code span: a run of dollars that no dollar stands before opens, the next
+ * run of exactly as many dollars closes, and every other run and every
+ * backslash inside is part of the formula (record 0001). So `$$a$$$b$` holds
+ * no formula, `$$$x$$$` holds one, and `\\` before a closing run does not
+ * escape it.
+ *
+ * A run that finds no closing run leaves its first dollar as text, and the
+ * rest of the run tries again, as remark-math does: `$$$x$$` holds `$$x$$`.
+ * A dollar right after a formula opens nothing, so `$a$$b$$` holds `$a$`
+ * alone.
+ */
+function parseDollarRun(cx: InlineContext, pos: number): number {
+  if (cx.char(pos - 1) === dollar && formulaEnds.get(cx) === pos) return -1;
+  let open = 0;
+  while (cx.char(pos + open) === dollar) open += 1;
+  if (open < 2) return -1;
+  const contentFrom = pos + open;
+  for (let at = contentFrom; at < cx.end;) {
+    const code = cx.char(at);
+    if (code !== dollar) {
+      at += 1;
+      continue;
+    }
+    let run = 0;
+    while (cx.char(at + run) === dollar) run += 1;
+    if (run === open && at > contentFrom) {
+      formulaEnds.set(cx, at + run);
+      return cx.addElement(
+        cx.elt(inlineMathNode, pos, at + run, [
+          cx.elt(mathMarkNode, pos, contentFrom),
+          cx.elt(mathTextNode, contentFrom, at),
+          cx.elt(mathMarkNode, at, at + run),
+        ]),
+      );
+    }
+    at += run;
+  }
+  return -1;
+}
+
 /**
  * Parses one inline formula that runs from `open` to `close`.
  *
@@ -212,7 +261,7 @@ export const mathMarkdownExtension: MarkdownConfig = {
     {
       name: 'InlineMathDollar',
       parse: (cx, next, pos) =>
-        next === dollar ? parseInlineMath(cx, pos, [36, 36], [36, 36]) : -1,
+        next === dollar ? parseDollarRun(cx, pos) : -1,
     },
     {
       name: 'InlineMathSingleDollar',

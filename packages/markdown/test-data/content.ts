@@ -122,6 +122,10 @@ Inline math \\(a^2 + b^2 = c^2\\) with the other pair.
 
 Inline math $x^2 + y$ on one dollar, and an escaped \\$x$ stays text.
 
+A run $a$$b$$ closes on a run of its own size.
+
+A run $$a$$$b$ holds no formula.
+
 $$
 \\int_0^1 x^2 \\, dx
 $$

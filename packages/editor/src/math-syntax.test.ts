@@ -15,6 +15,7 @@ import { syntaxTree } from '@codemirror/language';
 import { parseMarkdown } from '@notesapp/markdown';
 import { containerDepth } from './math-syntax.ts';
 import { noteMarkdown, parsedWhole } from './language.ts';
+import { findRichRegions } from './widgets.ts';
 
 await test('a line that reports its depth reads back that number', () => {
   for (const depth of [0, 1, 4]) assert.equal(containerDepth({ depth }), depth);
@@ -83,21 +84,14 @@ await test('a display math fence ends the paragraph above it', () => {
   );
 });
 
-/** The inline formulas of one note, as the editor grammar reads them. */
+/** The inline formulas of one note, as the live preview draws them. */
 function editorFormulas(doc: string): readonly string[] {
   const state = parsedWhole(
     EditorState.create({ doc, extensions: [noteMarkdown()] }),
   );
-  const found: string[] = [];
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (node.name !== 'MathText' || node.node.parent?.name !== 'InlineMath')
-        return true;
-      found.push(state.doc.sliceString(node.from, node.to));
-      return false;
-    },
-  });
-  return found;
+  return findRichRegions(state)
+    .filter((region) => region.kind === 'math-inline')
+    .map((region) => region.content);
 }
 
 /** The inline formulas of one note, as the renderer reads them. */
@@ -136,6 +130,24 @@ await test('one dollar opens math where the renderer opens it', () => {
     '| A | B |\n| - | - |\n| $c$ | $5 |\n',
     'A link [a $b](c) d$ swallows its end.',
     'Two lines $a\nb$ hold no formula.',
+    // Review of record 0171: a run of dollars closes on a run of its own
+    // size, as remark-math reads it.
+    '$a$$b$$',
+    '$$a$$$b$',
+    '$$$x$$$',
+    '$$$x$$',
+    '$$a\\$$ b$$',
+    'A $$x$$$ run.',
+    'Four $$$$ dollars.',
+    'a $$$x$$ b',
+    '$$$$x$$$',
+    'b$$x$$',
+    '$$$x$',
+    // A run of dollars spans the lines of its paragraph, in a quote and in a
+    // list item too, as remark-math reads it.
+    'a $$x\ny$$ b',
+    '> a $$x\n> y$$ b',
+    '- a $$x\n  y$$ b',
   ])
     assert.deepEqual(editorFormulas(doc), rendererFormulas(doc), doc);
 });

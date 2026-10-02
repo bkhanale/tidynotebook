@@ -186,7 +186,9 @@ quote shows the word and a colour instead.
 
 ## Math
 
-- Inline math is `$x^2$`, `$$x^2$$` or `\(x^2\)`, on one line.
+- Inline math is `$x^2$` or `\(x^2\)` on one line, or `$$x^2$$`, which can
+  go on to the next line of its paragraph. A run of three dollars closes on
+  a run of three.
 - One dollar starts a formula only when a character that is not a space
   follows it. The closing dollar has a character that is not a space before
   it and no digit after it. So `It costs $5 and $10 today` stays text, as it
