@@ -24,6 +24,11 @@
  * Then one entry at a time expands, and the notes go in batches that
  * `maxFilesPerChangeset` and `noteBatchBytes` bound, so the memory of an
  * import is one batch of notes or one image.
+ *
+ * An Obsidian vault imports as well (record 0172). `import-layout.ts` leaves
+ * out its hidden entries, moves a picture beside a note into `attachments/`,
+ * and turns each wiki link whose target is in the archive into a standard
+ * link. The check parses each note as the commit writes it.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -80,6 +85,13 @@ import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { mebibyte } from '../config.ts';
 import { openArchiveFile, writeArchiveFile } from './archive-file.ts';
 import { reserveArchiveJob, type ArchiveJobs } from './archive-jobs.ts';
+import {
+  archiveLinks,
+  hiddenEntry,
+  importedNoteText,
+  importedPicturePath,
+  type ArchiveLinks,
+} from './import-layout.ts';
 import { readText } from './files.ts';
 import {
   fileSource,
@@ -320,9 +332,17 @@ type CheckedImage = CheckedEntry & {
   readonly height: number;
 };
 
-/** The path of an entry in NFC, or a refusal that names the kind. */
+/**
+ * The path that an entry takes in NFC, or a refusal that names the kind.
+ *
+ * A picture outside the attachments folder goes into it, under its own path,
+ * as an Obsidian vault keeps its pictures beside its notes (record 0172).
+ */
 function storedPath(entry: ArchiveEntry, kind: 'note' | 'attachment'): string {
-  const normalized = normalizePath(entry.path, kind);
+  const normalized = normalizePath(
+    kind === 'note' ? entry.path : importedPicturePath(entry.path),
+    kind,
+  );
   if (!normalized.ok)
     throw new InvalidContentError(
       kind === 'note'
@@ -440,13 +460,18 @@ function noteBatches(
 async function importNoteBatch(
   source: ArchiveSource,
   notes: readonly CheckedEntry[],
+  links: ArchiveLinks,
   context: ImportContext,
 ): Promise<void> {
   const { actor, workspaceId, store } = context;
   const revisions: ChangesetInput['revisions'][number][] = [];
   const expectedHeads: Record<string, null> = {};
   for (const note of notes) {
-    const text = (await readArchiveEntry(source, note.entry)).toString('utf8');
+    const text = importedNoteText(
+      (await readArchiveEntry(source, note.entry)).toString('utf8'),
+      note.path,
+      links,
+    );
     const fileId = randomUUID();
     const built = createFileChangeset({
       workspaceId,
@@ -511,6 +536,8 @@ type ImportContext = {
 type ImportPlan = {
   readonly notes: readonly CheckedEntry[];
   readonly images: readonly CheckedImage[];
+  /** The pictures that move and the wiki links of the archive (record 0172). */
+  readonly links: ArchiveLinks;
 };
 
 /**
@@ -533,10 +560,6 @@ async function checkArchive(
     if (!entry.path.endsWith('.md') && type === null)
       throw new UnsupportedMediaTypeError(
         'The archive can contain Markdown and image files only.',
-      );
-    if (type !== null && !entry.path.startsWith('attachments/'))
-      throw new InvalidContentError(
-        'An imported image must be in the attachments folder.',
       );
     checkEntrySize(entry, attachmentBytes);
     const path = storedPath(entry, type === null ? 'note' : 'attachment');
@@ -561,8 +584,17 @@ async function checkArchive(
   );
   if ([...seen].some((path) => taken.has(path)))
     throw new DomainProblemError({ code: 'path_conflict', fileIds: [] });
+  const links = archiveLinks(
+    notes.map((note) => note.path),
+    imageEntries.map((item) => item.checked.entry.path.normalize('NFC')),
+  );
   for (const note of notes) {
-    const text = (await readArchiveEntry(source, note.entry)).toString('utf8');
+    // The text that the commit takes is the text that this check parses.
+    const text = importedNoteText(
+      (await readArchiveEntry(source, note.entry)).toString('utf8'),
+      note.path,
+      links,
+    );
     try {
       parseMarkdown(text);
     } catch (error) {
@@ -589,7 +621,7 @@ async function checkArchive(
   );
   if (charge > room)
     throw new DomainProblemError({ code: 'quota', fileIds: [] });
-  return { notes, images };
+  return { notes, images, links };
 }
 
 /** The phrase of a count of files, for example `1 file` and `3 files`. */
@@ -610,7 +642,7 @@ async function commitArchive(
   let done = 0;
   try {
     for (const batch of noteBatches(plan.notes)) {
-      await importNoteBatch(source, batch, context);
+      await importNoteBatch(source, batch, plan.links, context);
       done += batch.length;
     }
     for (const image of plan.images) {
@@ -669,7 +701,11 @@ export function createImportHandlers(
             limits.uploadIdleTimeoutMs,
           );
           const source = fileSource(handle, size);
-          const entries = await readDirectory(source);
+          // The settings of a vault and the hidden files of a system are
+          // not notes, so they never reach the checks (record 0172).
+          const entries = (await readDirectory(source)).filter(
+            (entry) => !hiddenEntry(entry.path),
+          );
           const context = { actor, workspaceId, store, attachments };
           const plan = await checkArchive(
             source,

@@ -709,8 +709,8 @@ function zip64Archive(files: number): Buffer<ArrayBuffer> {
   return Buffer.concat([record, locator, end]);
 }
 
-/** A zip archive of stored entries, as an archiver of a desktop writes it. */
-function storedArchive(
+/** A zip archive of stored entries of text or bytes, as a desktop writes it. */
+function vaultArchive(
   files: readonly (readonly [string, string | Buffer])[],
 ): Buffer<ArrayBuffer> {
   const locals: Buffer[] = [];
@@ -756,7 +756,7 @@ await test('an Obsidian vault imports with its links and its pictures', async ()
   // Record 0172, issue 241. The import refused a picture outside the
   // attachments folder and the settings folder of the vault, and every wiki
   // link stayed text.
-  const vault = storedArchive([
+  const vault = vaultArchive([
     ['Vault/.obsidian/app.json', '{}'],
     [
       'Vault/Home.md',
