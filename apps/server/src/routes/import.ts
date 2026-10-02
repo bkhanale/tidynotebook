@@ -15,13 +15,7 @@
  * memory of an import is one batch of notes or one image.
  */
 import { createHash, randomUUID } from 'node:crypto';
-import {
-  mkdir,
-  open,
-  unlink,
-  writeFile,
-  type FileHandle,
-} from 'node:fs/promises';
+import { mkdir, unlink, writeFile, type FileHandle } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Busboy } from '@fastify/busboy';
 import type { FastifyRequest } from 'fastify';
