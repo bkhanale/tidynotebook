@@ -19,6 +19,7 @@ import {
   buttonName,
   calendarDayClassName,
   calendarNoteMarkClassName,
+  checkboxClassNames,
   compactButtonVisualClassName,
   controlStripClassName,
   disabledButtonSurface,
@@ -27,6 +28,7 @@ import {
   focusOutline,
   focusOutlineInset,
   kbdClassName,
+  menuSurfaceClassName,
   rowClassName,
   selectClassName,
   inlineFieldClassName,
@@ -790,4 +792,30 @@ await test('a task box takes the component edge, a task radius and the page fill
   assert.ok(box.includes('rounded-sm'));
   assert.ok(box.includes('bg-app'));
   assert.ok(box.includes('size-4'));
+});
+
+await test('a checkbox draws its box from the theme and its mark from its state', () => {
+  // The find panel of the editor builds its own DOM and reads this recipe,
+  // so its options are the checkboxes of every other screen (issue 247).
+  const classes = checkboxClassNames();
+  const box = classes.box.split(' ');
+  assert.ok(box.includes('appearance-none'));
+  assert.ok(box.includes('border-edge'));
+  assert.ok(box.includes('rounded-sm'));
+  assert.ok(classes.box.includes(focusOutline));
+  assert.ok(classes.mark.split(' ').includes('peer-checked:block'));
+  assert.ok(classes.label.includes('text-control'));
+  assert.ok(checkboxClassNames({ disabled: true }).label.includes('text-muted'));
+});
+
+await test('a menu is a raised card with the menu radius and the overlay step', () => {
+  const surface = menuSurfaceClassName().split(' ');
+  for (const part of [
+    'rounded-lg',
+    'border-edge-subtle',
+    'bg-card',
+    'shadow-overlay',
+  ])
+    assert.ok(surface.includes(part), part);
+  assert.ok(!surface.includes('border-edge'));
 });

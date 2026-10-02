@@ -123,7 +123,15 @@ that start with it, so `plan` finds `planning`. A letter with an accent finds
 the same letter without one, so `cafe` finds `café`. Search reads the text as
 you see it in Read mode, so a link address and a Markdown mark do not count.
 
-To search inside the note you have open, use **Ctrl + F** in the editor.
+To search inside the note you have open, use **Ctrl + F** in the editor, or
+**Cmd + F** on a Mac. A band opens above the note. Type in **Find**, then press
+Enter for the next match and Shift and Enter for the one before it, or select
+**Next** and **Previous**. **Select all** selects every match. Type the new
+text in **Replace with** and select **Replace** or **Replace all**, or press
+Enter in that field. **Match case**, **Regular expression** and **Whole word**
+change how the text matches. Press Escape or select the close button to close
+the band. **Ctrl + H**, or **Cmd + Option + F** on a Mac, opens it with the
+replace field.
 
 ## Link one note to another
 

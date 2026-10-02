@@ -70,6 +70,8 @@ export const editorThemeVariables: readonly string[] = [
   '--tracking-heading',
   '--tracking-display',
   '--shadow-raised',
+  '--shadow-overlay',
+  '--font-weight-medium',
 ];
 
 /**
@@ -88,10 +90,11 @@ export const gripPointerQuery = '(hover: hover) and (pointer: fine)';
  *
  * Safari on iOS zooms the page into a field under 16 px on focus, so every
  * field of the product sets its text at 16 px under touch (`touchFieldText`
- * of `@notesapp/ui`). CodeMirror builds the search field itself, so the panel
- * theme states the rule under this query, and
- * `tests/integration/theme-variables.test.ts` holds it to the query that
- * Tailwind writes for the class of every other field.
+ * of `@notesapp/ui`). The find panel takes that class with the field recipe,
+ * and the rules of the adapter that follow a finger, such as the row of the
+ * completion list, read this query, which
+ * `tests/integration/theme-variables.test.ts` holds to the query that
+ * Tailwind writes for the class of a field.
  */
 export const touchFieldQuery = '(pointer: coarse)';
 
@@ -266,6 +269,115 @@ export function inlineHtmlRules(): Record<string, Record<string, string>> {
 }
 
 /**
+ * The panels and the lists that CodeMirror builds around the note (issue
+ * 247).
+ *
+ * The find panel is a panel of ours (`search-panel.ts`) whose controls read
+ * the recipes of `packages/ui`, so these rules place it and nothing more:
+ * the chrome plane of the band, its divider, and the space between the
+ * controls. The completion list, the list of `[[` and of the slash menu, is
+ * DOM of CodeMirror that no class reaches, so it takes the values of the
+ * menu of `menuSurfaceClassName` and of a row of `rowClassName`: the card
+ * plane, the subtle edge, the menu radius and the overlay step, rows of the
+ * control step at the row height with the row radius, the hover fill, and
+ * the fill of a chosen row for the row the keys stand on.
+ */
+export function panelRules(): Record<string, Record<string, string | Record<string, string>>> {
+  const rowHeight = 'calc(var(--spacing) * 7)';
+  return {
+    '.cm-panels': {
+      backgroundColor: 'var(--notes-surface)',
+      color: 'var(--notes-text)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--text-control)',
+    },
+    '.cm-panels.cm-panels-top': {
+      borderBottom: '1px solid var(--notes-border-line)',
+    },
+    '.cm-panels.cm-panels-bottom': {
+      borderTop: '1px solid var(--notes-border-line)',
+    },
+    '.cm-np-search': {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'calc(var(--spacing) * 2)',
+      paddingBlock: 'calc(var(--spacing) * 2)',
+      paddingInline: 'max(calc(var(--spacing) * 2), calc((100% - var(--container-note)) / 2))',
+    },
+    '.cm-np-search-row': {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      columnGap: 'calc(var(--spacing) * 2)',
+      rowGap: 'calc(var(--spacing) * 1)',
+    },
+    // A field takes the room that the buttons leave on its band.
+    '.cm-np-search-field': {
+      flex: '1 1 calc(var(--spacing) * 48)',
+      width: 'auto',
+      minWidth: '0',
+    },
+    '.cm-searchMatch': {
+      backgroundColor:
+        'color-mix(in srgb, var(--notes-accent-fill) 28%, transparent)',
+    },
+    '.cm-searchMatch.cm-searchMatch-selected': {
+      backgroundColor:
+        'color-mix(in srgb, var(--notes-accent-fill) 55%, transparent)',
+    },
+    '.cm-tooltip': {
+      backgroundColor: 'var(--notes-surface-card)',
+      color: 'var(--notes-text)',
+      border: '1px solid var(--notes-border-subtle)',
+      borderRadius: 'var(--radius-lg)',
+      boxShadow: 'var(--shadow-overlay)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete': {
+      padding: 'var(--spacing)',
+      overflow: 'hidden',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+      fontFamily: 'var(--font-sans)',
+      fontSize: 'var(--text-control)',
+      maxHeight: 'calc(var(--spacing) * 72)',
+      minWidth: 'calc(var(--spacing) * 56)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 'calc(var(--spacing) * 2)',
+      minHeight: rowHeight,
+      paddingBlock: '0',
+      paddingInline: 'calc(var(--spacing) * 2)',
+      borderRadius: 'var(--radius-md)',
+      color: 'var(--notes-text)',
+      lineHeight: 'var(--text-ui--line-height)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li:hover': {
+      backgroundColor: 'var(--notes-surface-hover)',
+      color: 'var(--notes-text-strong)',
+    },
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+      backgroundColor: 'var(--notes-surface-active)',
+      color: 'var(--notes-text-strong)',
+      fontWeight: 'var(--font-weight-medium)',
+    },
+    '.cm-completionLabel': { color: 'inherit' },
+    '.cm-completionMatchedText': {
+      textDecoration: 'none',
+      fontWeight: 'var(--font-weight-note-heading)',
+    },
+    '.cm-completionDetail': {
+      color: 'var(--notes-text-muted)',
+      fontStyle: 'normal',
+      fontWeight: 'normal',
+      marginInlineStart: 'auto',
+    },
+    '.cm-completionIcon': { display: 'none' },
+  };
+}
+
+/**
  * The complete note surface style for one palette.
  *
  * The palette only decides whether CodeMirror treats the editor as dark;
@@ -300,7 +412,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
   return {
     // The note is the product, so its body reads in the strong text color
     // and not in the quieter interface body color.
+    // The note screen gives the editor a bounded height, so the CodeMirror
+    // scroller owns the scrolling and the note header above it stays visible.
     '&': {
+      height: '100%',
       backgroundColor: 'var(--notes-bg)',
       color: 'var(--notes-text-strong)',
       fontSize: 'var(--text-note)',
@@ -311,6 +426,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // the caret. The block padding therefore sits on the content and not on
     // the scroller.
     '.cm-scroller': {
+      overflow: 'auto',
       fontFamily: 'var(--font-sans)',
       lineHeight: 'var(--text-note--line-height)',
       alignItems: 'stretch',
@@ -915,6 +1031,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // little way into the cell, so a tap on the text of a short header cell
     // still reaches the text.
     '@media (pointer: coarse)': {
+      // A finger takes the 44 px of a row in the completion list.
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+        minHeight: 'calc(var(--spacing) * 11)',
+      },
       // A finger takes the 44 px target of a control, so the bar and the room
       // that the card keeps for it grow to that.
       '.cm-np-code-bar': { height: 'calc(var(--spacing) * 12)' },
@@ -1091,5 +1211,6 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderRadius: 'var(--radius-lg)',
     },
     '.cm-np-math-inline': { display: 'inline' },
+    ...panelRules(),
   };
 }

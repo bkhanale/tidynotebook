@@ -42,10 +42,10 @@ import { createPortal } from 'react-dom';
 import {
   buttonClassName,
   compactButtonVisualClassName,
+  menuSurfaceClassName,
   rowClassName,
 } from './control-classes.ts';
 import { startsGroup } from './menu-groups.ts';
-import { transitionRaise } from './motion.ts';
 import { placeOverlay } from './overlay-position.ts';
 
 /** One row of a menu. */
@@ -281,7 +281,7 @@ function MenuList({
     <div
       ref={listRef}
       id={id}
-      className={`fixed z-50 flex flex-col rounded-lg border border-edge-subtle bg-card p-1 shadow-overlay ${transitionRaise} ${matchWidth ? '' : 'min-w-56'}`}
+      className={`fixed z-50 ${menuSurfaceClassName()} ${matchWidth ? '' : 'min-w-56'}`}
       role="menu"
       aria-label={label}
       onKeyDown={(event): void => {

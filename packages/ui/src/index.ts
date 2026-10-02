@@ -88,6 +88,7 @@ export {
   buttonName,
   calendarDayClassName,
   calendarNoteMarkClassName,
+  checkboxClassNames,
   compactButtonVisualClassName,
   controlStripClassName,
   edgeControlClassName,
@@ -101,6 +102,7 @@ export {
   focusOutline,
   focusOutlineInset,
   kbdClassName,
+  menuSurfaceClassName,
   rowClassName,
   touchFieldText,
 } from './control-classes.ts';

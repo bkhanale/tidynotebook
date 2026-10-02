@@ -467,3 +467,47 @@ await test('the column keeps room for the grip of a list item where it shows', (
   assert.match(gripPointerQuery, /pointer: fine/);
   assert.equal(rule('.cm-np-list-grip').touchAction, 'none');
 });
+
+await test('the completion list is a menu of the design and its rows are rows', () => {
+  // Issue 247. The list had square corners and a selected row in the ink
+  // fill, which read as a black row. It takes the menu and row values now.
+  const list = rule('.cm-tooltip');
+  assert.equal(list.borderRadius, 'var(--radius-lg)');
+  assert.equal(list.boxShadow, 'var(--shadow-overlay)');
+  assert.equal(list.backgroundColor, 'var(--notes-surface-card)');
+  assert.equal(list.border, '1px solid var(--notes-border-subtle)');
+  const row = rule('.cm-tooltip.cm-tooltip-autocomplete > ul > li');
+  assert.equal(row.borderRadius, 'var(--radius-md)');
+  assert.equal(row.minHeight, 'calc(var(--spacing) * 7)');
+  const chosen = rule(
+    '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]',
+  );
+  assert.equal(chosen.backgroundColor, 'var(--notes-surface-active)');
+  assert.equal(chosen.color, 'var(--notes-text-strong)');
+  assert.ok(
+    !JSON.stringify(chosen).includes('accent'),
+    'a chosen row takes no accent',
+  );
+});
+
+await test('the rules of the panels keep the rules of the surface', () => {
+  // The panel rules join the one style object, so a selector of both would
+  // drop the rule of the surface. The frame of the editor keeps its fill and
+  // its bounded height, and the one coarse block keeps the touch rules.
+  const frame = rule('&');
+  assert.equal(frame.backgroundColor, 'var(--notes-bg)');
+  assert.equal(frame.height, '100%');
+  const coarse = rule('@media (pointer: coarse)');
+  assert.ok('.cm-np-table-handle-row' in coarse);
+  assert.ok('.cm-np-code-bar' in coarse);
+  assert.ok('.cm-tooltip.cm-tooltip-autocomplete > ul > li' in coarse);
+});
+
+await test('a code card keeps the room of the bar of its language', () => {
+  // Record 0174. The bar of the language and the copy action stands over the
+  // first line of the card, so that line keeps the height of the bar.
+  assert.equal(
+    rule('.cm-np-code-block-open').paddingBlockStart,
+    rule('.cm-np-code-bar').height,
+  );
+});

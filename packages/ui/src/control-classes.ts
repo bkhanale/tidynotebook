@@ -13,7 +13,11 @@
  * row, a field or a keyboard hint. See
  * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
-import { transitionField, transitionSurface } from './motion.ts';
+import {
+  transitionField,
+  transitionRaise,
+  transitionSurface,
+} from './motion.ts';
 
 /**
  * The focus treatment of a control with room around it.
@@ -452,6 +456,55 @@ export function tabClassName(options: { readonly selected: boolean }): string {
  */
 export function inlineFieldClassName(): string {
   return `min-w-0 flex-1 rounded-sm border bg-app px-1 text-control ${touchFieldText} text-strong outline-none ${transitionField} border-edge-line focus-visible:border-focus`;
+}
+
+/** The classes of the parts of one checkbox and its label. */
+export type CheckboxClassNames = {
+  /** The label around the box and its words. */
+  readonly label: string;
+  /** The frame of the box, which holds the box and its check mark. */
+  readonly frame: string;
+  /** The native box, its appearance drawn again from the theme. */
+  readonly box: string;
+  /** The check mark over the box, which shows while the box is checked. */
+  readonly mark: string;
+};
+
+/**
+ * The appearance of a checkbox and its label, as classes.
+ *
+ * The box is a native input, so the space key, the label click and the
+ * reported state come from the platform. Its own appearance is removed and
+ * drawn again from the theme, because a native box paints the accent of the
+ * operating system. The box carries the component edge, `edge`, which is one
+ * of the five controls that decision 0063 reserves it for: a person reads
+ * the state of a checkbox from its shape alone. The check mark is the check
+ * glyph of the icon set, which follows the box with `peer-checked`.
+ *
+ * `Checkbox` of `controls.tsx` and the find panel of the editor, which builds
+ * its own DOM, both read this.
+ */
+export function checkboxClassNames(
+  options: { readonly disabled?: boolean | undefined } = {},
+): CheckboxClassNames {
+  return {
+    label: `inline-flex min-h-11 items-center gap-2 text-control md:min-h-8 ${options.disabled === true ? 'cursor-not-allowed text-muted' : 'cursor-pointer text-strong'}`,
+    frame: 'relative inline-flex size-4 shrink-0 items-center justify-center',
+    box: `peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill disabled:cursor-not-allowed disabled:checked:border-edge disabled:checked:bg-hover ${focusOutline}`,
+    mark: 'pointer-events-none absolute inset-0 hidden text-on-accent peer-checked:block peer-disabled:text-muted',
+  };
+}
+
+/**
+ * The surface of a menu, as classes: a raised card of the overlay step.
+ *
+ * `rounded-lg`, the subtle edge of a raised surface and the card plane, with
+ * a small inset for its rows (records 0052 and 0065). A menu of `menu.tsx`
+ * reads it, and the typed adapter of the editor draws the completion list of
+ * the editor with the same values, because CodeMirror builds that list.
+ */
+export function menuSurfaceClassName(): string {
+  return `flex flex-col rounded-lg border border-edge-subtle bg-card p-1 shadow-overlay ${transitionRaise}`;
 }
 
 /**

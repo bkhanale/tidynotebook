@@ -272,6 +272,8 @@
   --text-note-h6: 1em;
   --text-note-h6--line-height: 1.4;
   --font-weight-note-heading: 600;
+  /* The weight of a chosen row, which the completion list of the editor reads. */
+  --font-weight-medium: 500;
 }
 
 /*

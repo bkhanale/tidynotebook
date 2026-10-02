@@ -12,9 +12,9 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
+  checkboxClassNames,
   compactButtonVisualClassName,
   fieldClassName,
-  focusOutline,
   selectClassName,
   textAreaClassName,
   type ButtonSize,
@@ -22,7 +22,6 @@ import {
   type ButtonVariant,
 } from './control-classes.ts';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
-import { transitionSurface } from './motion.ts';
 
 /** The label above a field, and the label beside a checkbox. */
 const fieldLabelClassName = 'mb-1.5 block text-control font-medium text-strong';
@@ -439,16 +438,14 @@ export function Checkbox({
   /** The choice cannot change now, for example while the last one is saved. */
   readonly disabled?: boolean | undefined;
 }): ReactNode {
+  const classes = checkboxClassNames({ disabled });
   return (
-    <label
-      className={`inline-flex min-h-11 items-center gap-2 text-control md:min-h-8 ${disabled ? 'cursor-not-allowed text-muted' : 'cursor-pointer text-strong'}`}
-      htmlFor={id}
-    >
-      <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+    <label className={classes.label} htmlFor={id}>
+      <span className={classes.frame}>
         <input
           id={id}
           type="checkbox"
-          className={`peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill disabled:cursor-not-allowed disabled:checked:border-edge disabled:checked:bg-hover ${focusOutline}`}
+          className={classes.box}
           checked={checked}
           disabled={disabled}
           aria-describedby={describedBy}
@@ -456,7 +453,7 @@ export function Checkbox({
             onChange(event.target.checked);
           }}
         />
-        <CheckIcon className="pointer-events-none absolute inset-0 hidden text-on-accent peer-checked:block peer-disabled:text-muted" />
+        <CheckIcon className={classes.mark} />
       </span>
       <span>{label}</span>
     </label>
