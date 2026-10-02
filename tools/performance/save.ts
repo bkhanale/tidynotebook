@@ -17,6 +17,12 @@
  *   second device holds the word. The two pages run on one machine, so their
  *   clocks are one clock.
  *
+ * `--trial-timeout <ms>` ends a trial that waits longer, 60 s by default, and
+ * `--shots <directory>` keeps a screenshot of both devices of such a trial.
+ * `--first-sync <n>` adds trials of a new device that opens the note and
+ * saves while its first sync of the corpus still runs: `toAnswer` there is
+ * how long a save waits for that sync (record 0176).
+ *
  * A move trial opens a note of the tree and then the All notes row, and
  * measures from the click on the row until the list states the note count.
  * Every trial over two seconds is listed with its number, so a slow trial can
@@ -55,8 +61,7 @@ declare global {
 
 /** A trial over this many milliseconds is an outlier of the run. */
 const outlierMs = 2000;
-/** A trial that has not ended after this long has failed. */
-const trialTimeoutMs = 60_000;
+
 
 /** Reads `--name <n>` as a positive whole number, or the default. */
 function countArgument(name: string, fallback: number): number {
@@ -70,6 +75,13 @@ function countArgument(name: string, fallback: number): number {
 
 const saveTrials = countArgument('--saves', 200);
 const moveTrials = countArgument('--moves', 100);
+const firstSyncTrials = countArgument('--first-sync', 0);
+const shotsAt = process.argv.indexOf('--shots');
+/** Where a trial that does not end leaves a screenshot of each device. */
+const shotsDirectory =
+  shotsAt === -1 ? null : (process.argv[shotsAt + 1] ?? null);
+/** A trial that has not ended after this long has failed. */
+const trialTimeoutMs = countArgument('--trial-timeout', 60_000);
 
 /** The time on the clock that every page of this machine shares. */
 function wallNow(): number {
@@ -209,6 +221,14 @@ async function saveTrial(
       process.stderr.write(
         `Trial ${String(trial)} did not end: ${JSON.stringify({ one, two })}\n`,
       );
+      if (shotsDirectory !== null) {
+        await first.page.screenshot({
+          path: `${shotsDirectory}/trial-${String(trial)}-first.png`,
+        });
+        await second.page.screenshot({
+          path: `${shotsDirectory}/trial-${String(trial)}-second.png`,
+        });
+      }
       return {
         toRequest:
           request === undefined || pressed === null
@@ -281,6 +301,40 @@ try {
     const moves: number[] = [];
     for (let trial = 0; trial < moveTrials; trial += 1)
       moves.push(await moveTrial(first, noteCount, other.fileId));
+    // A new device for each trial, so each save meets a first sync.
+    const firstSyncAnswers: number[] = [];
+    for (let trial = 0; trial < firstSyncTrials; trial += 1) {
+      const fresh = await openDevice(browser, app);
+      try {
+        await openNote(fresh, target.fileId);
+        await fresh.page.evaluate(installSaveProbe, undefined);
+        await caretToEnd(fresh);
+        const word = `f${String(trial)}x`;
+        await fresh.page.evaluate(armSaveProbe, word);
+        await fresh.page.keyboard.type(` ${word}`);
+        await fresh.page.keyboard.press('Control+s');
+        const deadline = Date.now() + trialTimeoutMs;
+        for (;;) {
+          const seen = await fresh.page.evaluate(readSaveProbe, undefined);
+          const pressed = seen.savePressedAt;
+          const request =
+            pressed === null
+              ? undefined
+              : seen.changesets.find((entry) => entry.start >= pressed);
+          if (pressed !== null && request !== undefined) {
+            firstSyncAnswers.push(request.end - pressed);
+            break;
+          }
+          if (Date.now() > deadline) {
+            firstSyncAnswers.push(trialTimeoutMs);
+            break;
+          }
+          await pause(20);
+        }
+      } finally {
+        await fresh.context.close();
+      }
+    }
     const values = (key: keyof SaveSample): number[] =>
       saves
         .map((sample) => sample[key])
@@ -302,6 +356,10 @@ try {
           saves.map((sample) => sample.toSecondDevice ?? trialTimeoutMs),
           outlierMs,
         ),
+      },
+      firstSyncSaves: {
+        trials: firstSyncAnswers.length,
+        toAnswerMs: distribution(firstSyncAnswers),
       },
       moves: {
         trials: moves.length,

@@ -17,10 +17,10 @@ an open note, and the unified diff for History.
   the fence languages and code tokens of `@notesapp/markdown` (0173),
   `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
 - `document-binding.ts` joins the live document of an open note to one view
-  (0082), and `openBoundNote` is what a screen uses. A bound editor takes its
-  undo from Yjs; a plain one, for History and a diff, keeps CodeMirror history.
-  Work of another device waits in its gate while an IME composition runs,
-  because an update inside a composition loses the composed characters.
+  (0082); `openBoundNote` holds the work of the person until a screen takes
+  it (0175). A bound editor takes its undo from Yjs; a plain one keeps
+  CodeMirror history. Work of another device waits in its gate while an IME
+  composition runs, because an update inside it loses the composed text.
 - `live-preview.ts` has the decorations, the inline HTML of 0157 among them,
   `widgets.ts` the widgets, `table-grid.ts` and `table-controls.ts` the table
   (0095 to 0098, 0147), and `list-move.ts` and `list-controls.ts` the move of
