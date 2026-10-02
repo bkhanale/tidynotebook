@@ -102,6 +102,26 @@ await test('a definition covers the blank lines that it holds', () => {
   ]);
 });
 
+await test('the blank line of a quoted or listed definition leaves its container marks alone', () => {
+  // The defect this covers: the blank node started at the start of the line
+  // and covered the quote mark of the quote around the definition.
+  const quoted = 'Ref[^q]\n\n> [^q]: First\n>\n>     Second\n';
+  assert.deepEqual(named(quoted, 'FootnoteBlank'), ['FootnoteBlank:']);
+  assert.deepEqual(named(quoted, 'QuoteMark'), [
+    'QuoteMark:>',
+    'QuoteMark:>',
+    'QuoteMark:>',
+  ]);
+  const listed = 'Ref[^l]\n\n- [^l]: First\n  \n      Second\n';
+  // The indented blank line and the empty last line, each without the
+  // indentation of the list item.
+  assert.deepEqual(named(listed, 'FootnoteBlank'), [
+    'FootnoteBlank:',
+    'FootnoteBlank:',
+  ]);
+  assert.ok(named(listed, 'FootnoteDefinition')[0]?.includes('Second'));
+});
+
 await test('only a label of the GFM rule makes a footnote', () => {
   for (const doc of [
     'Ref[^a b]\n\n[^a b]: no\n',

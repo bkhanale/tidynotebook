@@ -101,7 +101,13 @@ function continuesDefinition(
 ): boolean {
   if (line.next === -1) {
     line.addMarker(
-      cx.elt(footnoteBlankNode, cx.lineStart, cx.lineStart + line.text.length),
+      // The blank starts after the marks of the containers around the
+      // definition, so a quote mark stays a node of its quote.
+      cx.elt(
+        footnoteBlankNode,
+        cx.lineStart + line.pos,
+        cx.lineStart + line.text.length,
+      ),
     );
     return true;
   }
