@@ -225,3 +225,30 @@ await test('a rich paste keeps the brackets of the page that it came from', () =
     '**\\[\\[Plan\\]\\]** here',
   );
 });
+
+await test('a rich paste inside code, math, HTML or a link writes the plain text', () => {
+  // Review of record 0172: the comment said that a paste inside code stays
+  // as it is, but rich text still became Markdown there, so its marks and
+  // escapes showed inside a code span.
+  for (const text of [
+    'Code `a ‸ b` here.',
+    'Math $a ‸ b$ here.',
+    '<div>\nsome ‸ words\n</div>',
+    '    indented ‸ code',
+    'A [label ‸ here](notes/x.md) link.',
+  ])
+    assert.equal(
+      pastedMarkdown(pasteInto(text), 'bold [[Plan]]', '<b>bold</b> [[Plan]]'),
+      null,
+      text,
+    );
+  // In a paragraph the same paste is Markdown.
+  assert.equal(
+    pastedMarkdown(
+      pasteInto('Text ‸'),
+      'bold [[Plan]]',
+      '<b>bold</b> [[Plan]]',
+    ),
+    '**bold** \\[\\[Plan\\]\\]',
+  );
+});

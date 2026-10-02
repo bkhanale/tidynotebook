@@ -529,21 +529,23 @@ export function normalizePastedUrl(text: string): string {
  * The Markdown that a paste of text writes at the selection, or `null` to
  * leave the paste to the editor, which writes the plain text.
  *
- * Rich text becomes Markdown when that adds something over the plain text.
+ * Inside code, math, HTML or a link every paste is literal text, rich or
+ * plain, as it is inside a fence: Markdown there is characters, so a mark or
+ * an escape of a converted page would show as it is written. Anywhere else,
+ * rich text becomes Markdown when that adds something over the plain text.
  * Its characters are the characters of the page that the person copied, so a
  * `[[` in it stays a `[[`, escaped. A wiki link of plain text, as a copy of
  * the source of a vault holds, becomes a standard link when its note is there
- * (record 0172), and inside code, math, HTML or a link it stays as it is.
+ * (record 0172).
  */
 export function pastedMarkdown(
   state: EditorState,
   plain: string,
   html: string,
 ): string | null {
+  if (insideLiteral(state, state.selection.main.from)) return null;
   const converted = html === '' ? '' : htmlToMarkdown(html);
   if (converted !== '' && converted !== plain.trim()) return converted;
-  const from = state.selection.main.from;
-  if (insideLiteral(state, from)) return null;
   const linked = withNoteLinks(state, plain);
   return linked === plain ? null : linked;
 }
@@ -553,7 +555,8 @@ export function pastedMarkdown(
  *
  * Order matters. Files stay with the note screen, which uploads them.
  * Inside a code fence every paste stays literal. A URL over a selection
- * becomes a link, and every other paste writes what `pastedMarkdown` answers.
+ * becomes a link, and every other paste writes what `pastedMarkdown` answers,
+ * which keeps a paste inside code, math, HTML or a link literal as well.
  */
 export const markdownPaste: Extension = EditorView.domEventHandlers({
   paste: (event: ClipboardEvent, view: EditorView): boolean => {
