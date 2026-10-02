@@ -65,18 +65,20 @@ function continuationPrefix(
   line: Line,
   markFrom: number,
 ): string {
-  const characters = [...state.doc.sliceString(line.from, markFrom)];
+  let prefix = state.doc.sliceString(line.from, markFrom);
   ensureSyntaxTree(state, line.to, parseBudget)?.iterate({
     from: line.from,
     to: markFrom,
     enter: (node) => {
       if (node.name !== 'ListMark' && node.name !== 'TaskMarker') return true;
-      for (let at = node.from; at < Math.min(node.to, markFrom); at += 1)
-        characters[at - line.from] = ' ';
+      const from = node.from - line.from;
+      const to = Math.min(node.to, markFrom) - line.from;
+      if (from >= 0 && to > from)
+        prefix = `${prefix.slice(0, from)}${' '.repeat(to - from)}${prefix.slice(to)}`;
       return false;
     },
   });
-  return characters.join('');
+  return prefix;
 }
 
 /**
