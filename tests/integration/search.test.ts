@@ -382,23 +382,127 @@ await test('the search reads the stored vector of a note', async () => {
   }
 });
 
-await test('the excerpt reads a window of the text and never the whole body', async () => {
-  // Issue 265. A headline over the whole body of a long note cost most of a
-  // search for a common word, so the function hands the headline a window.
+/** The marked words of the excerpt of one note for one query. */
+async function markedWords(fileId: string, query: string): Promise<string[]> {
+  const found = await searchFiles(store, actor, workspaceId, query);
+  assert.equal(found.ok, true);
+  if (!found.ok) return [];
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined, `the query "${query}" finds the note`);
+  return hit.excerpt.filter((part) => part.marked).map((part) => part.text);
+}
+
+/** Text of more than one excerpt window, before the words of a test. */
+const longLead = 'We start early and walk on. '.repeat(60);
+
+await test('the words of a query read as the index reads them', async () => {
+  // Review of record 0167. The query split its text on letters and digits
+  // with lower(), so a host, a number and a version never matched, and a
+  // database of the C locale split a word of another script.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'web/Hosts.md',
+      text: '# Hosts\nOpen example.com for pi 3.14 on Über release v1.2.3.\n',
+    }),
+  ]);
+  assert.deepEqual(await markedWords(fileId, 'example.com'), ['example.com']);
+  assert.deepEqual(await markedWords(fileId, '3.14'), ['3.14']);
+  assert.deepEqual(await markedWords(fileId, 'über'), ['Über']);
+  assert.deepEqual(await markedWords(fileId, 'v1.2.3'), ['v1.2.3']);
+});
+
+await test('a word shorter than three letters matches only itself', async () => {
+  // Review of record 0167. One letter matched as a prefix, so it read most of
+  // the index.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'zoo/Antelope.md',
+      text: '# Grazers\nThe antelope runs.\n',
+    }),
+  ]);
+  const short = await searchFiles(store, actor, workspaceId, 'an');
+  assert.equal(short.ok, true);
+  if (short.ok) assert.ok(!short.value.some((hit) => hit.fileId === fileId));
+  assert.deepEqual(await markedWords(fileId, 'ant'), ['antelope']);
+});
+
+await test('the excerpt of a long note stands at the start of a matched word', async () => {
+  // Review of issue 265. The window stood at the first substring, so "art"
+  // stood at "start" and the excerpt showed no match.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'long/Gallery.md',
+      text: `# Gallery\n${longLead}The art show opens.\n`,
+    }),
+  ]);
+  assert.deepEqual(await markedWords(fileId, 'art'), ['art']);
+});
+
+await test('the excerpt of a long note finds a word in another case', async () => {
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'long/Travel.md',
+      text: `# Travel\n${longLead}Then we reach PARIS at night.\n`,
+    }),
+  ]);
+  assert.deepEqual(await markedWords(fileId, 'paris'), ['PARIS']);
+});
+
+await test('the excerpt of a long note holds its match after letters that unaccent expands', async () => {
+  // Review of issue 265. The place of a word came from a folded copy of the
+  // body, and unaccent writes one letter of it as two, so the window drifted
+  // past the match.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'long/Islands.md',
+      text: `# Islands\n${'Ærø æble. '.repeat(160)}The ANCHOR holds.\n`,
+    }),
+  ]);
+  assert.deepEqual(await markedWords(fileId, 'anchor'), ['ANCHOR']);
+});
+
+await test('the migration writes the row of a live note that has none', async () => {
+  // Review of record 0167. The record says that the data migration writes
+  // the row of every live note that has none, and the code only rewrote the
+  // rows that were there.
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'water/Locks.md',
+      text: '# Locks\nThe gate keeper opens the lock.\n',
+    }),
+  ]);
   const client = new pg.Client({ connectionString: database.migrationUrl });
   await client.connect();
   try {
-    const definition = await client.query<{ source: string }>(
-      "select pg_get_functiondef('public.notesapp_search(uuid, text, integer)'::regprocedure) as source",
+    await client.query(
+      'delete from search_index where workspace_id = $1 and file_id = $2',
+      [workspaceId, fileId],
     );
-    const source = definition.rows[0]?.source ?? '';
-    assert.match(source, /translate\(windowed\.source,/);
-    assert.doesNotMatch(source, /translate\(page\.body,/);
-    assert.match(source, /'public\.notesapp_text'/);
-    assert.doesNotMatch(source, /'english'/);
+    await runMigrations({
+      documents: createDocumentService(),
+      databaseUrl: database.migrationUrl,
+      runtimePassword: testPassword(),
+      authPassword: testIdentityPassword(),
+    });
   } finally {
     await client.end();
   }
+  assert.deepEqual(await markedWords(fileId, 'gate keeper'), [
+    'gate',
+    'keeper',
+  ]);
 });
 
 await test('the migration makes a row of an earlier rule again', async () => {
@@ -430,7 +534,7 @@ await test('the migration makes a row of an earlier rule again', async () => {
       {
         // The first heading repeats the name of the note, so it goes.
         body: 'The lock keeper waves at boats.',
-        text_rule: 1,
+        text_rule: 2,
       },
     ]);
   } finally {

@@ -4,27 +4,61 @@
 -- words of one language, and the `unaccent` filter lets a letter with an
 -- accent match the same letter without one. `unaccent` is a trusted
 -- extension, so the migration role installs it and no superuser is needed,
--- as for `btree_gin` in the first migration.
-CREATE EXTENSION IF NOT EXISTS unaccent;--> statement-breakpoint
-CREATE TEXT SEARCH CONFIGURATION public.notesapp_text (COPY = pg_catalog.simple);--> statement-breakpoint
-ALTER TEXT SEARCH CONFIGURATION public.notesapp_text
-	ALTER MAPPING FOR hword, hword_part, word WITH public.unaccent, pg_catalog.simple;--> statement-breakpoint
+-- as for `btree_gin` in the first migration. It goes into `public`. An
+-- installation that already holds it in another schema keeps it there, and
+-- the configuration names the dictionary in that schema.
+DO $$
+DECLARE
+	dictionary_schema name;
+BEGIN
+	SELECT n.nspname INTO dictionary_schema
+		FROM pg_catalog.pg_extension e
+		JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace
+		WHERE e.extname = 'unaccent';
+	IF dictionary_schema IS NULL THEN
+		CREATE EXTENSION unaccent SCHEMA public;
+		dictionary_schema := 'public';
+	END IF;
+	CREATE TEXT SEARCH CONFIGURATION public.notesapp_text (COPY = pg_catalog.simple);
+	EXECUTE format(
+		'ALTER TEXT SEARCH CONFIGURATION public.notesapp_text '
+		'ALTER MAPPING FOR hword, hword_part, word WITH %I.unaccent, pg_catalog.simple',
+		dictionary_schema);
+END
+$$;--> statement-breakpoint
+
+-- The table is rewritten once. The rows of the earlier rule hold raw
+-- Markdown, so they go now, and `src/search-index-migration.ts` writes the
+-- row of every live note again, in short batches, after the SQL (record
+-- 0167). On the empty table the new stored vector and its index cost
+-- nothing, so this migration holds its lock for a moment only. Search
+-- answers the notes that the rebuild has reached until it ends, and the
+-- server serves only after the migrations.
+TRUNCATE TABLE "search_index";--> statement-breakpoint
 ALTER TABLE "search_index" drop column "document";--> statement-breakpoint
 ALTER TABLE "search_index" ADD COLUMN "document" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('public.notesapp_text'::regconfig, title), 'A') || setweight(to_tsvector('public.notesapp_text'::regconfig, body), 'B')) STORED NOT NULL;--> statement-breakpoint
 ALTER TABLE "search_index" ADD COLUMN "text_rule" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 -- The drop of the column took its index with it.
 CREATE INDEX "search_index_document_idx" ON "search_index" USING gin ("workspace_id","document");--> statement-breakpoint
 
--- Search with the one configuration (record 0167). Three rules change from
--- migration 0022:
+-- Search with the one configuration (record 0167). The rules that change
+-- from migration 0022:
 --
--- - Every word matches as a prefix, which takes the place of stemming.
+-- - The words of the query come from the parser and the configuration of the
+--   index, through `ts_debug`, so a host such as example.com, a number such
+--   as 3.14 and a word in any script read as the index reads them.
+-- - A word of three characters or more matches as a prefix, which takes the
+--   place of stemming. A shorter word matches only itself, so one letter
+--   never reads most of the index.
 -- - The body is the readable text of the note, so the excerpt quotes what a
 --   reader sees.
--- - The excerpt reads a window of the body around the first place of a query
---   word, never the whole body. `ts_headline` parses all of the text that it
---   gets, and a long note cost most of the time of a search for a common word
---   (issue 265). A body that is shorter than the window is read whole.
+-- - The excerpt reads a window of the body around the first place where a
+--   query word starts, never the whole body. `ts_headline` parses all of the
+--   text that it gets, and a long note cost most of the time of a search for
+--   a common word (issue 265). The place is a match at the start of a word,
+--   in any case, on the body as it is stored, so no position comes from a
+--   folded copy. A body that is shorter than the window is read whole, and a
+--   body with no such place shows its start.
 CREATE OR REPLACE FUNCTION public.notesapp_search(
   p_workspace_id uuid,
   p_query text,
@@ -43,34 +77,50 @@ SET search_path = pg_catalog, public
 SET client_min_messages = warning
 AS $$
 DECLARE
-  terms text[];
-  term text;
+  word record;
+  quoted text;
   part tsquery;
   needle tsquery := NULL;
+  patterns text[] := '{}';
   -- The window of the excerpt, and how much of it comes before the match.
   window_length constant integer := 1024;
   window_lead constant integer := 256;
+  -- A word shorter than this matches only itself.
+  prefix_length constant integer := 3;
 BEGIN
   IF NOT public.notesapp_is_member(p_workspace_id) THEN
     RETURN;
   END IF;
 
-  terms := ARRAY(
-    SELECT left(word, 64)
-      FROM unnest(
-             regexp_split_to_array(lower(coalesce(p_query, '')), '[^[:alnum:]]+')
-           ) AS word
-     WHERE word <> ''
+  FOR word IN
+    SELECT DISTINCT ON (lexeme) debug.token, lexeme
+      FROM ts_debug('public.notesapp_text', left(coalesce(p_query, ''), 256))
+             AS debug,
+           unnest(debug.lexemes) AS lexeme
+     WHERE lexeme <> ''
      LIMIT 16
-  );
-
-  FOREACH term IN ARRAY terms LOOP
-    -- A term holds letters and digits only, so the text reaches the parser as
-    -- a word and never as an operator.
-    part := to_tsquery('public.notesapp_text', term || ':*');
-    IF part::text <> '' THEN
-      needle := CASE WHEN needle IS NULL THEN part ELSE needle && part END;
-    END IF;
+  LOOP
+    -- A lexeme reaches the query as one quoted lexeme, so no character of it
+    -- is an operator.
+    quoted := ''''
+      || replace(replace(word.lexeme, '\', '\\'), '''', '''''')
+      || '''';
+    part := CASE
+      WHEN char_length(word.lexeme) < prefix_length THEN quoted::tsquery
+      ELSE (quoted || ':*')::tsquery
+    END;
+    needle := CASE WHEN needle IS NULL THEN part ELSE needle && part END;
+    -- The place of the word in the body: the word as the person typed it, or
+    -- its lexeme, at the start of a word. Every character that is not a
+    -- letter or a digit is escaped, so it reads as itself.
+    patterns := patterns || (
+      '\m('
+      || regexp_replace(word.token, '([^[:alnum:]_])', '\\\1', 'g')
+      || '|'
+      || regexp_replace(word.lexeme, '([^[:alnum:]_])', '\\\1', 'g')
+      || ')'
+      || CASE WHEN char_length(word.lexeme) < prefix_length THEN '\M' ELSE '' END
+    );
   END LOOP;
 
   IF needle IS NULL THEN
@@ -99,11 +149,7 @@ BEGIN
        LIMIT least(greatest(coalesce(p_limit, 1), 1), 100)
     ),
     windowed AS (
-      -- The size test reads the stored size and not the text. A long body
-      -- finds the first place of a query word as it is written first, which
-      -- stops at the first hit. Only a body with no such place reads its
-      -- whole text folded, for a word in another case or with an accent.
-      -- A body with no place at all shows its start.
+      -- The size test reads the stored size and not the text.
       SELECT page.*,
              CASE
                WHEN octet_length(page.body) <= window_length THEN page.body
@@ -113,13 +159,9 @@ BEGIN
                    1,
                    coalesce(
                      (SELECT min(at)
-                        FROM unnest(terms) AS word,
-                             LATERAL strpos(page.body, word) AS at
-                       WHERE at > 0),
-                     (SELECT min(at)
-                        FROM (SELECT public.unaccent(lower(page.body)) AS text) AS folded,
-                             unnest(terms) AS word,
-                             LATERAL strpos(folded.text, public.unaccent(word)) AS at
+                        FROM unnest(patterns) AS pattern,
+                             LATERAL regexp_instr(page.body, pattern, 1, 1, 0, 'i')
+                               AS at
                        WHERE at > 0),
                      1
                    ) - window_lead

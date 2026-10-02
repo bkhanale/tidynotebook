@@ -121,6 +121,11 @@ Install Docker Engine, Docker Compose, GnuPG, the PostgreSQL client tools, and
 compatible host tool can work. Record the version you used in your own
 installation record.
 
+The database needs the `btree_gin` and `unaccent` extensions, which come with
+the contrib modules of PostgreSQL. The Compose image holds both. A database
+that you run yourself needs those modules installed. The migrations add both
+extensions to the `public` schema, and no superuser is needed.
+
 Use encrypted host storage before you create the data directories. The
 encryption boundary must include:
 

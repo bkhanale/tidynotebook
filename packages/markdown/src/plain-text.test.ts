@@ -78,16 +78,36 @@ await test('code, math and the text of an image stay', () => {
   assert.equal(readableText('Inline \\(y\\) math.'), 'Inline y math.');
 });
 
-await test('raw HTML, front matter and a footnote mark go, and text stays', () => {
+await test('HTML tags, front matter and a footnote mark go, and text stays', () => {
   assert.equal(readableText('A <b>bold</b> word<br>here'), 'A bold word here');
   assert.equal(readableText('---\ntitle: x\n---\n\nBody text'), 'Body text');
   assert.equal(
     readableText('A <b>bold</b> word\n\n<div>x</div>\n\nend'),
-    'A bold word · end',
+    'A bold word · x · end',
   );
   assert.equal(
     readableText('Text[^1] here.\n\n[^1]: The note.\n'),
     'Text here. The note.',
+  );
+});
+
+await test('an HTML block keeps the words that a reader sees in it', () => {
+  // Record 0157 shows `<details>` and `<summary>` to the reader, and the text
+  // dropped every HTML block, so search never found its words.
+  assert.equal(
+    readableText(
+      '<details>\n<summary>Packing list</summary>\n\nTent and stove.\n\n</details>\n',
+    ),
+    'Packing list · Tent and stove.',
+  );
+  assert.equal(
+    readableText('<p>Fish &amp; chips</p>\n\n<p>Second</p>\n'),
+    'Fish & chips · Second',
+  );
+  // An element that holds code or a document of its own leaves with it.
+  assert.equal(
+    readableText('Before\n\n<script>var hidden = 1;</script>\n\nAfter'),
+    'Before · After',
   );
 });
 

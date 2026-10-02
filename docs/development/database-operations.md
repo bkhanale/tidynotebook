@@ -66,12 +66,16 @@ stored vector, the query and the excerpt all name it (record 0167). The index
 holds the workspace identifier ahead of the document, so a search of one
 workspace never reads the postings of another. The index expression and the
 search function have to stay identical, or the planner cannot use the index.
-The function builds its query from the words of the typed text and keeps
-letters and digits only, so no part of the text reaches the parser as an
-operator. Every word matches as a prefix, which is what makes search as you
-type work. The page is ranked and cut before any excerpt, and an excerpt reads
-a bounded window around the first match, so a long note costs no more than a
-short one. An excerpt arrives with control characters around each match, so
+The function reads the words of the typed text through `ts_debug` with the
+configuration of the index, and each lexeme reaches the query quoted, so no
+part of the text reaches the parser as an operator. A word of three characters
+or more matches as a prefix, which is what makes search as you type work, and
+a shorter word matches only itself. The page is ranked and cut before any
+excerpt, and an excerpt reads a bounded window around the first place where a
+query word starts, found case blind on the stored body, so a long note costs
+no more than a short one. Migration 0027 empties the table and the data
+migration writes every row again in batches of keys, one note at a time, so an
+upgrade costs one parse of each live note and holds no long lock. An excerpt arrives with control characters around each match, so
 no markup reaches a reader.
 
 ## Attachment bytes and the reclaim

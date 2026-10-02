@@ -14,7 +14,7 @@ import { indexNote, type NoteLink } from '@notesapp/markdown';
  * `src/search-index-migration.ts` then makes every row of an earlier rule
  * again, before the server serves.
  */
-export const searchTextRule = 1;
+export const searchTextRule = 2;
 
 /** The name of a note as a person sees it: its last segment, no `.md`. */
 export function noteTitle(path: string): string {
