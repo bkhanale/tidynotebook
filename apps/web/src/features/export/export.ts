@@ -14,7 +14,10 @@ import {
   exportWorkspace,
   importWorkspace,
 } from '@notesapp/api-client';
-import { maxArchiveEntries, maxArchiveExpandedBytes } from '@notesapp/core';
+import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';
+
+/** The byte bound of one archive, in whole MiB, as a person reads it. */
+const archiveMiB = Math.floor(maxArchiveBytes / (1024 * 1024));
 
 /** The problem code of a failed generated call, or an empty string. */
 function problemCode(error: unknown): string {
@@ -24,13 +27,21 @@ function problemCode(error: unknown): string {
 }
 
 /** The message of a refused download. */
-function refuse(error: unknown): Error {
+export function downloadRefusalMessage(error: unknown): string {
   const code = problemCode(error);
-  if (code === 'not_found')
-    return new Error('This note is not on the server any more.');
+  if (code === 'not_found') return 'This note is not on the server any more.';
   if (code === 'unauthenticated')
-    return new Error('Sign in again to download your notes.');
-  return new Error('The download did not start. Try again.');
+    return 'Sign in again to download your notes.';
+  // Issue 243. The export refuses a workspace past the bounds that the import
+  // reads too, so every zip file that it writes comes back.
+  if (code === 'export_too_large')
+    return `This workspace holds more than one zip file can take: ${String(maxArchiveEntries)} files or ${String(archiveMiB)} MiB. Move some notes to another workspace, then export each workspace.`;
+  return 'The download did not start. Try again.';
+}
+
+/** The error of a refused download. */
+function refuse(error: unknown): Error {
+  return new Error(downloadRefusalMessage(error));
 }
 
 /**
@@ -47,7 +58,8 @@ const importRefusals: Readonly<Record<string, string>> = {
   payload_too_large:
     'The zip file is too large. Put the files in smaller zip files and import each one.',
   archive_too_many_files: `The zip file has more than ${String(maxArchiveEntries)} files. Put the files in smaller zip files and import each one.`,
-  archive_too_large: `The files in the zip file are larger than ${String(maxArchiveExpandedBytes / (1024 * 1024))} MiB. Put the files in smaller zip files and import each one.`,
+  archive_too_large:
+    'A file in the zip file is larger than NotesApp can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.',
   archive_invalid:
     'This file is not a zip file that NotesApp can read. Make the zip file again and import it.',
   unsupported_media_type:

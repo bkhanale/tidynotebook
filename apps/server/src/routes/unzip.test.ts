@@ -3,13 +3,18 @@ import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import { deflateRawSync } from 'node:zlib';
 import {
+  maxArchiveBytes,
   maxArchiveEntries,
-  maxArchiveExpandedBytes,
   maxFilesPerChangeset,
 } from '@notesapp/core';
 import { ArchiveRefusedError } from '../plugins/problem.ts';
 import { zipArchive } from './zip.ts';
-import { unzipArchive } from './unzip.ts';
+import {
+  bufferSource,
+  readArchiveDirectory,
+  readArchiveEntry,
+  unzipArchive,
+} from './unzip.ts';
 
 async function readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const parts: Buffer[] = [];
@@ -19,9 +24,9 @@ async function readStream(stream: NodeJS.ReadableStream): Promise<Buffer> {
 }
 
 /** The kind of the refusal that one read throws, or `none`. */
-function refusalOf(archive: Buffer): string {
+async function refusalOf(archive: Buffer): Promise<string> {
   try {
-    unzipArchive(archive);
+    await unzipArchive(archive);
   } catch (error) {
     if (error instanceof ArchiveRefusedError) return error.refusal;
     throw error;
@@ -29,34 +34,50 @@ function refusalOf(archive: Buffer): string {
   return 'none';
 }
 
-/** One archive of a single deflated entry that states the given size. */
-function deflatedArchive(content: Buffer, statedSize: number): Buffer {
-  const name = Buffer.from('notes/big.md');
-  const compressed = deflateRawSync(content);
-  const local = Buffer.alloc(30);
-  local.writeUInt32LE(0x0403_4b50, 0);
-  local.writeUInt16LE(20, 4);
-  local.writeUInt16LE(8, 8);
-  local.writeUInt32LE(compressed.length, 18);
-  local.writeUInt32LE(statedSize, 22);
-  local.writeUInt16LE(name.length, 26);
-  const central = Buffer.alloc(46);
-  central.writeUInt32LE(0x0201_4b50, 0);
-  central.writeUInt16LE(20, 4);
-  central.writeUInt16LE(20, 6);
-  central.writeUInt16LE(8, 10);
-  central.writeUInt32LE(compressed.length, 20);
-  central.writeUInt32LE(statedSize, 24);
-  central.writeUInt16LE(name.length, 28);
-  const body = Buffer.concat([local, name, compressed]);
-  const directory = Buffer.concat([central, name]);
+/** One deflated entry of a hand built archive, with the size it states. */
+type Deflated = {
+  readonly path: string;
+  readonly content: Buffer;
+  readonly statedSize: number;
+};
+
+/** An archive of deflated entries that state the given sizes. */
+function deflatedArchive(entries: readonly Deflated[]): Buffer {
+  const bodies: Buffer[] = [];
+  const directory: Buffer[] = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.path);
+    const compressed = deflateRawSync(entry.content);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x0403_4b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(entry.statedSize, 22);
+    local.writeUInt16LE(name.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x0201_4b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(entry.statedSize, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    const body = Buffer.concat([local, name, compressed]);
+    bodies.push(body);
+    directory.push(Buffer.concat([central, name]));
+    offset += body.length;
+  }
+  const central = Buffer.concat(directory);
   const end = Buffer.alloc(22);
   end.writeUInt32LE(0x0605_4b50, 0);
-  end.writeUInt16LE(1, 8);
-  end.writeUInt16LE(1, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(body.length, 16);
-  return Buffer.concat([body, directory, end]);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...bodies, central, end]);
 }
 
 /** The ZIP64 records of an archive that states `count` files. */
@@ -94,7 +115,10 @@ await test('an exported tree imports with the same paths and bytes', async () =>
   }
   const archive = await readStream(zipArchive(entries()));
   assert.deepEqual(
-    unzipArchive(archive).map((entry) => [entry.path, [...entry.bytes]]),
+    (await unzipArchive(archive)).map((entry) => [
+      entry.path,
+      [...entry.bytes],
+    ]),
     [
       ['folder/note.md', [...Buffer.from('[x](../x.md)')]],
       ['attachments/pixel.png', [1, 2, 3]],
@@ -111,7 +135,7 @@ await test('an archive path cannot leave the workspace tree', async () => {
     };
   }
   const archive = await readStream(zipArchive(entries()));
-  assert.equal(refusalOf(archive), 'archive_invalid');
+  assert.equal(await refusalOf(archive), 'archive_invalid');
 });
 
 await test('an export of more than 1000 files imports whole', async () => {
@@ -126,44 +150,80 @@ await test('an export of more than 1000 files imports whole', async () => {
         modified: new Date(0),
       };
   }
-  const read = unzipArchive(await readStream(zipArchive(entries())));
+  const read = await unzipArchive(await readStream(zipArchive(entries())));
   assert.equal(read.length, count);
   assert.equal(read.at(-1)?.path, `notes/${String(count - 1)}.md`);
 });
 
-await test('an archive past the bound names its count as the cause', () => {
+await test('the directory is read and checked before any entry expands', async () => {
+  // The import checks every path and size of an archive in a file before it
+  // writes one file of it, and expands one entry at a time.
+  const content = Buffer.from('# One\n');
+  const archive = deflatedArchive([
+    { path: 'a/one.md', content, statedSize: content.length },
+    { path: 'a/two.md', content, statedSize: content.length },
+  ]);
+  const source = bufferSource(archive);
+  const entries = await readArchiveDirectory(source);
+  assert.deepEqual(
+    entries.map((entry) => [entry.path, entry.size]),
+    [
+      ['a/one.md', content.length],
+      ['a/two.md', content.length],
+    ],
+  );
+  const second = entries[1];
+  assert.ok(second !== undefined);
+  assert.deepEqual(await readArchiveEntry(source, second), content);
+});
+
+await test('an archive past the bound names its count as the cause', async () => {
   assert.equal(
-    refusalOf(zip64Archive(maxArchiveEntries + 1)),
+    await refusalOf(zip64Archive(maxArchiveEntries + 1)),
     'archive_too_many_files',
   );
   // A ZIP64 archive inside the bound is still a format that is not read.
-  assert.equal(refusalOf(zip64Archive(10)), 'archive_invalid');
+  assert.equal(await refusalOf(zip64Archive(10)), 'archive_invalid');
 });
 
-await test('an entry that expands past its stated size is refused as it expands', () => {
+await test('an entry that expands past its stated size is refused as it expands', async () => {
   const content = Buffer.alloc(4 * 1024 * 1024, 0x61);
-  assert.equal(refusalOf(deflatedArchive(content, 16)), 'archive_invalid');
-  assert.deepEqual(
-    unzipArchive(deflatedArchive(content, content.length)).map(
-      (entry) => entry.bytes.length,
+  assert.equal(
+    await refusalOf(
+      deflatedArchive([{ path: 'notes/big.md', content, statedSize: 16 }]),
     ),
+    'archive_invalid',
+  );
+  assert.deepEqual(
+    (
+      await unzipArchive(
+        deflatedArchive([
+          { path: 'notes/big.md', content, statedSize: content.length },
+        ]),
+      )
+    ).map((entry) => entry.bytes.length),
     [content.length],
   );
 });
 
-await test('stated sizes past the bound are refused before any entry expands', () => {
+await test('stated sizes past the bound are refused before any entry expands', async () => {
+  const content = Buffer.from('small');
+  const half = Math.ceil(maxArchiveBytes / 2) + 1;
   assert.equal(
-    refusalOf(
-      deflatedArchive(Buffer.from('small'), maxArchiveExpandedBytes + 1),
+    await refusalOf(
+      deflatedArchive([
+        { path: 'a.md', content, statedSize: half },
+        { path: 'b.md', content, statedSize: half },
+      ]),
     ),
     'archive_too_large',
   );
 });
 
-await test('a file that is not a zip archive is named as one', () => {
+await test('a file that is not a zip archive is named as one', async () => {
   assert.equal(
-    refusalOf(Buffer.from('plain text, not an archive at all')),
+    await refusalOf(Buffer.from('plain text, not an archive at all')),
     'archive_invalid',
   );
-  assert.equal(refusalOf(Buffer.alloc(4)), 'archive_invalid');
+  assert.equal(await refusalOf(Buffer.alloc(4)), 'archive_invalid');
 });

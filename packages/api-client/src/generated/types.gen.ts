@@ -6077,6 +6077,10 @@ export type ExportWorkspaceErrors = {
      */
     404: ProblemDetails;
     /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     */
+    422: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import test from 'node:test';
 import { crc32 } from 'node:zlib';
+import { maxArchiveEntries } from '@notesapp/core';
+import { ExportTooLargeError } from '../plugins/problem.ts';
 import { zipArchive, type ZipEntry } from './zip.ts';
 
 /** Turns a list of entries into the archive bytes. */
@@ -107,4 +109,20 @@ await test('the recorded time comes from the entry', async () => {
   assert.equal(date & 0x1f, 7);
   assert.equal(time >> 11, 10);
   assert.equal((time >> 5) & 0x3f, 4);
+});
+
+await test('a workspace past the bound is refused with an answer of its own', async () => {
+  // Issue 243. The writer refused with a bare error in the middle of the
+  // stream, so the download stopped and the person read nothing.
+  const entries = Array.from({ length: maxArchiveEntries + 1 }, (_, index) => ({
+    path: `n/${String(index)}.md`,
+    bytes: Buffer.alloc(0),
+    modified: new Date(0),
+  }));
+  await assert.rejects(
+    archive(entries),
+    (error: unknown) =>
+      error instanceof ExportTooLargeError &&
+      error.message.includes(`${String(maxArchiveEntries)} files at the most`),
+  );
 });

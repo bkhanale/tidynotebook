@@ -15,7 +15,13 @@
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
 import { crc32 } from 'node:zlib';
-import { maxArchiveEntries } from '@notesapp/core';
+import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';
+import { ExportTooLargeError } from '../plugins/problem.ts';
+
+/** The sentence of the byte bound of one archive. */
+function megabytes(): string {
+  return `One zip archive holds ${String(Math.floor(maxArchiveBytes / (1024 * 1024)))} MiB at the most.`;
+}
 
 /** One stored file of the archive. */
 export type ZipEntry = {
@@ -27,13 +33,17 @@ export type ZipEntry = {
 };
 
 /**
- * How many bytes the original format can address.
+ * The refusal of an archive past a bound of the format.
  *
- * The most entries is `maxArchiveEntries` of `@notesapp/core`, which the
- * import reader reads too, so an archive that this writer writes is an
- * archive that an import takes (issue 243).
+ * The bounds are `maxArchiveEntries` and `maxArchiveBytes` of
+ * `@notesapp/core`, which the import reader reads too, so an archive that this
+ * writer writes is an archive that an import takes (issue 243).
  */
-const maxBytes = 0xffff_ffff;
+function tooLarge(detail: string): ExportTooLargeError {
+  return new ExportTooLargeError(
+    `${detail} Move some notes to another workspace, then export each workspace.`,
+  );
+}
 
 /** Stored, not deflated. The reader needs no compressor for such an entry. */
 const stored = 0;
@@ -125,9 +135,11 @@ async function* archiveChunks(
     const stamp = dosStamp(entry.modified);
     const header = localHeader(name, checksum, entry.bytes.length, stamp);
     if (directory.length === maxArchiveEntries)
-      throw new Error('notesapp: the export holds too many files.');
-    if (offset + header.length + entry.bytes.length > maxBytes)
-      throw new Error('notesapp: the export is too large for the format.');
+      throw tooLarge(
+        `One zip archive holds ${String(maxArchiveEntries)} files at the most.`,
+      );
+    if (offset + header.length + entry.bytes.length > maxArchiveBytes)
+      throw tooLarge(megabytes());
     yield header;
     yield entry.bytes;
     directory.push(
@@ -136,6 +148,8 @@ async function* archiveChunks(
     offset += header.length + entry.bytes.length;
   }
   const central = Buffer.concat(directory);
+  if (offset + central.length + 22 > maxArchiveBytes)
+    throw tooLarge(megabytes());
   yield central;
   yield endRecord(directory.length, central.length, offset);
 }

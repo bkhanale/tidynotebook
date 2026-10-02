@@ -453,6 +453,12 @@ arriving is not refused, because the gap is what this value measures. It must be
 shorter than `NOTESAPP_REQUEST_TIMEOUT_MS`. The server refuses to start when it
 is not, and it names both values. `.env.example` holds both.
 
+An import takes a zip file of up to 4 GiB, and the whole file must arrive within
+`NOTESAPP_REQUEST_TIMEOUT_MS`. To import a large workspace over a slow link,
+raise the value for the time of the import. An export and an import each keep
+their zip file on the storage volume while they run, so leave room there for
+the largest workspace. The file goes when the request ends.
+
 ## Live updates
 
 Each browser holds one WebSocket connection to the server. When another device

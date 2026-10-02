@@ -22,6 +22,7 @@ import {
   legalDocumentNames,
   mailSecurities,
   readMailSettings,
+  maxArchiveBytes,
   maxLegalTextBytes,
   templateBlanks,
   type LegalDocumentName,
@@ -416,8 +417,13 @@ export const mebibyte = 1024 * 1024;
 /** The largest attachment file of one upload. */
 const attachmentBytes = 20 * mebibyte;
 
-/** The largest workspace archive of one import. */
-const archiveBytes = 100 * mebibyte;
+/**
+ * The largest workspace archive of one import.
+ *
+ * It is `maxArchiveBytes` of `@notesapp/core`, the bound that the export
+ * writer reads too, so every archive of an export comes back (issue 243).
+ */
+const archiveBytes = maxArchiveBytes;
 
 /**
  * The room that a multipart body takes around its one file.

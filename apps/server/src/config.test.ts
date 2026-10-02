@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { maxArchiveBytes } from '@notesapp/core';
 import {
   ConfigError,
   loadLegalTexts,
@@ -54,7 +55,8 @@ await test('every body limit is one field of the limits', () => {
   // each body bound holds its file bound and the room of the form around it.
   const { limits } = loadServerConfig(valid);
   assert.equal(limits.attachmentBytes, 20 * mebibyte);
-  assert.equal(limits.archiveBytes, 100 * mebibyte);
+  // The import takes every archive that an export writes (issue 243).
+  assert.equal(limits.archiveBytes, maxArchiveBytes);
   assert.ok(limits.uploadBodyBytes > limits.attachmentBytes);
   assert.ok(limits.importBodyBytes > limits.archiveBytes);
   assert.equal(

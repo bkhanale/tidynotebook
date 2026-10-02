@@ -7,9 +7,10 @@
  * their folders plus every live image file. Nothing in an
  * archive needs this application to be read again.
  *
- * The archive is produced as a stream. One note or one image is held in
- * memory at a time, and the listing is paged, so an export of many notes does
- * not build the whole answer first.
+ * The archive is produced as a stream into a file of the server. One note or
+ * one image is held in memory at a time, and the listing is paged, so an
+ * export of many notes does not build the whole answer in memory. The file is
+ * sent once it is whole, so a refusal is an answer and never a broken file.
  */
 import { Buffer } from 'node:buffer';
 import type { Readable } from 'node:stream';
@@ -26,6 +27,11 @@ import {
   downloadName,
 } from '../plugins/content-disposition.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import {
+  openArchiveFile,
+  readArchiveFile,
+  writeArchiveFile,
+} from './archive-file.ts';
 import { zipArchive, type ZipEntry } from './zip.ts';
 
 /** Media type of one exported note. */
@@ -152,12 +158,28 @@ export function createExportHandlers(
       };
     },
 
-    exportWorkspace: (request): Promise<HandlerResult> => {
+    exportWorkspace: async (request): Promise<HandlerResult> => {
       const workspaceId = readText(request.params, 'workspaceId');
-      return Promise.resolve({
+      // The whole archive is written before the answer, so a workspace past
+      // a bound of the format is refused with an answer of its own instead of
+      // a download that stops in the middle, and the answer states its length
+      // (issue 243).
+      const handle = await openArchiveFile(attachments, 'export');
+      let size: number;
+      try {
+        size = await writeArchiveFile(
+          handle,
+          zipArchive(archiveEntries(request, workspaceId)),
+        );
+      } catch (error) {
+        await handle.close();
+        throw error;
+      }
+      return {
         status: 200,
         mediaType: archiveMediaType,
-        body: zipArchive(archiveEntries(request, workspaceId)),
+        // The stream closes the file when it ends or when the caller leaves.
+        body: readArchiveFile(handle, size),
         headers: [
           [
             'content-disposition',
@@ -167,11 +189,10 @@ export function createExportHandlers(
               fallback: archiveName,
             }),
           ],
-          // The archive is produced while it is sent, so its length is not
-          // known when the headers leave.
+          ['content-length', String(size)],
           ['cache-control', 'no-store'],
         ],
-      });
+      };
     },
   };
 }

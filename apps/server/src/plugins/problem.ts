@@ -40,6 +40,7 @@ export type ProblemCode =
   | 'archive_invalid'
   | 'archive_too_many_files'
   | 'archive_too_large'
+  | 'export_too_large'
   | 'too_many_files'
   | 'unrenderable_note'
   | 'epoch_mismatch'
@@ -134,6 +135,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
     'The archive holds more files than one import can take.',
   archive_too_large:
     'The files of the archive are larger than one import can take.',
+  export_too_large: 'The workspace holds more than one zip archive can take.',
   too_many_files: 'The change rewrites more files than one request may hold.',
   unrenderable_note: 'The note cannot be read as Markdown.',
   quota_exceeded: 'The account has no room left for new content.',
@@ -313,6 +315,19 @@ export class ArchiveRefusedError extends Error {
     super(detail);
     this.name = 'ArchiveRefusedError';
     this.refusal = refusal;
+  }
+}
+
+/**
+ * A workspace that one export archive cannot hold (issue 243).
+ *
+ * The export writes the whole archive before it answers, so this refusal is
+ * an answer of its own and never a download that stops in the middle.
+ */
+export class ExportTooLargeError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = 'ExportTooLargeError';
   }
 }
 
@@ -755,6 +770,13 @@ export function classifyError(error: unknown): {
     return {
       status: 408,
       code: 'request_timeout',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof ExportTooLargeError)
+    return {
+      status: 422,
+      code: 'export_too_large',
       detail: error.message,
       issues: [],
     };

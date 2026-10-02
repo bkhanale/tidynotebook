@@ -2,11 +2,15 @@ get:
   operationId: exportWorkspace
   summary: Download every live note and image as a zip archive.
   description: >-
-    Streams a zip archive that holds every live note of the workspace as a
+    Answers a zip archive that holds every live note of the workspace as a
     Markdown file at its stored path, plus every live image at its stored
     path. A deleted file is not in the
     archive. Nothing in the archive needs this application to be read
-    again, so it is also the cheapest disaster recovery.
+    again, so it is also the cheapest disaster recovery. The server writes
+    the whole archive before it answers, so the answer states its length.
+    A workspace of more files or bytes than one zip archive holds without
+    ZIP64 answers 422 with the code export_too_large. Every archive that
+    this operation answers is an archive that importWorkspace takes.
   tags:
     - files
   parameters:
@@ -23,5 +27,7 @@ get:
       $ref: '../components/responses/Forbidden.yaml'
     '404':
       $ref: '../components/responses/NotFound.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   downloadName,
+  downloadRefusalMessage,
   importRefusalMessage,
   transferFailureMessage,
 } from './export.ts';
@@ -41,7 +42,7 @@ await test('each refusal of an import names its cause and the next step', () => 
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_too_large' }),
-    'The files in the zip file are larger than 100 MiB. Put the files in smaller zip files and import each one.',
+    'A file in the zip file is larger than NotesApp can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.',
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_invalid' }),
@@ -89,5 +90,16 @@ await test('a screen shows the sentence of a refused transfer', () => {
   assert.equal(
     transferFailureMessage({ code: 'internal_error' }),
     'The request did not finish. Try again.',
+  );
+});
+
+await test('an export past the bounds of one zip file says what to do', () => {
+  assert.equal(
+    downloadRefusalMessage({ code: 'export_too_large' }),
+    'This workspace holds more than one zip file can take: 65535 files or 4095 MiB. Move some notes to another workspace, then export each workspace.',
+  );
+  assert.equal(
+    downloadRefusalMessage({ code: 'internal_error' }),
+    'The download did not start. Try again.',
   );
 });

@@ -20,7 +20,7 @@ import {
   useDocumentHeaders,
 } from './support/documents.ts';
 import { Buffer } from 'node:buffer';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -593,6 +593,93 @@ await test('an export of more than 1000 notes imports back whole', async () => {
     roundTrip.get(`folder-3/note-${String(count - 7)}.md`)?.toString('utf8'),
     `# Note ${String(count - 7)}\n`,
   );
+});
+
+await test('an export of more than 100 MiB imports back whole', async () => {
+  // Issue 243. The import took 100 MiB at the most, while the export wrote
+  // up to the bound of the format, so a workspace of many images could not
+  // come back through its own export. Both read one bound now.
+  const source = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Large images' },
+  });
+  const sourceId = source.data?.workspaceId ?? '';
+  assert.match(sourceId, /^[0-9a-f-]{36}$/);
+  const side = 2200;
+  const images = 6;
+  let imageBytes = 0;
+  for (let index = 0; index < images; index += 1) {
+    // Noise does not compress, so each image keeps about 18 MiB.
+    const png = await sharp(randomBytes(side * side * 4), {
+      raw: { width: side, height: side, channels: 4 },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    imageBytes += png.length;
+    const uploaded = await uploadAttachment({
+      headers: browser(cookie),
+      path: { workspaceId: sourceId },
+      body: {
+        file: new File([png], `noise-${String(index)}.png`, {
+          type: 'image/png',
+        }),
+      },
+    });
+    assert.ok(uploaded.data, JSON.stringify(uploaded.error));
+    const finalized = await finalizeAttachment({
+      headers: browser(cookie),
+      path: { workspaceId: sourceId, objectId: uploaded.data.objectId },
+      body: {
+        fileId: randomUUID(),
+        revisionId: randomUUID(),
+        path: `attachments/noise-${String(index)}.png`,
+        digest: uploaded.data.digest,
+        mutationId: randomUUID(),
+        deviceId: 'integration-device',
+      },
+    });
+    assert.equal(responseOf(finalized.response).status, 200);
+  }
+  assert.ok(imageBytes > 100 * 1024 * 1024, 'the images pass the old bound');
+  const exported = await exportWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: sourceId },
+  });
+  const archive = await archiveBytes(exported.data);
+  // The whole archive is written before the answer, so it states its length.
+  assert.equal(
+    Number(responseOf(exported.response).headers.get('content-length')),
+    archive.length,
+  );
+  const entries = readArchive(archive);
+  assert.equal(entries.size, images);
+
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Large images back' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File([archive], 'notes.zip', { type: 'application/zip' }),
+    },
+  });
+  assert.equal(imported.error, undefined, JSON.stringify(imported.error));
+  assert.deepEqual(imported.data, { notes: 0, attachments: images });
+  const back = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  for (const [path, bytes] of entries)
+    assert.equal(Buffer.compare(back.get(path) ?? Buffer.alloc(0), bytes), 0);
 });
 
 /** The ZIP64 end records of an archive that states `files` files. */

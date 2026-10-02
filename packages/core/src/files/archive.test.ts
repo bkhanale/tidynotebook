@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  archiveBytesAllowed,
   archiveEntriesAllowed,
+  maxArchiveBytes,
   maxArchiveEntries,
-  maxArchiveExpandedBytes,
 } from './archive.ts';
 import { maxFilesPerChangeset } from './commit.ts';
 
@@ -16,14 +17,19 @@ await test('an archive takes every count that the zip format counts', () => {
   assert.equal(archiveEntriesAllowed(maxArchiveEntries), true);
 });
 
-await test('an archive past the bound is refused', () => {
+await test('an archive takes every size that the zip format addresses', () => {
+  // The format addresses bytes in 32 bits. The import bound was 100 MiB,
+  // so an export of more bytes could not come back (issue 243).
+  assert.equal(maxArchiveBytes, 2 ** 32 - 1);
+  assert.equal(archiveBytesAllowed(100 * 1024 * 1024 + 1), true);
+  assert.equal(archiveBytesAllowed(maxArchiveBytes), true);
+});
+
+await test('an archive past a bound is refused', () => {
   assert.equal(archiveEntriesAllowed(maxArchiveEntries + 1), false);
   assert.equal(archiveEntriesAllowed(-1), false);
   assert.equal(archiveEntriesAllowed(1.5), false);
   assert.equal(archiveEntriesAllowed(Number.NaN), false);
-});
-
-await test('the expanded bound is a whole number of mebibytes', () => {
-  assert.equal(maxArchiveExpandedBytes % (1024 * 1024), 0);
-  assert.ok(maxArchiveExpandedBytes > 0);
+  assert.equal(archiveBytesAllowed(maxArchiveBytes + 1), false);
+  assert.equal(archiveBytesAllowed(-1), false);
 });

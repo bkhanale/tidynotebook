@@ -4,27 +4,29 @@
  * Export writes the live files of a workspace as one zip archive, and import
  * reads such an archive back. Both read the bounds here, so an archive that
  * an export writes is always an archive that an import takes (issue 243).
+ *
+ * The bounds are the bounds of the zip format without its ZIP64 extension,
+ * which counts files in 16 bits and bytes in 32 bits. Export refuses a
+ * workspace past them before it sends a byte, and import takes every archive
+ * up to them. Import keeps the archive in a file of the server and reads one
+ * entry at a time, so the bounds hold the disk of the server, and the memory
+ * of one import is one entry or one batch of notes.
  */
 
-/**
- * The most files that one workspace archive holds.
- *
- * It is the bound of the zip format without its ZIP64 extension, which
- * counts the files of an archive in 16 bits. Export writes no more, and
- * import takes every archive up to it. An archive past it needs ZIP64, which
- * import does not read, so import refuses it by this bound and names it.
- */
+/** The most files that one workspace archive holds. */
 export const maxArchiveEntries = 0xffff;
 
 /**
- * The most bytes that the files of one imported archive hold together.
+ * The most bytes of one workspace archive, and of the files that it holds
+ * together.
  *
- * An entry states its own size, and import refuses an archive whose stated
- * sizes pass this bound before it expands one entry. An entry that expands
- * past its stated size is refused as it expands, so a small archive cannot
- * fill the memory of the server.
+ * An export stores each file as it is, so the files of an archive that it
+ * writes are never larger than the archive. An entry of another writer
+ * states its own size, and import refuses an archive whose stated sizes pass
+ * this bound before it expands one entry. An entry that expands past its
+ * stated size is refused as it expands.
  */
-export const maxArchiveExpandedBytes = 100 * 1024 * 1024;
+export const maxArchiveBytes = 0xffff_ffff;
 
 /** Whether one archive of `entries` files is inside the bound. */
 export function archiveEntriesAllowed(entries: number): boolean {
@@ -33,4 +35,9 @@ export function archiveEntriesAllowed(entries: number): boolean {
     entries >= 0 &&
     entries <= maxArchiveEntries
   );
+}
+
+/** Whether `bytes` of an archive, or of its files, are inside the bound. */
+export function archiveBytesAllowed(bytes: number): boolean {
+  return Number.isSafeInteger(bytes) && bytes >= 0 && bytes <= maxArchiveBytes;
 }
