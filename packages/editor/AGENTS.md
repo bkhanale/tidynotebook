@@ -88,6 +88,7 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/widgets.ts`          | The three allowed block widgets              |
 | `src/editor-theme.ts`     | The typed CodeMirror presentation adapter    |
 | `src/keymaps.ts`          | Keymaps and the public `shortcuts` list      |
+| `src/fence-close.ts`      | Enter writes the closer of a typed fence     |
 | `src/document-binding.ts` | Binds a live note document to a view (0082)  |
 | `src/table-grid.ts`       | A table as a grid over its text (0095)       |
 | `src/table-controls.ts`   | The grips and add bars of a table (0147)     |

@@ -16,7 +16,9 @@
  *   outside a list item: keyboard users can still leave the editor.
  * - Nothing here reads the syntax tree. Line shapes are read with small
  *   anchored expressions, so the commands stay independent of the live
- *   preview and of the parser configuration.
+ *   preview and of the parser configuration. A command that needs the block
+ *   a line belongs to, as a table command and the closer of a fence do, lives
+ *   in its own module and reads the tree there.
  */
 import { indentUnit } from '@codemirror/language';
 import {
@@ -57,6 +59,7 @@ import {
   type TableEdit,
 } from './table-grid.ts';
 import type { FormatContext } from './format-context.ts';
+import { closeFenceSpec } from './fence-close.ts';
 import { parseListLine, type ListLine } from './list-line.ts';
 import {
   inMovableListItem,
@@ -994,8 +997,19 @@ export const outdentListItem = dispatching(outdentListSpec);
 /** Writes a new line inside the item or the quote on Shift and Enter. */
 export const insertLineBreak = dispatching(lineBreakSpec);
 
-/** Continues a list item or a block quote on Enter. */
-export const continueBlock = dispatching(continueBlockSpec);
+/**
+ * The transaction of Enter outside a table.
+ *
+ * A fence or a display math block that Enter opens gets its closer first, so
+ * a fence typed in a list item stays a fence and the lines below it do not
+ * become code. Otherwise Enter continues or ends a list item or a quote.
+ */
+export function enterSpec(state: EditorState): TransactionSpec | null {
+  return closeFenceSpec(state) ?? continueBlockSpec(state);
+}
+
+/** Runs Enter outside a table. */
+export const enterBlock = dispatching(enterSpec);
 
 /** Sets or clears one heading level on the selected lines. */
 export function setHeadingLevel(level: number): Command {
@@ -1474,7 +1488,7 @@ export const formattingKeymap: readonly KeyBinding[] = [
     run: either(nextTableCell, indentListItem),
     shift: either(previousTableCell, outdentListItem),
   },
-  { key: 'Enter', run: either(tableCellBelow, continueBlock) },
+  { key: 'Enter', run: either(tableCellBelow, enterBlock) },
   { key: 'Shift-Enter', run: either(tableCellAbove, insertLineBreak) },
   { key: 'ArrowDown', run: leaveTableBelow },
 ];

@@ -34,6 +34,7 @@ import {
 } from './table-grid.ts';
 import {
   continueBlockSpec,
+  enterSpec,
   formatActionApplies,
   formatActionOf,
   formatActions,
@@ -429,6 +430,13 @@ await test('Enter inside a code fence keeps the fence and adds no marker', () =>
   assert.equal(continueBlockSpec(state), null);
   assert.ok(insideCodeFence(state, 2));
   assert.ok(!insideCodeFence(state, 4));
+});
+
+await test('Enter closes a typed fence before it continues a list', () => {
+  const state = stateOf('- ```js‸');
+  assert.equal(applied(state, enterSpec(state)), '- ```js\n  ‸\n  ```');
+  const item = stateOf('- one‸');
+  assert.equal(applied(item, enterSpec(item)), '- one\n- ‸');
 });
 
 await test('Enter inside display math adds no marker', () => {

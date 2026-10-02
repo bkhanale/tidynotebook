@@ -97,6 +97,12 @@ a new paragraph in every Markdown tool. On an empty item inside another item,
 Enter moves the item out by one level. Enter on an empty line of a quote ends
 the quote in the same way.
 
+Type three backticks or three tildes, with a language if you want one, and
+press Enter. The editor writes the closing fence and puts your cursor on the
+empty line between the two fences. A `$$` line and Enter do the same for a
+formula. When the fence already has a closing fence below it, Enter only
+starts a new line inside the block.
+
 Other Markdown tools can join two lines of one paragraph into one line. Put a
 blank line between the two lines if they must stay apart in those tools too.
 
