@@ -62,7 +62,10 @@ await test('each glyph of plain DOM draws the parts of its icon', async () => {
     assert.notEqual(start, -1, name);
     const source = icons.slice(start, icons.indexOf('\n}\n', start));
     for (const part of parts)
-      assert.ok(source.includes(partSource(part)), `${name}: ${partSource(part)}`);
+      assert.ok(
+        source.includes(partSource(part)),
+        `${name}: ${partSource(part)}`,
+      );
     assert.equal(source.split('/>').length - 1, parts.length, name);
   }
 });

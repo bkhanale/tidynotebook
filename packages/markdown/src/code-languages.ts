@@ -41,9 +41,7 @@ export type CodeLanguage = {
 };
 
 /** A language over one stream mode of `@codemirror/legacy-modes`. */
-async function stream(
-  mode: Promise<StreamParser<unknown>>,
-): Promise<Language> {
+async function stream(mode: Promise<StreamParser<unknown>>): Promise<Language> {
   const [{ StreamLanguage }, parser] = await Promise.all([
     import('@codemirror/language'),
     mode,
@@ -178,17 +176,10 @@ export const codeLanguages: readonly CodeLanguage[] = [
     ['cpp', 'cxx', 'cc', 'hpp', 'hxx'],
     async () => (await import('@codemirror/lang-cpp')).cppLanguage,
   ),
-  entry(
-    'csharp',
-    'C#',
-    ['cs', 'c#'],
-    ['cs'],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/clike').then(
-          (mode) => mode.csharp,
-        ),
-      ),
+  entry('csharp', 'C#', ['cs', 'c#'], ['cs'], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/clike').then((mode) => mode.csharp),
+    ),
   ),
   // A PHP file is a page with PHP inside it, so the language reads the page
   // as HTML around each `<?php` block, as the PHP language of CodeMirror does.
@@ -206,71 +197,37 @@ export const codeLanguages: readonly CodeLanguage[] = [
     ['xml', 'svg', 'xsd', 'xsl'],
     async () => (await import('@codemirror/lang-xml')).xmlLanguage,
   ),
-  entry(
-    'dockerfile',
-    'Dockerfile',
-    ['docker', 'containerfile'],
-    [],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/dockerfile').then(
-          (mode) => mode.dockerFile,
-        ),
+  entry('dockerfile', 'Dockerfile', ['docker', 'containerfile'], [], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/dockerfile').then(
+        (mode) => mode.dockerFile,
       ),
+    ),
   ),
-  entry(
-    'kotlin',
-    'Kotlin',
-    ['kt', 'kts'],
-    ['kt', 'kts'],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/clike').then(
-          (mode) => mode.kotlin,
-        ),
-      ),
+  entry('kotlin', 'Kotlin', ['kt', 'kts'], ['kt', 'kts'], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/clike').then((mode) => mode.kotlin),
+    ),
   ),
-  entry(
-    'swift',
-    'Swift',
-    [],
-    ['swift'],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/swift').then(
-          (mode) => mode.swift,
-        ),
-      ),
+  entry('swift', 'Swift', [], ['swift'], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/swift').then((mode) => mode.swift),
+    ),
   ),
-  entry(
-    'ruby',
-    'Ruby',
-    ['rb'],
-    ['rb'],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/ruby').then((mode) => mode.ruby),
-      ),
+  entry('ruby', 'Ruby', ['rb'], ['rb'], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/ruby').then((mode) => mode.ruby),
+    ),
   ),
-  entry(
-    'toml',
-    'TOML',
-    [],
-    ['toml'],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/toml').then((mode) => mode.toml),
-      ),
+  entry('toml', 'TOML', [], ['toml'], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/toml').then((mode) => mode.toml),
+    ),
   ),
-  entry(
-    'diff',
-    'Diff',
-    ['patch'],
-    ['diff', 'patch'],
-    () =>
-      stream(
-        import('@codemirror/legacy-modes/mode/diff').then((mode) => mode.diff),
-      ),
+  entry('diff', 'Diff', ['patch'], ['diff', 'patch'], () =>
+    stream(
+      import('@codemirror/legacy-modes/mode/diff').then((mode) => mode.diff),
+    ),
   ),
 ];
 

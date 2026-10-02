@@ -70,10 +70,7 @@ export function archiveLinks(
   }
   return {
     moved,
-    resolve: wikiLinkResolver([
-      ...notes,
-      ...pictures.map(importedPicturePath),
-    ]),
+    resolve: wikiLinkResolver([...notes, ...pictures.map(importedPicturePath)]),
   };
 }
 

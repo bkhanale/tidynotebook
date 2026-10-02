@@ -32,7 +32,9 @@ const sharedAttributes: readonly (readonly [
 ];
 
 /** The attributes of one part, as SVG writes them. */
-function partAttributes(part: GlyphPart): readonly (readonly [string, string])[] {
+function partAttributes(
+  part: GlyphPart,
+): readonly (readonly [string, string])[] {
   switch (part.kind) {
     case 'path':
       return [['d', part.d]];

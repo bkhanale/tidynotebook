@@ -29,4 +29,5 @@ export function copiedCode(text: string): string {
  * The classes of the copy control of a published block, at the end of the
  * bar at the top of the card. The label stands at the start of the bar.
  */
-export const publishedCopyPlace = 'absolute right-1 top-0 md:right-2 md:top-1.5';
+export const publishedCopyPlace =
+  'absolute right-1 top-0 md:right-2 md:top-1.5';

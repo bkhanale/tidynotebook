@@ -11,7 +11,13 @@
 export type GlyphPart =
   | { readonly kind: 'path'; readonly d: string }
   | { readonly kind: 'polyline'; readonly points: string }
-  | { readonly kind: 'line'; readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number }
+  | {
+      readonly kind: 'line';
+      readonly x1: number;
+      readonly y1: number;
+      readonly x2: number;
+      readonly y2: number;
+    }
   | {
       readonly kind: 'rect';
       readonly x: number;
@@ -52,7 +58,10 @@ export const plusParts: readonly GlyphPart[] = [
 /** The glyph of `CopyIcon`. */
 export const copyParts: readonly GlyphPart[] = [
   { kind: 'rect', x: 9, y: 9, width: 13, height: 13, rx: 2 },
-  { kind: 'path', d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' },
+  {
+    kind: 'path',
+    d: 'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
+  },
 ];
 
 /** The glyph of `CheckIcon`. */

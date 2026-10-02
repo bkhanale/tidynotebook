@@ -133,7 +133,9 @@ export function FormatToolbar({
   const scrollRow = (direction: 1 | -1): void => {
     const row = rowRef.current;
     if (row === null) return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
     row.scrollBy({
       left: direction * row.clientWidth * 0.8,
       behavior: reduced ? 'auto' : 'smooth',
@@ -143,7 +145,9 @@ export function FormatToolbar({
   let place = 0;
   return (
     <div className={formatToolbarFrameClassName()}>
-      <div className={`${formatToolbarColumnClassName()} ${formatToolbarBandClassName()}`}>
+      <div
+        className={`${formatToolbarColumnClassName()} ${formatToolbarBandClassName()}`}
+      >
         {overflow.start ? (
           <Button
             variant="ghost"
@@ -158,69 +162,72 @@ export function FormatToolbar({
           />
         ) : null}
         <div className={formatToolbarRowSlotClassName()}>
-        <div
-          ref={rowRef}
-          role="toolbar"
-          aria-label={formatToolbarLabel}
-          aria-orientation="horizontal"
-          className={formatToolbarClassName()}
-          onFocus={(event): void => {
-            // React types the target of a focus event as the row itself, but
-            // a focus event bubbles up from the tool that took the focus.
-            const focused: EventTarget = event.target;
-            const all = Array.from(
-              rowRef.current?.querySelectorAll('button') ?? [],
-            );
-            const at = all.findIndex((tool) => tool === focused);
-            if (at !== -1) setStop(at);
-          }}
-          onBlur={(event): void => {
-            const next = event.relatedTarget;
-            if (next instanceof Node && rowRef.current?.contains(next) === true)
-              return;
-            setStop(firstEnabled);
-          }}
-          onKeyDown={(event): void => {
-            const all = tools();
-            const at = all.findIndex((tool) => tool === event.target);
-            if (at === -1) return;
-            const target = toolbarFocusTarget(event.key, at, all.length);
-            if (target === null) return;
-            event.preventDefault();
-            // A browser scrolls a tool that takes the focus only when the tool
-            // is out of view, and a tool at the edge of a phone is half in
-            // view, so the row brings the whole tool into view itself.
-            const next = all[target];
-            next?.focus();
-            next?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-          }}
-        >
-          {groups.map((group) => (
-            <div
-              key={group.map((tool) => tool.id).join(' ')}
-              className={formatToolGroupClassName()}
-            >
-              {group.map((tool) => {
-                const at = place;
-                place += 1;
-                return (
-                  <Button
-                    key={tool.id}
-                    variant="ghost"
-                    size="sm"
-                    compact
-                    label={formatActionOf(tool.id).label}
-                    title={titleOf(tool.id)}
-                    icon={actionIcon(tool.icon)}
-                    tabIndex={at === tabStop ? 0 : -1}
-                    disabled={enabled[at] !== true}
-                    onClick={() => onFormat(tool.id)}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+          <div
+            ref={rowRef}
+            role="toolbar"
+            aria-label={formatToolbarLabel}
+            aria-orientation="horizontal"
+            className={formatToolbarClassName()}
+            onFocus={(event): void => {
+              // React types the target of a focus event as the row itself, but
+              // a focus event bubbles up from the tool that took the focus.
+              const focused: EventTarget = event.target;
+              const all = Array.from(
+                rowRef.current?.querySelectorAll('button') ?? [],
+              );
+              const at = all.findIndex((tool) => tool === focused);
+              if (at !== -1) setStop(at);
+            }}
+            onBlur={(event): void => {
+              const next = event.relatedTarget;
+              if (
+                next instanceof Node &&
+                rowRef.current?.contains(next) === true
+              )
+                return;
+              setStop(firstEnabled);
+            }}
+            onKeyDown={(event): void => {
+              const all = tools();
+              const at = all.findIndex((tool) => tool === event.target);
+              if (at === -1) return;
+              const target = toolbarFocusTarget(event.key, at, all.length);
+              if (target === null) return;
+              event.preventDefault();
+              // A browser scrolls a tool that takes the focus only when the tool
+              // is out of view, and a tool at the edge of a phone is half in
+              // view, so the row brings the whole tool into view itself.
+              const next = all[target];
+              next?.focus();
+              next?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }}
+          >
+            {groups.map((group) => (
+              <div
+                key={group.map((tool) => tool.id).join(' ')}
+                className={formatToolGroupClassName()}
+              >
+                {group.map((tool) => {
+                  const at = place;
+                  place += 1;
+                  return (
+                    <Button
+                      key={tool.id}
+                      variant="ghost"
+                      size="sm"
+                      compact
+                      label={formatActionOf(tool.id).label}
+                      title={titleOf(tool.id)}
+                      icon={actionIcon(tool.icon)}
+                      tabIndex={at === tabStop ? 0 : -1}
+                      disabled={enabled[at] !== true}
+                      onClick={() => onFormat(tool.id)}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
         {overflow.end ? (
           <Button

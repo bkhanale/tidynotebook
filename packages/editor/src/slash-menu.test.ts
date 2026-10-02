@@ -36,9 +36,18 @@ function menuAt(text: string): readonly string[] | null {
 }
 
 await test('a slash at the start of a line or after a space opens the blocks', () => {
-  assert.deepEqual(menuAt('/‸'), blocks.map((block) => block.id));
-  assert.deepEqual(menuAt('Some text /‸'), blocks.map((block) => block.id));
-  assert.deepEqual(menuAt('- /‸'), blocks.map((block) => block.id));
+  assert.deepEqual(
+    menuAt('/‸'),
+    blocks.map((block) => block.id),
+  );
+  assert.deepEqual(
+    menuAt('Some text /‸'),
+    blocks.map((block) => block.id),
+  );
+  assert.deepEqual(
+    menuAt('- /‸'),
+    blocks.map((block) => block.id),
+  );
 });
 
 await test('the words after the slash narrow the blocks', () => {

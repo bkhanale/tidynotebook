@@ -29,7 +29,10 @@ await test('the hidden entries of a vault and of a system are left out', () => {
 });
 
 await test('a picture outside the attachments folder moves into it', () => {
-  assert.equal(importedPicturePath('attachments/cat.png'), 'attachments/cat.png');
+  assert.equal(
+    importedPicturePath('attachments/cat.png'),
+    'attachments/cat.png',
+  );
   assert.equal(
     importedPicturePath('Vault/Pasted image.png'),
     'attachments/Vault/Pasted image.png',

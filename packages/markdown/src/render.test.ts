@@ -80,7 +80,9 @@ await test('a language class that is not a plain word is dropped', async () => {
   assert.ok(html.includes('<pre><code>code\n</code></pre>'));
   assert.ok(!html.includes('language-'));
   // The label names the language, and the rest of the info string leaves.
-  assert.ok(html.includes('<figcaption class="notes-code-label">C++</figcaption>'));
+  assert.ok(
+    html.includes('<figcaption class="notes-code-label">C++</figcaption>'),
+  );
   assert.ok(!html.includes('evil'));
 });
 

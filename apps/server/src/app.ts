@@ -704,12 +704,10 @@ async function composeApp(
   // no built assets answers none, and the page shows the source of each
   // diagram and each block with no copy action. The files of one build do not
   // change while it serves, so the build is read once, at the first such note.
-  let pageAssets: { readonly value: PublishedPageAssets | null } | null =
-    null;
+  let pageAssets: { readonly value: PublishedPageAssets | null } | null = null;
   const publishedPage = (): PublishedPageAssets | null => {
     if (pageAssets !== null) return pageAssets.value;
-    const script =
-      webDist === null ? null : publishedPageScriptHref(webDist);
+    const script = webDist === null ? null : publishedPageScriptHref(webDist);
     pageAssets = {
       value:
         script === null ? null : { script, frame: publishedDiagramFrameHref },

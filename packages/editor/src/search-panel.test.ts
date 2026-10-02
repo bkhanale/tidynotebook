@@ -16,7 +16,10 @@ import {
 /** Whether a text is in sentence case: one capital at its start. */
 function sentenceCase(text: string): boolean {
   const first = text.charAt(0);
-  return first === first.toUpperCase() && text.slice(1) === text.slice(1).toLowerCase();
+  return (
+    first === first.toUpperCase() &&
+    text.slice(1) === text.slice(1).toLowerCase()
+  );
 }
 
 await test('every word of the panel is in sentence case', () => {

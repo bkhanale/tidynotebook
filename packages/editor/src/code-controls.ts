@@ -68,7 +68,11 @@ export function codeBlockBars(
       const text =
         info === null ? '' : state.doc.sliceString(info.from, info.to);
       if (text.trim().toLowerCase() !== 'mermaid')
-        found.push({ from: node.from, to: node.to, label: codeBlockLabel(text) });
+        found.push({
+          from: node.from,
+          to: node.to,
+          label: codeBlockLabel(text),
+        });
       return false;
     },
   });

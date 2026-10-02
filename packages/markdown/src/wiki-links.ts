@@ -248,7 +248,13 @@ function wikiParts(inner: string): WikiParts {
     target: (hash === -1 ? link : link.slice(0, hash)).trim(),
     // Obsidian writes a heading inside a heading as `#One#Two`, and the last
     // one is the heading that the link opens.
-    heading: hash === -1 ? '' : (link.slice(hash + 1).split('#').at(-1) ?? ''),
+    heading:
+      hash === -1
+        ? ''
+        : (link
+            .slice(hash + 1)
+            .split('#')
+            .at(-1) ?? ''),
     alias: alias.trim(),
   };
 }
@@ -331,7 +337,8 @@ export function convertWikiLinks(
       )
     )
       continue;
-    const embed = from > 0 && source[from - 1] === '!' && !escapedAt(source, from - 1);
+    const embed =
+      from > 0 && source[from - 1] === '!' && !escapedAt(source, from - 1);
     const text = converted(
       wikiParts(match[1] ?? ''),
       embed,

@@ -230,10 +230,7 @@ await test('the diagram script of a published page is the one file of its name',
   try {
     await mkdir(join(directory, 'assets'));
     await mkdir(join(directory, 'src/diagram'), { recursive: true });
-    await writeFile(
-      join(directory, 'assets/published-page-M0Ar9lYV.js'),
-      '',
-    );
+    await writeFile(join(directory, 'assets/published-page-M0Ar9lYV.js'), '');
     await writeFile(join(directory, 'assets/published-links-BgGi9BLm.js'), '');
     // No frame document yet, so no script.
     assert.equal(publishedPageScriptHref(directory), null);
@@ -242,10 +239,7 @@ await test('the diagram script of a published page is the one file of its name',
       publishedPageScriptHref(directory),
       '/assets/published-page-M0Ar9lYV.js',
     );
-    await writeFile(
-      join(directory, 'assets/published-page-ZZZZZZZZ.js'),
-      '',
-    );
+    await writeFile(join(directory, 'assets/published-page-ZZZZZZZZ.js'), '');
     assert.equal(publishedPageScriptHref(directory), null);
   } finally {
     await rm(directory, { recursive: true, force: true });

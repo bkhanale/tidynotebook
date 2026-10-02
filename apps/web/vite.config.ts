@@ -410,9 +410,7 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     themeAssets(import.meta.dirname),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
-    ...(command === 'build'
-      ? [publishedPageScript(import.meta.dirname)]
-      : []),
+    ...(command === 'build' ? [publishedPageScript(import.meta.dirname)] : []),
     // Last, because its hook reads every emitted file of the build, including
     // the application manifest and the diagram frame that the two plugins
     // above emit.

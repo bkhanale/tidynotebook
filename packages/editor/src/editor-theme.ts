@@ -282,7 +282,10 @@ export function inlineHtmlRules(): Record<string, Record<string, string>> {
  * control step at the row height with the row radius, the hover fill, and
  * the fill of a chosen row for the row the keys stand on.
  */
-export function panelRules(): Record<string, Record<string, string | Record<string, string>>> {
+export function panelRules(): Record<
+  string,
+  Record<string, string | Record<string, string>>
+> {
   const rowHeight = 'calc(var(--spacing) * 7)';
   return {
     '.cm-panels': {
@@ -302,7 +305,8 @@ export function panelRules(): Record<string, Record<string, string | Record<stri
       flexDirection: 'column',
       gap: 'calc(var(--spacing) * 2)',
       paddingBlock: 'calc(var(--spacing) * 2)',
-      paddingInline: 'max(calc(var(--spacing) * 2), calc((100% - var(--container-note)) / 2))',
+      paddingInline:
+        'max(calc(var(--spacing) * 2), calc((100% - var(--container-note)) / 2))',
     },
     '.cm-np-search-row': {
       display: 'flex',

@@ -218,7 +218,10 @@ function codeBlock(node: Code): Element {
     children:
       label === null
         ? [pre]
-        : [textElement('figcaption', { className: codeLabelClass }, label), pre],
+        : [
+            textElement('figcaption', { className: codeLabelClass }, label),
+            pre,
+          ],
   };
 }
 

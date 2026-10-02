@@ -194,9 +194,11 @@ await test('a page with a diagram names one script and one frame and nothing mor
   assert.ok(directives.includes("frame-ancestors 'none'"));
   // A port of the host stays with it, because the page was opened there.
   assert.ok(
-    publishedScriptContentPolicy('127.0.0.1:32771', diagramAssets, true)?.includes(
-      'script-src 127.0.0.1:32771/assets/',
-    ),
+    publishedScriptContentPolicy(
+      '127.0.0.1:32771',
+      diagramAssets,
+      true,
+    )?.includes('script-src 127.0.0.1:32771/assets/'),
   );
 });
 
@@ -249,17 +251,25 @@ await test('a host or a path that a policy cannot name gives no diagram script',
       String(host),
     );
   assert.equal(
-    publishedScriptContentPolicy('pages.example.net', {
-      ...diagramAssets,
-      script: '/assets/a.js; script-src *',
-    }, true),
+    publishedScriptContentPolicy(
+      'pages.example.net',
+      {
+        ...diagramAssets,
+        script: '/assets/a.js; script-src *',
+      },
+      true,
+    ),
     null,
   );
   assert.equal(
-    publishedScriptContentPolicy('pages.example.net', {
-      ...diagramAssets,
-      frame: 'https://elsewhere.example/frame.html',
-    }, true),
+    publishedScriptContentPolicy(
+      'pages.example.net',
+      {
+        ...diagramAssets,
+        frame: 'https://elsewhere.example/frame.html',
+      },
+      true,
+    ),
     null,
   );
 });

@@ -371,8 +371,7 @@ export function builtStylesheetHrefs(
  * this name (record 0158), and `tests/integration/web-build.test.ts` holds the
  * two together.
  */
-export const publishedPageScriptFile =
-  /^published-page-[A-Za-z0-9_-]{8}\.js$/;
+export const publishedPageScriptFile = /^published-page-[A-Za-z0-9_-]{8}\.js$/;
 
 /**
  * The address of the diagram frame document of the build.
@@ -394,9 +393,7 @@ export const publishedDiagramFrameHref = '/src/diagram/frame.html';
  * @param webDirectory the built web directory, which holds `assets/` and the
  *   frame document.
  */
-export function publishedPageScriptHref(
-  webDirectory: string,
-): string | null {
+export function publishedPageScriptHref(webDirectory: string): string | null {
   if (statFile(join(webDirectory, publishedDiagramFrameHref)) === null)
     return null;
   let names: readonly string[];

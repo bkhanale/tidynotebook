@@ -56,19 +56,13 @@ function complete(
 }
 
 await test('a link steps out of the shared folder of the open note', () => {
-  assert.equal(
-    noteLinkText(source, 'inbox.md'),
-    '[inbox](../inbox.md)',
-  );
+  assert.equal(noteLinkText(source, 'inbox.md'), '[inbox](../inbox.md)');
   assert.equal(
     noteLinkText(source, 'projects/beta plan.md'),
     '[beta plan](beta%20plan.md)',
   );
   assert.equal(
-    noteLinkText(
-      { notes: [], currentPath: 'a/b/c.md' },
-      'a/x/y.md',
-    ),
+    noteLinkText({ notes: [], currentPath: 'a/b/c.md' }, 'a/x/y.md'),
     '[y](../x/y.md)',
   );
 });
@@ -205,7 +199,10 @@ await test('a typed last bracket keeps a wiki link that names no note', () => {
 await test('a paste of wiki links links the notes that are there', () => {
   const { state } = noteState('‸');
   assert.equal(
-    withNoteLinks(state, 'Read [[beta plan]], [[old note|the old one]] and [[gone]].'),
+    withNoteLinks(
+      state,
+      'Read [[beta plan]], [[old note|the old one]] and [[gone]].',
+    ),
     'Read [beta plan](beta%20plan.md), [the old one](../archive/2024/old%20note.md) and [[gone]].',
   );
   assert.equal(withNoteLinks(state, 'No links here.'), 'No links here.');

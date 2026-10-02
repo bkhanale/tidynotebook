@@ -29,7 +29,12 @@ function numbersOf(part: GlyphPart): readonly number[] {
     case 'rect':
       return [part.x, part.y, part.x + part.width, part.y + part.height];
     case 'circle':
-      return [part.cx - part.r, part.cy - part.r, part.cx + part.r, part.cy + part.r];
+      return [
+        part.cx - part.r,
+        part.cy - part.r,
+        part.cx + part.r,
+        part.cy + part.r,
+      ];
   }
 }
 

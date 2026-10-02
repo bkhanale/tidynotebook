@@ -762,7 +762,10 @@ await test('an Obsidian vault imports with its links and its pictures', async ()
       'Vault/Home.md',
       'See [[Plan]] and [[Plan#Next steps|the steps]].\n\n![[Pasted image.png]]\n\n![a dog](img/dog.png)\n\nNo note [[Missing]] and `[[Plan]]` in code.\n',
     ],
-    ['Vault/Projects/Plan.md', '# Plan\n\n## Next steps\n\nBack to [[Home]].\n'],
+    [
+      'Vault/Projects/Plan.md',
+      '# Plan\n\n## Next steps\n\nBack to [[Home]].\n',
+    ],
     ['Vault/Pasted image.png', pngBytes],
     ['Vault/img/dog.png', pngBytes],
     ['.DS_Store', 'not a note'],

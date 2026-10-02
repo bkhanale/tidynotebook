@@ -252,9 +252,7 @@ await test('a published diagram loads its script and its frame from the publishe
   );
   const policy = String(page.headers['content-security-policy']);
   assert.ok(
-    policy.includes(
-      'script-src pages.test/assets/published-page-Origin01.js;',
-    ),
+    policy.includes('script-src pages.test/assets/published-page-Origin01.js;'),
     policy,
   );
   assert.ok(

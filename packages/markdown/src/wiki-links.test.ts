@@ -46,13 +46,13 @@ await test('each form of a wiki link becomes a standard link', () => {
     home('[[Plan#Next steps]]'),
     '[Plan > Next steps](Projects/Plan.md#next-steps)',
   );
-  assert.equal(
-    home('[[Archive/Notes]]'),
-    '[Archive/Notes](Archive/Notes.md)',
-  );
+  assert.equal(home('[[Archive/Notes]]'), '[Archive/Notes](Archive/Notes.md)');
   assert.equal(home('[[Plan#^a1b2]]'), '[Plan](Projects/Plan.md)');
   assert.equal(home('[[#Local heading]]'), '[Local heading](#local-heading)');
-  assert.equal(home('![[cat.png]]'), '![cat.png](../attachments/Vault/cat.png)');
+  assert.equal(
+    home('![[cat.png]]'),
+    '![cat.png](../attachments/Vault/cat.png)',
+  );
   assert.equal(
     home('![[cat.png|300]]'),
     '![cat.png](../attachments/Vault/cat.png)',
@@ -192,7 +192,11 @@ await test('every converted link reaches the note it names', () => {
     extractLinks(text, 'Vault/Home.md').map((link) => link.targetPath),
     ['Vault/Projects/Plan.md', 'Vault/Archive/Notes.md'],
   );
-  const counted = convertWikiLinks('[[Plan]] [[Missing]] [[Home]]', 'Vault/Home.md', resolve);
+  const counted = convertWikiLinks(
+    '[[Plan]] [[Missing]] [[Home]]',
+    'Vault/Home.md',
+    resolve,
+  );
   assert.equal(counted.count, 2);
   assert.equal(
     counted.text,
@@ -202,8 +206,11 @@ await test('every converted link reaches the note it names', () => {
 
 await test('a byte order mark keeps the offsets of the source', () => {
   assert.equal(
-    convertWikiLinks('\uFEFFA `[[Plan]]` and [[Plan]].', 'Vault/Home.md', resolve)
-      .text,
+    convertWikiLinks(
+      '\uFEFFA `[[Plan]]` and [[Plan]].',
+      'Vault/Home.md',
+      resolve,
+    ).text,
     '\uFEFFA `[[Plan]]` and [Plan](Projects/Plan.md).',
   );
 });

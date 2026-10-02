@@ -107,7 +107,10 @@ export function slashMatches(command: SlashCommand, typed: string): boolean {
 export function slashMenuAt(
   state: EditorState,
   pos: number,
-): { readonly from: number; readonly commands: readonly SlashCommand[] } | null {
+): {
+  readonly from: number;
+  readonly commands: readonly SlashCommand[];
+} | null {
   const line = state.doc.lineAt(pos);
   const before = state.doc.sliceString(line.from, pos);
   const found = typedCommand.exec(before);

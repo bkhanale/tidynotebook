@@ -805,7 +805,9 @@ await test('a checkbox draws its box from the theme and its mark from its state'
   assert.ok(classes.box.includes(focusOutline));
   assert.ok(classes.mark.split(' ').includes('peer-checked:block'));
   assert.ok(classes.label.includes('text-control'));
-  assert.ok(checkboxClassNames({ disabled: true }).label.includes('text-muted'));
+  assert.ok(
+    checkboxClassNames({ disabled: true }).label.includes('text-muted'),
+  );
 });
 
 await test('a menu is a raised card with the menu radius and the overlay step', () => {

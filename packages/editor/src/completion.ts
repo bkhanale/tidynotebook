@@ -224,7 +224,8 @@ export const noteLinkCompletion: CompletionSource = (
     // Closing brackets that already stand after the caret belong to the wiki
     // form, so the link takes their place as well.
     const after = context.state.doc.sliceString(context.pos, context.pos + 2);
-    const to = context.pos + (after === ']]' ? 2 : after.startsWith(']') ? 1 : 0);
+    const to =
+      context.pos + (after === ']]' ? 2 : after.startsWith(']') ? 1 : 0);
     return { from: wiki.from, to, options, filter: false };
   }
 

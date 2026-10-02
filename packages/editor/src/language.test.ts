@@ -186,10 +186,7 @@ await test('a fence indents and comments in the way of its language', async () =
   // language, so Enter after a block opener kept the indentation of the line
   // above and the comment key wrote nothing.
   assert.equal(
-    await afterCommand(
-      '```python\ndef f(x):‸\n```\n',
-      insertNewlineAndIndent,
-    ),
+    await afterCommand('```python\ndef f(x):‸\n```\n', insertNewlineAndIndent),
     '```python\ndef f(x):\n  \n```\n',
   );
   assert.equal(
