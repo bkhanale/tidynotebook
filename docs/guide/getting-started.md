@@ -59,6 +59,13 @@ The line at the bottom of the sidebar tells you where your work is. It reads
 **Everything is saved to the server.** when your server has it. See
 [Saving and history](saving-and-history.md).
 
+## When a page stops
+
+If an error stops a page, the page says so and offers **Reload** and **Open
+all notes**. The sidebar stays, so you can open another note. Your saved work
+does not change. If a part of the page did not load, make sure that the device
+has a connection, then reload the page.
+
 ## Where to go next
 
 - Organize your notes with [Notes and folders](notes-and-folders.md).
