@@ -12,6 +12,8 @@ import {
   syncStateMessage,
   syncStateOfNotice,
   syncStateOfQueue,
+  syncLineBudget,
+  syncStatusClassNames,
   type SyncState,
 } from './sync-state.ts';
 
@@ -123,7 +125,7 @@ await test('another account on this browser is its own cause', () => {
   });
   assert.match(
     syncStateMessage({ kind: 'other-account' }),
-    /^Another account signed in on this browser\./,
+    /^Another account signed in\./,
   );
 });
 
@@ -211,7 +213,7 @@ await test('a refusal still says that saving stopped', () => {
   assert.deepEqual(state, { kind: 'stopped' });
   assert.match(
     syncStateMessage(state ?? startingSyncState),
-    /Saving to the server stopped/,
+    /^Saving stopped\./,
   );
 });
 
@@ -308,6 +310,42 @@ await test('the footer states sync while local writes succeed', () => {
       noteName: null,
       openNoteWriteFailed: false,
     }),
-    { line: 'No connection. Your notes stay on this device.', dot: 'pending' },
+    { line: 'No connection. Notes stay on this device.', dot: 'pending' },
   );
+});
+
+await test('every footer sentence fits two lines of the narrowest sidebar', () => {
+  // The defect this covers: the footer cut its sentence at one line, so a
+  // person read "No connection. Your notes stay on..." and never the end.
+  const lines = [
+    ...states.map((state) => syncStateMessage(state, 'roadmap')),
+    syncFooter({
+      state: { kind: 'in-step' },
+      online: false,
+      noteName: null,
+      openNoteWriteFailed: false,
+    }).line,
+    syncFooter({
+      state: { kind: 'in-step' },
+      online: true,
+      noteName: null,
+      openNoteWriteFailed: true,
+    }).line,
+  ];
+  for (const line of lines)
+    assert.ok(
+      line.length <= syncLineBudget,
+      `${String(line.length)} characters: ${line}`,
+    );
+});
+
+await test('the footer sentence wraps and is never cut', () => {
+  const line = syncStatusClassNames.line.split(' ');
+  for (const cut of ['truncate', 'whitespace-nowrap', 'overflow-hidden'])
+    assert.ok(!line.includes(cut), cut);
+  assert.ok(!line.some((part) => part.startsWith('line-clamp')));
+  // The dot stays beside the first line: its frame is one line of
+  // `text-control` high, and the status aligns to the start.
+  assert.ok(syncStatusClassNames.dotFrame.split(' ').includes('h-5'));
+  assert.ok(syncStatusClassNames.status.split(' ').includes('items-start'));
 });

@@ -200,7 +200,11 @@ import {
 } from './header-slot.tsx';
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
-import { syncDotClassName, syncFooter } from '../lib/sync-state.ts';
+import {
+  syncDotClassName,
+  syncFooter,
+  syncStatusClassNames,
+} from '../lib/sync-state.ts';
 import type { CalendarMonth } from '../lib/calendar-month.ts';
 import type { ActionIconName } from '../lib/palette-items.ts';
 import {
@@ -1065,12 +1069,14 @@ function Sidebar({
 
         <div className="border-t border-edge-subtle p-2">
           <div className={rowClassName({ interactive: false })}>
-            <span className={syncDotClassName(footer.dot)} aria-hidden="true" />
-            <span
-              className="min-w-0 flex-1 truncate text-muted"
-              title={syncLine}
-            >
-              {syncLine}
+            <span className={syncStatusClassNames.status}>
+              <span className={syncStatusClassNames.dotFrame}>
+                <span
+                  className={syncDotClassName(footer.dot)}
+                  aria-hidden="true"
+                />
+              </span>
+              <span className={syncStatusClassNames.line}>{syncLine}</span>
             </span>
           </div>
           <Link

@@ -15,8 +15,8 @@ The versions go to your server when this device has a connection. The line at
 the bottom of the sidebar tells you where your work is:
 
 - **Sending your save to the server.** Your work is on its way.
-- **No connection. Your saves are on this device and go up when the connection
-  returns.** Your work waits on this device.
+- **No connection. Saves wait on this device.** Your work goes to your server
+  when the connection returns.
 - **Everything is saved to the server.** Your work is on your server.
 
 ## History

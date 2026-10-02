@@ -123,21 +123,43 @@ export function syncStateMessage(
   if (state.kind === 'in-step') return 'Everything is saved to the server.';
   if (state.kind === 'sending') return 'Sending your save to the server.';
   if (state.kind === 'waiting')
-    return 'No connection. Your saves are on this device and go up when the connection returns.';
+    return 'No connection. Saves wait on this device.';
   if (state.kind === 'attention')
-    return `${named} could not be saved to the server. Open Needs attention to keep the text.`;
+    return `${named} did not save. Open Needs attention.`;
   if (state.kind === 'delete-refused')
-    return `${named} changed on another device, so it was not deleted.`;
-  if (state.kind === 'signed-out')
-    return 'The session ended. Sign in again to save to the server.';
+    return `${named} changed on another device. It is kept.`;
+  if (state.kind === 'signed-out') return 'The session ended. Sign in to save.';
   if (state.kind === 'other-account')
-    return 'Another account signed in on this browser. Your work stays on this device until you sign in again.';
+    return 'Another account signed in. Your work waits.';
   if (state.kind === 'update-required')
-    return 'Saving to the server waits for an update of Notesapp. Your work stays on this device.';
-  if (state.kind === 'server-behind')
-    return 'The server runs an earlier version of Notesapp, so saving waits. Your work stays on this device.';
-  return 'Saving to the server stopped. Your work stays on this device.';
+    return 'Update Notesapp to save to the server.';
+  if (state.kind === 'server-behind') return 'Saves wait for a server update.';
+  return 'Saving stopped. Your work is on this device.';
 }
+
+/**
+ * The longest sentence the footer may say, in characters.
+ *
+ * The narrowest sidebar leaves about 178 px for the sentence beside the dot,
+ * which holds about 24 characters of `text-control`. Every sentence fits in
+ * two lines of it, with a note name of a usual length, and the line wraps
+ * and is never cut, so a longer name still reads in full.
+ */
+export const syncLineBudget = 48;
+
+/**
+ * The classes of the footer status, inside its container row.
+ *
+ * The sentence wraps and is never cut: the status that matters most is the
+ * one a person cannot afford to lose to an ellipsis. The dot sits in a frame
+ * of one line of `text-control`, so it stays beside the first line when the
+ * sentence takes two.
+ */
+export const syncStatusClassNames = {
+  status: 'flex min-w-0 flex-1 items-start gap-2 py-1',
+  dotFrame: 'flex h-5 shrink-0 items-center',
+  line: 'min-w-0 flex-1 text-muted',
+} as const;
 
 /**
  * Whether a state only reports how far the queue got.
@@ -257,7 +279,7 @@ export function syncFooter(input: {
   return {
     line: input.online
       ? syncStateMessage(input.state, input.noteName)
-      : 'No connection. Your notes stay on this device.',
+      : 'No connection. Notes stay on this device.',
     dot: syncDot(input.state, input.online),
   };
 }
