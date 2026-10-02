@@ -25,7 +25,9 @@ A footnote reference shows its label as a raised mark in the quiet text
 colour, and a definition shows the same mark and the footnote text of the
 theme. A reference whose label the note does not define stays text, as GFM
 reads it
-([decision 0156](../decisions/0156-the-editor-reads-gfm-footnotes.md)).
+([decision 0156](../decisions/0156-the-editor-reads-gfm-footnotes.md)). While the
+parse has not reached the end of a long note, every label counts as defined,
+and the tree that reaches the end draws the preview again.
 
 An inline HTML element of `previewHtmlElements` in
 `packages/markdown/src/html-elements.ts` takes its look between its two tags,

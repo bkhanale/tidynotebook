@@ -502,28 +502,38 @@ const definitionContainers = new Set([
 const definedByTree = new WeakMap<Tree, ReadonlySet<string>>();
 
 /**
- * The identifiers of the footnotes that a note defines.
+ * Whether a footnote label names a definition of the note.
  *
  * A definition is a block, so the walk enters only the blocks that can hold
  * one and never the text of a paragraph. A tree belongs to one document, and
- * a new tree comes with each change, so the answer is kept per tree.
+ * a new tree comes with each change, so the identifiers are kept per tree.
+ *
+ * A view parses a long note in slices, so the tree can stop before the end
+ * of the note, where a definition often stands. While it does, every label
+ * of the GFM rule counts as defined, because the parser has not read the
+ * rest yet. The tree that reaches the end rebuilds the preview, and a label
+ * with no definition then goes back to its text.
  */
-function definedFootnotes(state: EditorState): ReadonlySet<string> {
+function footnoteDefined(state: EditorState): (identifier: string) => boolean {
   const tree = syntaxTree(state);
-  const known = definedByTree.get(tree);
-  if (known !== undefined) return known;
-  const defined = new Set<string>();
-  tree.iterate({
-    enter: (node) => {
-      if (node.name === footnoteDefinitionNode) {
-        const label = footnoteLabelOf(state.doc, node.node);
-        if (label !== null) defined.add(footnoteIdentifier(label));
-      }
-      return definitionContainers.has(node.name);
-    },
-  });
-  definedByTree.set(tree, defined);
-  return defined;
+  if (tree.length < state.doc.length) return () => true;
+  let defined = definedByTree.get(tree);
+  if (defined === undefined) {
+    const found = new Set<string>();
+    tree.iterate({
+      enter: (node) => {
+        if (node.name === footnoteDefinitionNode) {
+          const label = footnoteLabelOf(state.doc, node.node);
+          if (label !== null) found.add(footnoteIdentifier(label));
+        }
+        return definitionContainers.has(node.name);
+      },
+    });
+    definedByTree.set(tree, found);
+    defined = found;
+  }
+  const known = defined;
+  return (identifier) => known.has(identifier);
 }
 
 /** Merges overlapping ranges so a line is decorated once. */
@@ -745,7 +755,7 @@ export function buildPreview(
   };
 
   const tree = syntaxTree(state);
-  const footnotes = definedFootnotes(state);
+  const footnoteIsDefined = footnoteDefined(state);
 
   /**
    * Draws the marks and the label of one footnote node.
@@ -1435,7 +1445,7 @@ export function buildPreview(
       // A reference is a footnote only when the note defines its label, as
       // GFM reads it. Any other `[^label]` stays the text it is.
       const label = footnoteLabelOf(doc, node.node);
-      if (label === null || !footnotes.has(footnoteIdentifier(label)))
+      if (label === null || !footnoteIsDefined(footnoteIdentifier(label)))
         return false;
       report({ kind: 'footnote-reference', label: label.toLowerCase() });
       footnoteMarks(node.node, touches(node.from, node.to));

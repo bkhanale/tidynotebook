@@ -80,7 +80,10 @@ await test('a fence with no closer that holds code stays as it is', () => {
   // The defect this covers: a note that ends with an open fence of code. A
   // person edits the language of the fence and presses Enter, and the closer
   // went under the opener and turned every line of the code into prose.
-  const code = Array.from({ length: 30 }, (_, index) => `const v${String(index)} = ${String(index)};`).join('\n');
+  const code = Array.from(
+    { length: 30 },
+    (_, index) => `const v${String(index)} = ${String(index)};`,
+  ).join('\n');
   assert.equal(entered(`Text\n\n\`\`\`ts‸\n${code}`), null);
   assert.equal(entered('```‸\nBelow'), null);
   assert.equal(entered('```‸\n\n\nBelow'), null);
@@ -90,7 +93,10 @@ await test('a fence with no closer that holds code stays as it is', () => {
 await test('Enter on a line that cannot open a fence parses nothing', () => {
   // The defect this covers: every Enter at the end of a line parsed the whole
   // note to look for a fence, which costs a long note a parse per key press.
-  const filler = Array.from({ length: 4000 }, (_, index) => `Line ${String(index)} of a long note.`).join('\n\n');
+  const filler = Array.from(
+    { length: 4000 },
+    (_, index) => `Line ${String(index)} of a long note.`,
+  ).join('\n\n');
   const doc = `Plain text\n\n${filler}`;
   const state = EditorState.create({
     doc,

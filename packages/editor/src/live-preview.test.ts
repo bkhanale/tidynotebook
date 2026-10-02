@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { noteMarkdown, parsedWhole } from './language.ts';
 import {
@@ -927,6 +928,54 @@ await test('a reference to a label that the note does not define stays text', ()
   // A label matches its definition in any case, as GFM reads it.
   const upper = 'text[^ONE] more\n\n[^one]: the note\n';
   assert.ok(has(describe(upper), 'mark', 'cm-np-footnote', 6, 9));
+});
+
+await test('a reference of a long note is a footnote before the parse reaches its definition', () => {
+  // The defect this covers: a view parses a long note in slices, and the
+  // definitions at its end were unknown, so every reference stayed raw text.
+  const filler = Array.from(
+    { length: 2000 },
+    (_, index) => `Paragraph ${String(index)} of a long note.`,
+  ).join('\n\n');
+  const doc = `A claim[^1] at the top.\n\n${filler}\n\n[^1]: The note at the end.\n`;
+  const partial = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  assert.ok(
+    syntaxTree(partial).length < doc.length,
+    'the test needs a tree that stops before the end',
+  );
+  function marks(state: EditorState): Described[] {
+    const found: Described[] = [];
+    buildPreview(state, [{ from: 0, to: 30 }], {
+      from: 30,
+      to: 30,
+    }).decorations.between(0, 30, (from, to, value) => {
+      const className = specClass(value.spec);
+      if (className !== null)
+        found.push({ from, to, kind: 'mark', value: className });
+    });
+    return found;
+  }
+  assert.ok(has(marks(partial), 'mark', 'cm-np-footnote', 9, 10));
+  // The whole tree still finds the definition at the end.
+  assert.ok(has(marks(parsedWhole(partial)), 'mark', 'cm-np-footnote', 9, 10));
+  // A label that the whole note does not define goes back to its text.
+  const undefinedDoc = doc.replace('[^1]: The note', 'The note');
+  assert.ok(
+    !has(
+      marks(
+        parsedWhole(
+          EditorState.create({
+            doc: undefinedDoc,
+            extensions: [noteMarkdown()],
+          }),
+        ),
+      ),
+      'mark',
+      'cm-np-footnote',
+      9,
+      10,
+    ),
+  );
 });
 
 await test('a footnote reports its label and its own structure', () => {
