@@ -139,3 +139,29 @@ export function revealScrollTop(input: RevealInput): number | null {
     return Math.max(0, bottom - input.viewportHeight);
   return null;
 }
+
+/**
+ * The stride a list takes before it measures one of its rows.
+ *
+ * A row is 28 px on a desktop with a gap of a few pixels, so the first
+ * window of a list that never measured holds about as many rows as the
+ * screen shows.
+ */
+export const estimatedStride = 32;
+
+/**
+ * The stride of the first window of a list: the stride that a list of its
+ * kind measured last, or the estimate.
+ *
+ * The first window states the height of every row. A list that mounts again
+ * with the estimate states a height that a touch screen, whose rows are
+ * 44 px, does not have, and a kept scroll offset lands short of the row a
+ * person left.
+ */
+export function firstStride(remembered: number | undefined): number {
+  return remembered !== undefined &&
+    Number.isFinite(remembered) &&
+    remembered > 0
+    ? remembered
+    : estimatedStride;
+}

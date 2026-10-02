@@ -109,7 +109,7 @@ function NoteGroupList({
   readonly workspaceId: string;
   readonly now: number;
 }): ReactNode {
-  const rows = useRowWindow(notes.length);
+  const rows = useRowWindow(notes.length, 'note-list');
   return (
     <ul className={pageListClassName()} ref={rows.listRef}>
       {notes.slice(rows.start, rows.end).map((note, offset) => {

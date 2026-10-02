@@ -244,7 +244,7 @@ export function NoteTree({
   const elements = useRef(new Map<string, HTMLElement>());
   const pendingFocus = useRef<string | null>(null);
   const revealedFor = useRef<string | null>(null);
-  const rowsInView = useRowWindow(rows.length);
+  const rowsInView = useRowWindow(rows.length, 'tree');
   const selecting = selection.keys.size > 0;
 
   // A row that left the screen leaves the selection.

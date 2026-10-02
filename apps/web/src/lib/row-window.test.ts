@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   emptyRowWindow,
+  estimatedStride,
+  firstStride,
   revealScrollTop,
   rowWindow,
   sameRowWindow,
@@ -124,4 +126,20 @@ await test('a row out of view comes into view at the nearest edge', () => {
   assert.equal(revealScrollTop({ ...view, index: 2, scrollTop: 5000 }), 104);
   // A row in view does not move the scroller.
   assert.equal(revealScrollTop({ ...view, index: 3, scrollTop: 0 }), null);
+});
+
+await test('a list that mounts again starts at the stride it measured', () => {
+  // The review of the merged branch: All notes restored its scroll offset
+  // over a first window of the estimated stride, 32 px, which is short of
+  // the 44 px rows of a touch screen, so the offset landed on another row.
+  const stride = firstStride(48);
+  assert.equal(stride, 48);
+  const first = rowWindow({ ...base, stride, listTop: 0 });
+  assert.equal(
+    first.before + (first.end - first.start) * 48 + first.after,
+    1010 * 48,
+  );
+  assert.equal(firstStride(undefined), estimatedStride);
+  assert.equal(firstStride(0), estimatedStride);
+  assert.equal(firstStride(Number.NaN), estimatedStride);
 });

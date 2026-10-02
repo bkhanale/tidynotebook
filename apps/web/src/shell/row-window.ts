@@ -17,6 +17,7 @@
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
+  firstStride,
   revealScrollTop,
   rowWindow,
   sameRowWindow,
@@ -27,12 +28,14 @@ import {
 export const defaultOverscan = 8;
 
 /**
- * The stride a list takes before it measures one of its rows.
+ * The stride that each kind of list measured last, in this session.
  *
- * A row is 28 px on a desktop with a gap of a few pixels, so the first
- * window of a list holds about as many rows as the screen shows.
+ * A list that mounts again, such as All notes after a person opened a note,
+ * starts at the stride it measured, so its first window holds the height of
+ * every row and a kept scroll offset lands on the row the person left, under
+ * touch as well as on a desktop.
  */
-const estimatedStride = 32;
+const measuredStrides = new Map<string, number>();
 
 /** The height a list takes for its first window, before it measures one. */
 const estimatedViewport = 1000;
@@ -80,16 +83,17 @@ function measuredStride(list: HTMLElement): number | null {
 /** Keeps the rendered rows of one list to the window around the view. */
 export function useRowWindow(
   count: number,
+  kind: string,
   overscan: number = defaultOverscan,
 ): RowWindowControl {
   const listRef = useRef<HTMLElement | null>(null);
-  const strideRef = useRef(estimatedStride);
+  const strideRef = useRef(firstStride(measuredStrides.get(kind)));
   const countRef = useRef(count);
   countRef.current = count;
   const [rows, setRows] = useState<RowWindow>(() =>
     rowWindow({
       count,
-      stride: estimatedStride,
+      stride: strideRef.current,
       listTop: 0,
       viewportHeight: estimatedViewport,
       overscan,
@@ -102,7 +106,10 @@ export function useRowWindow(
     if (list === null) return;
     const scroller = scrollerOf(list);
     const stride = measuredStride(list);
-    if (stride !== null) strideRef.current = stride;
+    if (stride !== null) {
+      strideRef.current = stride;
+      measuredStrides.set(kind, stride);
+    }
     const listTop =
       list.getBoundingClientRect().top -
       (scroller?.getBoundingClientRect().top ?? 0);
@@ -114,7 +121,7 @@ export function useRowWindow(
       overscan,
     });
     setRows((current) => (sameRowWindow(current, next) ? current : next));
-  }, [overscan]);
+  }, [overscan, kind]);
 
   const attach = useCallback((element: HTMLElement | null): void => {
     listRef.current = element;
