@@ -14,10 +14,18 @@
  * The page has the note measure, as every page does, and lists its groups in
  * the side region (decision 0137).
  *
+ * A group of a thousand notes renders the rows in view and a few around them,
+ * and keeps the height of the others as space (record 0165). Every heading
+ * stays in the document, so the list of groups in the side region finds each
+ * one. Each row states its place and the size of its group, so a screen reader
+ * reads a list of a thousand. The page keeps its scroll offset for the
+ * session, so a person who opens a note and comes back finds the row they
+ * left.
+ *
  * The layout frame lives in `shell.tsx`; this file owns the note list screen
  * only.
  */
-import { useMemo, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   Button,
@@ -44,9 +52,106 @@ import {
 } from '../../lib/page-sections.ts';
 import { noteRowMeta } from '../../lib/note-row.ts';
 import { showNewNoteInHeader } from '../../lib/notes-home-action.ts';
+import type { NoteSummary } from '../../lib/note-list.ts';
+import { scrollerOf, useRowWindow } from '../../shell/row-window.ts';
 
 /** The quiet heading of one time band of the list. */
 const groupLabelClassName = `${pageGroupLabelClassName()} pt-4`;
+
+/**
+ * Where the list of each workspace was scrolled to, for this session.
+ *
+ * The frame keeps one box that scrolls for every route, and a note route
+ * leaves it at the top, so the offset is kept here and given back when the
+ * list mounts again.
+ */
+const keptOffsets = new Map<string, number>();
+
+/** Keeps the scroll offset of the list of one workspace while it mounts. */
+function useKeptOffset(
+  workspaceId: string,
+  ready: boolean,
+): (element: HTMLElement | null) => void {
+  const elementRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (!ready || element === null) return;
+    const scroller = scrollerOf(element);
+    if (scroller === null) return;
+    const kept = keptOffsets.get(workspaceId);
+    if (kept !== undefined) scroller.scrollTop = kept;
+    const remember = (): void => {
+      keptOffsets.set(workspaceId, scroller.scrollTop);
+    };
+    scroller.addEventListener('scroll', remember, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', remember);
+    };
+  }, [workspaceId, ready]);
+  return (element) => {
+    elementRef.current = element;
+  };
+}
+
+/**
+ * The rows of one time band, in a window around the view (record 0165).
+ *
+ * The list item stays a list item and the router link fills it, the shape
+ * that `ListRow` renders for a plain address. This row needs the router and
+ * not the platform, so it reads the row recipe directly.
+ */
+function NoteGroupList({
+  notes,
+  workspaceId,
+  now,
+}: {
+  readonly notes: readonly NoteSummary[];
+  readonly workspaceId: string;
+  readonly now: number;
+}): ReactNode {
+  const rows = useRowWindow(notes.length);
+  return (
+    <ul className={pageListClassName()} ref={rows.listRef}>
+      {notes.slice(rows.start, rows.end).map((note, offset) => {
+        const meta = noteRowMeta(note.path, note.updatedAt, now);
+        return (
+          <li
+            className="flex"
+            key={note.fileId}
+            aria-posinset={rows.start + offset + 1}
+            aria-setsize={notes.length}
+          >
+            <Link
+              className={rowClassName({
+                inset: false,
+                className: 'min-w-0 flex-1',
+              })}
+              to={`/w/${workspaceId}/notes/${note.fileId}`}
+              aria-label={
+                meta.folder === null
+                  ? meta.name
+                  : `${meta.name}, in ${meta.folder}`
+              }
+            >
+              <span
+                className="inline-flex shrink-0 items-center text-muted"
+                aria-hidden="true"
+              >
+                <FileTextIcon />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-ui text-strong">
+                {meta.name}
+              </span>
+              <span className="shrink-0 text-control text-muted">
+                {meta.when}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /** The note list of the open area. */
 export function NotesHomeView(): ReactNode {
@@ -66,6 +171,7 @@ export function NotesHomeView(): ReactNode {
     [files.notes, now],
   );
   const total = files.notes.length;
+  const keepOffset = useKeptOffset(workspaceId, !files.loading && total > 0);
 
   return (
     <Page
@@ -109,7 +215,7 @@ export function NotesHomeView(): ReactNode {
           }
         />
       ) : (
-        <div>
+        <div ref={keepOffset}>
           {groups.map((group) => (
             <section
               key={group.label}
@@ -121,44 +227,11 @@ export function NotesHomeView(): ReactNode {
               >
                 {group.label}
               </h2>
-              <ul className={pageListClassName()}>
-                {group.notes.map((note) => {
-                  const meta = noteRowMeta(note.path, note.updatedAt, now);
-                  return (
-                    // The list item stays a list item and the router link
-                    // fills it, the shape that `ListRow` renders for a plain
-                    // address. This row needs the router and not the
-                    // platform, so it reads the row recipe directly.
-                    <li className="flex" key={note.fileId}>
-                      <Link
-                        className={rowClassName({
-                          inset: false,
-                          className: 'min-w-0 flex-1',
-                        })}
-                        to={`/w/${workspaceId}/notes/${note.fileId}`}
-                        aria-label={
-                          meta.folder === null
-                            ? meta.name
-                            : `${meta.name}, in ${meta.folder}`
-                        }
-                      >
-                        <span
-                          className="inline-flex shrink-0 items-center text-muted"
-                          aria-hidden="true"
-                        >
-                          <FileTextIcon />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-ui text-strong">
-                          {meta.name}
-                        </span>
-                        <span className="shrink-0 text-control text-muted">
-                          {meta.when}
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+              <NoteGroupList
+                notes={group.notes}
+                workspaceId={workspaceId}
+                now={now}
+              />
             </section>
           ))}
         </div>
