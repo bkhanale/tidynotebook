@@ -73,6 +73,17 @@ export type Page = {
   ): Promise<unknown>;
   screenshot(options: { readonly path: string }): Promise<unknown>;
   on(event: 'pageerror', listener: (error: Error) => void): unknown;
+  on(
+    event: 'requestfailed',
+    listener: (request: {
+      url(): string;
+      failure(): { readonly errorText: string } | null;
+    }) => void,
+  ): unknown;
+  on(
+    event: 'console',
+    listener: (message: { type(): string; text(): string }) => void,
+  ): unknown;
   close(): Promise<void>;
 };
 
@@ -269,6 +280,15 @@ export async function openDevice(
   const problems: string[] = [];
   page.on('pageerror', (error) => {
     problems.push(`page error: ${error.message}`);
+  });
+  page.on('requestfailed', (request) => {
+    problems.push(
+      `failed request: ${new URL(request.url()).pathname} ${request.failure()?.errorText ?? ''}`,
+    );
+  });
+  page.on('console', (message) => {
+    if (message.type() === 'error')
+      problems.push(`console error: ${message.text().slice(0, 300)}`);
   });
   await page.goto(app.origin);
   await page.locator('input[type=email]').fill(app.email);

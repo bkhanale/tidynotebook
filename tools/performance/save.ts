@@ -152,6 +152,17 @@ function readSaveProbe(): {
 } {
   const probe = window.notesappSaveProbe;
   if (probe === undefined) throw new Error('The save probe is missing.');
+  // The editor draws only the lines near its viewport. A screen that read
+  // the note again starts at the top, so the probe keeps the end in view,
+  // where each trial writes its word, and the observer sees it drawn.
+  if (probe.word !== null && probe.wordSeenAt === null) {
+    const scroller = document.querySelector('.cm-scroller');
+    if (
+      scroller !== null &&
+      scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1
+    )
+      scroller.scrollTop = scroller.scrollHeight;
+  }
   return {
     savePressedAt: probe.savePressedAt,
     changesets: [...probe.changesets],
@@ -306,8 +317,17 @@ try {
       await pause(200 + ((trial * 137) % 400));
     }
     const moves: number[] = [];
-    for (let trial = 0; trial < moveTrials; trial += 1)
-      moves.push(await moveTrial(first, noteCount, other.fileId));
+    // A move whose note never opens is a failed trial with what the page
+    // reported, and the run goes on.
+    const failedMoves: { trial: number; problems: string[] }[] = [];
+    for (let trial = 0; trial < moveTrials; trial += 1) {
+      const seen = first.problems.length;
+      try {
+        moves.push(await moveTrial(first, noteCount, other.fileId));
+      } catch {
+        failedMoves.push({ trial, problems: first.problems.slice(seen) });
+      }
+    }
     // A new device for each trial, so each save meets a first sync.
     const firstSyncAnswers: number[] = [];
     for (let trial = 0; trial < firstSyncTrials; trial += 1) {
@@ -369,7 +389,8 @@ try {
         toAnswerMs: distribution(firstSyncAnswers),
       },
       moves: {
-        trials: moves.length,
+        trials: moves.length + failedMoves.length,
+        failed: failedMoves,
         toListMs: distribution(moves),
         outliers: outliers(moves, outlierMs),
       },
