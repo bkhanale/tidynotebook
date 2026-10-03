@@ -10,6 +10,8 @@ import {
   fenceLanguages,
   isSuperseded,
   maximumDevelopmentLines,
+  measuredAllowFile,
+  measuredQuantities,
   namedPaths,
   placementFailure,
   relativeLinks,
@@ -437,5 +439,126 @@ await test('the retired names are found and the application words pass', () => {
   assert.deepEqual(
     retiredNames('Select **Move to Trash**. In Trash, **Delete** removes it.'),
     [],
+  );
+});
+
+/**
+ * A decision record whose context holds one more line.
+ *
+ * @param {string} line
+ * @returns {string}
+ */
+function recordWith(line) {
+  return (
+    '# 0001. A choice\n\n- Status: Accepted\n- Date: 2026-01-01\n\n' +
+    `## Context\n\n${line}\n\n## Decision\n\nThe choice.\n\n` +
+    '## Consequences\n\nThe cost.\n'
+  );
+}
+
+await test('the quantity reader finds a time, a size and a share', () => {
+  // Review of the audit of 2026-10-02. Records copied measured results, such
+  // as a median time and the bytes of a read, and no check refused them.
+  assert.deepEqual(
+    measuredQuantities(
+      'A move takes about 200 ms at the median.\n' +
+        'A read of a 500 KB note sends 1.15 MB, and 4 GiB is the bound.\n' +
+        'A proxy waits 60 seconds, a 3-second budget, and 2s, at 40% of it.',
+    ).map((found) => [found.line, found.quantity]),
+    [
+      [1, '200 ms'],
+      [2, '500 KB'],
+      [2, '1.15 MB'],
+      [2, '4 GiB'],
+      [3, '60 seconds'],
+      [3, '3-second'],
+      [3, '2s'],
+      [3, '40%'],
+    ],
+  );
+});
+
+await test('the quantity reader passes over a name, a count, code and an address', () => {
+  assert.deepEqual(
+    measuredQuantities(
+      'Record 0170 answers issue 256 and finding 13, with 503 and F2.\n' +
+        'The p95 key, a $5 price, 1010 notes and 65534 files are no unit.\n' +
+        'The constant `maxArchiveBytes = 4 GiB` names code.\n' +
+        'See [the audit](../audits/x.md#a-5-ms-read) and <https://a.example/50%22>.\n' +
+        'Read https://a.example/?q=%22Interface+012%22 for it.\n' +
+        '```sh\nsleep 5s\n```\n',
+    ),
+    [],
+  );
+});
+
+await test('a record that copies a measured result fails', () => {
+  const result = check({
+    'docs/decisions/0001-a-choice.md': recordWith(
+      'A move from a note to the list takes about 200 ms at the median.',
+    ),
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /0001-a-choice\.md:8: "200 ms" is a measured result or a configured value/,
+  );
+});
+
+await test('a design, a plan and a development page that copy a value fail', () => {
+  for (const [path, text] of [
+    [
+      'docs/design/001-a-design.md',
+      '# A design\n\nStatus: active\n\nThe library is about 10 KB.\n\n' +
+        '## Decisions\n\nSee [0001](../decisions/0001-a-choice.md).\n',
+    ],
+    [
+      'docs/plans/001-a-plan.md',
+      '# A plan\n\nStatus: active\n\nKeep the bundle under 256 KB.\n\n' +
+        '## Decisions\n\nSee [0001](../decisions/0001-a-choice.md).\n',
+    ],
+    [
+      'docs/development/architecture.md',
+      '# Architecture\n\nThe shape of the system. An import holds 4 GiB.\n',
+    ],
+  ]) {
+    const result = check({ [path]: text });
+    assert.equal(result.status, 1, path);
+    assert.match(result.output, /is a measured result or a configured value/);
+  }
+});
+
+await test('a guide page, an audit and a superseded document may hold a quantity', () => {
+  const result = check({
+    'docs/guide/quickstart.md':
+      '# Quick start\n\nThis page is for the person who runs a server.\n\n' +
+      'An import takes a zip file of up to 4 GiB.\n',
+    'docs/audits/2026-01-01/report.md':
+      '# Audit\n\nAudited on 2026-01-01 against commit `abc1234`.\n\n' +
+      'A move took 202 ms at the median.\n',
+    'docs/plans/002-an-old-plan.md':
+      '# An old plan\n\nStatus: superseded by [the plan](./001-a-plan.md)\n\n' +
+      '## Decisions\n\nSee [the index](../decisions/README.md).\n\n' +
+      'Keep the bundle under 256 KB.\n',
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('an accepted document keeps its quantities, and a stale entry fails', () => {
+  /** @param {string} file */
+  const allow = (file) =>
+    JSON.stringify({ allow: [{ file, reason: 'Accepted before the rule.' }] });
+  const kept = check({
+    'docs/decisions/0001-a-choice.md': recordWith('The claim took 233 ms.'),
+    [measuredAllowFile]: allow('docs/decisions/0001-a-choice.md'),
+  });
+  assert.equal(kept.status, 0, kept.output);
+  const stale = check({
+    [measuredAllowFile]: allow('docs/decisions/0001-a-choice.md'),
+  });
+  assert.equal(stale.status, 1);
+  assert.match(
+    stale.output,
+    /0001-a-choice\.md holds no measured quantity of a living document now/,
   );
 });

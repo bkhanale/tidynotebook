@@ -33,6 +33,11 @@
  *    move to Trash is Move to Trash, because in Trash Delete removes a note
  *    for good (issue 245), so a guide page that writes a Delete action for
  *    the move fails.
+ * 9. A record, a design, a plan and a development page copy no measured
+ *    result and no configured value. A quantity with a unit of time, of size
+ *    or of share is one or the other, so it fails outside a code span, a link
+ *    address and a fenced block. The words say what the number shows, and a
+ *    link names the audit or the code that holds it.
  *
  * A separate root permits a disposable negative check without real documents,
  * in the same shape as `tools/check-agents-md.mjs`.
@@ -412,6 +417,107 @@ export function namedPaths(text) {
 }
 
 /**
+ * The kinds that never copy a measured result or a configured value.
+ *
+ * A guide page is left out: its reader runs a server or writes notes and does
+ * not open the code, so the page states a limit, such as the largest import,
+ * as a number. An audit is the evidence that the other kinds link.
+ */
+export const measuredKinds = ['development', 'design', 'decisions', 'plans'];
+
+/**
+ * A quantity with a unit of time, of size or of share.
+ *
+ * A bare count is not held. A record names the numbers of records, issues,
+ * findings, rows and status codes, and none of them is a copy, so a count
+ * cannot tell a copy from a name. A unit can.
+ */
+const measuredQuantity =
+  /(?<![\w.$])\d+(?:[.,]\d+)*[ -]?(?:ms|milliseconds?|s|seconds?|[KMGT]i?B|kB|%)(?![\w%])/g;
+
+/** The accepted documents of rule 9, from the root of the checked tree. */
+export const measuredAllowFile = 'tools/docs-measured-allow.json';
+
+/**
+ * The measured quantities of one document.
+ *
+ * A code span names code, a link address is an address, and a fenced block
+ * is a command, so none of them is read.
+ *
+ * @param {string} text
+ * @returns {{ line: number; quantity: string }[]}
+ */
+export function measuredQuantities(text) {
+  /** @type {{ line: number; quantity: string }[]} */
+  const found = [];
+  /** @type {string | null} */
+  let open = null;
+  for (const [index, line] of text.split('\n').entries()) {
+    const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence !== null) {
+      const marker = /** @type {string} */ (fence[1]);
+      const rest = /** @type {string} */ (fence[2]).trim();
+      if (open === null) {
+        if (!(marker.startsWith('`') && rest.includes('`')))
+          open = marker.slice(0, 1);
+        continue;
+      }
+      if (marker.startsWith(open) && rest === '') {
+        open = null;
+        continue;
+      }
+    }
+    if (open !== null) continue;
+    const prose = line
+      .replace(/`[^`]*`/g, '')
+      .replace(/\]\([^)]*\)/g, ']')
+      .replace(/<[a-z][a-z0-9+.-]*:[^>]*>/gi, '')
+      .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '');
+    for (const match of prose.matchAll(measuredQuantity))
+      found.push({ line: index + 1, quantity: match[0] });
+  }
+  return found;
+}
+
+/**
+ * The documents that may keep their measured quantities, with the reason.
+ *
+ * Each one was accepted before rule 9 held and is never edited again, so its
+ * quantities are history. The list only shrinks: an entry whose document
+ * holds no quantity fails.
+ *
+ * @param {string} directory
+ * @returns {Promise<Map<string, string>>}
+ */
+export async function readMeasuredAllowlist(directory) {
+  const text = await readFile(join(directory, measuredAllowFile), 'utf8').catch(
+    () => '{"allow":[]}',
+  );
+  /** @type {unknown} */
+  const parsed = JSON.parse(text);
+  /** @type {Map<string, string>} */
+  const allowed = new Map();
+  const list =
+    parsed !== null && typeof parsed === 'object' && 'allow' in parsed
+      ? parsed.allow
+      : [];
+  if (!Array.isArray(list)) return allowed;
+  for (const entry of list) {
+    const file =
+      entry !== null && typeof entry === 'object' && 'file' in entry
+        ? entry.file
+        : null;
+    const reason =
+      entry !== null && typeof entry === 'object' && 'reason' in entry
+        ? entry.reason
+        : null;
+    if (typeof file === 'string' && typeof reason === 'string' && reason !== '')
+      allowed.set(file, reason);
+  }
+  return allowed;
+}
+
+/**
  * Runs the check over one repository tree.
  *
  * @param {string} directory
@@ -425,6 +531,9 @@ export async function main(directory) {
     failures.push('docs/: no document. The documentation tree is missing.');
   /** @type {{ path: string; text: string }[]} */
   const linked = [];
+  const measuredAllowed = await readMeasuredAllowlist(directory);
+  /** @type {Set<string>} */
+  const measuredHistory = new Set();
   for (const path of documents) {
     const inside = path.slice('docs/'.length);
     const placement = placementFailure(inside);
@@ -470,12 +579,27 @@ export async function main(directory) {
     // A superseded document is frozen, so nobody can take a copy of code out
     // of it. Every other rule still holds.
     if (isSuperseded(text)) continue;
+    if (measuredKinds.includes(kind)) {
+      const quantities = measuredQuantities(text);
+      if (measuredAllowed.has(path)) {
+        if (quantities.length > 0) measuredHistory.add(path);
+      } else
+        for (const found of quantities)
+          failures.push(
+            `${path}:${String(found.line)}: "${found.quantity}" is a measured result or a configured value. A document never copies one: say what it shows in words, and link the audit or name the code by path.`,
+          );
+    }
     for (const fence of fenceLanguages(text))
       if (!allowedFenceLanguages.includes(fence.language))
         failures.push(
           `${path}:${fence.line}: a "${fence.language}" block. A document points at code and never copies it.`,
         );
   }
+  for (const file of measuredAllowed.keys())
+    if (!measuredHistory.has(file))
+      failures.push(
+        `${measuredAllowFile}: ${file} holds no measured quantity of a living document now. Remove its entry.`,
+      );
   const decisionNames = documents
     .filter((path) => path.startsWith('docs/decisions/'))
     .map((path) => path.slice('docs/decisions/'.length));

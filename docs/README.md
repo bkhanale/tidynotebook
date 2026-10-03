@@ -15,6 +15,14 @@ backup procedure need the command, so a fenced `sh` block is allowed. A fenced
 block with any other language is refused, except in a file whose status line
 says that it is superseded. That content is frozen, so no check holds it.
 
+A measured result goes stale in the same way. A decision record, a design, a
+plan and a page under `development/` hold no quantity with a unit of time, of
+size or of share outside a code span or a link address. Say what the number
+shows in words, and link the audit that measured it or name the code that
+holds it. A guide page may state a limit as a number, because its reader does
+not open the code. `tools/docs-measured-allow.json` names the documents that
+were accepted before this rule held, and that list only shrinks.
+
 A document points at code by path, and that path is checked. A page under
 `development/` or `guide/` states what the product is now, so every
 repository path it names inside a code span must be there. A decision record,
