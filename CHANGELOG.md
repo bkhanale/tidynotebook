@@ -5,6 +5,72 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.0 - 2026-10-03
+
+This minor release adds a slash menu, a menu and a selection in the file tree,
+a preview in History, and a name that comes from the first heading. It also
+makes typing, saving, search and the first screen faster.
+
+### Added
+
+- **A slash menu.** Type `/` at the start of a line, or after a space, to
+  insert a heading, a list, a block quote or a table.
+- **A menu for each row of the tree.** A right click, the button at the end of
+  the row, or Shift + F10 opens it. It offers Rename, Move to folder,
+  Duplicate, Copy link and more.
+- You can select several rows of the tree with Ctrl, Shift or the keyboard,
+  then move them or move them to Trash together. F2 renames a row in place.
+- **A preview in History.** A version shows its changes and a preview of the
+  note as it looked then. History groups the versions by day.
+- **A name from the first heading.** A new note that starts with a heading
+  takes the heading as its name when you pause.
+- Footnotes show in the editor and on a published page.
+- Inline math can be `$x^2$`, as in GitHub, Obsidian and Pandoc. A price such
+  as `$5` stays text.
+- Code shows in colour in more languages. Each code block shows its language
+  and a Copy button, in the note and on a published page.
+- A typed or pasted wiki link, such as `[[Plan]]`, becomes a normal link when
+  the note exists. An import of an Obsidian vault changes its wiki links in
+  the same way.
+- A note keeps a safe set of HTML, such as `<kbd>`, `<sub>` and `<details>`.
+- A published page draws a diagram, highlights code, and shows tasks and
+  tables as the editor does.
+
+### Changed
+
+- Find and replace is a band above the note, with Match case, Regular
+  expression and Whole word.
+- On a phone, the row of tools stands above the keyboard. An arrow shows when
+  more tools are there.
+- Enter after a typed fence opener writes the closing fence. Enter on an empty
+  list item ends the list with a blank line.
+- Home on a list line or a quoted line goes to the start of the text.
+- Search finds the words of every language. A word finds the longer words that
+  start with it, and `cafe` finds `café`.
+- The export downloads as a file of the browser. An import takes every zip
+  file that an export writes, up to 65534 files and 4 GiB.
+- The action that removes a note from the tree is Move to Trash on every
+  surface, and the bar after it offers Restore.
+- The notice about the storage of the browser shows once, and you can close
+  it.
+- The database needs the `btree_gin` and `unaccent` extensions of PostgreSQL.
+  The Compose image holds both. A database that you run yourself needs the
+  contrib modules installed.
+
+### Fixed
+
+- Typing, Ctrl + S, a save to a second device, search and the first screen are
+  faster. A large note no longer slows each key.
+- All notes shows a long list of notes without delay.
+- A save that the server refuses names the limit that it broke, and Retry
+  keeps your later changes.
+- An error on a page shows Reload and Open all notes, and the sidebar stays.
+- The sync status in the sidebar footer shows whole.
+- The dialog of keyboard shortcuts fits on the screen.
+- A new note no longer says that its links need a connection while online.
+- A palette result shows plain text and its folder.
+- A disabled button reads as unavailable.
+
 ## 0.12.0 - 2026-10-02
 
 This minor release copies a whole note as Markdown from the command palette,
