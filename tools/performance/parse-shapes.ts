@@ -10,7 +10,8 @@
  *
  * A shape whose work grows with its size takes about twice the time at twice
  * the size, and one that grows with the square about four times. A note that
- * a count refuses before the parse prints the limit instead. The unit test
+ * a count refuses before the parse prints the limit instead, and a step that
+ * fails prints the name of its error. The unit test
  * `packages/markdown/src/parse.test.ts` holds the same shapes with a count of
  * work rather than of time, so this script only shows the times on a machine.
  * Every number it prints is a measured result for the report of a run.
@@ -53,6 +54,9 @@ async function timed(run: () => unknown): Promise<string> {
     await run();
   } catch (error) {
     if (error instanceof MarkdownLimitError) return `refused ${error.reason}`;
+    // Any other error is a defect of the step, such as a call that runs out
+    // of stack, so the run names it and goes on with the next note.
+    if (error instanceof Error) return `failed ${error.name}`;
     throw error;
   }
   return `${(performance.now() - started).toFixed(0)} ms`;
