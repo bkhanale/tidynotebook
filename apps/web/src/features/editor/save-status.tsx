@@ -15,6 +15,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,6 +28,10 @@ import {
   type FactStore,
 } from '../../lib/fact-store.ts';
 import type { NoteSaveReport } from '../../lib/save-state.ts';
+import {
+  createReloadGuard,
+  createScreenWriter,
+} from '../../lib/screen-writer.ts';
 export { noteSaveReport, resolveSaveState } from '../../lib/save-state.ts';
 export type {
   NoteSaveReport,
@@ -112,17 +117,19 @@ export function useRegisterNoteDraftFlush(flush: () => Promise<void>): void {
 
 /**
  * The writer of the save facts of the open note, for the editor to call when
- * a fact may have changed. The facts go when the screen goes.
+ * a fact may have changed. The facts go when the screen goes, and an answer
+ * of the store that arrives later writes nothing (record 0175).
  */
 export function useNoteSavePublisher(): (report: NoteSaveReport) => void {
   const { report } = useContext(NoteSaveContext);
-  useEffect(
-    () => () => {
-      report.set(null);
-    },
-    [report],
+  const [writer] = useState(() =>
+    createScreenWriter<NoteSaveReport | null>(report.set, null),
   );
-  return report.set;
+  useLayoutEffect(() => {
+    writer.open();
+    return writer.close;
+  }, [writer]);
+  return writer.write;
 }
 
 /**
@@ -131,29 +138,17 @@ export function useNoteSavePublisher(): (report: NoteSaveReport) => void {
  * A queued save is durable on this device and survives a reload, so it
  * never blocks. Only text that has not reached local storage yet, and a
  * local write that failed, keep the browser confirmation. The answer sets
- * the guard without a render, because the first key of a burst sets it.
+ * the guard without a render, because the first key of a burst sets it. The
+ * guard goes with the screen, and an answer of the store that arrives later
+ * sets nothing (record 0175).
  */
 export function useUnsafeReloadGuard(): (blocked: boolean) => void {
-  const listening = useRef(false);
-  const onBeforeUnload = useCallback((event: BeforeUnloadEvent): void => {
-    event.preventDefault();
-  }, []);
-  useEffect(
-    () => () => {
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      listening.current = false;
-    },
-    [onBeforeUnload],
-  );
-  return useCallback(
-    (blocked: boolean): void => {
-      if (blocked === listening.current) return;
-      listening.current = blocked;
-      if (blocked) window.addEventListener('beforeunload', onBeforeUnload);
-      else window.removeEventListener('beforeunload', onBeforeUnload);
-    },
-    [onBeforeUnload],
-  );
+  const [guard] = useState(() => createReloadGuard(window));
+  useLayoutEffect(() => {
+    guard.open();
+    return guard.close;
+  }, [guard]);
+  return guard.set;
 }
 
 /** Follows the connection state of the browser. */
