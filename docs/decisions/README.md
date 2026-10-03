@@ -213,6 +213,7 @@ and needs no record.
 | [0179](0179-an-open-note-follows-a-new-head-in-its-one-editor.md)                     | An open note follows a new head in its one editor                               |
 | [0180](0180-a-start-that-fails-shows-the-application-error-screen.md)                 | A start that fails shows the application error screen                           |
 | [0183](0183-the-work-of-an-open-editor-names-its-generation.md)                       | The work of an open editor names its generation                                 |
+| [0186](0186-the-parse-of-a-note-grows-with-its-size.md)                               | The parse of a note grows with its size                                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
