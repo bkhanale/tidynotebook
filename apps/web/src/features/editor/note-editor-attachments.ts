@@ -18,8 +18,8 @@ import {
 } from 'react';
 import { createAttachmentLoader } from '../../lib/attachment-content.ts';
 import { createCoalescedRead } from '../../lib/coalesced-read.ts';
-import { extractAttachmentRefs } from '@notesapp/markdown';
-import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
+import type { LocalStore } from '@notesapp/sync';
+import { createAttachmentReader } from './attachment-reader.ts';
 
 /** Attachment revision references in stored Markdown. */
 const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
@@ -107,88 +107,15 @@ export function useAttachmentUrls(
   // Attachment widgets use authenticated object URLs. URLs are revoked when
   // their references leave the note and when the editor closes.
   useEffect(() => {
-    let cancelled = false;
     const controller = new AbortController();
-    // The references and the recent uploads of the last read, so a text
-    // whose references did not change reads nothing.
-    let lastKey: string | null = null;
-    const read = createCoalescedRead(async (): Promise<void> => {
-      const references = extractAttachmentRefs(
-        textRef.current,
-        notePathRef.current,
-      );
-      const key = JSON.stringify(references);
-      if (key === lastKey) return;
-      // Only a reference by path needs the file list of the area.
-      const needsFiles = references.some(
-        (reference) =>
-          reference.revisionId === null &&
-          reference.targetPath !== null &&
-          !recentAttachments.has(reference.targetPath),
-      );
-      let files: readonly LocalFileSummary[] = [];
-      if (needsFiles)
-        try {
-          files = await store.listLocalFiles(accountId, workspaceId);
-        } catch {
-          // A read of local storage that fails keeps the pictures that are
-          // shown. The write of the same text fails too, and the note
-          // states that failure once (`lib/local-write.ts`).
-          return;
-        }
-      if (cancelled) return;
-      lastKey = key;
-      const wanted = references.flatMap((reference) => {
-        if (reference.revisionId !== null)
-          return [
-            { key: reference.revisionId, revisionId: reference.revisionId },
-          ];
-        const recentRevisionId =
-          reference.targetPath === null
-            ? undefined
-            : recentAttachments.get(reference.targetPath);
-        if (recentRevisionId !== undefined)
-          return [
-            { key: reference.targetPath ?? '', revisionId: recentRevisionId },
-          ];
-        const file = files.find(
-          (entry) =>
-            entry.kind === 'attachment' &&
-            !entry.deleted &&
-            entry.path === reference.targetPath,
-        );
-        const revisionId =
-          file?.localHeadRevisionId ?? file?.acceptedHeadRevisionId;
-        return reference.targetPath === null ||
-          revisionId === null ||
-          revisionId === undefined
-          ? []
-          : [{ key: reference.targetPath, revisionId }];
-      });
-      const owned = ownedUrlsRef.current;
-      for (const [ownedKey, entry] of owned) {
-        if (!wanted.some((item) => item.key === ownedKey)) {
-          entry.dispose();
-          owned.delete(ownedKey);
-        }
-      }
-      for (const item of wanted) {
-        if (cancelled || owned.has(item.key)) continue;
-        try {
-          const loaded = await loader.loadAttachment(
-            item.revisionId,
-            controller.signal,
-          );
-          if (cancelled) {
-            loaded.dispose();
-            continue;
-          }
-          owned.set(item.key, { url: loaded.url, dispose: loaded.dispose });
-        } catch {
-          // A missing attachment stays as editable source in its widget.
-        }
-      }
-      if (!cancelled)
+    const owned = ownedUrlsRef.current;
+    const reader = createAttachmentReader({
+      listFiles: () => store.listLocalFiles(accountId, workspaceId),
+      load: (revisionId) =>
+        loader.loadAttachment(revisionId, controller.signal),
+      recent: recentAttachments,
+      owned,
+      changed: () => {
         setAttachmentUrls((current) =>
           sameUrls(current, owned)
             ? current
@@ -196,11 +123,27 @@ export function useAttachmentUrls(
                 [...owned].map(([id, entry]) => [id, entry.url] as const),
               ),
         );
+      },
     });
+    const read = createCoalescedRead(() =>
+      reader.read(textRef.current, notePathRef.current),
+    );
     askRef.current = read.ask;
     read.ask();
+    // A picture that a read left out, because its file or its bytes were
+    // not on this device yet, loads when the files of the area change.
+    const unsubscribe = store.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        change.kind === 'file' &&
+        !reader.complete()
+      )
+        read.ask();
+    });
     return () => {
-      cancelled = true;
+      unsubscribe();
+      reader.stop();
       read.stop();
       askRef.current = () => {};
       controller.abort();
