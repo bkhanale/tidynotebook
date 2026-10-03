@@ -278,3 +278,34 @@ await test('remote work is never held as work of the person', () => {
   held.stop();
   session.destroy();
 });
+
+await test('an open note joins a save of another device and a restore exactly', () => {
+  // Record 0179. The note screen mounted a new editor when another device
+  // moved the head, and the person lost the caret and the scroll. Both moves
+  // are work of the same generation, so the one editor joins them.
+  const first = startDocument('# Note\nfirst\n');
+  const note = openBoundNote(first, '# Note\nfirst\n');
+  const saved = replaceDocumentText(first, '# Note\nfirst\nsecond\n');
+  if (!saved.ok) throw new Error(saved.refusal);
+  note.join(saved.value.document);
+  assert.equal(note.text(), '# Note\nfirst\nsecond\n');
+  // A restore from History writes the old text into the same document.
+  const restored = replaceDocumentText(saved.value.document, '# Note\nfirst\n');
+  if (!restored.ok) throw new Error(restored.refusal);
+  note.join(restored.value.document);
+  assert.equal(note.text(), '# Note\nfirst\n');
+  // The same work a second time changes nothing.
+  note.join(restored.value.document);
+  assert.equal(note.text(), '# Note\nfirst\n');
+  note.release();
+});
+
+await test('a document of a new generation cannot join, which is why it reopens', () => {
+  // Record 0179. The identities of a new generation say nothing about the
+  // old ones, so a join would hold the text twice. The screen reads the
+  // note again for it instead.
+  const note = openBoundNote(startDocument('# Note\n'), '# Note\n');
+  note.join(startDocument('# Note\n'));
+  assert.notEqual(note.text(), '# Note\n');
+  note.release();
+});

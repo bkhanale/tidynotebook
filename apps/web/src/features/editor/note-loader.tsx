@@ -126,9 +126,10 @@ export function NoteEditorLoader({
     },
     [accountId, workspaceId, fileId],
   );
-  // A restore brings a deleted note back, and a version of another device
-  // replaces the note an idle editor holds. The loader then reads the note
-  // once more, so the screen follows the store without a page reload.
+  // A restore brings a deleted note back, and a new generation of a document
+  // cannot join the open editor. The loader then reads the note once more,
+  // so the screen follows the store without a page reload. A version of
+  // another device joins the open editor instead (record 0179).
   const [reloadToken, setReloadToken] = useState(0);
   // A second read of a note that is already on the screen keeps the screen it
   // has. Only the first read of a note shows the loading state, so a version
@@ -138,6 +139,14 @@ export function NoteEditorLoader({
     quietReload.current = true;
     setReloadToken((token) => token + 1);
   }, []);
+  // A new generation of the document of the open note cannot join its
+  // editor, so the screen reads the note again and mounts one new editor
+  // for it. Every other move of the head joins the one editor (record 0179).
+  const [generation, setGeneration] = useState(0);
+  const reopen = useCallback((): void => {
+    setGeneration((count) => count + 1);
+    readAgain();
+  }, [readAgain]);
   const statusKind = useRef<NoteLoadStatus['kind']>(status.kind);
   statusKind.current = status.kind;
   const [linkNotice, setLinkNotice] = useState('');
@@ -377,7 +386,7 @@ export function NoteEditorLoader({
         // A read that answers with the revision the editor already holds
         // therefore mounts nothing, so an ask that arrives before the read
         // returns cannot start a round of mounts.
-        key={`${fileId}:${status.headRevisionId ?? 'new'}`}
+        key={`${fileId}:${status.headRevisionId ?? 'new'}:${String(generation)}`}
         store={store}
         accountId={accountId}
         workspaceId={workspaceId}
@@ -391,7 +400,7 @@ export function NoteEditorLoader({
         focusText={focusText}
         onMoveToFolder={onMoveToFolder}
         onPublish={onPublish}
-        onHeadReplaced={readAgain}
+        onHeadReplaced={reopen}
         onOpenLink={(target: LinkTarget): void => {
           const action = resolveLinkAction(target.target, status.path);
           if (action.kind === 'note-id') {

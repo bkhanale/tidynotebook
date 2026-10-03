@@ -99,7 +99,11 @@ import { createDocumentWorkQueue } from './document-work.ts';
 import { createWriteSchedule } from './write-schedule.ts';
 import { createCoalescedRead } from '../../lib/coalesced-read.ts';
 import { formatPaletteRows } from '../../lib/format-toolbar.ts';
-import { noteHeadWasReplaced } from './head-replaced.ts';
+import {
+  headToAdopt,
+  remoteChangeWritesDraft,
+  storedDocumentStep,
+} from './head-replaced.ts';
 import { Backlinks } from './backlinks.tsx';
 import { ReviewNoticeBar } from '../review/review-notice.tsx';
 import { ImageViewer } from './image-viewer.tsx';
@@ -164,14 +168,10 @@ export type NoteEditorProps = {
   /** Opens the Publish dialog that the note screen owns. */
   readonly onPublish?: (() => void) | undefined;
   /**
-   * Reports that the note this editor opened is no longer the note the store
-   * holds, and that nothing of this device is at stake.
-   *
-   * The ordered feed moves the accepted head of a file that another device
-   * wrote, and the store then drops a working copy that held nothing (record
-   * 0073). An editor whose buffer is the text that was replaced has nothing
-   * left to write and must not offer it as the note. It asks the loader for
-   * the note again instead.
+   * Reports that the store holds a new generation of the document of this
+   * note, which cannot join this editor, and that no key of this session is
+   * at stake. The loader reads the note again with a new editor. Every other
+   * move of the head joins this editor and keeps its caret (record 0179).
    */
   readonly onHeadReplaced?: (() => void) | undefined;
 };
@@ -273,10 +273,13 @@ const NoteEditorBody = memo(function NoteEditorBody({
   const activeNote = useRef(activeNoteControl);
   activeNote.current = activeNoteControl;
   const isDeletedRef = useRef(false);
-  // True once the store holds a version of this note that this editor never
-  // read, while this editor holds no work of its own. The buffer here is then
-  // the text that version replaced, so it writes nothing more.
-  const headReplacedRef = useRef(false);
+  // True once the store holds a new generation of the document of this note
+  // while this editor holds no key of its own. That document cannot join, so
+  // the screen reads the note again, and this editor writes nothing more
+  // (record 0179).
+  const reopeningRef = useRef(false);
+  // The generation of the document that this editor joined first.
+  const openedEpochRef = useRef<number | null>(null);
   const { resolved } = useTheme();
   const spellCheck = useSpellCheck();
   const spellCheckRef = useRef(spellCheck);
@@ -508,16 +511,14 @@ const NoteEditorBody = memo(function NoteEditorBody({
   };
 
   /**
-   * Whether this buffer is the text that a version of another device replaced.
+   * Whether this editor gives way to a new editor of a new generation.
    *
-   * The screen reads the note again when that happens, and this editor gives
-   * way. Until it does, it writes no version: leaving a note flushes one, and
-   * a flush of this buffer would put the replaced text back on top of the
-   * version that replaced it. A keystroke lifts the answer, because the person
-   * is then writing a save of their own and record 0026 decides that case.
+   * Until the new editor mounts, this one writes no version: its document is
+   * of the old generation. A key lifts the answer, because the person is then
+   * writing a save of their own and record 0084 recovers it.
    */
   const bufferWasReplaced = (): boolean =>
-    headReplacedRef.current && sequenceRef.current === initialSequence;
+    reopeningRef.current && sequenceRef.current === initialSequence;
 
   /**
    * Joins the accepted work that this device received into the open document.
@@ -539,7 +540,22 @@ const NoteEditorBody = memo(function NoteEditorBody({
         current.fileId,
       );
       if (stored === null) return;
-      bound.join(stored.bytes);
+      const step = storedDocumentStep({
+        openedEpoch: openedEpochRef.current,
+        storedEpoch: stored.epoch,
+        typed: sequenceRef.current !== initialSequence,
+      });
+      openedEpochRef.current ??= stored.epoch;
+      if (step === 'join') {
+        // Another device, a restore or a snapshot moved the note: the one
+        // editor takes the work and keeps its caret and scroll (record 0179).
+        bound.join(stored.bytes);
+        return;
+      }
+      if (step === 'reopen' && !reopeningRef.current) {
+        reopeningRef.current = true;
+        callbacks.current.onHeadReplaced?.();
+      }
     } catch {
       // A read that fails leaves the open document exactly as it is. The
       // next change of the store asks again.
@@ -573,23 +589,16 @@ const NoteEditorBody = memo(function NoteEditorBody({
       if (snapshot.deleted) isDeletedRef.current = true;
       else {
         adoptStoredPath.current(snapshot.path);
-        // Another device wrote this note and the store dropped the working
-        // copy that held nothing, so the buffer here is the text that was
-        // replaced. The screen reads the note again rather than offering it.
-        // One ask per editor: the read that answers mounts a new editor, and
-        // a second ask before it returns repeats the same question.
-        if (
-          !headReplacedRef.current &&
-          noteHeadWasReplaced({
-            snapshot,
-            openedBase: baseRef.current,
-            openedSequence: initialSequence,
-            currentSequence: sequenceRef.current,
-          })
-        ) {
-          headReplacedRef.current = true;
-          callbacks.current.onHeadReplaced?.();
-        }
+        // Another device moved the head and nothing of this device waits.
+        // The join above brought the new text, so the next save of this
+        // editor descends from the new head (record 0179).
+        const adopted = headToAdopt({
+          snapshot,
+          base: baseRef.current,
+          openedSequence: initialSequence,
+          currentSequence: sequenceRef.current,
+        });
+        if (adopted !== null) baseRef.current = adopted;
       }
       const latest = checkpoints
         .filter((entry) => !entry.deleted)
@@ -1018,7 +1027,10 @@ const NoteEditorBody = memo(function NoteEditorBody({
         onRemoteChange: (readText) => {
           textReaderRef.current = readText;
           documentWork.schedule(readText);
-          void saveDraftNow.current();
+          // A draft is recovery data of local work, so remote work writes
+          // only a draft that this editor has already (record 0179).
+          if (remoteChangeWritesDraft(sequenceRef.current))
+            void saveDraftNow.current();
         },
       },
     );
