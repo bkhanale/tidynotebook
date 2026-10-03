@@ -11,6 +11,12 @@
  * text tries again, and the screen asks for one when the files of the area
  * change. A read that marked such a text done kept the picture out until the
  * person changed its reference.
+ *
+ * Every reference to a picture names a path under `attachments/`, so only
+ * the lines that hold that word, and the fence lines that can make a line
+ * code, decide the references. A read parses the note only when those lines
+ * changed: the parse reads the whole note, and a pause after each key on a
+ * long note paid for it.
  */
 import { extractAttachmentRefs } from '@notesapp/markdown';
 import type { LocalFileSummary } from '@notesapp/sync';
@@ -28,7 +34,39 @@ export type AttachmentReaderPorts = {
   readonly owned: Map<string, OwnedUrl>;
   /** Runs after a read changed the URLs that the screen shows. */
   readonly changed: () => void;
+  /** The parse of the references, which a test counts. */
+  readonly extract?: typeof extractAttachmentRefs;
 };
+
+/** The word that every reference to a picture holds. */
+const attachmentWord = 'attachments/';
+
+/** The lines of a text that hold one of the given words, in order. */
+function linesWith(text: string, words: readonly string[]): string[] {
+  const starts = new Set<number>();
+  for (const word of words)
+    for (
+      let at = text.indexOf(word);
+      at !== -1;
+      at = text.indexOf(word, at + word.length)
+    )
+      starts.add(text.lastIndexOf('\n', at) + 1);
+  return [...starts]
+    .sort((left, right) => left - right)
+    .map((start) => {
+      const end = text.indexOf('\n', start);
+      return text.slice(start, end === -1 ? text.length : end);
+    });
+}
+
+/**
+ * The part of a note that decides its references to pictures, or `null`
+ * when the note holds none.
+ */
+export function referenceLines(text: string): string | null {
+  if (!text.includes(attachmentWord)) return null;
+  return linesWith(text, [attachmentWord, '```', '~~~']).join('\n');
+}
 
 /** The reader of the pictures of one open note. */
 export type AttachmentReader = {
@@ -44,17 +82,29 @@ export type AttachmentReader = {
 export function createAttachmentReader(
   ports: AttachmentReaderPorts,
 ): AttachmentReader {
-  // The references of the last complete read, so a text whose references
-  // did not change reads nothing.
+  const extract = ports.extract ?? extractAttachmentRefs;
+  // The reference lines of the last complete read, so a text whose
+  // references did not change reads nothing.
   let doneKey: string | null = null;
+  // The references of the last parse, by the lines that decided them.
+  let parsed: {
+    readonly key: string;
+    readonly references: ReturnType<typeof extractAttachmentRefs>;
+  } | null = null;
   let stopped = false;
 
   return {
     read: async (text, notePath) => {
-      const references = extractAttachmentRefs(text, notePath);
-      const key = JSON.stringify(references);
+      const lines = referenceLines(text);
+      const key = `${notePath}\n${lines ?? ''}`;
       if (key === doneKey) return;
       doneKey = null;
+      if (parsed?.key !== key)
+        parsed = {
+          key,
+          references: lines === null ? [] : extract(text, notePath),
+        };
+      const references = parsed.references;
       // Only a reference by path needs the file list of the area.
       const needsFiles = references.some(
         (reference) =>

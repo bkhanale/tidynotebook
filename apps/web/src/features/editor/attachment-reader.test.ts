@@ -106,3 +106,35 @@ await test('a reference that leaves the note frees its URL', async () => {
   assert.equal(owned.size, 0);
   assert.equal(disposed, 1);
 });
+
+await test('a read parses the note only when its reference lines change', async () => {
+  // The read parsed the whole note after each pause in typing, which took
+  // over a second on a note of 500 KB at four times less CPU.
+  let parses = 0;
+  const subject = createAttachmentReader({
+    listFiles: () => Promise.resolve([pictureFile]),
+    load: () => Promise.resolve({ url: 'blob:one', dispose: () => {} }),
+    recent: new Map(),
+    owned: new Map(),
+    changed: () => {},
+    extract: (source, path) => {
+      parses += 1;
+      return extractAttachmentRefs(source, path);
+    },
+  });
+  const long = `${'A line of words.\n'.repeat(1000)}${text}`;
+  await subject.read(long, notePath);
+  assert.equal(parses, 1);
+  // Keys in the text, away from the picture, parse nothing.
+  await subject.read(`typed ${long}`, notePath);
+  await subject.read(`typed more ${long}`, notePath);
+  assert.equal(parses, 1);
+  // A key on the line of the picture, or a fence, parses again.
+  await subject.read(`${long}![b](attachments/other.png)\n`, notePath);
+  assert.equal(parses, 2);
+  await subject.read(`\`\`\`\n${long}`, notePath);
+  assert.equal(parses, 3);
+  // A note with no picture parses nothing at all.
+  await subject.read('A line of words.\n'.repeat(1000), notePath);
+  assert.equal(parses, 3);
+});
