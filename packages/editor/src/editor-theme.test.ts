@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { menuSurfaceStyle } from '@notesapp/ui';
 import { gripPointerQuery, noteSurfaceStyle } from './editor-theme.ts';
+import { layoutClasses } from './live-preview.ts';
 
 /** One rule of the surface style, as CodeMirror declares it. */
 type SurfaceRule = ReturnType<typeof noteSurfaceStyle>[string];
@@ -270,6 +271,26 @@ await test('a wrapped item starts on the first letter of its own text', () => {
   assert.equal(lead.whiteSpace, 'pre');
   assert.equal(body.display, 'table-cell');
   assert.equal(body.width, '100%');
+});
+
+await test('every cell of a line is a mark that no other mark splits', () => {
+  // A mark element that the theme makes a table cell reads right only while
+  // it is one element. CodeMirror splits a mark around a mark that wraps a
+  // part of it, and each part became a cell: a find match in a task put the
+  // matched word in a narrow cell at the right edge. The live preview draws
+  // the marks of `layoutClasses` outside every other mark, so a cell rule
+  // names one of them, and each of them is a cell.
+  const cells = new Set<string>();
+  for (const [selector, declarations] of Object.entries(noteSurfaceStyle())) {
+    if (declarations.display !== 'table-cell') continue;
+    for (const part of selector.split(',')) {
+      const name = /^\.([\w-]+)$/.exec(part.trim())?.[1];
+      assert.ok(name !== undefined, `${part} is a cell of no one class`);
+      assert.ok(layoutClasses.has(name), `${name} is a cell that can split`);
+      cells.add(name);
+    }
+  }
+  assert.deepEqual([...cells].sort(), [...layoutClasses].sort());
 });
 
 await test('the pointer over a link says that a click opens it', () => {

@@ -10,16 +10,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { syntaxTree } from '@codemirror/language';
-import { EditorState } from '@codemirror/state';
+import { SearchCursor, search } from '@codemirror/search';
+import {
+  EditorState,
+  RangeSet,
+  type Extension,
+  type Range,
+} from '@codemirror/state';
+import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 import { noteMarkdown, parsedWhole } from './language.ts';
 import {
   buildPreview,
   delimiterRowParts,
   headingLevel,
+  layoutClasses,
+  livePreview,
   previewNeedsRebuild,
   tableAlignments,
+  type PreviewBuild,
   type PreviewNode,
 } from './live-preview.ts';
+import { richWidgets } from './widgets.ts';
 
 /**
  * Builds a state whose whole document is parsed.
@@ -57,6 +68,21 @@ function specWidget(spec: unknown): string | null {
   return widget.constructor.name;
 }
 
+/**
+ * Calls `each` for every decoration of one build in a range: the look of the
+ * text first, then the cells of the lines, which the view draws as outer
+ * decorations.
+ */
+function eachDecoration(
+  built: PreviewBuild,
+  from: number,
+  to: number,
+  each: (from: number, to: number, value: Decoration) => void,
+): void {
+  for (const set of [built.decorations, built.layout])
+    set.between(from, to, each);
+}
+
 /** One decoration, described as text so a test can assert on it. */
 type Described = {
   readonly from: number;
@@ -85,7 +111,7 @@ function describe(
     selection,
   );
   const found: Described[] = [];
-  built.decorations.between(0, state.doc.length, (from, to, value) => {
+  eachDecoration(built, 0, state.doc.length, (from, to, value) => {
     const widget = specWidget(value.spec);
     if (widget !== null)
       found.push({ from, to, kind: 'widget', value: widget });
@@ -432,20 +458,20 @@ await test('a drawn marker at the start of a line sits inside the lead', () => {
       from: state.doc.length,
       to: state.doc.length,
     });
-    const starts: string[] = [];
-    for (
-      const cursor = built.decorations.iter();
-      cursor.value !== null;
-      cursor.next()
-    ) {
-      if (cursor.from !== 0) continue;
-      const spec: unknown = cursor.value.spec;
-      starts.push(specWidget(spec) ?? specClass(spec) ?? 'hide');
-    }
-    const lead = starts.indexOf('cm-np-list-lead');
-    const widget = starts.findIndex((name) => name.endsWith('Widget'));
-    assert.ok(lead !== -1 && widget !== -1, `${doc} lost a decoration`);
-    assert.ok(lead < widget, `${doc} draws its marker outside the lead`);
+    // The view orders the ranges that start at one place by their side, so
+    // the side states which one opens first.
+    const sides: Record<string, number> = {};
+    eachDecoration(built, 0, 0, (from, _to, value) => {
+      if (from !== 0) return;
+      const spec: unknown = value.spec;
+      const name = specWidget(spec) ?? specClass(spec) ?? 'hide';
+      sides[name.endsWith('Widget') ? 'widget' : name] = value.startSide;
+    });
+    const lead = sides['cm-np-list-lead'];
+    const widget = sides.widget;
+    assert.ok(lead !== undefined && widget !== undefined, `${doc} lost one`);
+    if (lead !== undefined && widget !== undefined)
+      assert.ok(lead < widget, `${doc} draws its marker outside the lead`);
   }
 });
 
@@ -748,10 +774,11 @@ await test('every separator of a row is a gap cell that wraps it', () => {
   // hidden node lands inside the gap and not beside it.
   const state = stateOf(doc);
   const sides: Record<string, number> = {};
-  buildPreview(state, [{ from: 0, to: state.doc.length }], {
+  const built = buildPreview(state, [{ from: 0, to: state.doc.length }], {
     from: doc.length,
     to: doc.length,
-  }).decorations.between(0, 1, (from, to, value) => {
+  });
+  eachDecoration(built, 0, 1, (from, to, value) => {
     if (from === 0 && to === 1)
       sides[specClass(value.spec) ?? 'hide'] = value.startSide;
   });
@@ -775,10 +802,11 @@ await test('a cell shows its text and not the padding of the source', () => {
   const state = stateOf(doc);
   const end = doc.indexOf('|', 1);
   const sides: Record<string, { start: number; end: number }> = {};
-  buildPreview(state, [{ from: 0, to: state.doc.length }], {
+  const built = buildPreview(state, [{ from: 0, to: state.doc.length }], {
     from: doc.length,
     to: doc.length,
-  }).decorations.between(0, end, (from, to, value) => {
+  });
+  eachDecoration(built, 0, end, (from, to, value) => {
     const name = specClass(value.spec) ?? 'hide';
     if (from === 1 && to === end)
       sides[name] = { start: value.startSide, end: value.endSide };
@@ -1370,4 +1398,249 @@ await test('a table at the left edge grows no leading cell', () => {
 await test('a table inside a list item keeps its indentation in a cell', () => {
   const doc = '1. Item\n\n   | A | B |\n   | - | - |\n   | 1 | 2 |\n';
   assert.ok(has(describe(doc), 'mark', 'cm-np-table-lead'));
+});
+
+await test('a cell of a line leaves the build only in the layout set', () => {
+  // The view draws the layout set outside every other mark, so a cell class
+  // in the other set could be split again.
+  const doc =
+    '- [x] Done task\n  - [ ] Nested\n1. One\n\n> | A | B |\n> | - | - |\n> | 1 | 2 |\n';
+  const state = stateOf(doc);
+  const built = buildPreview(state, [{ from: 0, to: state.doc.length }], {
+    from: doc.length,
+    to: doc.length,
+  });
+  const classesOf = (set: DecorationSet): string[] => {
+    const names: string[] = [];
+    set.between(0, doc.length, (_from, _to, value) => {
+      names.push(...(specClass(value.spec) ?? '').split(' '));
+    });
+    return names;
+  };
+  const cells = classesOf(built.layout);
+  for (const name of layoutClasses)
+    assert.ok(cells.includes(name), `${name} is not in the layout set`);
+  for (const name of classesOf(built.decorations))
+    assert.ok(!layoutClasses.has(name), `${name} is in the look set`);
+});
+
+/** The elements of one drawn line, by the first class of each. */
+type DrawnLine = {
+  /** The elements directly inside the line, with `text` for a loose node. */
+  readonly top: readonly string[];
+  /** Every mark element of the line, at any depth. */
+  readonly all: readonly string[];
+};
+
+/**
+ * The elements that a view draws for each line of a document.
+ *
+ * CodeMirror has no DOM here, so this walks the decoration sources the way
+ * `updateDeco` of `@codemirror/view` orders them: every source of
+ * `EditorView.decorations` in the order of its precedence, then the sources
+ * of `EditorView.outerDecorations` joined into one set. `RangeSet.spans`
+ * reports each piece of text and each widget with the marks that wrap it,
+ * innermost first, and how many of the outer ones go on from the piece
+ * before. A mark that does not go on opens a new element, which is what
+ * `ensureMarks` of the view builds.
+ *
+ * The plugin sources answer through a view that holds the build of the live
+ * preview, and the one other plugin, which is the highlighter of the find
+ * panel, answers with the find matches of `query`.
+ */
+function lineElements(
+  doc: string,
+  query: string | null,
+  extensions: readonly Extension[] = [],
+): readonly DrawnLine[] {
+  const preview = livePreview();
+  const state = parsedWhole(
+    EditorState.create({
+      doc,
+      selection: { anchor: doc.length },
+      extensions: [
+        noteMarkdown(),
+        preview,
+        ...extensions,
+        search({ top: true }),
+      ],
+    }),
+  );
+  const built = buildPreview(
+    state,
+    [{ from: 0, to: state.doc.length }],
+    state.selection.main,
+  );
+  const matches: Range<Decoration>[] = [];
+  if (query !== null)
+    for (
+      const cursor = new SearchCursor(state.doc, query);
+      !cursor.next().done;
+    )
+      matches.push(
+        Decoration.mark({ class: 'cm-searchMatch' }).range(
+          cursor.value.from,
+          cursor.value.to,
+        ),
+      );
+  const found = Decoration.set(matches);
+  const view = {
+    plugin: (plugin: unknown) =>
+      plugin === preview ? built : { decorations: found },
+  };
+  const answer = (
+    source: DecorationSet | ((view: EditorView) => DecorationSet),
+  ): DecorationSet => {
+    if (typeof source !== 'function') return source;
+    const value: unknown = Reflect.apply(source, undefined, [view]);
+    if (value === built.decorations) return built.decorations;
+    if (value === built.layout) return built.layout;
+    if (value === found) return found;
+    return assert.fail('a source answered a set that this view did not hold');
+  };
+  const plugins = [
+    ...state.facet(EditorView.decorations),
+    ...state.facet(EditorView.outerDecorations),
+  ].filter((source) => typeof source === 'function');
+  assert.equal(plugins.length, 3, 'the preview twice and the highlighter');
+  const outer = state.facet(EditorView.outerDecorations).map(answer);
+  const sets = [
+    ...state.facet(EditorView.decorations).map(answer),
+    ...(outer.length > 0 ? [RangeSet.join(outer)] : []),
+  ];
+  const lines: DrawnLine[] = [];
+  for (let number = 1; number <= state.doc.lines; number += 1) {
+    const line = state.doc.line(number);
+    const top: string[] = [];
+    const all: string[] = [];
+    /** The open elements from the line inward, as the last child of each. */
+    let chain: Decoration[] = [];
+    const place = (active: readonly Decoration[], openStart: number): void => {
+      let open = openStart;
+      for (let index = active.length - 1; index >= 0; index -= 1) {
+        const depth = active.length - 1 - index;
+        const mark = active[index];
+        if (mark === undefined) continue;
+        const last = chain[depth];
+        if (open > 0 && last !== undefined && last.eq(mark)) {
+          open -= 1;
+          continue;
+        }
+        chain = [...chain.slice(0, depth), mark];
+        open = 0;
+        const name = (specClass(mark.spec) ?? '').split(' ')[0] ?? '';
+        all.push(name);
+        if (depth === 0) top.push(name);
+      }
+      if (active.length === 0 && top.at(-1) !== 'text') top.push('text');
+      chain = chain.slice(0, active.length);
+    };
+    RangeSet.spans(sets, line.from, line.to, {
+      span: (_from, _to, active, openStart) => {
+        place(active, openStart);
+      },
+      point: (from, to, value, active, openStart) => {
+        // A line decoration is a point of no length with no widget.
+        if (from === to && specWidget(value.spec) === null) return;
+        if (openStart > active.length) return;
+        place(active, openStart);
+      },
+    });
+    lines.push({ top, all });
+  }
+  return lines;
+}
+
+/** The two cells of the marker line of a list item. */
+const itemRow = ['cm-np-list-lead', 'cm-np-list-body'];
+
+await test('a find match inside a task keeps its line one row of two cells', () => {
+  // The defect this covers: the highlighter of the find panel has a lower
+  // precedence than the live preview, so its mark wrapped the body cell of a
+  // task and split it. Each part became a cell of its own, and the matched
+  // word stood in a narrow cell at the right edge, one letter on each line.
+  // The match is at the start, in the middle and at the end of the text, in
+  // a done task, an open task, a nested task and a plain item.
+  const doc = [
+    '- [x] Done task',
+    '- [ ] task to open',
+    '- [ ] Open task here',
+    '- Plain task item',
+    '  - [ ] Nested task',
+    '1. Ordered task',
+    '',
+  ].join('\n');
+  for (const [index, line] of lineElements(doc, 'task').entries())
+    if (index < 6)
+      assert.deepEqual(line.top, itemRow, `line ${String(index + 1)}`);
+});
+
+await test('a find match inside a table cell keeps one cell', () => {
+  const doc = '| a task | b |\n| --- | --- |\n| task | c task |\n';
+  const row = [
+    'cm-np-table-gap',
+    'cm-np-table-head',
+    'cm-np-table-gap',
+    'cm-np-table-head',
+    'cm-np-table-gap',
+  ];
+  const [header, , body] = lineElements(doc, 'task');
+  assert.deepEqual(header?.top, row);
+  assert.deepEqual(
+    body?.top,
+    row.map((name) => name.replace('head', 'cell')),
+  );
+});
+
+await test('a mark that goes on to the next line keeps the body whole', () => {
+  // A bold run and a code span can cross the end of the marker line. Such a
+  // mark ends after the body, so it sorted outside the body and split it.
+  for (const doc of [
+    '- [ ] Open **task\n  more** text\n',
+    '- [ ] Open `task\n  more` text\n',
+  ])
+    assert.deepEqual(lineElements(doc, null)[0]?.top, itemRow, doc);
+});
+
+await test('a widget at the start of the text of an item stays in the body', () => {
+  // A widget sorts before a mark that is not inclusive at its start, so a
+  // formula that opened the text stood in a loose cell before the body.
+  const doc = '- $$x^2$$ starts the item\n- [ ] $$y$$ and a task\n';
+  const lines = lineElements(doc, null, [richWidgets()]);
+  assert.deepEqual(lines[0]?.top, itemRow);
+  assert.deepEqual(lines[1]?.top, itemRow);
+});
+
+await test('a find match inside a code span keeps the span one element', () => {
+  // The span draws a box with its own padding, so a match that split it
+  // drew three boxes with a gap of padding between them.
+  const doc = 'Use `some task here` now\n- [ ] A `task` item\n';
+  for (const line of lineElements(doc, 'task').slice(0, 2))
+    assert.equal(line.all.filter((name) => name === 'cm-np-code').length, 1);
+});
+
+await test('a hidden mark at either edge of a cell stays inside the cell', () => {
+  // A hidden range that ends where a cell ends, or starts where it starts,
+  // is a node of its own in the line. Outside the cell it was a loose node
+  // in the row, and the browser gave it an anonymous cell of its own.
+  for (const doc of [
+    '- [ ] Ends in **bold**\n',
+    '- [ ] Ends in `code`\n',
+    '- [ ] Ends in [a link](https://example.com)\n',
+    '> - [ ] A task in a quote\n',
+    '- **Bold** opens the item\n',
+  ])
+    assert.deepEqual(lineElements(doc, null)[0]?.top, itemRow, doc);
+  const quoted = '> | In | Quote |\n> | -- | ----- |\n> | a  | b     |\n';
+  const listed = '1. Item\n\n   | A | B |\n   | - | - |\n   | 1 | 2 |\n';
+  const row = [
+    'cm-np-table-lead',
+    'cm-np-table-gap',
+    'cm-np-table-head',
+    'cm-np-table-gap',
+    'cm-np-table-head',
+    'cm-np-table-gap',
+  ];
+  assert.deepEqual(lineElements(quoted, null)[0]?.top, row, quoted);
+  assert.deepEqual(lineElements(listed, null)[2]?.top, row, listed);
 });

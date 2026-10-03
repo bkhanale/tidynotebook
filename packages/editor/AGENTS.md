@@ -35,6 +35,13 @@ an open note, and the unified diff for History.
   head read `--font-weight-note-heading`.
 - A list marker line is one row: a lead cell for indent and marker, and a
   body cell that wraps. `outline.ts` reads the same tree.
+- A cell of a line, of a list item or of a table, is a mark of
+  `layoutClasses` in `live-preview.ts`. The preview gives the cells to the
+  view as outer decorations, inclusive at both edges, so no other mark and
+  no widget at its edge splits a cell. A new cell rule of the theme names a
+  class of that list, and `editor-theme.test.ts` holds it.
+- The look marks of the preview have the lowest precedence, so a mark that
+  only tints text, such as a find match, sits inside a code span or a key.
 - The task box is drawn from the theme (0033) and alone reads `--notes-border`
   (0063). Other edges are `--notes-border-line` or `--notes-border-subtle`.
 - No Markdown grammar lives here. `packages/markdown` owns the language, and

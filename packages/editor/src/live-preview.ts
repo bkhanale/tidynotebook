@@ -35,6 +35,7 @@
 import { syntaxTree } from '@codemirror/language';
 import {
   EditorState,
+  Prec,
   type Extension,
   type Range,
   type Text,
@@ -144,10 +145,41 @@ export type PreviewNode =
       readonly structure: readonly PreviewNode[];
     };
 
+/**
+ * The classes of the marks that lay a line out in cells.
+ *
+ * The marker line of a list item is a row of a lead cell and a body cell, and
+ * a row of a table is a row of cells. Each cell is one mark element with a
+ * `display` of a table cell in `editor-theme.ts`, so the line reads right
+ * only while each cell is one element. CodeMirror splits a mark element
+ * around a mark that wraps part of it, and every split part became a cell of
+ * its own: a find match inside the text of a task put the matched word in a
+ * narrow cell at the right edge, one letter on each line.
+ *
+ * These marks are the layout of the line and not a look of its text, so they
+ * leave the build in {@link PreviewBuild.layout}, which the view draws as
+ * outer decorations. An outer mark wraps every other mark of every source,
+ * so no other mark can split a cell. `editor-theme.test.ts` holds every cell
+ * rule of the theme to this list.
+ */
+export const layoutClasses: ReadonlySet<string> = new Set([
+  'cm-np-list-lead',
+  'cm-np-list-body',
+  'cm-np-table-lead',
+  'cm-np-table-gap',
+  'cm-np-table-cell',
+  'cm-np-table-head',
+]);
+
 /** The result of one preview build. */
 export type PreviewBuild = {
-  /** The decorations to render. */
+  /** The decorations that give the text its look. */
   readonly decorations: DecorationSet;
+  /**
+   * The cells of the lines, as marks of a class of {@link layoutClasses}.
+   * The view draws them outside every other mark, so no mark splits one.
+   */
+  readonly layout: DecorationSet;
   /**
    * The structure the decorations describe, in document order.
    *
@@ -185,8 +217,33 @@ export function tableAlignments(row: string): readonly ColumnAlign[] {
   });
 }
 
+/**
+ * The mark of one cell of a line.
+ *
+ * The first class names the cell and must be one of {@link layoutClasses},
+ * so a cell cannot leave the build in the wrong set.
+ *
+ * A cell is inclusive at both edges. CodeMirror draws a widget or a hidden
+ * range that starts where a mark starts before the mark opens, unless the
+ * mark is inclusive at its start, and one that ends where a mark ends after
+ * the mark closes, unless the mark is inclusive at its end. Either one was
+ * then a loose node in the row, which the browser wrapped in an anonymous
+ * cell of its own: a drawn number before the lead broke over two lines, the
+ * hidden padding of a table cell took the width of a column, and the hidden
+ * marks of the bold word that ends an item stood beside the body.
+ */
+function cellMark(classes: readonly string[]): Decoration {
+  const [cell] = classes;
+  if (cell === undefined || !layoutClasses.has(cell))
+    throw new Error(`Not a cell class: ${String(cell)}`);
+  return Decoration.mark({
+    class: classes.filter((part) => part !== '').join(' '),
+    inclusive: true,
+  });
+}
+
 /** The hidden separator between two cells of a table row, as a cell. */
-const tableGap = Decoration.mark({ class: 'cm-np-table-gap', inclusive: true });
+const tableGap = cellMark(['cm-np-table-gap']);
 
 /** One piece of the delimiter row of a table. */
 export type DelimiterPart = {
@@ -572,6 +629,8 @@ export function buildPreview(
 ): PreviewBuild {
   const doc = state.doc;
   const items: Range<Decoration>[] = [];
+  /** The cells of the lines, which the view draws outside every mark. */
+  const cells: Range<Decoration>[] = [];
   const structure: PreviewNode[] = [];
   /** Where the next structure entry goes: the note, or a definition in it. */
   const targets: PreviewNode[][] = [structure];
@@ -812,23 +871,15 @@ export function buildPreview(
     // a spreadsheet marks it, so a person sees which cell the next key
     // writes into.
     const active = selection.from === selection.to && touches(from, to);
-    // The mark is inclusive, so it opens before the hidden padding at its
-    // start and closes after the hidden padding at its end, and the hidden
-    // ranges land inside the cell. A hidden range outside it was a loose node
-    // between two cells, which the browser wrapped in an anonymous cell of
-    // its own, and that cell took the width of a column.
+    // The cell is inclusive (`cellMark`), so the hidden padding at its start
+    // and at its end lands inside it.
     if (to > from)
-      items.push(
-        Decoration.mark({
-          class: [
-            header ? 'cm-np-table-head' : 'cm-np-table-cell',
-            align === null ? '' : `cm-np-align-${align}`,
-            active ? 'cm-np-table-active' : '',
-          ]
-            .filter((part) => part !== '')
-            .join(' '),
-          inclusive: true,
-        }).range(from, to),
+      cells.push(
+        cellMark([
+          header ? 'cm-np-table-head' : 'cm-np-table-cell',
+          align === null ? '' : `cm-np-align-${align}`,
+          active ? 'cm-np-table-active' : '',
+        ]).range(from, to),
       );
     tablePaddingHide(from, to);
   };
@@ -876,16 +927,13 @@ export function buildPreview(
    */
   const tableLeadMark = (rowFrom: number, quoted: number): void => {
     const start = doc.lineAt(rowFrom).from;
-    mark(
-      start,
-      rowFrom,
-      [
-        'cm-np-table-lead',
-        quoted > 0 ? `cm-np-table-quoted-${String(Math.min(quoted, 4))}` : '',
-      ]
-        .filter((part) => part !== '')
-        .join(' '),
-    );
+    if (rowFrom > start)
+      cells.push(
+        cellMark([
+          'cm-np-table-lead',
+          quoted > 0 ? `cm-np-table-quoted-${String(Math.min(quoted, 4))}` : '',
+        ]).range(start, rowFrom),
+      );
   };
 
   /**
@@ -913,19 +961,13 @@ export function buildPreview(
     const line = doc.lineAt(marker.lineFrom);
     const content = marker.contentFrom;
     lineClass(line.from, line.from, 'cm-np-list-line');
-    // A drawn marker at the start of the line starts where the lead starts.
-    // A mark that is not inclusive at its start sorts after a widget at the
-    // same position, so CodeMirror drew the widget outside the lead cell, the
-    // lead collapsed, and a label such as `1.` broke over two lines. An
-    // inclusive start keeps the drawn marker inside the lead.
+    // Both cells are inclusive (`cellMark`): the drawn marker at the start
+    // of the line stays in the lead, and a formula that opens the text or
+    // the hidden marks of a bold word that ends it stay in the body.
     if (content > line.from)
-      items.push(
-        Decoration.mark({
-          class: 'cm-np-list-lead',
-          inclusiveStart: true,
-        }).range(line.from, content),
-      );
-    mark(content, line.to, 'cm-np-list-body');
+      cells.push(cellMark(['cm-np-list-lead']).range(line.from, content));
+    if (line.to > content)
+      cells.push(cellMark(['cm-np-list-body']).range(content, line.to));
   };
 
   /**
@@ -1312,7 +1354,7 @@ export function buildPreview(
         // separator one real cell of no width, so every row holds the same
         // cells. The mark is inclusive, so it opens before the hidden range
         // and wraps it.
-        items.push(tableGap.range(child.from, child.to));
+        cells.push(tableGap.range(child.from, child.to));
         hide(child.from, child.to);
         at = child.to;
       }
@@ -1516,7 +1558,12 @@ export function buildPreview(
     });
   }
 
-  return { decorations: Decoration.set(items, true), structure, visited };
+  return {
+    decorations: Decoration.set(items, true),
+    layout: Decoration.set(cells, true),
+    structure,
+    visited,
+  };
 }
 
 /**
@@ -1580,18 +1627,31 @@ export function previewNeedsRebuild(signal: PreviewRebuildSignal): boolean {
  * the syntax tree changes, and only for the visible ranges. Nothing here
  * dispatches a document change, so undo history, IME composition, and the
  * selection survive every rebuild.
+ *
+ * The two sets of a build take two places in the order of the view, where a
+ * mark of a lower place wraps the marks of a higher one:
+ *
+ * - The cells of {@link layoutClasses} are outer decorations, which wrap
+ *   every other mark. A find match, a remote selection and a mark of the
+ *   spell check sit inside a cell and never split it.
+ * - The look of the text has the lowest precedence of the plain decorations.
+ *   A mark that only tints text, such as a find match, then sits inside a
+ *   code span or a key, and the span keeps one box with one padding.
  */
 export function livePreview(): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      layout: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildPreview(
+        const build = buildPreview(
           view.state,
           view.visibleRanges,
           view.state.selection.main,
-        ).decorations;
+        );
+        this.decorations = build.decorations;
+        this.layout = build.layout;
       }
 
       update(update: ViewUpdate): void {
@@ -1603,13 +1663,26 @@ export function livePreview(): Extension {
             syntaxTree(update.startState) !== syntaxTree(update.state),
         });
         if (!rebuild) return;
-        this.decorations = buildPreview(
+        const build = buildPreview(
           update.view.state,
           update.view.visibleRanges,
           update.view.state.selection.main,
-        ).decorations;
+        );
+        this.decorations = build.decorations;
+        this.layout = build.layout;
       }
     },
-    { decorations: (value) => value.decorations },
+    {
+      provide: (self) => [
+        Prec.lowest(
+          EditorView.decorations.of(
+            (view) => view.plugin(self)?.decorations ?? Decoration.none,
+          ),
+        ),
+        EditorView.outerDecorations.of(
+          (view) => view.plugin(self)?.layout ?? Decoration.none,
+        ),
+      ],
+    },
   );
 }

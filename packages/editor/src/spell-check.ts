@@ -130,7 +130,8 @@ export function spellCheck(enabled: boolean): Extension {
   if (!enabled) return [];
   // The highest precedence draws the mark inside every other mark. A mark
   // outside would split the element of a construct that spans more text, for
-  // example the body cell of a list item, into two elements.
+  // example a code span, into two elements. The cells of a line are outer
+  // decorations of the live preview, so no mark splits them.
   return [
     EditorView.contentAttributes.of({ spellcheck: 'true' }),
     Prec.highest(unspelledMarks),

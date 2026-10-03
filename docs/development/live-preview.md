@@ -51,6 +51,14 @@ viewer, and a click beside it opens the source
 A widget that cannot render falls back to its source with one short sentence,
 so a note never loses text to a failed render.
 
+The marker line of a list item and a row of a table are rows of cells, and a
+cell reads right only while it is one element. CodeMirror splits a mark
+around a mark that wraps a part of it, so the cells leave the preview as outer
+decorations that wrap every other mark: a find match, a remote selection, a
+bold run that goes on to the next line. Each cell is inclusive at both edges,
+so a widget or a hidden marker at its edge stays inside it.
+`layoutClasses` in `packages/editor/src/live-preview.ts` lists the cells.
+
 ## Editing commands
 
 The commands shape lines from their text, and a command that needs the block
