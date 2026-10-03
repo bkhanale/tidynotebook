@@ -70,14 +70,14 @@ class Editor {
     }),
     started: () => Promise.resolve(),
     append: async (work) => {
-      const keys = [...new TextDecoder().decode(work)];
+      const keys = new TextDecoder().decode(work).split('');
       this.appended.push(keys);
       if (this.appendGate !== null) await this.appendGate;
       if (this.appendFails) throw new Error('quota');
       this.stored.push(...keys);
     },
     merge: (work) => {
-      this.stored = [...new TextDecoder().decode(work)];
+      this.stored = new TextDecoder().decode(work).split('');
       return Promise.resolve();
     },
     saveDraft: (draft) => {

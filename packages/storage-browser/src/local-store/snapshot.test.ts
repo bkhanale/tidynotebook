@@ -14,6 +14,7 @@ const now = Date.parse('2026-10-03T12:00:00.000Z');
 
 function plan(owner: string | null, createdAt: string): StagedSnapshot {
   return {
+    serverOrigin: 'https://notes.example.test',
     accountId: 'account-1',
     workspaceId: 'workspace-1',
     token: 'token-1',
