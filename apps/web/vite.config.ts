@@ -15,6 +15,8 @@ import {
 import { precacheWorker } from './src/pwa/precache.ts';
 import { defaultThemeFor } from '@notesapp/ui';
 import { devicePaletteCss, themeRegistryData } from './src/lib/first-paint.ts';
+import { startFailureMarkup } from './src/start-failure.ts';
+import { preloadOnlyUncontrolled } from './src/pwa/module-preload.ts';
 
 // The JSX transform comes from Vite's built-in esbuild support with the
 // automatic runtime, so no framework plugin is needed for the production
@@ -58,6 +60,15 @@ const manifestPath = 'manifest.webmanifest';
 
 /** The placeholder that the icon links of the shell replace. */
 const iconLinkPlaceholder = '__NOTESAPP_ICON_LINKS__';
+
+/**
+ * The placeholders of the two screens of a start that failed before the
+ * first render (record 0161, `src/start-failure.ts`).
+ */
+const startFailurePlaceholders = {
+  load: '__NOTESAPP_START_FAILURE_LOAD__',
+  stop: '__NOTESAPP_START_FAILURE_STOP__',
+} as const;
 
 /** One icon of the installed application manifest. */
 export type WebManifestIcon = {
@@ -145,6 +156,21 @@ function devicePalette(): Plugin {
 }
 
 /**
+ * Moves the preload links of the entry into a script that adds them only on
+ * a load that no service worker controls (record 0180). It runs after Vite
+ * wrote the links into the shell.
+ */
+function entryPreload(): Plugin {
+  return {
+    name: 'notesapp-entry-preload',
+    transformIndexHtml: {
+      order: 'post',
+      handler: (html: string): string => preloadOnlyUncontrolled(html),
+    },
+  };
+}
+
+/**
  * Emits every icon under a name that follows its bytes, and writes the
  * theme registry into the shell document and the manifest.
  *
@@ -200,7 +226,13 @@ function themeAssets(directory: string): Plugin {
             themeColourPlaceholder,
             () => defaultThemeFor('dark').tokens.background,
           )
-          .replace(iconLinkPlaceholder, () => iconLinkElements(addresses));
+          .replace(iconLinkPlaceholder, () => iconLinkElements(addresses))
+          .replace(startFailurePlaceholders.load, () =>
+            startFailureMarkup('load'),
+          )
+          .replace(startFailurePlaceholders.stop, () =>
+            startFailureMarkup('stop'),
+          );
       },
     },
     configureServer(server): void {
@@ -409,6 +441,7 @@ export default defineConfig(({ command }) => ({
     devicePalette(),
     tailwindcss(),
     themeAssets(import.meta.dirname),
+    ...(command === 'build' ? [entryPreload()] : []),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
     ...(command === 'build' ? [publishedPageScript(import.meta.dirname)] : []),
     // Last, because its hook reads every emitted file of the build, including

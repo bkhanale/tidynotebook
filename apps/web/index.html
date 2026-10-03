@@ -79,10 +79,46 @@
         document.documentElement.style.colorScheme = 'dark';
       }
     </script>
+    <script>
+      // A start that fails before React draws, such as a module of the entry
+      // that does not arrive or an error while the entry runs, shows the
+      // application screen of record 0161 with Reload instead of a white
+      // page. The build draws both screens from `src/start-failure.ts` into
+      // the templates below. The first render of React takes the root back.
+      (function () {
+        var shown = false;
+        function show(cause) {
+          var root = document.getElementById('root');
+          var screen = document.getElementById('start-failure-' + cause);
+          if (shown || !root || !screen || root.firstChild) return;
+          shown = true;
+          root.appendChild(screen.content.cloneNode(true));
+          var reload = root.querySelector('button');
+          if (reload)
+            reload.addEventListener('click', function () {
+              window.location.reload();
+            });
+        }
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target;
+            if (target && target.tagName === 'SCRIPT') show('load');
+            else if (target === window) show('stop');
+          },
+          true,
+        );
+        window.addEventListener('unhandledrejection', function () {
+          show('stop');
+        });
+      })();
+    </script>
   </head>
   <body
     class="m-0 bg-app font-sans text-ui leading-relaxed text-ink antialiased"
   >
+    <template id="start-failure-load">__NOTESAPP_START_FAILURE_LOAD__</template>
+    <template id="start-failure-stop">__NOTESAPP_START_FAILURE_STOP__</template>
     <div id="root" class="min-h-viewport"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

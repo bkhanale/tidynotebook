@@ -112,6 +112,7 @@ on each rule below.
 | `src/lib/templates.ts`                        | The template rules of a device     |
 | `src/shell/member-settings.ts`                | The one hook of a member setting   |
 | `vite.config.ts`                              | Build, theme, icons, worker        |
+| `src/start-failure.ts`                        | The screen of a failed start       |
 | `src/published/page.ts`                       | The one script of a published page |
 | `src/pwa/icons.ts`                            | The one list of the icons          |
 | `icons/`                                      | The icon files the build names     |

@@ -209,3 +209,22 @@ await test('the first screen reads every chunk that its scripts import', async (
   assert.ok(!files.some((file) => /^assets\/editor-/.test(file)), 'editor');
   assert.equal(new Set(files).size, files.length);
 });
+
+await test('the built shell holds the screen of a start that failed', async () => {
+  // Record 0161. A module of the entry that did not arrive left a white page,
+  // because no route boundary runs before React draws. The shell holds the
+  // application screen of each cause and the script that shows it.
+  const shell = await readFile(join(distribution, 'index.html'), 'utf8');
+  assert.doesNotMatch(shell, /__NOTESAPP_START_FAILURE_/);
+  const load = /<template id="start-failure-load">([\s\S]*?)<\/template>/.exec(
+    shell,
+  )?.[1];
+  const stop = /<template id="start-failure-stop">([\s\S]*?)<\/template>/.exec(
+    shell,
+  )?.[1];
+  assert.ok(load?.includes('Notesapp did not load'), 'no load screen');
+  assert.ok(stop?.includes('Notesapp stopped'), 'no stop screen');
+  for (const screen of [load, stop]) assert.match(screen ?? '', /Reload/);
+  assert.match(shell, /addEventListener\(\s*'error'/);
+  assert.match(shell, /'unhandledrejection'/);
+});
