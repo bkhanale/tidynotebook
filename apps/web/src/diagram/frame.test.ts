@@ -13,6 +13,7 @@ import { themeProperties, themes } from '@notesapp/ui';
 import {
   diagramFontVariable,
   diagramThemeOptions,
+  drawnHeight,
   isParentMessage,
   clampDiagramHeight,
   diagramFrameStyle,
@@ -172,4 +173,13 @@ await test('a diagram is set in the face that the stylesheet declares', async ()
   );
   assert.equal(options.fontFamily, family);
   assert.equal(options.themeVariables['fontFamily'], family);
+});
+
+await test('the frame reports the whole body that it drew, rounded up', () => {
+  // The frame reported the height of the diagram host alone. The body adds a
+  // padding around it, so the last rows of every diagram fell out of view:
+  // the lowest edge of a flowchart and the name under a sequence actor.
+  const body = { getBoundingClientRect: () => ({ height: 347.39 }) };
+  assert.equal(drawnHeight(body), 348);
+  assert.equal(clampDiagramHeight(drawnHeight(body)), 348);
 });

@@ -298,6 +298,25 @@ export function isDiagramResponse(value: unknown): value is DiagramResponse {
   );
 }
 
+/** The part of an element that the height of the frame reads. */
+export type MeasuredElement = {
+  getBoundingClientRect(): { readonly height: number };
+};
+
+/**
+ * The height that the frame reports for what it drew.
+ *
+ * The frame measures its whole body, with the padding around the diagram,
+ * and rounds up. It measured the host of the diagram alone, so the frame was
+ * as tall as the diagram and the padding pushed the last rows of it out of
+ * view: the lowest edge of a flowchart and the name under a sequence actor.
+ *
+ * @param body the body of the frame document.
+ */
+export function drawnHeight(body: MeasuredElement): number {
+  return Math.ceil(body.getBoundingClientRect().height);
+}
+
 /** Clamps a reported height into the applied frame bounds. */
 export function clampDiagramHeight(height: number): number {
   if (!Number.isFinite(height)) return diagramLimits.minHeightPx;

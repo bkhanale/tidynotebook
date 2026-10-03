@@ -22,6 +22,7 @@ import {
   diagramFontVariable,
   diagramLimits,
   diagramThemeOptions,
+  drawnHeight,
   isParentMessage,
   isDiagramRequest,
   paletteNames,
@@ -87,7 +88,7 @@ async function render(request: DiagramRequest): Promise<void> {
   const response: DiagramResponse = {
     requestId: request.requestId,
     ok: true,
-    height: host.scrollHeight,
+    height: drawnHeight(document.body),
   };
   window.parent.postMessage(response, '*');
 }
