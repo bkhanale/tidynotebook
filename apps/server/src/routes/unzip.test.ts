@@ -5,6 +5,7 @@ import { deflateRawSync } from 'node:zlib';
 import {
   maxArchiveBytes,
   maxArchiveEntries,
+  maxArchiveNameBytes,
   maxFilesPerChangeset,
   maxPathBytes,
 } from '@notesapp/core';
@@ -158,6 +159,43 @@ await test('a name past the bound of the reader is refused before it is kept', a
   );
   await assert.rejects(
     readArchiveDirectory(bufferSource(archive(name(maxNameBytes + 1)))),
+    (error) =>
+      error instanceof ArchiveRefusedError &&
+      error.refusal === 'archive_invalid',
+  );
+});
+
+await test('the names that the reader keeps are bounded together', async () => {
+  // Review of the bound of a name. Each name stayed under its own bound, and
+  // the full count of such names held hundreds of megabytes for one import.
+  const name = (index: number, bytes: number): string => {
+    const head = `n/${String(index).padStart(5, '0')}/`;
+    return `${head}${'n'.repeat(bytes - head.length - '.md'.length)}.md`;
+  };
+  const archiveOf = (total: number): Buffer => {
+    const full = Math.floor(total / maxNameBytes);
+    const paths = Array.from({ length: full }, (_, index) =>
+      name(index, maxNameBytes),
+    );
+    paths.push(name(full, total - full * maxNameBytes));
+    // A folder entry is read past, so its name counts for nothing.
+    return deflatedArchive(
+      ['n/', ...paths].map((path) => ({
+        path,
+        content: Buffer.alloc(0),
+        statedSize: 0,
+      })),
+    );
+  };
+  const kept = await readArchiveDirectory(
+    bufferSource(archiveOf(maxArchiveNameBytes)),
+  );
+  assert.equal(
+    kept.reduce((total, entry) => total + Buffer.byteLength(entry.path), 0),
+    maxArchiveNameBytes,
+  );
+  await assert.rejects(
+    readArchiveDirectory(bufferSource(archiveOf(maxArchiveNameBytes + 1))),
     (error) =>
       error instanceof ArchiveRefusedError &&
       error.refusal === 'archive_invalid',

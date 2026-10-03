@@ -24,6 +24,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Actor, WorkspaceStore } from '@notesapp/core';
 import {
   archiveBytesAllowed,
+  archiveNamesAllowed,
   listFiles,
   maxArchiveBytes,
   maxArchiveEntries,
@@ -99,6 +100,16 @@ export function exportRefusal(
   if (!archiveBytesAllowed(archiveLength(plan)))
     return new ExportTooLargeError(
       `One zip archive holds ${String(Math.floor(maxArchiveBytes / (1024 * 1024)))} MiB at the most. Move some notes to another workspace, then export each workspace.`,
+    );
+  // An import keeps the names of an archive together, so an export writes
+  // no archive whose names it would refuse.
+  const names = plan.reduce(
+    (total, entry) => total + Buffer.byteLength(entry.path, 'utf8'),
+    0,
+  );
+  if (!archiveNamesAllowed(names))
+    return new ExportTooLargeError(
+      'The names of the notes and folders are too long together for one zip archive. Move some notes to another workspace, then export each workspace.',
     );
   return null;
 }

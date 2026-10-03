@@ -4,10 +4,13 @@ import test from 'node:test';
 import {
   archiveBytesAllowed,
   archiveEntriesAllowed,
+  archiveNamesAllowed,
   maxArchiveBytes,
   maxArchiveEntries,
+  maxArchiveNameBytes,
 } from './archive.ts';
 import { maxFilesPerChangeset } from './commit.ts';
+import { maxPathBytes, maxSegmentBytes } from './path.ts';
 
 await test('an archive takes every count that the zip format counts', () => {
   // The format counts files in 16 bits, and 0xffff marks a ZIP64 count, so
@@ -33,4 +36,16 @@ await test('an archive past a bound is refused', () => {
   assert.equal(archiveEntriesAllowed(Number.NaN), false);
   assert.equal(archiveBytesAllowed(maxArchiveBytes + 1), false);
   assert.equal(archiveBytesAllowed(-1), false);
+});
+
+await test('the names of an archive take a full count of names of one segment', () => {
+  // Review of the bound of a name: the names that an import keeps had no
+  // bound together, so two imports could hold hundreds of megabytes.
+  assert.equal(maxArchiveNameBytes, maxArchiveEntries * (maxSegmentBytes + 1));
+  assert.ok(maxArchiveNameBytes < maxArchiveEntries * maxPathBytes);
+  assert.equal(archiveNamesAllowed(0), true);
+  assert.equal(archiveNamesAllowed(maxArchiveNameBytes), true);
+  assert.equal(archiveNamesAllowed(maxArchiveNameBytes + 1), false);
+  assert.equal(archiveNamesAllowed(-1), false);
+  assert.equal(archiveNamesAllowed(Number.NaN), false);
 });

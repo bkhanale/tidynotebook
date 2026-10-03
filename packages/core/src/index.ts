@@ -172,8 +172,10 @@ export { commitChangeset, maxFilesPerChangeset } from './files/commit.ts';
 export {
   archiveBytesAllowed,
   archiveEntriesAllowed,
+  archiveNamesAllowed,
   maxArchiveBytes,
   maxArchiveEntries,
+  maxArchiveNameBytes,
 } from './files/archive.ts';
 export {
   emptySubscription,

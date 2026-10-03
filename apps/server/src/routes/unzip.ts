@@ -19,11 +19,11 @@
  * - the stated sizes together stay under `maxArchiveBytes` and under
  *   `maxExpansionRatio` times the archive, with a floor for a small archive;
  * - no name is longer than `maxNameBytes`, which no name that the import
- *   takes or skips passes. The check reads the stated length before it
- *   decodes the name, so the names that the reader keeps stay under that
- *   bound times the count. The extra field and the comment of an entry are
- *   read past and never kept. The exact limit of a path stays with
- *   `normalizePath` of `@notesapp/core`, on the form that the workspace
+ *   takes or skips passes, and the names that the reader keeps are no longer
+ *   than `maxArchiveNameBytes` together. Both checks read the stated length
+ *   before the reader decodes the name. The extra field and the comment of
+ *   an entry are read past and never kept. The exact limit of a path stays
+ *   with `normalizePath` of `@notesapp/core`, on the form that the workspace
  *   stores.
  *
  * `readArchiveEntry` expands one entry as a stream, from a bounded range of
@@ -38,6 +38,7 @@ import { createInflateRaw } from 'node:zlib';
 import {
   archiveBytesAllowed,
   archiveEntriesAllowed,
+  archiveNamesAllowed,
   maxArchiveBytes,
   maxArchiveEntries,
   maxPathBytes,
@@ -341,6 +342,8 @@ export async function readArchiveDirectory(
   let expanded = 0;
   const entries: ArchiveEntry[] = [];
   const paths = new Set<string>();
+  /** The bytes of the names that the reader keeps, together. */
+  let keptNames = 0;
   for (let index = 0; index < count; index += 1) {
     const header = await take(46);
     if (header.readUInt32LE(0) !== centralSignature)
@@ -353,7 +356,11 @@ export async function readArchiveDirectory(
     const extraLength = header.readUInt16LE(30);
     const commentLength = header.readUInt16LE(32);
     const offset = header.readUInt32LE(42);
-    if (nameLength > maxNameBytes) throw unsafeName();
+    if (
+      nameLength > maxNameBytes ||
+      !archiveNamesAllowed(keptNames + nameLength)
+    )
+      throw unsafeName();
     const rest = await take(nameLength + extraLength + commentLength);
     const path = rest.toString('utf8', 0, nameLength);
     if (offset + 30 > source.size)
@@ -376,6 +383,7 @@ export async function readArchiveDirectory(
     if (!archiveBytesAllowed(expanded) || expanded > expansionBound)
       throw tooLarge();
     paths.add(path);
+    keptNames += nameLength;
     entries.push({ path, method, compressedSize, size, offset, dataOffset: 0 });
   }
   // The data of each entry must sit whole before the central directory, and

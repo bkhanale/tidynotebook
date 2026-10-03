@@ -40,15 +40,25 @@ them committed. Record 0121 puts every limit of the server in PostgreSQL.
   and that answer, 503 `import_incomplete`, states how many files came in. An
   import of the same archive again refuses the files that are there, so no
   file comes in twice.
+- The reader of an import keeps the name of each file until it has checked
+  them all, so the names of one archive have a bound together,
+  `maxArchiveNameBytes` of `packages/core/src/files/archive.ts`, beside the
+  bound of each name, `maxNameBytes` of `apps/server/src/routes/unzip.ts`.
+  The reader checks both from the stated length before it decodes a name,
+  and refuses past them with `archive_invalid`. An export refuses a
+  workspace whose paths pass the bound of the names with
+  `export_too_large`, so every archive that it writes still imports.
 
 This excludes a job queue. A refused job asks the person to try again, which
 needs no state beyond the reservation.
 
 ## Consequences
 
-- One account runs one archive job, and an installation a few, so the disk and
-  the memory of the jobs stay bounded.
+- One account runs one archive job, and an installation a few, and each job
+  keeps one entry, one batch of notes and the names of its archive in memory,
+  so the disk and the memory of the jobs stay bounded.
 - A large export starts its download at once and needs no disk of the server.
 - `tests/integration/export.test.ts` proves the plan, the refusals, the room
   beside a running import, the stop of a body and the checks before the first
-  commit.
+  commit. `unzip.test.ts` and `archive-bounds.test.ts` prove the bounds of
+  the names.
