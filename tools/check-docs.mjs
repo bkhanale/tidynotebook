@@ -480,6 +480,18 @@ export function measuredQuantities(text) {
 }
 
 /**
+ * The fields of a parsed JSON value, or none when it is not an object.
+ *
+ * @param {unknown} value
+ * @returns {Record<string, unknown>}
+ */
+function fieldsOf(value) {
+  return value !== null && typeof value === 'object'
+    ? Object.fromEntries(Object.entries(value))
+    : {};
+}
+
+/**
  * The documents that may keep their measured quantities, with the reason.
  *
  * Each one was accepted before rule 9 held and is never edited again, so its
@@ -493,24 +505,12 @@ export async function readMeasuredAllowlist(directory) {
   const text = await readFile(join(directory, measuredAllowFile), 'utf8').catch(
     () => '{"allow":[]}',
   );
-  /** @type {unknown} */
-  const parsed = JSON.parse(text);
   /** @type {Map<string, string>} */
   const allowed = new Map();
-  const list =
-    parsed !== null && typeof parsed === 'object' && 'allow' in parsed
-      ? parsed.allow
-      : [];
+  const list = fieldsOf(JSON.parse(text)).allow;
   if (!Array.isArray(list)) return allowed;
-  for (const entry of list) {
-    const file =
-      entry !== null && typeof entry === 'object' && 'file' in entry
-        ? entry.file
-        : null;
-    const reason =
-      entry !== null && typeof entry === 'object' && 'reason' in entry
-        ? entry.reason
-        : null;
+  for (const entry of list.map(fieldsOf)) {
+    const { file, reason } = entry;
     if (typeof file === 'string' && typeof reason === 'string' && reason !== '')
       allowed.set(file, reason);
   }

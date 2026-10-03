@@ -506,22 +506,16 @@ await test('a record that copies a measured result fails', () => {
 });
 
 await test('a design, a plan and a development page that copy a value fail', () => {
-  for (const [path, text] of [
-    [
-      'docs/design/001-a-design.md',
+  for (const [path, text] of Object.entries({
+    'docs/design/001-a-design.md':
       '# A design\n\nStatus: active\n\nThe library is about 10 KB.\n\n' +
-        '## Decisions\n\nSee [0001](../decisions/0001-a-choice.md).\n',
-    ],
-    [
-      'docs/plans/001-a-plan.md',
+      '## Decisions\n\nSee [0001](../decisions/0001-a-choice.md).\n',
+    'docs/plans/001-a-plan.md':
       '# A plan\n\nStatus: active\n\nKeep the bundle under 256 KB.\n\n' +
-        '## Decisions\n\nSee [0001](../decisions/0001-a-choice.md).\n',
-    ],
-    [
-      'docs/development/architecture.md',
+      '## Decisions\n\nSee [0001](../decisions/0001-a-choice.md).\n',
+    'docs/development/architecture.md':
       '# Architecture\n\nThe shape of the system. An import holds 4 GiB.\n',
-    ],
-  ]) {
+  })) {
     const result = check({ [path]: text });
     assert.equal(result.status, 1, path);
     assert.match(result.output, /is a measured result or a configured value/);
