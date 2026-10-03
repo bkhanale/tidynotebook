@@ -10,33 +10,72 @@
  *
  * The clean up of the effects of the screen releases the note. React mounts
  * the effects twice in development, so each mount takes the note through
- * `mountNote`, which opens it again with every change after a release.
+ * `mountNote`, which opens it again with every change after a release
+ * (record 0181).
+ *
+ * A render opens nothing. The note opens at the first use by a mount or an
+ * effect, so a render that React throws away, and a later render after the
+ * loader read the note again, leave no note that nothing releases. Each
+ * mount holds one note, and its clean up releases that one note.
  */
-import { useMemo, useRef } from 'react';
+import { useRef } from 'react';
 import { openBoundNote, type BoundNote } from '@notesapp/editor';
 import type { NoteDocument } from '@notesapp/sync';
 
-/** The note that the mounted effects of one screen use. */
-export type ScreenNote = {
-  /** The note now. A render never replaces it. */
-  readonly noteRef: { readonly current: BoundNote };
-  /** The note of this mount, opened again after a clean up released it. */
-  readonly mountNote: () => BoundNote;
+/** What the life of the note of a screen needs of a note. */
+export type ScreenBoundNote<Note> = {
+  /** Ends the note. A second release changes nothing. */
+  release(): void;
+  /** A new note with every change after a release, or this note while open. */
+  reopen(): Note;
 };
+
+/** The note that the mounted effects of one screen use. */
+export type ScreenNote<Note = BoundNote> = {
+  /** The note now, which opens at the first read. A render never reads it. */
+  readonly noteRef: { readonly current: Note };
+  /** The note of this mount, opened again after a clean up released it. */
+  readonly mountNote: () => Note;
+};
+
+/**
+ * The life of the note of one screen, from the function that opens it.
+ *
+ * Nothing opens until a mount or an effect asks for the note. `mountNote`
+ * opens the note on the first mount and opens it again after a clean up
+ * released it, so each mount holds exactly one open note.
+ */
+export function createScreenNote<Note extends ScreenBoundNote<Note>>(
+  open: () => Note,
+): ScreenNote<Note> {
+  let note: Note | null = null;
+  const current = (): Note => {
+    note ??= open();
+    return note;
+  };
+  return {
+    noteRef: {
+      get current(): Note {
+        return current();
+      },
+    },
+    mountNote: (): Note => {
+      note = note === null ? open() : note.reopen();
+      return note;
+    },
+  };
+}
 
 /** Opens the note of one screen from the document and text the loader read. */
 export function useScreenNote(
   document: NoteDocument | null,
   text: string,
 ): ScreenNote {
-  const opened = useMemo(
-    () => openBoundNote(document?.bytes ?? null, text),
-    [document, text],
+  // The first render of the screen fixes what the note opens from. A later
+  // read of the loader with the same key opens nothing.
+  const life = useRef<ScreenNote | null>(null);
+  life.current ??= createScreenNote(() =>
+    openBoundNote(document?.bytes ?? null, text),
   );
-  const noteRef = useRef(opened);
-  const mountNote = useRef((): BoundNote => {
-    noteRef.current = noteRef.current.reopen();
-    return noteRef.current;
-  }).current;
-  return { noteRef, mountNote };
+  return life.current;
 }
