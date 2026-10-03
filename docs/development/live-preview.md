@@ -57,7 +57,10 @@ around a mark that wraps a part of it, so the cells leave the preview as outer
 decorations that wrap every other mark: a find match, a remote selection, a
 bold run that goes on to the next line. Each cell is inclusive at both edges,
 so a widget or a hidden marker at its edge stays inside it.
-`layoutClasses` in `packages/editor/src/live-preview.ts` lists the cells.
+`layoutClasses` in `packages/editor/src/live-preview.ts` lists the cells, and
+`packages/editor/src/editor-theme.test.ts` holds every cell rule of the theme
+to that list. The other marks of the preview take the lowest precedence, so a
+find match sits inside a code span and the span keeps one box.
 
 ## Editing commands
 
