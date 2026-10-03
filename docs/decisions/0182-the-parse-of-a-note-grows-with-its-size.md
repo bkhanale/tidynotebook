@@ -25,8 +25,9 @@
 - `packages/markdown/src/limits.ts` adds two limits: `maxBlockMarks`, the
   marks of one inline block, and `maxTableCells`, the table cells of one
   note. A mark is a character that can open or close an inline construct:
-  `*`, `_`, `~`, `[`, `]`, `$`, `<`, `\(` and `\)`. The work of a parse then
-  grows with the size of the note.
+  `*`, `_`, `~`, `[`, `]`, `$`, `<`, `\(` and `\)`, each unescaped; that is the
+  full list. With the steps that record 0185 makes linear, the work of a parse
+  then grows with the size of the note.
 - `assertParseLimits` reads each line once, before the parse. It counts the
   marks of each part of the note between two blank lines. From the line above
   a table delimiter row to the next blank line, it counts one cell for each
@@ -44,10 +45,16 @@
   `unrenderable_note` with one message for each cause.
 - The editor keeps its Markdown language only for a note within
   `withinParseLimits`. It shows another note as plain text, as a reader shows
-  the source of a refused note.
+  the source of a refused note. A change reads again only the parts around it.
+  When that reading is unsure, the answer of the last whole check stands only
+  while the text inserted since that check is below `checkedInsertLength` and
+  no part holds more marks than `vouchedPartMarks`. A small change can end or
+  join the blocks of such a part, so the editor checks the whole note again
+  then, and the Lezer parser never meets a block deep enough to stop it.
 - A limit is a count, so a note passes or fails the same way on each machine.
-  This excludes a timeout, a cost score, a limit for each construct and a
-  patch of an upstream package.
+  This excludes a timeout, a cost score and a limit for each construct. A step
+  of an upstream package whose work grows faster than the note is patched
+  instead (record 0185, which corrects the exclusion of a patch here).
 
 ## Consequences
 
@@ -60,3 +67,5 @@
   above, and holds that the count of a part is never below the count of a
   block in it. `tests/integration/revisions.test.ts` holds the 422 of a
   commit, and the editor tests hold the plain text of a refused note.
+  `packages/editor/src/grammar-gate.test.ts` holds pastes in pieces, joins of
+  blocks and a removed fence, each of which once kept the language on.

@@ -34,6 +34,19 @@ gate on a difference.
 A version change is one commit over the manifest and the lockfile. The
 evidence belongs in that commit body, not here.
 
+## Patches
+
+`patches/` holds a pnpm patch of an upstream package only for a step whose
+work grows faster than the note it reads, and `pnpm-workspace.yaml` lists
+each one under `patchedDependencies`
+([decision 0185](../decisions/0185-a-step-of-the-grammar-that-grows-faster-than-the-note-is-patched.md)).
+A patch makes that one step a single pass with the same result, and it is the
+upstream fix when there is one. pnpm refuses an install whose patch names no
+installed version, so a bump of a patched package fails until a person moves
+the patch to the new version or removes it. Remove a patch when a release
+that holds the fix passes the release age of the lockfile, and run the tests
+of `packages/markdown/test-data/shapes.ts` on the bump.
+
 ## Automated bumps
 
 `.github/dependabot.yml` opens the bump changes. It runs once a week. It groups

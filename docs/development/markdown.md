@@ -127,23 +127,6 @@ both rules, and its test walks the whole registry.
 
 ## Limits
 
-A member of a workspace, or anybody who signs up, can write a note that the
-server and every device parse, so the work of a parse stays in proportion to
-the size of the note
-([decision 0182](../decisions/0182-the-parse-of-a-note-grows-with-its-size.md)).
-`packages/markdown/src/limits.ts` states four counts: the size of a note, the
-nesting depth, the marks of one inline block, and the table cells of a note.
-
-One reading of the lines runs before the parse. It checks the size and the
-nesting of each line prefix, counts the table cells from a delimiter row to
-the next blank line, and counts the marks of each part between blank lines.
-Only when a part holds more marks than one block may, a parse with every
-inline construct off finds the blocks of the one grammar, and each is held
-to the limit (`parse.test.ts`). After the parse, the depth of the tree and of
-the HTML of a note is checked. No timeout and no cost score apply, so a note
-passes or fails the same way on every machine. Every entry point parses
-through `parseMarkdown`. The editor keeps its language only for a note within
-`withinParseLimits` (`packages/editor/src/grammar-gate.ts`), and a key reads
-again only the parts around it (`packages/editor/src/note-measure.ts`). A
-refused note is never truncated: a reader shows its source, and the boundary
-answers the domain code of each limit with a sentence the person can read.
+The work of each step on a note stays in proportion to its size, and a note
+over a count is refused before the parse. See
+[Markdown limits](markdown-limits.md).
