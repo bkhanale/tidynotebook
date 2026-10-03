@@ -24,11 +24,21 @@ export {
   alertTones,
 } from './alerts.ts';
 export type { LineLimits } from './parse.ts';
-export { lineLimits, parseMarkdown, withinParseLimits } from './parse.ts';
+export {
+  limitsOfMeasure,
+  lineLimits,
+  parseMarkdown,
+  withinParseLimits,
+} from './parse.ts';
 export type { AttachmentRef, NoteLink, SourceRange } from './links.ts';
 export { extractAttachmentRefs, extractLinks, indexNote } from './links.ts';
-export type { MarkdownLimitReason } from './limits.ts';
-export { markdownLimits, MarkdownLimitError } from './limits.ts';
+export type { MarkdownLimitReason, PartsMeasure } from './limits.ts';
+export {
+  blankLine,
+  markdownLimits,
+  MarkdownLimitError,
+  measureParts,
+} from './limits.ts';
 export type { ContentUrl } from './policy.ts';
 export { allowsExternalImage, classifyUrl, isIdentifier } from './policy.ts';
 export type {

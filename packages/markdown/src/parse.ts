@@ -48,6 +48,8 @@ import {
   assertNestingDepth,
   assertParseLimits,
   MarkdownLimitError,
+  measureOverLimit,
+  type PartsMeasure,
 } from './limits.ts';
 import { mathTextDollarExtension } from './math-dollar.ts';
 import { mathTextParensExtension } from './math-parens.ts';
@@ -202,6 +204,16 @@ export function lineLimits(lines: Iterable<string>): LineLimits {
     if (error instanceof MarkdownLimitError) return 'outside';
     throw error;
   }
+}
+
+/**
+ * The answer of `lineLimits` for a note, from the counts of `measureParts`
+ * over all of its lines. The editor keeps those counts as the note changes,
+ * so a key reads only the lines around it.
+ */
+export function limitsOfMeasure(measure: PartsMeasure): LineLimits {
+  if (measureOverLimit(measure)) return 'outside';
+  return measure.fullParts > 0 ? 'unsure' : 'within';
 }
 
 /**

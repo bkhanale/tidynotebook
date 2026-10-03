@@ -19,8 +19,15 @@ import {
   markdownLimits,
   MarkdownLimitError,
   measureLines,
+  measureParts,
+  type PartsMeasure,
 } from './limits.ts';
-import { lineLimits, parseMarkdown, withinParseLimits } from './parse.ts';
+import {
+  limitsOfMeasure,
+  lineLimits,
+  parseMarkdown,
+  withinParseLimits,
+} from './parse.ts';
 import { readableText } from './plain-text.ts';
 import { renderMarkdown } from './render.ts';
 import { mapRelativeReferences } from './rewrite.ts';
@@ -411,4 +418,49 @@ await test('a surface asks whether the parse takes a note before it offers an ac
     withinParseLimits(paragraphOfMarks(markdownLimits.maxBlockMarks + 1)),
     false,
   );
+});
+
+/** The counts of two runs of lines added together. */
+function added(left: PartsMeasure, right: PartsMeasure): PartsMeasure {
+  return {
+    bytes: left.bytes + right.bytes,
+    deepLines: left.deepLines + right.deepLines,
+    tableCells: left.tableCells + right.tableCells,
+    fullParts: left.fullParts + right.fullParts,
+  };
+}
+
+await test('the counts of the parts of a note give the answer of the reading of its lines', () => {
+  // The editor keeps the counts of an open note and reads again only the
+  // parts around a change, so the counts of the runs of a note, split at a
+  // blank line, must add up to the counts of the whole note.
+  const limit = markdownLimits.maxBlockMarks;
+  const item = paragraphOfMarks(limit - 8).trim();
+  const notes = [
+    '',
+    '# Plan\n\nSome **bold** text.\n',
+    Array.from({ length: 40 }, () => `- ${item}`).join('\n'),
+    paragraphOfMarks(limit + 1),
+    `a\n\n${paragraphOfMarks(limit + 1)}\n\n${paragraphOfMarks(limit + 1)}`,
+    `${'> '.repeat(markdownLimits.maxNestingDepth + 1)}x\n\nb`,
+    `${' '.repeat(4 * (markdownLimits.maxNestingDepth + 1))}\nx`,
+    tableOfLines(Math.floor(markdownLimits.maxTableCells / 3) + 1),
+    `|a|b|\n|-|-|\n|c|d|\n\n|e|\n|-|\n`,
+    'a'.repeat(markdownLimits.maxInputBytes),
+    `${'a'.repeat(markdownLimits.maxInputBytes)}\n`,
+    `é${'a'.repeat(markdownLimits.maxInputBytes - 1)}`,
+  ];
+  for (const note of notes) {
+    const lines = note.split('\n');
+    const whole = measureParts(lines);
+    assert.equal(limitsOfMeasure(whole), lineLimits(lines), note.slice(0, 40));
+    for (const [index, line] of lines.entries()) {
+      if (line.trim() !== '') continue;
+      const split = added(
+        measureParts(lines.slice(0, index)),
+        measureParts(lines.slice(index)),
+      );
+      assert.deepEqual(split, whole, note.slice(0, 40));
+    }
+  }
 });

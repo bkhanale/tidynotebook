@@ -292,8 +292,11 @@ export function inlineMarks(text: string, from = 0, to = text.length): number {
   return countLine(text, from, to).marks;
 }
 
-/** Whether a line holds only spaces and tabs. */
-function isBlank(line: string): boolean {
+/**
+ * Whether a line holds only spaces and tabs, which ends a part of the note.
+ * The editor reads the parts around a change with it.
+ */
+export function blankLine(line: string): boolean {
   for (const char of line) if (char !== ' ' && char !== '\t') return false;
   return true;
 }
@@ -379,38 +382,141 @@ export type LineMeasure = {
 export function measureLines(lines: Iterable<string>): LineMeasure {
   let bytes = 0;
   let first = true;
-  let marks = 0;
-  let partMarks = 0;
-  let tableCells = 0;
-  let inTable = false;
-  // The counts of the line above, when it is in the same part.
-  let above: LineCounts | null = null;
+  const parts = createPartReader();
   for (const line of lines) {
     bytes += utf8ByteLength(line) + (first ? 0 : 1);
     first = false;
     assertAtMost('input-size', markdownLimits.maxInputBytes, bytes);
     assertLineNesting(line, 0, line.length);
-    if (isBlank(line)) {
-      marks = 0;
-      inTable = false;
-      above = null;
-      continue;
-    }
-    const counts = countLine(line, 0, line.length);
-    marks += counts.marks;
-    if (marks > partMarks) partMarks = marks;
-    if (
-      !inTable &&
-      delimiterLike(line) &&
-      (counts.pipes > 0 || (above !== null && above.pipes > 0))
-    ) {
-      inTable = true;
-      if (above !== null) tableCells += above.pipes + 1;
-    }
-    if (inTable) tableCells += counts.pipes + 1;
-    above = counts;
+    parts.read(line);
   }
-  return { partMarks, tableCells };
+  return { partMarks: parts.partMarks(), tableCells: parts.tableCells() };
+}
+
+/** The reading of the marks and the table cells, one line after another. */
+type PartReader = {
+  /** Reads the next line of the note. */
+  readonly read: (line: string) => void;
+  /** The most marks of one part so far. */
+  readonly partMarks: () => number;
+  /** The parts so far that hold more marks than `maxBlockMarks`. */
+  readonly fullParts: () => number;
+  /** The table cells so far. */
+  readonly tableCells: () => number;
+};
+
+/**
+ * Reads the parts of a note line by line, as `measureLines` states them. A
+ * blank line ends a part and a table, so the reading after a blank line is
+ * the same, whatever came before it.
+ */
+function createPartReader(): PartReader {
+  let marks = 0;
+  let partMarks = 0;
+  let fullParts = 0;
+  let tableCells = 0;
+  let inTable = false;
+  // The counts of the line above, when it is in the same part.
+  let above: LineCounts | null = null;
+  return {
+    read(line: string): void {
+      if (blankLine(line)) {
+        marks = 0;
+        inTable = false;
+        above = null;
+        return;
+      }
+      const counts = countLine(line, 0, line.length);
+      const before = marks;
+      marks += counts.marks;
+      if (marks > partMarks) partMarks = marks;
+      if (
+        before <= markdownLimits.maxBlockMarks &&
+        marks > markdownLimits.maxBlockMarks
+      )
+        fullParts += 1;
+      if (
+        !inTable &&
+        delimiterLike(line) &&
+        (counts.pipes > 0 || (above !== null && above.pipes > 0))
+      ) {
+        inTable = true;
+        if (above !== null) tableCells += above.pipes + 1;
+      }
+      if (inTable) tableCells += counts.pipes + 1;
+      above = counts;
+    },
+    partMarks: () => partMarks,
+    fullParts: () => fullParts,
+    tableCells: () => tableCells,
+  };
+}
+
+/**
+ * What the reading of a run of lines counts, with no limit applied.
+ *
+ * Each count is a sum over the lines or over the parts of the run, so the
+ * counts of a note are the counts of its runs added together when each run
+ * starts at a blank line or at the start of the note.
+ */
+export type PartsMeasure = {
+  /** The UTF-8 bytes of the lines, each with one line break after it. */
+  readonly bytes: number;
+  /** The lines whose prefix nests deeper than `maxNestingDepth`. */
+  readonly deepLines: number;
+  /** The table cells, counted as `measureLines` counts them. */
+  readonly tableCells: number;
+  /** The parts that hold more marks than `maxBlockMarks`. */
+  readonly fullParts: number;
+};
+
+/** Whether the prefix of a line nests deeper than the limit. */
+function deepLine(line: string): boolean {
+  try {
+    assertLineNesting(line, 0, line.length);
+    return false;
+  } catch (error) {
+    if (error instanceof MarkdownLimitError) return true;
+    throw error;
+  }
+}
+
+/**
+ * Reads a run of lines as `measureLines` does and counts, rather than
+ * refuses, what is over a limit.
+ *
+ * The editor keeps the counts of an open note and reads again only the runs
+ * of whole parts that a change touches; `limitsOfMeasure` of `parse.ts`
+ * gives the answer of `lineLimits` from the counts of the whole note.
+ */
+export function measureParts(lines: Iterable<string>): PartsMeasure {
+  let bytes = 0;
+  let deepLines = 0;
+  const parts = createPartReader();
+  for (const line of lines) {
+    bytes += utf8ByteLength(line) + 1;
+    if (deepLine(line)) deepLines += 1;
+    parts.read(line);
+  }
+  return {
+    bytes,
+    deepLines,
+    tableCells: parts.tableCells(),
+    fullParts: parts.fullParts(),
+  };
+}
+
+/**
+ * Whether the counts of a whole note are over a limit that the reading of
+ * the lines decides: the size, the nesting of a line or the table cells.
+ * The size of a note has no line break after its last line.
+ */
+export function measureOverLimit(measure: PartsMeasure): boolean {
+  return (
+    measure.bytes - 1 > markdownLimits.maxInputBytes ||
+    measure.deepLines > 0 ||
+    measure.tableCells > markdownLimits.maxTableCells
+  );
 }
 
 /**
