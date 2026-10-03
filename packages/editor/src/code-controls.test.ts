@@ -11,7 +11,12 @@ import {
   codeBlockSelection,
   codeBlockText,
 } from './code-controls.ts';
-import { noteMarkdown, parsedWhole } from './language.ts';
+import { gatedMarkdown, markdownGrammarOn } from './grammar-gate.ts';
+import {
+  noteMarkdown,
+  noteMarkdownExtensions,
+  parsedWhole,
+} from './language.ts';
 
 /** A state of the note grammar with the whole text parsed. */
 function stateOf(doc: string): EditorState {
@@ -116,4 +121,27 @@ await test('a screen with no code block reads no limit of the whole note', () =>
     barsOnScreen(state, [{ from: 0, to: 30 }], () => false),
     [],
   );
+});
+
+await test('the bars read the answer of the grammar gate and never the whole note', () => {
+  // The bars asked the limits of the parse of the whole note on each key
+  // while a code block was on the screen, so a key in a long note read and
+  // copied all of it. The gate keeps the answer for each change.
+  const long = `${note}\n${'Some *words* and a [link](u).\n\n'.repeat(20_000)}`;
+  let state = parsedWhole(
+    EditorState.create({
+      doc: long,
+      extensions: [gatedMarkdown(noteMarkdownExtensions(), true)],
+    }),
+  );
+  let asked = 0;
+  const copies = (seen: EditorState): boolean => {
+    asked += 1;
+    return markdownGrammarOn(seen);
+  };
+  for (const key of 'abc') {
+    state = state.update({ changes: { from: 7, insert: key } }).state;
+    assert.equal(barsOnScreen(state, [{ from: 0, to: 40 }], copies).length, 1);
+  }
+  assert.equal(asked, 3);
 });

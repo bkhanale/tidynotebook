@@ -140,11 +140,10 @@ the next blank line, and counts the marks of each part between blank lines.
 Only when a part holds more marks than one block may, a parse with every
 inline construct off finds the blocks of the one grammar, and each is held
 to the limit (`parse.test.ts`). After the parse, the depth of the tree and of
-the HTML of a note is checked.
-
-There is no wall-clock timeout and no cost score, so a note passes or fails
-the same way on every machine. Every entry point parses through
-`parseMarkdown`, and the editor keeps its Markdown language only for a note
-within `withinParseLimits` (`packages/editor/src/grammar-gate.ts`). A refused
-note is never truncated: a reader shows its source, and the boundary answers
-the domain code of each limit with a sentence the person can read.
+the HTML of a note is checked. No timeout and no cost score apply, so a note
+passes or fails the same way on every machine. Every entry point parses
+through `parseMarkdown`. The editor keeps its language only for a note within
+`withinParseLimits` (`packages/editor/src/grammar-gate.ts`), and a key reads
+again only the parts around it (`packages/editor/src/note-measure.ts`). A
+refused note is never truncated: a reader shows its source, and the boundary
+answers the domain code of each limit with a sentence the person can read.

@@ -23,16 +23,17 @@
  * A copy fails one way. When the browser refuses the clipboard, or the parse
  * refuses the note, the control selects the code in the text and says so,
  * and the person copies it with the keyboard. A note that the parse refuses
- * before it starts, such as one past the size limit, shows no bar at all.
+ * before it starts, such as one past the size limit, shows no bar at all:
+ * the grammar gate shows it as plain text, so it has no code block, and the
+ * bars read the answer of the gate rather than the whole note on a key.
  */
 import { syntaxTree } from '@codemirror/language';
-import type { EditorState, Extension, Text } from '@codemirror/state';
+import type { EditorState, Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import {
   codeBlockLabel,
   diagramFence,
   parseMarkdown,
-  withinParseLimits,
   type Root,
 } from '@notesapp/markdown';
 import {
@@ -45,6 +46,7 @@ import {
   glyph,
   type CopyState,
 } from '@notesapp/ui';
+import { markdownGrammarOn } from './grammar-gate.ts';
 
 /** One code block that carries a bar. */
 export type CodeBlockBar = {
@@ -164,37 +166,21 @@ export function codeBlockSelection(
 /**
  * The code blocks of the screen that carry a bar.
  *
- * `copies` asks the limits of the parse, which read the whole note, so it
- * runs only when the screen holds a code block. A key on a screen with none,
- * which is most keys, reads nothing of the rest of the note.
+ * `copies` says whether the parse takes the note, and runs only when the
+ * screen holds a code block. The editor passes `markdownGrammarOn`, the
+ * answer that the grammar gate keeps for each change (`grammar-gate.ts`),
+ * so no key reads the rest of the note.
  */
 export function barsOnScreen(
   state: EditorState,
   ranges: readonly { readonly from: number; readonly to: number }[],
-  copies: (doc: Text) => boolean,
+  copies: (state: EditorState) => boolean,
 ): readonly CodeBlockBar[] {
   const blocks: CodeBlockBar[] = [];
   for (const range of ranges)
     for (const block of codeBlockBars(state, range.from, range.to))
       if (!blocks.some((done) => done.from === block.from)) blocks.push(block);
-  return blocks.length === 0 || !copies(state.doc) ? [] : blocks;
-}
-
-/**
- * Whether the parse takes a note, so a copy of its blocks can work.
- *
- * The answer is kept for each version of the text, so the bars measure it
- * once for each change.
- */
-const parsedNotes = new WeakMap<Text, boolean>();
-
-/** Whether a copy of the blocks of one text can work. */
-function copiesFrom(doc: Text): boolean {
-  const known = parsedNotes.get(doc);
-  if (known !== undefined) return known;
-  const within = withinParseLimits(doc.toString());
-  parsedNotes.set(doc, within);
-  return within;
+  return blocks.length === 0 || !copies(state) ? [] : blocks;
 }
 
 /** The class of the glyph inside a control: the 16 px of a control. */
@@ -360,7 +346,11 @@ class CodeControls {
         // A browser with no clipboard copies nothing, and the parse refuses a
         // note past its limits, so neither shows a bar.
         if (typeof navigator.clipboard?.writeText !== 'function') return [];
-        const blocks = barsOnScreen(view.state, view.visibleRanges, copiesFrom);
+        const blocks = barsOnScreen(
+          view.state,
+          view.visibleRanges,
+          markdownGrammarOn,
+        );
         if (blocks.length === 0) return [];
         const scroller = view.scrollDOM.getBoundingClientRect();
         const placed: { block: CodeBlockBar; place: Place }[] = [];
