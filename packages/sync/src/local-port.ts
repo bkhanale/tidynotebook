@@ -62,6 +62,17 @@ export type Draft = {
   readonly path: string;
   readonly deleted: boolean;
   readonly sequence: number;
+  /**
+   * The state vector of the document that `text` was read from, or absent.
+   *
+   * The open of a note takes the text of its document when that document
+   * covers this vector, so a draft that lags its document never becomes work
+   * (records 0133, 0175). The editor states it only after the document took
+   * every change that it names, because a state vector does not count a
+   * deletion. A writer with no document, and an editor whose local write
+   * failed, leave it out.
+   */
+  readonly documentVector?: Uint8Array | null | undefined;
 };
 
 /**
@@ -138,11 +149,11 @@ export type LocalChange = {
     | 'cursor'
     | 'reset';
   /**
-   * Present when the store of this tab wrote the change, absent when another
-   * tab did. An open editor reads it to skip the echo of its own document
-   * work (record 0175).
+   * The working copy whose document work a `document` change carries, or
+   * absent. An open editor skips the change it wrote itself and joins every
+   * other, of this tab or of another (record 0175).
    */
-  readonly sameTab?: true;
+  readonly writer?: string | undefined;
 };
 
 /** One file as it must appear in local navigation. */
@@ -329,7 +340,9 @@ export type LocalCachedNote = {
    *
    * An editor opens from this pair. A document read apart from its text can
    * hold work that arrived between the two reads, and the open would then
-   * write that difference as new work (record 0133).
+   * write that difference as new work (record 0133). A draft whose document
+   * holds every change that the draft saw gives the text of that document,
+   * because the draft lags it (record 0175).
    */
   readonly document: NoteDocument | null;
 };
@@ -386,6 +399,12 @@ export type StagedSnapshot = {
   readonly cursor: string;
   readonly state: 'staging' | 'complete' | 'active';
   readonly createdAt: string;
+  /**
+   * The engine that staged the plan, or `null` for a plan of an earlier
+   * release. Only its owner, or anyone for a plan with none, takes over the
+   * revisions of a plan that never activated (record 0176).
+   */
+  readonly owner?: string | null | undefined;
 };
 
 /**
@@ -1054,13 +1073,33 @@ export type LocalStore = {
   ): Promise<NoteDocument | null>;
 
   /**
-   * Merges the work of the open editor into the stored document of a note.
+   * Appends work of the open editor to the pending updates of a note.
+   *
+   * One small write with no decode of the document, so the editor writes the
+   * work of each frame at once and a closed tab loses no key (record 0175).
+   * Every read of the document returns it with its updates, and the store
+   * folds them in when their count passes a bound, at a checkpoint and on a
+   * write of the document. The write announces a `document` change marked
+   * with `writer`, the working copy that wrote it. Work for a note that the
+   * server holds and whose document this device lacks is refused as `stale`
+   * (record 0084).
+   */
+  appendNoteWork(
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+    update: Uint8Array,
+    writer: string,
+  ): Promise<void>;
+
+  /**
+   * Merges a whole piece of work into the stored document of a note.
    *
    * Every write reads the stored row again inside the same transaction and
    * merges into it, so two tabs that write before either reads the other
    * cannot lose work (record 0085). The answer is the document after the
-   * merge, so the caller can join the work of the other tab. The write
-   * announces a `document` change (record 0175).
+   * merge. The open of a note writes its start work here, and an editor whose
+   * append failed writes its whole document here before a checkpoint.
    */
   mergeNoteWork(
     accountId: string,
@@ -1195,9 +1234,10 @@ export type LocalStore = {
    * account and the workspace travel explicitly because every port method is
    * partition bound: the token alone cannot place the staged row.
    *
-   * An earlier plan of the workspace that never activated gives this plan the
-   * revisions that it already stored, because a revision is immutable, and
-   * goes. The answer names the revisions that still need a read (record
+   * An earlier plan of the same `owner` that never activated gives this plan
+   * the revisions that it already stored, because a revision is immutable,
+   * and goes. A plan of another owner, such as another tab that still fills
+   * it, stays. The answer names the revisions that still need a read (record
    * 0176).
    */
   stageSnapshot(
@@ -1206,6 +1246,7 @@ export type LocalStore = {
     token: string,
     revisionIds: readonly string[],
     cursor: string,
+    owner: string,
   ): Promise<readonly string[]>;
 
   /**

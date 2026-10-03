@@ -181,6 +181,26 @@ export type DocumentRow = {
 };
 
 /**
+ * One update of the open editor that waits to be folded into its document.
+ *
+ * The editor appends the work of each frame here with no decode of the
+ * document, so a key reaches the disk at once (record 0175). `epoch` is the
+ * generation of the document that the update was written for: a read folds
+ * only the updates of the generation of its row, because identities of one
+ * generation say nothing about another (record 0084). `updateId` orders
+ * nothing and only keeps two updates apart: Yjs applies updates in any order.
+ */
+export type DocumentUpdateRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly fileId: string;
+  readonly updateId: string;
+  readonly epoch: number;
+  readonly bytes: Uint8Array;
+};
+
+/**
  * One revision of a save that an earlier release queued (record 0088).
  *
  * A note revision of release 0.4 carries its text and the digest of that text
@@ -300,6 +320,10 @@ export type Tables = {
   readonly recovery: Table<RecoveryRow, [string, string, string, string]>;
   readonly meta: Table<MetaRow, string>;
   readonly documents: Table<DocumentRow, [string, string, string, string]>;
+  readonly documentUpdates: Table<
+    DocumentUpdateRow,
+    [string, string, string, string, string]
+  >;
   readonly legacySaves: Table<LegacySaveRow, [string, string, string, string]>;
   readonly legacyBases: Table<LegacyBaseRow, [string, string, string, string]>;
   readonly legacyDrafts: Table<
@@ -321,6 +345,8 @@ export type Tables = {
  * `branches` table of the removed conflict-branch feature. Version 6 holds
  * the work of release 0.4 until it is placed on the documents of version 5
  * (record 0088). Version 7 holds the Reviews of this device (record 0087).
+ * Version 8 holds the updates of an open editor that wait to be folded into
+ * the document of their note (record 0175).
  */
 export const schemaVersions: readonly {
   readonly version: number;
@@ -440,6 +466,15 @@ export const schemaVersions: readonly {
         '[serverOrigin+accountId+workspaceId+reviewId], [serverOrigin+accountId+workspaceId+fileId]',
     },
   },
+  {
+    version: 8,
+    stores: {
+      // The updates of an open editor, one small write for each frame, until
+      // the store folds them into the document of their note (record 0175).
+      documentUpdates:
+        '[serverOrigin+accountId+workspaceId+fileId+updateId], [serverOrigin+accountId+workspaceId+fileId]',
+    },
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */
@@ -458,6 +493,7 @@ export const tableNames: readonly string[] = [
   'recovery',
   'meta',
   'documents',
+  'documentUpdates',
   'legacySaves',
   'legacyBases',
   'legacyDrafts',
@@ -500,6 +536,10 @@ export function createDatabase(
     documents: db.table<DocumentRow, [string, string, string, string]>(
       'documents',
     ),
+    documentUpdates: db.table<
+      DocumentUpdateRow,
+      [string, string, string, string, string]
+    >('documentUpdates'),
     drafts: db.table<DraftRow, [string, string, string, string]>('drafts'),
     checkpoints: db.table<CheckpointRow, [string, string, string, string]>(
       'checkpoints',

@@ -97,6 +97,7 @@ import { createDiagramFrame, diagramFramePath } from '../../diagram/frame.ts';
 import { useRegisterNoteDraftFlush } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
 import { createWriteSchedule } from './write-schedule.ts';
+import { createNoteWork, readAfterChange } from './note-work.ts';
 import { createCoalescedRead } from '../../lib/coalesced-read.ts';
 import { formatPaletteRows } from '../../lib/format-toolbar.ts';
 import {
@@ -109,15 +110,15 @@ import { ReviewNoticeBar } from '../review/review-notice.tsx';
 import { ImageViewer } from './image-viewer.tsx';
 import { recordTiming } from './timing.ts';
 
-/** A local write follows a pause in typing this long, inside the 150 ms target. */
+/** A draft write follows a pause in typing this long. */
 const draftSaveDelayMs = 120;
 
 /**
- * The longest time a key waits for its local write while the typing goes on
- * (record 0175). It bounds what a crash loses and how long another tab of
- * this note waits for the work.
+ * The longest time a draft waits while the typing goes on (record 0175). The
+ * keys are on the disk one frame after they reach the editor, so this bounds
+ * only how old the recovery copy of the name and the text can be.
  */
-const localWriteMaxWaitMs = 1000;
+const draftMaxWaitMs = 1000;
 
 /**
  * Delay before work that reads the complete document: the word count, the
@@ -321,15 +322,9 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // so the store folds its text into that document and never starts one of
   // its own (see `startWork` in `@notesapp/editor`).
   const startWrittenRef = useRef<Promise<void>>(Promise.resolve());
-  // Every local write of the open document that has not settled yet. A
-  // checkpoint freezes the stored document (record 0133), so it waits for
-  // them, and the version holds every change that the screen shows.
-  const localWorkWrittenRef = useRef<Promise<void>>(Promise.resolve());
-  // True after a local write failed. The later writes of the view build on
-  // the one that failed, so the store refuses them too, and a checkpoint
-  // would freeze a document without that work. The next checkpoint writes
-  // the whole live document first, which merges in every missing change.
-  const localWorkLostRef = useRef(false);
+  // True once the open document is released, so a late write reads no
+  // vector of a closed document.
+  const releasedRef = useRef(false);
   const sequenceRef = useRef(initialSequence);
   // The live document of this note, built once for this working copy. The
   // editor binds to it, so the text on the screen and the text of the note
@@ -485,7 +480,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
       typing: nameTypingRef.current,
       edited:
         sequenceRef.current !==
-        (versionedSequenceRef.current ?? initialSequence),
+        (noteWork.versionedSequence() ?? initialSequence),
     });
     if (next === null) return;
     validPathRef.current = next;
@@ -495,7 +490,10 @@ const NoteEditorBody = memo(function NoteEditorBody({
   };
 
   /** The draft the store would write right now. */
-  const buildDraft = (deleted: boolean): Draft => {
+  const buildDraftRef = useRef((_deleted: boolean): Draft => {
+    throw new Error('The draft of the note is read before the note opened.');
+  });
+  buildDraftRef.current = (deleted: boolean): Draft => {
     const current = live.current;
     return {
       accountId: current.accountId,
@@ -509,6 +507,58 @@ const NoteEditorBody = memo(function NoteEditorBody({
       sequence: sequenceRef.current,
     };
   };
+
+  // The writes of this editor: the work of each frame, the draft after a
+  // pause and the version (record 0175). The ports read references, so the
+  // writes of the first render stay right.
+  const noteWork = useMemo(
+    () =>
+      createNoteWork({
+        takeWork: () => sessionRef.current.takeLocalWork(),
+        wholeWork: () => sessionRef.current.work(),
+        stateVector: () =>
+          releasedRef.current ? null : sessionRef.current.stateVector(),
+        sequence: () => sequenceRef.current,
+        draft: (deleted) => buildDraftRef.current(deleted),
+        started: () => startWrittenRef.current,
+        append: (work) => {
+          const current = live.current;
+          return current.store.appendNoteWork(
+            current.accountId,
+            current.workspaceId,
+            current.fileId,
+            work,
+            current.workingCopyId,
+          );
+        },
+        merge: async (work) => {
+          const current = live.current;
+          await current.store.mergeNoteWork(
+            current.accountId,
+            current.workspaceId,
+            current.fileId,
+            work,
+          );
+        },
+        saveDraft: (draft) => live.current.store.saveDraft(draft),
+        checkpoint: (draft) =>
+          live.current.store.checkpoint(
+            draft,
+            saveCheckpointMessage,
+            'document',
+          ),
+        draftOwed: () => {
+          void saveDraftNow.current();
+        },
+        frame: (run) => {
+          const token = window.requestAnimationFrame(run);
+          return () => {
+            window.cancelAnimationFrame(token);
+          };
+        },
+      }),
+    [],
+  );
 
   /**
    * Whether this editor gives way to a new editor of a new generation.
@@ -642,12 +692,9 @@ const NoteEditorBody = memo(function NoteEditorBody({
    */
   const saveDraftNow = useRef((): Promise<boolean> => Promise.resolve(true));
   saveDraftNow.current = async (): Promise<boolean> => {
-    const isDeleting = isDeletedRef.current;
-    const current = live.current;
-    const draft = buildDraft(isDeleting);
     const startedAt = performance.now();
     try {
-      await current.store.saveDraft(draft);
+      const draft = await noteWork.writeDraft(isDeletedRef.current);
       recordTiming('notesapp.local-draft-save', startedAt);
       draftTaken.current(draft);
       setStorageError(null);
@@ -673,52 +720,18 @@ const NoteEditorBody = memo(function NoteEditorBody({
     showSaveFacts.current();
   };
 
-  /**
-   * Writes the work of the person that the document holds and the store does
-   * not, as one update. A checkpoint freezes the stored document (record
-   * 0133), so it waits for every such write.
-   */
-  const writeLocalWork = useRef((): Promise<void> => Promise.resolve());
-  writeLocalWork.current = (): Promise<void> => {
-    const work = sessionRef.current.takeLocalWork();
-    if (work !== null) {
-      const current = live.current;
-      const written = current.store
-        .mergeNoteWork(
-          current.accountId,
-          current.workspaceId,
-          current.fileId,
-          work,
-        )
-        .then(
-          () => undefined,
-          () => {
-            // The next checkpoint writes the whole document again and
-            // reports the failure when that write fails too.
-            localWorkLostRef.current = true;
-          },
-        );
-      localWorkWrittenRef.current = Promise.all([
-        localWorkWrittenRef.current,
-        written,
-      ]).then(() => undefined);
-    }
-    return localWorkWrittenRef.current;
-  };
-
-  // A key writes nothing. One write takes the document work and the draft
-  // of a burst after a pause, and no later than `localWriteMaxWaitMs` after
-  // its first key (record 0175).
+  // The draft follows a pause in typing, no later than `draftMaxWaitMs`
+  // after its first change. The keys do not wait for it: each frame appends
+  // them to the document (record 0175).
   const localWrite = useMemo(
     () =>
       createWriteSchedule<number>({
         pauseMs: draftSaveDelayMs,
-        maxWaitMs: localWriteMaxWaitMs,
+        maxWaitMs: draftMaxWaitMs,
         now: () => performance.now(),
         defer: (run, delayMs) => window.setTimeout(run, delayMs),
         cancel: (token) => window.clearTimeout(token),
         write: () => {
-          void writeLocalWork.current();
           void saveDraftNow.current();
         },
       }),
@@ -731,7 +744,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
       window.clearTimeout(versionTimerRef.current);
       versionTimerRef.current = null;
     }
-    await writeLocalWork.current();
+    await noteWork.flush();
     if (!(await saveDraftNow.current()))
       throw new Error(
         'The open draft could not be stored. Keep this tab open and try again.',
@@ -751,18 +764,16 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // of a task box, gets one more checkpoint when the running one ends. The
   // running one froze the document before that change (record 0134).
   const checkpointAgainRef = useRef(false);
-  // The sequence of the last checkpoint of this editor, or `null` before the
-  // first. The document also holds the work of other tabs and devices, and
-  // that work is a version of the editor that wrote it. An editor with no
-  // input since its last checkpoint therefore writes no version (record
-  // 0133). The first checkpoint always runs, because a draft that this open
-  // recovered can hold work that no version holds yet.
-  const versionedSequenceRef = useRef<number | null>(null);
   const checkpointNow = useRef((): Promise<boolean> => Promise.resolve(true));
   checkpointNow.current = (): Promise<boolean> => {
     if (isDeletedRef.current) return Promise.resolve(false);
     if (bufferWasReplaced()) return Promise.resolve(false);
-    if (versionedSequenceRef.current === sequenceRef.current)
+    // The document also holds the work of other tabs and devices, and that
+    // work is a version of the editor that wrote it. An editor with no input
+    // since its last checkpoint therefore writes no version (record 0133).
+    // The first checkpoint always runs, because a draft that this open
+    // recovered can hold work that no version holds yet.
+    if (noteWork.versionedSequence() === sequenceRef.current)
       return Promise.resolve(false);
     followHeading();
     // The name was checked when the person kept it. Another note can take
@@ -783,46 +794,20 @@ const NoteEditorBody = memo(function NoteEditorBody({
       return existing;
     }
     // The checkpoint writes the draft in its own transaction, so the draft
-    // write that waits is not needed first. The document work that waits is
-    // written now, and the checkpoint starts at once: an explicit save waits
-    // for no timer and for no read (record 0176).
+    // write that waits is not needed first. A checkpoint that writes no
+    // draft asks for it again. The work that waits is appended now, and the
+    // checkpoint starts at once: an explicit save waits for no timer and for
+    // no read (record 0176).
     localWrite.cancel();
     const run = (async (): Promise<boolean> => {
-      await startWrittenRef.current;
-      await writeLocalWork.current();
-      const current = live.current;
-      if (localWorkLostRef.current) {
-        try {
-          await current.store.mergeNoteWork(
-            current.accountId,
-            current.workspaceId,
-            current.fileId,
-            sessionRef.current.work(),
-          );
-          localWorkLostRef.current = false;
-        } catch (failure: unknown) {
-          setStorageError(
-            isLocalStorageError(failure) ? failure.kind : 'aborted',
-          );
-          return false;
-        }
-      }
-      try {
-        // The document holds every change of this editor already, and the
-        // buffer can lag remote work that the store took first. The version
-        // therefore freezes the document and never writes the buffer into
-        // it (record 0133).
-        const draft = buildDraft(false);
-        const entry = await current.store.checkpoint(
-          draft,
-          saveCheckpointMessage,
-          'document',
-        );
-        versionedSequenceRef.current = draft.sequence;
-        // A checkpoint that wrote no version wrote no draft either, and the
-        // draft is the recovery data of this text.
-        if (entry === null) void saveDraftNow.current();
-        else draftTaken.current(draft);
+      // The version freezes the document and never writes the buffer into
+      // it, because the buffer can lag remote work that the store took
+      // first (record 0133). It claims only the changes whose work it wrote
+      // (record 0175).
+      const outcome = await noteWork.version();
+      if (outcome.kind === 'written') {
+        const { entry, draft } = outcome;
+        if (entry !== null) draftTaken.current(draft);
         // The new checkpoint is the parent of the next one. Holding it here
         // keeps the editor right even when its draft row is removed, so a
         // later save never names a parent the file already passed.
@@ -832,24 +817,19 @@ const NoteEditorBody = memo(function NoteEditorBody({
         setStorageError(null);
         askQueue(true);
         return true;
-      } catch (failure: unknown) {
-        // The text stays recovery data of this device whatever the version
-        // did, so the draft is written now.
-        void saveDraftNow.current();
-        // A `stale` refusal is not a failed write. The store holds a newer
-        // statement of this file than the editor does, for example a deletion
-        // that arrived from the sidebar or another device, so nothing was
-        // lost and nothing is for the person to fix. The queue read brings
-        // the editor to what the store holds.
-        if (isLocalStorageError(failure) && failure.kind === 'stale') {
-          askQueue(true);
-          return false;
-        }
-        setStorageError(
-          isLocalStorageError(failure) ? failure.kind : 'aborted',
-        );
+      }
+      const { failure } = outcome;
+      // A `stale` refusal is not a failed write. The store holds a newer
+      // statement of this file than the editor does, for example a deletion
+      // that arrived from the sidebar or another device, so nothing was lost
+      // and nothing is for the person to fix. The queue read brings the
+      // editor to what the store holds.
+      if (isLocalStorageError(failure) && failure.kind === 'stale') {
+        askQueue(true);
         return false;
       }
+      setStorageError(isLocalStorageError(failure) ? failure.kind : 'aborted');
+      return false;
     })();
     checkpointInFlightRef.current = run;
     void run.finally(() => {
@@ -886,14 +866,8 @@ const NoteEditorBody = memo(function NoteEditorBody({
       )
         return;
       if (change.kind === 'purge') isDeletedRef.current = true;
-      // The document work of this editor is already in its document, so its
-      // own announcement asks for nothing. The work of another tab joins
-      // the open document, and a draft never touches it (record 0175).
-      if (change.kind === 'document') {
-        if (change.sameTab !== true) askQueue(true);
-        return;
-      }
-      askQueue(change.kind !== 'draft');
+      const read = readAfterChange(change, current.workingCopyId);
+      if (read !== 'none') askQueue(read === 'join');
     });
     const polling = window.setInterval(() => {
       askQueue(true);
@@ -978,9 +952,9 @@ const NoteEditorBody = memo(function NoteEditorBody({
       container,
       bufferRef.current,
       (readText) => {
-        // A key sets no React state and writes nothing to the store. It
-        // keeps a reader of the text, counts the change and moves the
-        // timers (record 0175).
+        // A key sets no React state. It keeps a reader of the text, counts
+        // the change and moves the timers. Its work goes to the store on the
+        // next frame (record 0175).
         const startedAt = performance.now();
         textReaderRef.current = readText;
         documentWork.schedule(readText);
@@ -1049,13 +1023,14 @@ const NoteEditorBody = memo(function NoteEditorBody({
     };
   }, [workingCopyId, documentWork, localWrite]);
 
-  // The local changes of the open document are written to this device after
-  // a pause, at most `localWriteMaxWaitMs` after the first, so a reload and a
-  // second tab both read the work of this editor (records 0085, 0175). The
-  // document is the one source of the text, so the save path that follows
-  // sends exactly the work this device added.
+  // The local changes of the open document reach this device one frame
+  // after they reach the editor, so a reload, a closed tab and a second tab
+  // all read the work of this editor (records 0085, 0175). The document is
+  // the one source of the text, so the save path that follows sends exactly
+  // the work this device added.
   useEffect(() => {
     const bound = sessionRef.current;
+    releasedRef.current = false;
     const start = bound.startWork;
     if (start !== null) {
       const current = live.current;
@@ -1075,14 +1050,19 @@ const NoteEditorBody = memo(function NoteEditorBody({
           },
         );
     }
+    const stopListening = bound.onLocalWork(noteWork.changed);
     return () => {
-      // The work that waits is written before the document closes, so the
-      // version that leaving the note makes holds it.
+      stopListening();
+      // Leaving the note writes the work, the draft and a version while the
+      // document is still open, because each one reads it (record 0022).
+      noteWork.stop();
+      void noteWork.flush();
       localWrite.flush();
-      void writeLocalWork.current();
+      flushVersion.current();
+      releasedRef.current = true;
       bound.release();
     };
-  }, [workingCopyId, localWrite]);
+  }, [workingCopyId, localWrite, noteWork]);
 
   // Theme changes reconfigure one compartment, keeping document, undo,
   // selection, and composition exactly where they are.
@@ -1127,19 +1107,26 @@ const NoteEditorBody = memo(function NoteEditorBody({
   }, []);
 
   // A version is a restore point, so leaving the note flushes one. A hidden
-  // tab (a switch or a close) flushes at once, and the cleanup flushes when
-  // the screen unmounts, which is how one note gives way to another. Typing
-  // that only pauses flushes through the version timer instead.
+  // tab (a switch or a close) runs no frame, so it appends the work that
+  // waits at once, writes the draft and flushes a version. The end of the
+  // screen does the same, which is how one note gives way to another.
+  // Typing that only pauses flushes through the version timer instead.
   useEffect(() => {
-    const onVisibility = (): void => {
-      if (document.visibilityState === 'hidden') flushVersion.current();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
+    const onHide = (): void => {
+      void noteWork.flush();
+      localWrite.flush();
       flushVersion.current();
     };
-  }, []);
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') onHide();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onHide);
+    };
+  }, [noteWork, localWrite]);
 
   /**
    * Moves the open note to the trash.

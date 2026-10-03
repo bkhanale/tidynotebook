@@ -9,6 +9,7 @@ import {
   readDocumentText,
   replaceDocumentText,
   startDocument,
+  stateVectorCovers,
 } from './document.ts';
 import { observeDocument, observedCoverage } from './observed.ts';
 import { documentBounds } from './bounds.ts';
@@ -311,5 +312,30 @@ await test('a text write that changes nothing changes no identity', () => {
   assert.deepEqual(
     observeDocument(written.value.document),
     observeDocument(base),
+  );
+});
+
+await test('a vector covers what an older vector of the same document saw', () => {
+  // Record 0175. A draft records the vector it saw, and the open of a note
+  // takes the text of a document that covers it.
+  const older = startDocument('# Note\n');
+  const written = replaceDocumentText(older, '# Note\nmore\n');
+  assert.ok(written.ok);
+  const newer = written.ok ? written.value.document : older;
+  assert.equal(
+    stateVectorCovers(documentStateVector(newer), documentStateVector(older)),
+    true,
+  );
+  assert.equal(
+    stateVectorCovers(documentStateVector(older), documentStateVector(newer)),
+    false,
+  );
+  // Another document names another client, which no vector covers.
+  assert.equal(
+    stateVectorCovers(
+      documentStateVector(newer),
+      documentStateVector(startDocument('x')),
+    ),
+    false,
   );
 });

@@ -184,7 +184,7 @@ export type HeldLocalWork = {
 /**
  * Holds the updates of the person on one session until a screen takes them
  * (record 0175). Remote work and repair are never held: the store already
- * has them. The updates merge on take, so a burst of keys is one write.
+ * has them. The updates merge on take, so the keys of one frame are one write.
  */
 export function holdLocalWork(session: DocumentSession): HeldLocalWork {
   let held: Uint8Array[] = [];
@@ -241,6 +241,12 @@ export type BoundNote = {
    */
   work(): Uint8Array;
   /**
+   * The state vector of the open document. A draft states it, so the open
+   * of the note can tell that its document holds the work of the draft
+   * (record 0175).
+   */
+  stateVector(): Uint8Array;
+  /**
    * Joins the document that this device stores into the open note.
    *
    * The screen calls this when the store reports a change. Only the work the
@@ -250,13 +256,13 @@ export type BoundNote = {
   join(stored: Uint8Array): void;
   /**
    * Runs on every change of the person. The work waits here until the screen
-   * takes it, so a key writes nothing to storage (record 0175).
+   * takes it, which it does once for each frame (record 0175).
    */
   onLocalWork(listener: () => void): () => void;
   /**
    * The work of the person since the last take, as one update, or `null`
-   * when there is none. The screen writes it to the store after a pause in
-   * typing and before every save.
+   * when there is none. The screen appends it to the store on the next
+   * frame and before every save.
    */
   takeLocalWork(): Uint8Array | null;
   /** Releases the binding and ends the note. Every later call throws. */
@@ -291,6 +297,7 @@ export function openBoundNote(
     extension: binding.extension,
     text: () => session.text(),
     work: () => session.encode(),
+    stateVector: () => session.stateVector(),
     join(document: Uint8Array): void {
       binding.applyRemote(encodeDocumentDelta(document, session.stateVector()));
     },

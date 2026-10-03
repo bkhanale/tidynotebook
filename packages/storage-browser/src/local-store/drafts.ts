@@ -10,6 +10,11 @@
  */
 import { contentDigest } from '@notesapp/core';
 import {
+  documentStateVector,
+  readDocumentText,
+  stateVectorCovers,
+} from '@notesapp/note-document';
+import {
   type Draft,
   type LocalCachedNote,
   type LocalStore,
@@ -52,6 +57,9 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
     path: row.path,
     deleted: row.deleted,
     sequence: row.sequence,
+    ...(row.documentVector === null || row.documentVector === undefined
+      ? {}
+      : { documentVector: row.documentVector }),
   });
 
   /**
@@ -287,6 +295,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
             tables.checkpoints,
             tables.contents,
             tables.documents,
+            tables.documentUpdates,
             tables.drafts,
           ],
           async () => {
@@ -400,10 +409,22 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
       // and of the deletion state.
       if (!snapshot.leads && !stale) return withDocument(snapshot.head);
 
+      // A draft lags the document of its editor, which takes each key at
+      // once. A document that holds every change the draft saw is the newer
+      // text, and the draft text would undo work as new work (record 0175).
+      const document = snapshot.document;
+      const covered =
+        document !== null &&
+        draft.documentVector !== null &&
+        draft.documentVector !== undefined &&
+        stateVectorCovers(
+          documentStateVector(document.bytes),
+          draft.documentVector,
+        );
       return withDocument({
         fileId,
         path: draft.path,
-        text: draft.text,
+        text: covered ? readDocumentText(document.bytes) : draft.text,
         deleted: draft.deleted,
         workingCopyId: draft.workingCopyId,
         sequence: draft.sequence,

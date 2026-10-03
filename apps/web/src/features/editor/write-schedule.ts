@@ -1,25 +1,26 @@
 /**
- * When the open editor writes its work to this device (record 0175).
+ * When the open editor writes its draft to this device (record 0175).
  *
- * A key writes nothing. The editor holds the work of a burst of keys in its
- * document and in its buffer, and one local write takes both: the document
- * work and the draft. The write runs after a pause in typing, and never later
- * than `maxWaitMs` after the first key that it holds, so a long burst still
- * reaches storage while the person types and a crash loses that much at most.
- * A save, a hidden tab and the end of the screen run the write at once.
+ * The keys do not wait for this schedule: each frame appends their work to
+ * the document of the note (`note-work.ts`). The draft is recovery data of
+ * the text and the name, and one write takes a burst of changes. It runs
+ * after a pause in typing, and never later than `maxWaitMs` after the first
+ * change that it holds, so a long burst still gets a draft while the person
+ * types. A hidden tab and the end of the screen run the write at once, and a
+ * version cancels it because the version writes the draft itself.
  *
  * The timer is injected, so a unit test drives the clock itself.
  */
 
-/** The schedule of the local writes of one open editor. */
+/** The schedule of the draft writes of one open editor. */
 export type WriteSchedule = {
-  /** States that the editor holds work the store does not have yet. */
+  /** States that the editor holds a change that no draft holds yet. */
   readonly touch: () => void;
   /** Runs the write that waits now. Answers whether one waited. */
   readonly flush: () => boolean;
-  /** Drops the write that waits, for a note that leaves the screen. */
+  /** Drops the write that waits, for a version that writes the draft. */
   readonly cancel: () => void;
-  /** Whether the editor holds work that no write took yet. */
+  /** Whether the editor holds a change that no draft took yet. */
   readonly waiting: () => boolean;
 };
 

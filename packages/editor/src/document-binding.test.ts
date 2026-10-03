@@ -3,6 +3,7 @@ import test from 'node:test';
 import { EditorState } from '@codemirror/state';
 import {
   applyDocumentUpdate,
+  documentStateVector,
   encodeDocumentDelta,
   openDocumentSession,
   readDocumentText,
@@ -242,6 +243,21 @@ await test('the work of a note brings a store that missed a write up to the view
   assert.ok(merged.ok);
   assert.equal(readDocumentText(merged.value.document), note.text());
   assert.equal(note.text(), '- [x] task\nmore\n');
+  note.release();
+});
+
+await test('an open note states the vector of the document that it holds', () => {
+  // Record 0175. A draft states this vector, so the open of the note can tell
+  // that the stored document holds every change of the draft.
+  const stored = startDocument('# Note\n');
+  const note = openBoundNote(stored, '# Note\n');
+  const written = replaceDocumentText(stored, '# Note\nmore\n');
+  if (!written.ok) throw new Error(written.refusal);
+  note.join(written.value.document);
+  assert.deepEqual(
+    note.stateVector(),
+    documentStateVector(written.value.document),
+  );
   note.release();
 });
 

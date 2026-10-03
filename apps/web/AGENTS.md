@@ -101,7 +101,7 @@ on each rule below.
 | `src/lib/workspace-choice.ts`                 | Which workspace opens              |
 | `src/lib/breadcrumb.ts`                       | Where a person is, as parts        |
 | `src/features/editor/note-editor.tsx`         | The editor host and editor view    |
-| `src/features/editor/write-schedule.ts`       | When a key reaches storage (0175)  |
+| `src/features/editor/note-work.ts`            | When a key reaches storage (0175)  |
 | `src/features/editor/note-loader.tsx`         | The read that opens one note       |
 | `src/features/editor/device-note.ts`          | The open read a navigation awaits  |
 | `src/features/editor/note-header-actions.tsx` | The actions of the note route      |

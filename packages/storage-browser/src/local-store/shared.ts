@@ -212,6 +212,7 @@ export const draftRow = (
   path: draft.path,
   deleted: draft.deleted,
   sequence: draft.sequence,
+  documentVector: draft.documentVector ?? null,
   lastCheckpointId,
   savedAt: ctx.nowIso(),
 });

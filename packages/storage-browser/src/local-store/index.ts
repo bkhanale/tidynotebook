@@ -122,12 +122,11 @@ export async function openLocalStore(
       if (change === null) return;
       notify(change);
     };
-  // A listener of this store hears that this tab wrote the change. Another
-  // tab, and another store on the fallback bus, hears it without the mark.
+  // Every listener hears the same change, in this tab and in every other.
+  // A `document` change names its writer, so only the editor that wrote it
+  // skips it (record 0175).
   const publish = (change: LocalChange): void => {
-    const here: LocalChange = { ...change, sameTab: true };
-    for (const listener of listeners)
-      listener(ownedListeners.has(listener) ? here : change);
+    notify(change);
     channel?.postMessage(change);
   };
   const backend: {

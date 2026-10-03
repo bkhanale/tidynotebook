@@ -243,6 +243,7 @@ export function createFileActionsSlice(
           tables.acceptedFiles,
           tables.queue,
           tables.documents,
+          tables.documentUpdates,
           tables.legacySaves,
         ],
         async (): Promise<readonly QueueEntry[]> => {

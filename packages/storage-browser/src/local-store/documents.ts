@@ -11,11 +11,19 @@
  * merges into it. A tab never replaces the row with a buffer that it read
  * earlier, so two tabs that write before either reads the other cannot lose
  * work.
+ *
+ * The open editor appends the update of each frame to `documentUpdates` with
+ * no decode (record 0175). `readDocumentRow` returns the row with the updates
+ * of its generation folded in, and `writeDocumentRow` folds them into the row
+ * that it writes and removes them, so every reader and every writer sees the
+ * work of every key. A transaction that reads or writes a document therefore
+ * covers `documentUpdates` as well.
  */
 import {
   applyDocumentUpdate,
   documentStateVector,
   encodeDocumentDelta,
+  mergeDocumentUpdates,
   mergeStateVectors,
   observeDocument,
   readDocumentText,
@@ -24,8 +32,8 @@ import {
 } from '@notesapp/note-document';
 import type { DocumentSave } from '@notesapp/core';
 import { LocalStorageError } from '@notesapp/sync';
-import type { DocumentRow, Tables } from '../database.ts';
-import { validateDocument } from '../migrations.ts';
+import type { DocumentRow, DocumentUpdateRow, Tables } from '../database.ts';
+import { validateDocument, validateDocumentUpdate } from '../migrations.ts';
 
 /** The key of one document row. */
 export type DocumentKey = {
@@ -35,8 +43,55 @@ export type DocumentKey = {
   readonly fileId: string;
 };
 
-/** Reads the stored document of one note, or `null`. */
-export async function readDocumentRow(
+/** The updates of one note that wait to be folded into its document. */
+export async function pendingDocumentUpdates(
+  tables: Tables,
+  key: DocumentKey,
+): Promise<readonly DocumentUpdateRow[]> {
+  const rows: unknown[] = await tables.documentUpdates
+    .where('[serverOrigin+accountId+workspaceId+fileId]')
+    .equals([key.serverOrigin, key.accountId, key.workspaceId, key.fileId])
+    .toArray();
+  return rows.map((row: unknown) => validateDocumentUpdate(row));
+}
+
+/**
+ * The pending updates of a note past which an append folds them into the
+ * document. A read decodes the document and applies each update, so the
+ * bound keeps that work small, and the fold costs one decode for many keys.
+ */
+const pendingUpdateBound = { count: 64, bytes: 64 * 1024 } as const;
+
+/** Whether the pending updates of a note are due for a fold. */
+export function pendingUpdatesPassBound(
+  updates: readonly DocumentUpdateRow[],
+): boolean {
+  if (updates.length >= pendingUpdateBound.count) return true;
+  let bytes = 0;
+  for (const update of updates) bytes += update.bytes.byteLength;
+  return bytes >= pendingUpdateBound.bytes;
+}
+
+/** Applies the updates of one generation to a document, once each. */
+function foldUpdates(
+  bytes: Uint8Array,
+  updates: readonly DocumentUpdateRow[],
+): Uint8Array {
+  if (updates.length === 0) return bytes;
+  const applied = applyDocumentUpdate(
+    bytes,
+    mergeDocumentUpdates(updates.map((update) => update.bytes)),
+  );
+  if (!applied.ok)
+    throw new LocalStorageError(
+      'corrupt',
+      `the document of this note refused its pending work: ${applied.refusal}`,
+    );
+  return applied.value.document;
+}
+
+/** The stored row alone, without its pending updates. */
+export async function readStoredDocumentRow(
   tables: Tables,
   key: DocumentKey,
 ): Promise<DocumentRow | null> {
@@ -47,6 +102,63 @@ export async function readDocumentRow(
     key.fileId,
   ]);
   return stored === undefined ? null : validateDocument(stored);
+}
+
+/**
+ * Reads the document of one note with every update of its generation, or
+ * `null` when the device holds neither.
+ *
+ * A note that this device started and whose first write is still pending
+ * reads as an empty document with those updates (record 0175).
+ */
+export async function readDocumentRow(
+  tables: Tables,
+  key: DocumentKey,
+): Promise<DocumentRow | null> {
+  const row = await readStoredDocumentRow(tables, key);
+  const epoch = row?.epoch ?? 1;
+  const pending = (await pendingDocumentUpdates(tables, key)).filter(
+    (update) => update.epoch === epoch,
+  );
+  if (row === null && pending.length === 0) return null;
+  const base: DocumentRow = row ?? {
+    ...key,
+    bytes: startDocument(''),
+    epoch,
+    // A note that this device starts has sent nothing yet.
+    appliedVector: documentStateVector(startDocument('')),
+  };
+  return { ...base, bytes: foldUpdates(base.bytes, pending) };
+}
+
+/**
+ * Writes the document of one note and folds its pending updates into it.
+ *
+ * An update of the generation of the row joins it, so no key of an open
+ * editor is lost when the row is written: a snapshot, a feed page, a
+ * checkpoint and a merge all keep the work that waits. An update of another
+ * generation cannot join and goes (record 0084). Every update of the note is
+ * removed, so the next read decodes nothing twice.
+ */
+export async function writeDocumentRow(
+  tables: Tables,
+  row: DocumentRow,
+): Promise<DocumentRow> {
+  const pending = await pendingDocumentUpdates(tables, row);
+  const written: DocumentRow = {
+    ...row,
+    bytes: foldUpdates(
+      row.bytes,
+      pending.filter((update) => update.epoch === row.epoch),
+    ),
+  };
+  await tables.documents.put(written);
+  if (pending.length > 0)
+    await tables.documentUpdates
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .equals([row.serverOrigin, row.accountId, row.workspaceId, row.fileId])
+      .delete();
+  return written;
 }
 
 /**
@@ -175,9 +287,9 @@ export async function freezeDocument(
   // write of its editor does. A note that the server holds is refused.
   const row = current ?? { ...documentOrStart(null, '', noteExists), ...key };
   if (readDocumentText(row.bytes) !== text) return null;
-  // A stored row is frozen as it is, so the checkpoint writes it only when
-  // this call started it.
-  return { row: current === null ? row : null, save: saveOfDocument(row) };
+  // The checkpoint writes the row it froze, which folds the pending updates
+  // of the open editor into the stored document (record 0175).
+  return { row, save: saveOfDocument(row) };
 }
 
 /**

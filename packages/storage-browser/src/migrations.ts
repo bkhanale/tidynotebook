@@ -36,6 +36,7 @@ import {
   type SnapshotRow,
   type Tables,
   type DocumentRow,
+  type DocumentUpdateRow,
 } from './database.ts';
 import {
   addedBytes,
@@ -80,6 +81,7 @@ export function validateDraft(value: unknown): DraftRow {
     sequence: count(row, 'sequence', 'draft'),
     lastCheckpointId: optionalText(row, 'lastCheckpointId', 'draft'),
     savedAt: text(row, 'savedAt', 'draft'),
+    documentVector: addedBytes(row, 'documentVector', 'draft'),
   };
 }
 
@@ -262,6 +264,7 @@ export function validateSnapshot(value: unknown): SnapshotRow {
       'snapshot',
     ),
     createdAt: text(row, 'createdAt', 'snapshot'),
+    owner: addedText(row, 'owner', 'snapshot'),
   };
 }
 
@@ -325,6 +328,18 @@ export function validateDocument(value: unknown): DocumentRow {
     bytes: byteString(row, 'bytes', 'document'),
     epoch: count(row, 'epoch', 'document'),
     appliedVector: byteString(row, 'appliedVector', 'document'),
+  };
+}
+
+/** Narrows one stored update of an open editor (record 0175). */
+export function validateDocumentUpdate(value: unknown): DocumentUpdateRow {
+  const row = object(value, 'document update');
+  return {
+    ...partition(row, 'document update'),
+    fileId: text(row, 'fileId', 'document update'),
+    updateId: text(row, 'updateId', 'document update'),
+    epoch: count(row, 'epoch', 'document update'),
+    bytes: byteString(row, 'bytes', 'document update'),
   };
 }
 
@@ -455,6 +470,12 @@ export const migrationSteps: readonly {
     to: 7,
     run: () => Promise.resolve(),
   },
+  {
+    // The updates of an open editor start empty (record 0175).
+    from: 7,
+    to: 8,
+    run: () => Promise.resolve(),
+  },
 ];
 
 /** The most records held for validation at one time. */
@@ -500,6 +521,7 @@ async function revalidate(tables: Tables): Promise<void> {
   await validateTable(tables.preferences, validatePreference);
   await validateTable(tables.recovery, validateRecovery);
   await validateTable(tables.documents, validateDocument);
+  await validateTable(tables.documentUpdates, validateDocumentUpdate);
   await validateTable(tables.legacySaves, validateLegacySave);
   await validateTable(tables.legacyBases, validateLegacyBase);
   await validateTable(tables.legacyDrafts, validateLegacyDraft);

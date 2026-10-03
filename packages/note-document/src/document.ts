@@ -115,6 +115,26 @@ export function mergeStateVectors(
   return Y.encodeStateVector(merged);
 }
 
+/**
+ * Whether a document of state vector `holder` holds every insertion that a
+ * state vector `seen` names.
+ *
+ * A draft records the vector of the document that it saw. The open of a note
+ * takes the text of its document when that document covers the vector, so a
+ * draft that lags its document never becomes work (records 0133, 0175). A
+ * state vector does not track deletions, so the caller trusts the answer only
+ * for a draft whose document took every local write.
+ */
+export function stateVectorCovers(
+  holder: Uint8Array,
+  seen: Uint8Array,
+): boolean {
+  const held = Y.decodeStateVector(holder);
+  for (const [client, clock] of Y.decodeStateVector(seen))
+    if ((held.get(client) ?? 0) < clock) return false;
+  return true;
+}
+
 /** Merges several updates into one without loading a document. */
 export function mergeDocumentUpdates(
   updates: readonly Uint8Array[],

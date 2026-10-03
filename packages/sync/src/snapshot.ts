@@ -286,6 +286,7 @@ async function fullSnapshot(
     token,
     revisionIds,
     started.value.cursor,
+    ctx.owner ?? '',
   );
   // The revisions are immutable and independent, so a few are read at a
   // time. One at a time, a workspace of a thousand notes took most of the

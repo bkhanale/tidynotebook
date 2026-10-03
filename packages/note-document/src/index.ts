@@ -23,6 +23,7 @@ export {
   readDocumentText,
   replaceDocumentText,
   startDocument,
+  stateVectorCovers,
 } from './document.ts';
 export type { Coverage, DocumentInEpoch, ObservedInEpoch } from './observed.ts';
 export { observeDocument, observedCoverage } from './observed.ts';

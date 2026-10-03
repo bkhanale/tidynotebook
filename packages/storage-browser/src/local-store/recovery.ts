@@ -22,6 +22,7 @@ import {
   validateContent,
   validateCursor,
   validateDocument,
+  validateDocumentUpdate,
   validateDraft,
   validatePreference,
   validateQueueRow,
@@ -69,6 +70,7 @@ const privateTables = (tables: Tables) => [
   tables.preferences,
   tables.recovery,
   tables.documents,
+  tables.documentUpdates,
   tables.legacySaves,
   tables.legacyBases,
   tables.legacyDrafts,
@@ -172,6 +174,10 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       .where('[serverOrigin+accountId+workspaceId+fileId]')
       .between(range.lower, range.upper, true, true)
       .delete();
+    await tables.documentUpdates
+      .where('[serverOrigin+accountId+workspaceId+fileId+updateId]')
+      .between(range.lower, range.upper, true, true)
+      .delete();
     await tables.legacySaves
       .where('[serverOrigin+accountId+workspaceId+mutationId]')
       .between(range.lower, range.upper, true, true)
@@ -251,6 +257,8 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       collect(validatePreference(row));
     for (const row of await tables.documents.toArray())
       collect(validateDocument(row));
+    for (const row of await tables.documentUpdates.toArray())
+      collect(validateDocumentUpdate(row));
     for (const row of await tables.legacySaves.toArray())
       collect(validateLegacySave(row));
     for (const row of await tables.legacyBases.toArray())

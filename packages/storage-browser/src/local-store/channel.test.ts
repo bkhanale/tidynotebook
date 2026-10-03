@@ -115,22 +115,27 @@ await test('an inherited member cannot pass the check', () => {
   assert.equal(localChangeOf(inherited), null);
 });
 
-await test('a message of another tab never claims to come from this tab', () => {
-  // Record 0175. The mark tells an editor that it wrote the change itself,
-  // so a message that carries it is read without it.
+await test('a document change keeps the working copy that wrote it', () => {
+  // Record 0175. The editor of that working copy skips its own work, and an
+  // editor of the same note in this tab or another joins it.
+  const change = {
+    accountId: 'account-1',
+    workspaceId: 'workspace-1',
+    fileId: 'file-1',
+    kind: 'document',
+  } as const;
+  assert.deepEqual(localChangeOf({ ...change, writer: 'copy-1' }), {
+    ...change,
+    writer: 'copy-1',
+  });
+  // A mark of another shape, or on another kind, is dropped and the change
+  // stays, so the work still joins every editor.
+  assert.deepEqual(localChangeOf({ ...change, writer: 7 }), change);
+  assert.deepEqual(localChangeOf({ ...change, writer: '' }), change);
   assert.deepEqual(
-    localChangeOf({
-      accountId: 'account-1',
-      workspaceId: 'workspace-1',
-      fileId: 'file-1',
-      kind: 'document',
-      sameTab: true,
-    }),
-    {
-      accountId: 'account-1',
-      workspaceId: 'workspace-1',
-      fileId: 'file-1',
-      kind: 'document',
-    },
+    localChangeOf({ ...change, kind: 'draft', writer: 'copy-1' }),
+    { ...change, kind: 'draft' },
   );
+  // The mark of an earlier build names no writer and is dropped.
+  assert.deepEqual(localChangeOf({ ...change, sameTab: true }), change);
 });

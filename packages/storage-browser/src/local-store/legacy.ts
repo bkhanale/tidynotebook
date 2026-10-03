@@ -45,6 +45,7 @@ import {
   deletionSave,
   foldTextIntoDocument,
   readDocumentRow,
+  writeDocumentRow,
 } from './documents.ts';
 import { recordRecoveryReview } from './reviews.ts';
 import {
@@ -388,7 +389,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
           plan.texts[index] ?? '',
           noteExists,
         );
-        await tables.documents.put(folded.row);
+        await writeDocumentRow(tables, folded.row);
         document = folded.save;
       }
       revisions.push({ ...moved, content: { kind: 'markdown', document } });
@@ -605,7 +606,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
             joined,
             held,
           );
-          await tables.documents.put(folded.row);
+          await writeDocumentRow(tables, folded.row);
         }
         if (joined !== draft.text)
           await tables.drafts.put({ ...draft, text: joined });
@@ -790,6 +791,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
               tables.acceptedFiles,
               tables.drafts,
               tables.documents,
+              tables.documentUpdates,
               tables.recovery,
               tables.reviews,
               tables.cursors,

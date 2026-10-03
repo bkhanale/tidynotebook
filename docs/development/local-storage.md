@@ -31,12 +31,11 @@ too: `packages/sync/src/create-note.ts` writes the first draft and its
 checkpoint together. See
 [decision 0104](../decisions/0104-a-new-note-is-a-version-when-it-is-made.md).
 
-A key writes nothing: one local write takes the document work and the draft
-of a burst after a pause (`apps/web/src/features/editor/write-schedule.ts`,
+Each frame appends the work of its keys to the note document, and the draft
+follows after a pause (`apps/web/src/features/editor/note-work.ts`,
 [decision 0175](../decisions/0175-a-key-changes-only-the-editor.md)). A
-checkpoint writes the waiting work, then one local version with its draft,
-and wakes the engine at once
-([decision 0176](../decisions/0176-a-save-waits-for-no-read.md)). The store
+checkpoint appends the waiting work, writes one local version with its draft,
+and wakes the engine ([decision 0176](../decisions/0176-a-save-waits-for-no-read.md)). The store
 suppresses a checkpoint whose content, path, and deletion are unchanged. A
 draft carries a sequence, and storage ignores an older one.
 

@@ -7,7 +7,7 @@
  * and content presence. `applyRemoteChanges` folds the change feed into the
  * mirror without overwriting unsubmitted local work.
  */
-import { applyServerWork } from './documents.ts';
+import { applyServerWork, writeDocumentRow } from './documents.ts';
 import { validateLegacySave } from '../legacy-records.ts';
 import {
   LocalStorageError,
@@ -15,6 +15,7 @@ import {
   type RemoteChange,
   type ServerNote,
   type SnapshotRevision,
+  type StagedSnapshot,
 } from '@notesapp/sync';
 import {
   guard,
@@ -58,6 +59,28 @@ type SnapshotSlice = Pick<
 export function workspaceChangeFile(fileIds: readonly string[]): string | null {
   const unique = new Set(fileIds);
   return unique.size === 1 ? (fileIds[0] ?? null) : null;
+}
+
+/**
+ * How long a staging plan of another engine can fill before a new staging
+ * takes it over. A first sync ends far sooner, so a plan this old belongs to
+ * a tab that closed during its pass.
+ */
+const abandonedStagingMs = 60 * 60 * 1000;
+
+/**
+ * Whether a new staging of `owner` can take over an earlier plan: move its
+ * revisions and remove it (record 0176).
+ */
+export function stagingOwnedBy(
+  plan: StagedSnapshot,
+  owner: string,
+  now: number,
+): boolean {
+  const planOwner = plan.owner ?? null;
+  if (planOwner === null || planOwner === owner) return true;
+  const created = Date.parse(plan.createdAt);
+  return Number.isNaN(created) || now - created >= abandonedStagingMs;
 }
 
 export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
@@ -182,6 +205,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
       token: string,
       revisionIds: readonly string[],
       cursor: string,
+      owner: string,
     ): Promise<readonly string[]> {
       return guard('staging a snapshot', () =>
         db.transaction(
@@ -203,6 +227,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               .filter((plan) => plan.state === 'staging');
             const wanted = new Set(revisionIds);
             const kept = new Set<string>();
+            const now = Date.parse(nowIso());
             for (const plan of earlier) {
               const key = [serverOrigin, accountId, workspaceId, plan.token];
               const items = (
@@ -211,17 +236,24 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   .equals(key)
                   .toArray()
               ).map((row: unknown) => validateSnapshotItem(row));
-              await tables.snapshotItems
-                .where('[serverOrigin+accountId+workspaceId+token]')
-                .equals(key)
-                .delete();
+              // A plan of another engine can still fill, for example in a
+              // handover of the lease during a pass. Its revisions serve this
+              // plan as copies and the plan stays. A plan of this engine, of an
+              // earlier release, or one that nobody finished for a long time
+              // goes (record 0176).
+              const owned = stagingOwnedBy(plan, owner, now);
+              if (owned)
+                await tables.snapshotItems
+                  .where('[serverOrigin+accountId+workspaceId+token]')
+                  .equals(key)
+                  .delete();
               for (const item of items) {
                 if (!wanted.has(item.revisionId) || kept.has(item.revisionId))
                   continue;
                 await tables.snapshotItems.put({ ...item, token });
                 kept.add(item.revisionId);
               }
-              if (plan.token !== token)
+              if (owned && plan.token !== token)
                 await tables.stagedSnapshots.delete([
                   serverOrigin,
                   accountId,
@@ -238,6 +270,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               cursor,
               state: 'staging',
               createdAt: nowIso(),
+              owner,
             });
             return revisionIds.filter((revisionId) => !kept.has(revisionId));
           },
@@ -303,6 +336,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.checkpoints,
             tables.recovery,
             tables.documents,
+            tables.documentUpdates,
             tables.legacySaves,
             tables.reviews,
           ],
@@ -370,7 +404,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   item.epoch,
                   { kind: 'document', document: item.document },
                 );
-                await tables.documents.put(applied.row);
+                await writeDocumentRow(tables, applied.row);
               }
               const known: unknown = await tables.acceptedFiles.get([
                 serverOrigin,
@@ -518,7 +552,12 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
       const written = await guard('keeping a note of the server', () =>
         db.transaction(
           'rw',
-          [tables.acceptedFiles, tables.contents, tables.documents],
+          [
+            tables.acceptedFiles,
+            tables.contents,
+            tables.documents,
+            tables.documentUpdates,
+          ],
           async (): Promise<boolean> => {
             const known: unknown = await tables.acceptedFiles.get([
               serverOrigin,
@@ -546,7 +585,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                 note.epoch ?? 1,
                 { kind: 'document', document: served },
               );
-              await tables.documents.put(applied.row);
+              await writeDocumentRow(tables, applied.row);
               return true;
             }
             await tables.contents.put({
@@ -586,7 +625,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                 note.epoch ?? 1,
                 { kind: 'document', document },
               );
-              await tables.documents.put(applied.row);
+              await writeDocumentRow(tables, applied.row);
             }
             return true;
           },
@@ -627,6 +666,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.checkpoints,
             tables.recovery,
             tables.documents,
+            tables.documentUpdates,
             tables.reviews,
           ],
           async () => {
@@ -656,7 +696,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                     ? { kind: 'document', document: file.document.bytes }
                     : { kind: 'update', update: file.document.bytes },
                 );
-                await tables.documents.put(applied.row);
+                await writeDocumentRow(tables, applied.row);
                 acceptedText = applied.text;
               }
               if (acceptedText !== null) {

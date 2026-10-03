@@ -37,7 +37,7 @@ over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 - `preferences.ts`: pins, the sign-out marker, the sync lease.
 - `files.ts`: the reads over the cached mirror of server state.
 - `snapshot.ts`: snapshots, remote changes, and the kept read of a screen.
-- `documents.ts`, `legacy.ts`: note documents; placing 0.4 work (0084, 0088).
+- `documents.ts`, `legacy.ts`: documents, their updates, 0.4 work (0084, 0175).
 
 ## Allowed imports
 

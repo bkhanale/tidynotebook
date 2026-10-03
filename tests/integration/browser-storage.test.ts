@@ -1392,6 +1392,7 @@ await test('snapshot activation and clearing publish committed invalidations', a
     'snapshot-token',
     ['rev-1'],
     '7',
+    'engine-1',
   );
   await store.storeSnapshotRevision(account, workspace, {
     token: 'snapshot-token',
@@ -1430,7 +1431,14 @@ await test('one snapshot of many files announces one change of the workspace', a
     changes.push(`${change.kind}:${change.fileId ?? 'all'}`);
   });
   const revisions = files.map((_, index) => `rev-${String(index)}`);
-  await store.stageSnapshot(account, workspace, 'many', revisions, '9');
+  await store.stageSnapshot(
+    account,
+    workspace,
+    'many',
+    revisions,
+    '9',
+    'engine-1',
+  );
   for (const [index, fileId] of files.entries()) {
     const text = `# ${String(index)}\n`;
     await store.storeSnapshotRevision(account, workspace, {
@@ -1485,6 +1493,7 @@ await test('a new staging keeps the revisions that an earlier one stored', async
       'first',
       ['rev-0', 'rev-1'],
       '4',
+      'engine-1',
     ),
     ['rev-0', 'rev-1'],
   );
@@ -1495,6 +1504,7 @@ await test('a new staging keeps the revisions that an earlier one stored', async
     'second',
     ['rev-0', 'rev-1', 'rev-2'],
     '5',
+    'engine-1',
   );
   assert.deepEqual(missing, ['rev-1', 'rev-2']);
   await revision(1, 'second');
@@ -1507,6 +1517,65 @@ await test('a new staging keeps the revisions that an earlier one stored', async
   );
   // The first plan went with the move of its revision.
   await assert.rejects(store.activateSnapshot('first'));
+  await store.close();
+});
+
+await test('a staging of another engine keeps the plan that it still fills', async () => {
+  // Record 0176. A new staging removed every earlier plan of the workspace.
+  // An engine that still filled its plan, as in a handover of the lease
+  // during a pass, then failed its activation as a corrupt store.
+  const backend = createBackend('staging-owned');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const files = [randomUUID(), randomUUID(), randomUUID()];
+  const revision = async (index: number, token: string) => {
+    const text = `# ${String(index)}\n`;
+    await store.storeSnapshotRevision(account, workspace, {
+      token,
+      revisionId: `rev-${String(index)}`,
+      fileId: files[index] ?? '',
+      path: `notes/${String(index)}.md`,
+      kind: 'note',
+      deleted: false,
+      digest: await contentDigest(text),
+      text,
+      document: startDocument(text),
+      epoch: 1,
+      serverTime: null,
+    });
+  };
+  await store.stageSnapshot(
+    account,
+    workspace,
+    'first',
+    ['rev-0', 'rev-1'],
+    '4',
+    'engine-a',
+  );
+  await revision(0, 'first');
+  // The second engine reuses the stored revision as a copy.
+  const missing = await store.stageSnapshot(
+    account,
+    workspace,
+    'second',
+    ['rev-0', 'rev-1', 'rev-2'],
+    '5',
+    'engine-b',
+  );
+  assert.deepEqual(missing, ['rev-1', 'rev-2']);
+  // The first engine still ends its pass.
+  await revision(1, 'first');
+  await store.activateSnapshot('first');
+  assert.equal(await store.readCursor(account, workspace), '4');
+  await revision(1, 'second');
+  await revision(2, 'second');
+  await store.activateSnapshot('second');
+  assert.equal(await store.readCursor(account, workspace), '5');
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['notes/0.md', 'notes/1.md', 'notes/2.md'],
+  );
   await store.close();
 });
 
@@ -1564,20 +1633,15 @@ await test('a feed page of many files announces one change and each purge', asyn
   await store.close();
 });
 
-await test('document work announces its own kind, marked for the tab that wrote it', async () => {
-  // Record 0175. The work of the open editor announced a file change, so
-  // the file list, the loader and the editor itself read again on each key.
-  const backend = createBackend('document-change');
-  const store = await openLocalStore(origin, backend.options());
-  const otherStore = await openLocalStore(origin, backend.options());
-  const account = randomUUID();
-  const workspace = randomUUID();
-  const fileId = randomUUID();
-  const own: LocalChange[] = [];
-  const other: LocalChange[] = [];
-  const stopOwn = store.subscribe((change) => own.push(change));
-  const stopOther = otherStore.subscribe((change) => other.push(change));
-  const typed = replaceDocumentText(startDocument(''), 'typed\n');
+/** The start of a note that an editor writes, and the editor document. */
+async function startEditedNote(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+  fileId: string,
+  text: string,
+): Promise<Uint8Array> {
+  const typed = replaceDocumentText(startDocument(''), text);
   assert.ok(typed.ok);
   await store.mergeNoteWork(
     account,
@@ -1588,22 +1652,241 @@ await test('document work announces its own kind, marked for the tab that wrote 
       documentStateVector(startDocument('')),
     ),
   );
+  return typed.value.document;
+}
+
+/** The text of `document` with `text` in its place, and the update of it. */
+function typeInto(
+  document: Uint8Array,
+  text: string,
+): { readonly document: Uint8Array; readonly update: Uint8Array } {
+  const typed = replaceDocumentText(document, text);
+  assert.ok(typed.ok);
+  return {
+    document: typed.value.document,
+    update: encodeDocumentDelta(
+      typed.value.document,
+      documentStateVector(document),
+    ),
+  };
+}
+
+await test('document work announces its own kind with the working copy that wrote it', async () => {
+  // Record 0175. The work of the open editor announced a file change, so
+  // the file list, the loader and the editor itself read again on each key.
+  // The mark names the working copy, so only its own editor skips the work:
+  // a second editor of the note in this tab joins it.
+  const backend = createBackend('document-change');
+  const store = await openLocalStore(origin, backend.options());
+  const otherStore = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const started = await startEditedNote(
+    store,
+    account,
+    workspace,
+    fileId,
+    'typed\n',
+  );
+  const own: LocalChange[] = [];
+  const other: LocalChange[] = [];
+  const stopOwn = store.subscribe((change) => own.push(change));
+  const stopOther = otherStore.subscribe((change) => other.push(change));
+  const key = typeInto(started, 'typed more\n');
+  await store.appendNoteWork(account, workspace, fileId, key.update, 'copy-1');
   const change = {
     accountId: account,
     workspaceId: workspace,
     fileId,
     kind: 'document',
+    writer: 'copy-1',
   } as const;
-  assert.deepEqual(own, [{ ...change, sameTab: true }]);
+  assert.deepEqual(own, [change]);
   assert.deepEqual(other, [change]);
-  const stored = await store.readNoteDocument(account, workspace, fileId);
-  assert.equal(
-    stored === null ? null : readDocumentText(stored.bytes),
-    'typed\n',
-  );
   stopOwn();
   stopOther();
   await otherStore.close();
+  await store.close();
+});
+
+await test('an appended key is on the disk at once and a checkpoint freezes it', async () => {
+  // Record 0175. The editor held its keys in memory for up to a second, so a
+  // closed tab, a killed phone browser or a crash lost them. Each frame now
+  // appends its update, with no decode of the document, and every read and
+  // every version holds it.
+  const backend = createBackend('document-append');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const started = await startEditedNote(
+    store,
+    account,
+    workspace,
+    fileId,
+    'first\n',
+  );
+  const key = typeInto(started, 'first\nsecond\n');
+  await store.appendNoteWork(account, workspace, fileId, key.update, 'copy-1');
+  await withRawDatabase(backend, async (tables) => {
+    // The append wrote one small row and left the document as it was.
+    const updates = await tables.documentUpdates.toArray();
+    assert.equal(updates.length, 1);
+    const row = await tables.documents.get([
+      origin,
+      account,
+      workspace,
+      fileId,
+    ]);
+    assert.ok(row !== undefined);
+    assert.equal(readDocumentText(row.bytes), 'first\n');
+  });
+  // A tab that opens next, as after a closed tab, reads the key.
+  const reopened = await openLocalStore(origin, backend.options());
+  const read = await reopened.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    read === null ? null : readDocumentText(read.bytes),
+    'first\nsecond\n',
+  );
+  // The version freezes the document with its pending work.
+  const draft = draftOf(account, workspace, fileId, 'copy-1', 'stale\n');
+  const entry = await reopened.checkpoint(draft, null, 'document');
+  assert.ok(entry !== null);
+  const revisionId = entry.input.revisions[0]?.id;
+  assert.ok(revisionId !== undefined);
+  assert.equal(
+    await reopened.readRevisionText(account, workspace, revisionId),
+    'first\nsecond\n',
+  );
+  await withRawDatabase(backend, async (tables) => {
+    assert.deepEqual(await tables.documentUpdates.toArray(), []);
+    const row = await tables.documents.get([
+      origin,
+      account,
+      workspace,
+      fileId,
+    ]);
+    assert.ok(row !== undefined);
+    assert.equal(readDocumentText(row.bytes), 'first\nsecond\n');
+  });
+  await reopened.close();
+  await store.close();
+});
+
+await test('the pending updates of a note fold into its document past a bound', async () => {
+  // Record 0175. Every read decodes the document and applies each pending
+  // update, so the store folds them before that work grows.
+  const backend = createBackend('document-fold');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  let document = await startEditedNote(store, account, workspace, fileId, '');
+  let text = '';
+  let most = 0;
+  for (let key = 0; key < 100; key += 1) {
+    text += 'k';
+    const typed = typeInto(document, text);
+    document = typed.document;
+    await store.appendNoteWork(
+      account,
+      workspace,
+      fileId,
+      typed.update,
+      'copy-1',
+    );
+    const pending = await withRawDatabase(backend, (tables) =>
+      tables.documentUpdates.count(),
+    );
+    most = Math.max(most, pending);
+  }
+  assert.ok(most < 100, `the store held ${String(most)} updates`);
+  assert.ok(most > 1, 'the store folded each key at once');
+  const read = await store.readNoteDocument(account, workspace, fileId);
+  assert.equal(read === null ? null : readDocumentText(read.bytes), text);
+  await store.close();
+});
+
+await test('remote work keeps the keys that wait to be folded', async () => {
+  // Record 0175. A feed page writes the document row of the note. The keys
+  // of the open editor that wait beside it join that row, so no write of the
+  // row drops a key.
+  const backend = createBackend('document-append-remote');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const started = await startEditedNote(
+    store,
+    account,
+    workspace,
+    fileId,
+    'start\n',
+  );
+  const local = typeInto(started, 'start\nlocal\n');
+  await store.appendNoteWork(account, workspace, fileId, local.update, 'c-1');
+  // Another write of the whole row, as a merge of other work does.
+  const other = typeInto(started, 'other\nstart\n');
+  await store.mergeNoteWork(account, workspace, fileId, other.update);
+  const read = await store.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    read === null ? null : readDocumentText(read.bytes),
+    'other\nstart\nlocal\n',
+  );
+  await withRawDatabase(backend, async (tables) => {
+    assert.deepEqual(await tables.documentUpdates.toArray(), []);
+  });
+  await store.close();
+});
+
+await test('a draft that lags its document opens with the text of the document', async () => {
+  // Records 0133 and 0175. The editor writes each key to the document at
+  // once and the draft after a pause. The text of the draft would undo the
+  // newer keys as new work, so the open takes the document when it holds
+  // every change that the draft saw.
+  const backend = createBackend('draft-vector');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const started = await startEditedNote(
+    store,
+    account,
+    workspace,
+    fileId,
+    'one\n',
+  );
+  const seen = typeInto(started, 'one\ntwo\n');
+  await store.appendNoteWork(account, workspace, fileId, seen.update, 'c-1');
+  await store.saveDraft(
+    draftOf(account, workspace, fileId, 'c-1', 'one\ntwo\n', {
+      documentVector: documentStateVector(seen.document),
+    }),
+  );
+  const later = typeInto(seen.document, 'one\ntwo\nthree\n');
+  await store.appendNoteWork(account, workspace, fileId, later.update, 'c-1');
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, 'one\ntwo\nthree\n');
+  // A draft that saw a change the document lacks keeps its own text: its
+  // document write failed, and the draft is the recovery data.
+  const lost = typeInto(later.document, 'one\ntwo\nthree\nfour\n');
+  await store.saveDraft(
+    draftOf(account, workspace, fileId, 'c-1', 'one\ntwo\nthree\nfour\n', {
+      sequence: 2,
+      documentVector: documentStateVector(lost.document),
+    }),
+  );
+  const recovered = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(recovered?.text, 'one\ntwo\nthree\nfour\n');
+  // A draft with no vector, as an earlier release wrote, keeps its text too.
+  await store.saveDraft(
+    draftOf(account, workspace, fileId, 'c-1', 'plain\n', { sequence: 3 }),
+  );
+  assert.equal(
+    (await store.readCachedNote(account, workspace, fileId))?.text,
+    'plain\n',
+  );
   await store.close();
 });
 
@@ -2227,7 +2510,6 @@ await test('forgetting a purged file removes every local trace of it', async () 
       workspaceId: workspace,
       fileId: file,
       kind: 'purge',
-      sameTab: true,
     },
   ]);
   assert.deepEqual(await store.listLocalFiles(account, workspace), []);
@@ -2281,7 +2563,6 @@ await test('a purge marker forgets the queue and recovery, not only the file row
       workspaceId: workspace,
       fileId: file,
       kind: 'purge',
-      sameTab: true,
     },
   ]);
   assert.deepEqual(await store.listLocalFiles(account, workspace), []);
@@ -2315,7 +2596,14 @@ await test('a fresh snapshot forgets a purged note but keeps unsent local work',
 
   const text = '# Kept\n';
   const digest = await contentDigest(text);
-  await store.stageSnapshot(account, workspace, 'token', ['rev-kept'], '9');
+  await store.stageSnapshot(
+    account,
+    workspace,
+    'token',
+    ['rev-kept'],
+    '9',
+    'engine-1',
+  );
   await store.storeSnapshotRevision(account, workspace, {
     token: 'token',
     revisionId: 'rev-kept',
@@ -3280,7 +3568,6 @@ await test('a sign-in deletes the idle data of every other account', async () =>
         workspaceId: idle,
         fileId: null,
         kind: 'reset',
-        sameTab: true,
       },
     ]);
     // Every partition with work stays as it was.
@@ -3473,6 +3760,7 @@ await test('a snapshot keeps the instant each note was saved', async () => {
       'token-saved',
       ['rev-1'],
       '7',
+      'engine-1',
     );
     await store.storeSnapshotRevision(account, workspace, {
       token: 'token-saved',
@@ -3611,7 +3899,6 @@ await test('one commit makes one Review and a later merge makes another', async 
         workspaceId: workspace,
         fileId: file,
         kind: 'review',
-        sameTab: true,
       },
     ]);
     const left = await store.listReviews(account, workspace, file);

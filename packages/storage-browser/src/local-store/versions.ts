@@ -12,7 +12,12 @@ import {
   foldTextIntoDocument,
   freezeDocument,
   frozenText,
+  pendingDocumentUpdates,
+  pendingUpdatesPassBound,
   readDocumentRow,
+  readStoredDocumentRow,
+  writeDocumentRow,
+  type DocumentKey,
 } from './documents.ts';
 import {
   applyDocumentUpdate,
@@ -54,6 +59,7 @@ type VersionsSlice = Pick<
   | 'readRevisionText'
   | 'readNoteDocument'
   | 'mergeNoteWork'
+  | 'appendNoteWork'
 >;
 
 /** How often a checkpoint reads a document that moved under it again. */
@@ -80,6 +86,53 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
     accepted: row.accepted,
   });
 
+  /**
+   * Merges one piece of work into the stored document of a note, inside the
+   * transaction of the caller. The pending updates of the note join the
+   * written row.
+   */
+  const mergeWork = async (
+    key: DocumentKey,
+    update: Uint8Array,
+  ): Promise<NoteDocument> => {
+    const row = await readStoredDocumentRow(tables, key);
+    if (row === null) {
+      // Work of an editor that started its own document for a note that the
+      // server holds would start that note from Markdown on this device
+      // (record 0084). The working copy keeps the text.
+      const stored: unknown = await tables.acceptedFiles.get([
+        key.serverOrigin,
+        key.accountId,
+        key.workspaceId,
+        key.fileId,
+      ]);
+      if (
+        stored !== undefined &&
+        validateAcceptedFile(stored).acceptedHeadRevisionId !== null
+      )
+        throw new LocalStorageError(
+          'stale',
+          'this device does not hold the document of this note yet',
+        );
+    }
+    const before = row?.bytes ?? startDocument('');
+    const applied = applyDocumentUpdate(before, update);
+    if (!applied.ok)
+      throw new LocalStorageError(
+        'corrupt',
+        `the document of this note refused the work: ${applied.refusal}`,
+      );
+    const written = await writeDocumentRow(tables, {
+      ...key,
+      bytes: applied.value.document,
+      epoch: row?.epoch ?? 1,
+      // The work of this device is not accepted work, so the state the
+      // server holds does not move (record 0085).
+      appliedVector: row?.appliedVector ?? documentStateVector(before),
+    });
+    return { bytes: written.bytes, epoch: written.epoch };
+  };
+
   /** One try of `checkpoint`, or `moved` when the document moved under it. */
   const checkpointOnce = async (
     draft: Draft,
@@ -97,8 +150,10 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
       ? ''
       : source === 'document'
         ? await guard('creating a checkpoint', () =>
-            db.transaction('r', tables.documents, () =>
-              frozenText(tables, key),
+            db.transaction(
+              'r',
+              [tables.documents, tables.documentUpdates],
+              () => frozenText(tables, key),
             ),
           )
         : draft.text;
@@ -123,6 +178,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
           tables.acceptedFiles,
           tables.queue,
           tables.documents,
+          tables.documentUpdates,
           tables.legacySaves,
         ],
         async (): Promise<QueueEntry | null | 'moved'> => {
@@ -224,7 +280,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
                   noteExists,
                 );
           if (folded === null) return 'moved';
-          if (folded.row !== null) await tables.documents.put(folded.row);
+          if (folded.row !== null) await writeDocumentRow(tables, folded.row);
 
           const parentId = lastCheckpointId ?? draft.baseRevisionId;
           const parents = parentId === null ? [] : [parentId];
@@ -387,16 +443,59 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
       fileId: string,
     ): Promise<NoteDocument | null> {
       return guard('reading the document of a note', () =>
-        db.transaction('r', tables.documents, async () => {
-          const row = await readDocumentRow(tables, {
-            serverOrigin,
-            accountId,
-            workspaceId,
-            fileId,
-          });
-          return row === null ? null : { bytes: row.bytes, epoch: row.epoch };
-        }),
+        db.transaction(
+          'r',
+          [tables.documents, tables.documentUpdates],
+          async () => {
+            const row = await readDocumentRow(tables, {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+            });
+            return row === null ? null : { bytes: row.bytes, epoch: row.epoch };
+          },
+        ),
       );
+    },
+
+    async appendNoteWork(
+      accountId: string,
+      workspaceId: string,
+      fileId: string,
+      update: Uint8Array,
+      writer: string,
+    ): Promise<void> {
+      const key = { serverOrigin, accountId, workspaceId, fileId };
+      await guard('writing the document of a note', () =>
+        db.transaction(
+          'rw',
+          [tables.documents, tables.documentUpdates, tables.acceptedFiles],
+          async (): Promise<void> => {
+            const row = await readStoredDocumentRow(tables, key);
+            // The first work of a note that this device starts writes the
+            // whole document, which also checks that the server does not
+            // hold the note (record 0084).
+            if (row === null) {
+              await mergeWork(key, update);
+              return;
+            }
+            await tables.documentUpdates.put({
+              ...key,
+              updateId: newId(),
+              epoch: row.epoch,
+              bytes: update,
+            });
+            const pending = await pendingDocumentUpdates(tables, key);
+            if (pendingUpdatesPassBound(pending))
+              await writeDocumentRow(tables, row);
+          },
+        ),
+      );
+      // Only the document took work. The file list, the heads and the path
+      // stand, so the readers of those wait for a change of their own, and
+      // the editor that wrote the work skips it (record 0175).
+      publish({ accountId, workspaceId, fileId, kind: 'document', writer });
     },
 
     async mergeNoteWork(
@@ -409,51 +508,10 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
       const merged = await guard('writing the document of a note', () =>
         db.transaction(
           'rw',
-          [tables.documents, tables.acceptedFiles],
-          async () => {
-            const row = await readDocumentRow(tables, key);
-            if (row === null) {
-              // Work of an editor that started its own document for a note
-              // that the server holds would start that note from Markdown on
-              // this device (record 0084). The working copy keeps the text.
-              const stored: unknown = await tables.acceptedFiles.get([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                fileId,
-              ]);
-              if (
-                stored !== undefined &&
-                validateAcceptedFile(stored).acceptedHeadRevisionId !== null
-              )
-                throw new LocalStorageError(
-                  'stale',
-                  'this device does not hold the document of this note yet',
-                );
-            }
-            const before = row?.bytes ?? startDocument('');
-            const applied = applyDocumentUpdate(before, update);
-            if (!applied.ok)
-              throw new LocalStorageError(
-                'corrupt',
-                `the document of this note refused the work: ${applied.refusal}`,
-              );
-            const next = {
-              ...key,
-              bytes: applied.value.document,
-              epoch: row?.epoch ?? 1,
-              // The work of this device is not accepted work, so the state the
-              // server holds does not move (record 0085).
-              appliedVector: row?.appliedVector ?? documentStateVector(before),
-            };
-            await tables.documents.put(next);
-            return { bytes: next.bytes, epoch: next.epoch };
-          },
+          [tables.documents, tables.documentUpdates, tables.acceptedFiles],
+          () => mergeWork(key, update),
         ),
       );
-      // Only the document took work. The file list, the heads and the path
-      // stand, so the readers of those wait for a change of their own
-      // (record 0175).
       publish({ accountId, workspaceId, fileId, kind: 'document' });
       return merged;
     },

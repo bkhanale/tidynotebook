@@ -44,5 +44,11 @@ export function localChangeOf(value: unknown): LocalChange | null {
   if (fileId !== null && typeof fileId !== 'string') return null;
   const known = changeKinds.find((entry) => entry === kind);
   if (known === undefined) return null;
-  return { accountId, workspaceId, fileId, kind: known };
+  // A `document` change names the working copy that wrote it, so the editor
+  // of that working copy skips its own work (record 0175). A mark of another
+  // shape is dropped and the change stays, because the work still joins.
+  const writer: unknown = record['writer'];
+  return known === 'document' && typeof writer === 'string' && writer !== ''
+    ? { accountId, workspaceId, fileId, kind: known, writer }
+    : { accountId, workspaceId, fileId, kind: known };
 }

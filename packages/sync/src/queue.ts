@@ -123,6 +123,11 @@ export type SyncNotice =
 
 /** What submission and download need from their environment. */
 export type SyncContext = {
+  /**
+   * The engine that runs this pass, which owns the snapshot it stages, so a
+   * staging never removes a plan of another engine (record 0176).
+   */
+  readonly owner?: string | undefined;
   readonly signal: AbortSignal;
   readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly random: () => number;

@@ -36,10 +36,11 @@ second device after many seconds and one slow move to All notes (issue 267).
   at a time, and a save that waits stops its reads before the next one. The
   snapshot never activates after such a push, which could move an accepted
   head back: the next pass stages a new snapshot, and `stageSnapshot` gives
-  it every revision that an earlier staging of the same owner stored, so no
-  revision is read twice. A plan belongs to the engine that staged it, so a
-  staging never removes a plan that another tab still fills. A reload during
-  a first sync resumes the same way.
+  it every revision that an earlier staging stored, so no revision is read
+  twice. A reload during a first sync resumes the same way. A plan belongs to
+  the engine that staged it: a staging removes only a plan of its own, of an
+  earlier release, or one that no tab finished for a long time, so it never
+  removes a plan that another tab still fills.
 - One transaction of many files announces one change with `fileId: null`.
   A purge stays a change of its file. A screen that reads again on a change
   runs one read at a time and one more after it (`lib/coalesced-read.ts`).

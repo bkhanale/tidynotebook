@@ -536,6 +536,7 @@ export function createSyncEngine(
         signal.addEventListener('abort', endPass, { once: true });
         try {
           const ctx: SyncContext = {
+            owner: ownerId,
             signal: pass.signal,
             sleep,
             random,

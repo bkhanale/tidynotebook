@@ -113,6 +113,16 @@ class FakeStore implements LocalStore {
     return Promise.resolve(bytes === undefined ? null : { bytes, epoch: 1 });
   }
 
+  appendNoteWork(
+    _account: string,
+    _workspace: string,
+    fileId: string,
+    update: Uint8Array,
+  ): Promise<void> {
+    this.noteDocuments.set(fileId, update);
+    return Promise.resolve();
+  }
+
   mergeNoteWork(
     _account: string,
     _workspace: string,
@@ -555,6 +565,7 @@ class FakeStore implements LocalStore {
     token: string,
     revisionIds: readonly string[],
     cursor: string,
+    _owner: string,
   ): Promise<readonly string[]> {
     // As the browser store does, an earlier plan of the workspace gives this
     // one the revisions it stored, and goes (record 0176).
