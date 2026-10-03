@@ -534,7 +534,7 @@ await test('the migration makes a row of an earlier rule again', async () => {
       {
         // The first heading repeats the name of the note, so it goes.
         body: 'The lock keeper waves at boats.',
-        text_rule: 2,
+        text_rule: 3,
       },
     ]);
   } finally {

@@ -29,6 +29,18 @@ await test('a note over the limits of the grammar writes no row', () => {
   );
 });
 
+await test('a note whose HTML nests too deep writes no row and throws no stack error', () => {
+  // The renderer refused 101 levels of HTML, and the text of search read
+  // them: at 5000 levels a RangeError left the commit as a server fault and
+  // stopped the search index migration, so the server did not start.
+  for (const levels of [markdownLimits.maxNestingDepth + 1, 5000])
+    assert.throws(
+      () => searchableNote(`${'<div>'.repeat(levels)}x\n`, 'Deep.md'),
+      (error: unknown) =>
+        error instanceof MarkdownLimitError && error.reason === 'nesting-depth',
+    );
+});
+
 await test('the rule of an earlier release is older than the current one', () => {
   // A row of release 0.12 reads the column default 0, so the migration
   // finds it only while the current rule is larger.

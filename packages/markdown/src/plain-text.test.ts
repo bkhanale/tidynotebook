@@ -10,6 +10,7 @@ import test from 'node:test';
 import { extractLinks, indexNote } from './links.ts';
 import { MarkdownLimitError, markdownLimits } from './limits.ts';
 import { blockSeparator, readableText } from './plain-text.ts';
+import { renderMarkdown } from './render.ts';
 
 await test('emphasis marks go and their words stay', () => {
   // The defect this covers: a palette result showed `**` marks and whole
@@ -104,11 +105,34 @@ await test('an HTML block keeps the words that a reader sees in it', () => {
     readableText('<p>Fish &amp; chips</p>\n\n<p>Second</p>\n'),
     'Fish & chips · Second',
   );
-  // An element that holds code or a document of its own leaves with it.
-  assert.equal(
-    readableText('Before\n\n<script>var hidden = 1;</script>\n\nAfter'),
-    'Before · After',
-  );
+});
+
+await test('a neutral tag reads as the author typed it, as the renderer shows it', async () => {
+  // Record 0160. The renderer writes a tag of `neutralAuthorTags` as text,
+  // so the reader sees the tag and every word after it. The text path parsed
+  // the same tag as a tag: a script left with its words, and an unclosed
+  // `<textarea>` or `<script>` hid the rest of its block from search.
+  const cases: ReadonlyArray<[string, string]> = [
+    [
+      'Before\n\n<script>var shown = 1;</script>\n\nAfter',
+      'Before · <script>var shown = 1;</script> · After',
+    ],
+    ['<style>x</style> after\n', '<style>x</style> after'],
+    ['<div>\n<script>one\n\nafter words\n', '<script>one · after words'],
+    [
+      'before <textarea>typed words\n\nnext block\n',
+      'before <textarea>typed words · next block',
+    ],
+  ];
+  for (const [source, text] of cases) {
+    assert.equal(readableText(source), text, source);
+    // Every word of the text is a word that the page shows.
+    const shown = (await renderMarkdown(source))
+      .replace(/<\/?[a-z][^>]*>/g, ' ')
+      .replaceAll('&#x3C;', '<');
+    for (const word of text.split(/[\s·]+/).filter((part) => part !== ''))
+      assert.ok(shown.includes(word), `${source}: ${word}`);
+  }
 });
 
 await test('a value that the parser changed reads as the reader sees it', () => {
@@ -184,4 +208,34 @@ await test('a note over the limits is refused', () => {
     () => readableText('a'.repeat(markdownLimits.maxInputBytes + 1)),
     MarkdownLimitError,
   );
+});
+
+await test('deep HTML is refused with the nesting error, as the renderer refuses it', async () => {
+  // An HTML block is one node of the Markdown tree, so its elements passed
+  // the depth guard of the parse. The renderer refused 101 levels, and the
+  // text path read them: at 500 levels it gave text, and at 5000 levels the
+  // HTML parse ran out of stack with a RangeError. The search index of a
+  // commit and of the start of the server reads this text, so one such note
+  // failed a save with a server fault and stopped the server from starting.
+  const depth = markdownLimits.maxNestingDepth;
+  for (const levels of [depth + 1, 500, 5000, 60000])
+    for (const source of [
+      `${'<div>'.repeat(levels)}x\n`,
+      `${'<div>'.repeat(levels)}x${'</div>'.repeat(levels)}\n`,
+      `${'<table><tr><td>'.repeat(levels)}x\n`,
+      `a ${'<span>'.repeat(levels)}x\n`,
+    ]) {
+      const refused = (error: unknown): boolean =>
+        error instanceof MarkdownLimitError &&
+        error.reason === 'nesting-depth' &&
+        error.limit === depth;
+      assert.throws(() => readableText(source), refused, String(levels));
+      assert.throws(() => indexNote(source), refused, String(levels));
+      await assert.rejects(renderMarkdown(source), refused, String(levels));
+    }
+  // At the limit, all three read the note.
+  const source = `${'<div>'.repeat(depth)}x${'</div>'.repeat(depth)}\n`;
+  assert.equal(readableText(source), 'x');
+  assert.equal(indexNote(source).text, 'x');
+  assert.match(await renderMarkdown(source), />x</);
 });

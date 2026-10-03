@@ -11,20 +11,28 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { extractAttachmentRefs, extractLinks } from './links.ts';
+import { extractAttachmentRefs, extractLinks, indexNote } from './links.ts';
 import {
   markdownLimits,
   MarkdownLimitError,
   withinParseLimits,
 } from './limits.ts';
 import { parseMarkdown } from './parse.ts';
+import { readableText } from './plain-text.ts';
 import { renderMarkdown } from './render.ts';
+import { mapRelativeReferences } from './rewrite.ts';
 
 /** Every public entry point of the package, by name. */
 const entryPoints: ReadonlyArray<[string, (source: string) => unknown]> = [
   ['parseMarkdown', parseMarkdown],
   ['extractLinks', extractLinks],
   ['extractAttachmentRefs', extractAttachmentRefs],
+  ['indexNote', indexNote],
+  ['readableText', readableText],
+  [
+    'mapRelativeReferences',
+    (source) => mapRelativeReferences(source, 'note.md', () => null),
+  ],
   ['renderMarkdown', (source) => renderMarkdown(source)],
 ];
 
@@ -214,6 +222,35 @@ await test('nested HTML is refused with the nesting error and never a stack erro
     `${'<div>'.repeat(depth)}x${'</div>'.repeat(depth)}\n`,
   );
   assert.ok(html.includes('x'));
+});
+
+await test('every entry point refuses the nested HTML that the renderer refuses', async () => {
+  // Only the renderer measured the HTML of a note. The plain text of search
+  // read 500 levels and ran out of stack at 5000, so a commit failed with a
+  // server fault and the search index migration stopped the server from
+  // starting. The bound now holds in `parseMarkdown`, so every entry point
+  // refuses the same notes with the same error.
+  const depth = markdownLimits.maxNestingDepth;
+  for (const levels of [depth + 1, 500, 5000, 60000])
+    for (const source of [
+      `${'<div>'.repeat(levels)}x\n`,
+      `${'<div>'.repeat(levels)}x${'</div>'.repeat(levels)}\n`,
+      `a ${'<span>'.repeat(levels)}x\n`,
+      // The pieces of one note count together, in document order.
+      `${'<div>\n\n'.repeat(levels)}x\n`,
+    ])
+      for (const [name, call] of entryPoints) {
+        const error = await refusal(call, source);
+        assert.equal(error.reason, 'nesting-depth', name);
+        assert.equal(error.limit, depth, name);
+      }
+  // A neutral tag is text in every reader, so it opens no level.
+  const neutral = `${'<textarea>'.repeat(depth + 1)}x\n`;
+  for (const [, call] of entryPoints) await call(neutral);
+  // At the limit, every entry point reads the note.
+  const atLimit = `${'<div>'.repeat(depth)}x${'</div>'.repeat(depth)}\n`;
+  for (const [name, call] of entryPoints)
+    assert.ok((await call(atLimit)) !== undefined, name);
 });
 
 await test('a surface asks whether the parse takes a note before it offers an action', () => {

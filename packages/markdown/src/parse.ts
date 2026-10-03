@@ -23,7 +23,8 @@
  *   `./math-parens.ts` adds the `\(...\)` pair and `./math-dollar.ts` the
  *   one dollar of the rule of Pandoc (record 0171).
  * - Every entry point is bounded. The size and nesting checks in `./limits.ts`
- *   run before the parser sees the text, and the tree depth is checked after.
+ *   run before the parser sees the text, and the depth of the tree and of the
+ *   HTML that the author wrote is checked after.
  *
  * Parsing does not change the source. A JavaScript string is immutable, and
  * this module keeps only offsets into it, so `source.slice(from, to)` of any
@@ -39,7 +40,11 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified, type Processor } from 'unified';
-import { assertNestingDepth, assertParseLimits } from './limits.ts';
+import {
+  assertAuthorHtmlDepth,
+  assertNestingDepth,
+  assertParseLimits,
+} from './limits.ts';
 import { mathTextDollarExtension } from './math-dollar.ts';
 import { mathTextParensExtension } from './math-parens.ts';
 import { singleDollarTextMath } from './math-syntax.ts';
@@ -94,5 +99,6 @@ export function parseMarkdown(source: string): Root {
   assertParseLimits(source);
   const tree = markdownProcessor.parse(source);
   assertNestingDepth(tree);
+  assertAuthorHtmlDepth(tree);
   return tree;
 }

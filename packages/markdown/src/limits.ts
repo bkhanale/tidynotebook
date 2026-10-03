@@ -15,7 +15,8 @@
  *   rather than slow it down, so it is checked twice: on the line prefixes
  *   before the parse, because a line of a million `>` characters must never
  *   reach the parser, and on the tree after the parse, which also covers
- *   inline nesting such as repeated emphasis.
+ *   inline nesting such as repeated emphasis. The HTML that the author wrote
+ *   is one node of that tree, so its own nesting is measured as well.
  *
  * There is no wall-clock timeout. A timeout would bound one render on one
  * machine and would make the outcome depend on the load of that machine, so
@@ -26,6 +27,8 @@
  * look like data loss. The server maps the error to a domain failure with a
  * message for the author; see `packages/storage-server/src/markdown-limits.ts`.
  */
+
+import { authorNestingDepth, neutralizeAuthorTags } from './html-elements.ts';
 
 /** The fixed resource limits of this package. */
 export const markdownLimits = {
@@ -259,9 +262,10 @@ export function withinParseLimits(source: string): boolean {
   }
 }
 
-/** A tree node that may hold children, in mdast or in hast. */
+/** A tree node that may hold children or a value, in mdast or in hast. */
 type TreeNode = {
   readonly type: string;
+  readonly value?: unknown;
   readonly children?: readonly TreeNode[];
 };
 
@@ -308,5 +312,39 @@ export function assertNestingDepth(tree: TreeNode): void {
     'nesting-depth',
     markdownLimits.maxNestingDepth,
     Math.max(0, deepest - documentDepth),
+  );
+}
+
+/**
+ * Rejects a parsed tree whose author HTML nests deeper than the limit.
+ *
+ * An HTML block is one node of the Markdown tree, so `assertNestingDepth`
+ * never sees the elements inside it. Every reader of that HTML parses it
+ * with `hast-util-raw` and recurses on the result: the renderer of
+ * `./render.ts` and the plain text of `./plain-text.ts`. The depth is
+ * measured here, once, over the HTML of the whole note in document order and
+ * with each neutral tag written as text, which is how both readers read it
+ * (record 0157). `parseMarkdown` runs this check, so every entry point
+ * refuses the same notes with the same error, and no reader recurses deeper
+ * than the limit. The walk is iterative for the reason that
+ * `assertNestingDepth` states.
+ */
+export function assertAuthorHtmlDepth(tree: TreeNode): void {
+  const values: string[] = [];
+  const pending: TreeNode[] = [tree];
+  let node = pending.pop();
+  while (node !== undefined) {
+    if (node.type === 'html' && typeof node.value === 'string')
+      values.push(neutralizeAuthorTags(node.value));
+    // The children go on the stack last first, so they leave it in document
+    // order, which the count of opening and closing tags needs.
+    for (const child of node.children?.toReversed() ?? []) pending.push(child);
+    node = pending.pop();
+  }
+  if (values.length === 0) return;
+  assertAtMost(
+    'nesting-depth',
+    markdownLimits.maxNestingDepth,
+    authorNestingDepth(values),
   );
 }

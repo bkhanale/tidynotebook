@@ -74,13 +74,11 @@ import {
 } from './code-tokens.ts';
 import {
   authorElements,
-  authorNestingDepth,
   authorProperties,
   authorStrippedElements,
   neutralizeAuthorTags,
 } from './html-elements.ts';
 import { headingSlug } from './heading-slug.ts';
-import { markdownLimits, MarkdownLimitError } from './limits.ts';
 import { createMarkdownProcessor, parseMarkdown } from './parse.ts';
 import { renderMath } from './math.ts';
 import { allowsExternalImage, classifyUrl, sanitizeSchema } from './policy.ts';
@@ -617,28 +615,18 @@ function keepAuthorElements(
  *
  * A note with no HTML skips the parse, so its tree stays exactly as the
  * Markdown to HTML stage wrote it. A tag of `neutralAuthorTags` is text before
- * the parse, so no unclosed tag reads the rest of the note as text, and the
- * nesting of the HTML is bounded before the parse recurses on it.
+ * the parse, so no unclosed tag reads the rest of the note as text. The
+ * nesting of the HTML is bounded before the parse recurses on it:
+ * `parseMarkdown` refuses a note whose HTML nests deeper than the limit
+ * (`assertAuthorHtmlDepth` of `./limits.ts`), and `renderMarkdown` renders
+ * only a tree that it gave.
  */
 function keepAuthorHtml() {
   return (tree: HastRoot): HastRoot => {
     if (!holdsAuthorHtml(tree)) return tree;
-    const values: string[] = [];
     visit(tree, 'raw', (node) => {
       node.value = neutralizeAuthorTags(node.value);
-      values.push(node.value);
     });
-    // An HTML block is one node of the Markdown tree, so the depth guard of
-    // the parse never saw the elements inside it, and the parse below and
-    // the serializer recurse on them. A document that nests deeper than the
-    // limit is refused here, with the error of every other deep document.
-    const depth = authorNestingDepth(values);
-    if (depth > markdownLimits.maxNestingDepth)
-      throw new MarkdownLimitError(
-        'nesting-depth',
-        markdownLimits.maxNestingDepth,
-        depth,
-      );
     const renderer = markRendererElements(tree, crypto.randomUUID());
     const parsed = raw(tree);
     if (parsed.type !== 'root')
