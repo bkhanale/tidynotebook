@@ -7,9 +7,10 @@
 
 Record 0013 puts delivery in the application, because a deployment may have
 no proxy. `apps/server/src/plugins/static-assets.ts` serves precompressed
-files, but no JSON answer is compressed. A full read of a 500 KB note sends
-1.15 MB, and a page of 500 rows of the file list about 120 KB
-([issue 264](https://github.com/bkhanale/notesapp/issues/264)). The Caddy
+files, but no JSON answer is compressed, so a full read of a large note and a
+full page of the file list go out at their whole size
+([issue 264](https://github.com/bkhanale/notesapp/issues/264), measured in the
+[performance audit](../audits/2026-10-02/performance.md#server)). The Caddy
 profile of `docker-compose.yml` compresses, and a bare deployment does not.
 
 ## Decision

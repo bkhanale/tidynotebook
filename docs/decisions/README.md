@@ -569,9 +569,9 @@ Record 0135 drops the issuer from the key of an identity account, because
 Better Auth 1.7.3 no longer writes it and refuses a schema that requires it.
 It refines the identity schema of design 015.
 
-Record 0136 takes the initial JavaScript budget from the 3-second budget of
-The Performance Inequality Gap, 2026, because the round figure before it had
-no source.
+Record 0136 takes the initial JavaScript budget from the critical-path budget
+of The Performance Inequality Gap, 2026, because the round figure before it
+had no source.
 
 Record 0137 gives every page the column of the note measure and the side
 region of the note, because the column moved and changed its width between

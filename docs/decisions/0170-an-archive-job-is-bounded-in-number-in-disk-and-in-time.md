@@ -6,12 +6,12 @@
 ## Context
 
 An import and an export of a workspace take every archive up to the bounds of
-the zip format, 4 GiB and 65534 files, from `packages/core/src/files/archive.ts`
+the zip format without ZIP64, from `packages/core/src/files/archive.ts`
 ([issue 243](https://github.com/bkhanale/notesapp/issues/243)). Nothing bounded
 how many ran at once, or the disk that they used. The export wrote the whole
-archive before its first byte, so a proxy that waits 60 seconds for that byte
-gave up with a 504 answer. An import that stopped after some batches left them
-committed. Record 0121 puts every limit of the server in PostgreSQL.
+archive before its first byte, so a proxy that waits a fixed time for that
+byte gave up with a 504 answer. An import that stopped after some batches left
+them committed. Record 0121 puts every limit of the server in PostgreSQL.
 
 ## Decision
 

@@ -24,7 +24,8 @@ page names one script only, for a diagram (record 0158). See
   the room of the bar.
 - The copy writes the code of the block, as the renderer reads it, to the
   clipboard. The button is a recipe of `packages/ui`, has an accessible name,
-  takes the focus, and says Copied for two seconds.
+  takes the focus, and says Copied for `copiedForMs` of
+  `packages/ui/src/copy-action.ts`.
 - The one script of a published page is `apps/web/src/published/page.ts`,
   built as `assets/published-page-<hash>.js`. It draws the diagrams of record
   0158 and puts a copy button on each code block. A page that holds a diagram

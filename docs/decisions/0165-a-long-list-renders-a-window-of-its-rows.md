@@ -5,10 +5,13 @@
 
 ## Context
 
-`apps/web/src/features/notes/notes-home.tsx` renders every note. With 1010
-notes the page holds 11582 elements and a move from a note to the list takes
-about 200 ms at the median (issue 256, `docs/audits/2026-10-02/performance.md`).
-The tree has the same cost with its folders open. See
+`apps/web/src/features/notes/notes-home.tsx` renders every note, so the
+elements of the page and the time of a move from a note to the list grow with
+the count of notes (issue 256). The
+[performance audit](../audits/2026-10-02/performance.md#navigation) and
+finding 13 of the [product audit](../audits/2026-10-02/product-audit.md)
+measured both on a large workspace. The tree has the same cost with its
+folders open. See
 [design 023](../design/023-names-the-tree-and-long-lists.md).
 
 ## Decision
@@ -29,7 +32,8 @@ The tree has the same cost with its folders open. See
   the session.
 - The list of the notes area reads every page, up to `maxNoteListFiles` of
   `packages/core/src/files/read.ts`, which only stops a server that never
-  ends its pages. It stopped at `maxListedFiles`, so 1010 notes showed 1000.
+  ends its pages. It stopped at `maxListedFiles`, so a workspace of more notes
+  showed only the first of them.
 - The module is our own and not `@tanstack/react-virtual`: the rows of a list
   share one stride (record 0065), the library writes through a `style`
   attribute that `tools/check-design-rules.mjs` refuses, and it would add a

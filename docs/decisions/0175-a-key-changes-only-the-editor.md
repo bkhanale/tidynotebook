@@ -5,8 +5,9 @@
 
 ## Context
 
-The audit of 2026-10-02 measured two frames for a key at p95 and many changes
-of the page outside the editor for each key (issue 262).
+The [performance audit](../audits/2026-10-02/performance.md#typing) of
+2026-10-02 measured a key that takes longer than one frame, and many changes of
+the page outside the editor for each key (issue 262).
 `tools/performance/typing.ts` found the causes. Each key merged its work into
 the stored document (`mergeNoteWork`), which decodes the whole document, and
 announced a `file` change. Every listener read again: the file list of the

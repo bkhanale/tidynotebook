@@ -4,9 +4,9 @@ Status: complete
 
 ## The problem
 
-The audit of 2026-10-02 read the product as a person uses it, with a
-workspace of 1010 notes, and three findings meet in the sidebar and in the
-list of All notes.
+The [audit of 2026-10-02](../audits/2026-10-02/product-audit.md) read the
+product as a person uses it, with a workspace of many notes, and three
+findings meet in the sidebar and in the list of All notes.
 
 A new note is named New note, New note 2 and so on. A person who starts a note
 with a heading has already written its name, and the name stays New note until
@@ -21,10 +21,11 @@ selection holds more than one row, so a person who wants to move ten notes
 drags ten times. The tree has no tree semantics either: a screen reader hears
 links and buttons in nested lists, and the arrow keys do nothing.
 
-The list of All notes renders every row. With 1010 notes the page holds 11582
-elements, and a move from a note to the list takes about 200 ms at the median.
-The tree has the same cost when its folders are open, and the tree is on every
-screen.
+The list of All notes renders every row, so the elements of the page and the
+time of a move from a note to the list grow with the count of notes. The
+[performance audit](../audits/2026-10-02/performance.md#navigation) measured
+both. The tree has the same cost when its folders are open, and the tree is on
+every screen.
 
 This design states the options and the cost of each one. It concludes in
 three records. History, which the same audit names, is a smaller task and has
@@ -198,9 +199,9 @@ spends do not move, and the audit counts both.
 A window renders the rows in view and a few around them, and keeps the height
 of the rest as space above and below them. Two ways to build one exist.
 
-`@tanstack/react-virtual` is the common library. It measures each row, it
-handles rows of many heights, and it is about 10 KB. Its documented use writes
-the height and the offset of each row through a `style` attribute, which
+`@tanstack/react-virtual` is the common library. It measures each row and it
+handles rows of many heights. Its documented use writes the height and the
+offset of each row through a `style` attribute, which
 `tools/check-design-rules.mjs` refuses, so it would need its own wrapper that
 writes through a reference. It would be one more dependency of the first route
 that record 0136 measures.

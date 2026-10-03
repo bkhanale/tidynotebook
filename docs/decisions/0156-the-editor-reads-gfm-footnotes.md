@@ -20,8 +20,8 @@ surfaces, and the equivalence test left footnotes out.
   lines, lines indented four columns and the lazy lines of its paragraph.
   It ends a paragraph above it. `FootnoteReference` is the inline
   `[^label]`.
-- The label rule is the rule of `micromark-extension-gfm-footnote`: up to
-  999 characters, no space, no line break and no `[`, a backslash escapes a
+- The label rule is the rule of `micromark-extension-gfm-footnote`: a bounded
+  length, no space, no line break and no `[`, a backslash escapes a
   bracket, and the match ignores case. `packages/markdown/src/footnote-syntax.ts`
   holds it, and its test compares it with `parseMarkdown`.
 - A reference is a footnote only when the note defines its label, as GFM

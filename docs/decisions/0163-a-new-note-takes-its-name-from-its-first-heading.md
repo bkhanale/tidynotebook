@@ -28,7 +28,7 @@ is a heading (issue 252). See
   waits while the name field holds words that a person is typing.
 - The name is the first free one in the folder, with a number after it as New
   note takes. It holds no slash, no backslash and no control character, and
-  it is at most 60 characters, cut at a word.
+  it is at most `maxHeadingNameLength` characters, cut at a word.
 - A new note opens with the caret in its text, where the first heading names
   it. The name field stays one click away.
 - `apps/web/src/lib/note-auto-name.ts` holds the rule as pure functions.

@@ -10,7 +10,7 @@ Record 0157 parses the HTML of a note with parse5 and keeps the safe set of
 three gaps. An unclosed `<template>` or `<object>` took every later block of
 the note and left with it, `<plaintext>` and `<select>` flattened the rest,
 and `<title>`, `<textarea>` and `<xmp>` read every later tag as text. An HTML
-block is one node of the Markdown tree, so 5000 nested elements passed the
+block is one node of the Markdown tree, so a deep nest of elements passed the
 depth guard of `limits.ts` and the parse ran out of stack. And a source of a
 content policy has no form for an IPv6 literal, so the page of record 0158
 drew no diagram at a bracketed IPv6 host. See

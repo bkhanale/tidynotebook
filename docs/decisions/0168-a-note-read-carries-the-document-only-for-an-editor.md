@@ -6,8 +6,9 @@
 ## Context
 
 `getFile` answers the Markdown of the head and the whole document of the note
-(records 0081, 0084), so a read of a 500 KB note sends 1.15 MB
-([issue 264](https://github.com/bkhanale/notesapp/issues/264)). Three readers
+(records 0081, 0084), so a read sends more bytes than the text of the note
+([issue 264](https://github.com/bkhanale/notesapp/issues/264), measured in the
+[performance audit](../audits/2026-10-02/performance.md#server)). Three readers
 in `apps/web` call it. The note loader in
 `apps/web/src/features/editor/note-loader.tsx` keeps both, because an editor
 must start from the document of the server and never from Markdown (record
