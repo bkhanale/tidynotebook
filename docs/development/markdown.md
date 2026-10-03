@@ -121,6 +121,9 @@ editor mounts it whole, so a fence also keeps the editing of its language
 The published page draws a diagram in the frame of the editor with one script
 that its policy names, and shows the source with no script
 ([decision 0158](../decisions/0158-a-published-diagram-draws-in-the-frame-of-the-editor.md)).
+A diagram takes every colour from the palette and draws no shadow, in any kind
+and any theme. `diagramThemeOptions` in `apps/web/src/diagram/frame.ts` holds
+both rules, and its test walks the whole registry.
 
 ## Limits
 
