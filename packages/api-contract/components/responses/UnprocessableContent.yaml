@@ -4,8 +4,10 @@ description: >-
   too_many_files. A save of a note adds document_malformed for bytes that
   are not an update, document_dependency_missing for work that names an
   insertion or a deletion the document lacks, and document_unsupported
-  for work that writes anything other than the text of the note. Each of
-  them leaves the accepted state exactly as it was.
+  for work that writes anything other than the text of the note, and
+  unrenderable_note for a note over a limit of the Markdown grammar, with
+  the limit in noteRefusal. Each of them leaves the accepted state exactly
+  as it was.
 content:
   application/problem+json:
     schema:

@@ -72,3 +72,15 @@ properties:
     maxItems: 4000
     items:
       $ref: './Uuid.yaml'
+  noteRefusal:
+    type: string
+    readOnly: true
+    description: >-
+      The limit of the Markdown grammar that a refused note is over, on the
+      code unrenderable_note only (record 0182). A client names the cause
+      and the next step in words, and never shows this value.
+    enum:
+      - note_too_large
+      - note_too_deep
+      - note_too_many_marks
+      - note_too_many_cells

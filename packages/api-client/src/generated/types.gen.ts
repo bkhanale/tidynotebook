@@ -1459,6 +1459,10 @@ export type ProblemDetails = {
      * The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.
      */
     readonly fileIds?: Array<Uuid>;
+    /**
+     * The limit of the Markdown grammar that a refused note is over, on the code unrenderable_note only (record 0182). A client names the cause and the next step in words, and never shows this value.
+     */
+    readonly noteRefusal?: 'note_too_large' | 'note_too_deep' | 'note_too_many_marks' | 'note_too_many_cells';
     [key: string]: unknown;
 };
 
@@ -5682,7 +5686,7 @@ export type UploadAttachmentErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -5769,7 +5773,7 @@ export type FinalizeAttachmentErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -5908,7 +5912,7 @@ export type CommitChangesetErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6031,7 +6035,7 @@ export type UpdateDailyNoteSettingsErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6087,7 +6091,7 @@ export type ExportWorkspaceErrors = {
      */
     404: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6151,7 +6155,7 @@ export type InspectWorkspaceExportErrors = {
      */
     404: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6297,7 +6301,7 @@ export type CreateFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6384,7 +6388,7 @@ export type DeleteFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6544,7 +6548,7 @@ export type UpdateFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6816,7 +6820,7 @@ export type RestoreRevisionErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6891,7 +6895,7 @@ export type ImportWorkspaceErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -6968,7 +6972,7 @@ export type GetMutationReceiptErrors = {
      */
     404: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7087,7 +7091,7 @@ export type CreatePublishedLinkErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7210,7 +7214,7 @@ export type PurgeFilesErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7273,7 +7277,7 @@ export type PreviewPurgeErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7459,7 +7463,7 @@ export type GetChangesErrors = {
      */
     410: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7530,7 +7534,7 @@ export type StartSnapshotErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7726,7 +7730,7 @@ export type UpdateTemplateSettingsErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -7874,7 +7878,7 @@ export type RestoreFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note, and unrenderable_note for a note over a limit of the Markdown grammar, with the limit in noteRefusal. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
