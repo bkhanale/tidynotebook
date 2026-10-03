@@ -9,6 +9,8 @@ import {
   baseImages,
   imageFailures,
   parseCatalogs,
+  patchCopyFailures,
+  patchFiles,
   resolveVersion,
 } from './check-versions.mjs';
 
@@ -343,4 +345,45 @@ await test('an exact tag with no variant passes', () => {
     imageFailures(dockerfile(plain), `docker run ${plain} node`, '2.3.4'),
     [],
   );
+});
+
+await test('the patch files of the workspace are read', () => {
+  assert.deepEqual(
+    patchFiles(
+      [
+        'packages:',
+        '  - apps/*',
+        'patchedDependencies:',
+        "  '@lezer/markdown@1.7.2': patches/@lezer__markdown@1.7.2.patch",
+        '  mdast-util-to-hast@13.2.1: patches/mdast-util-to-hast@13.2.1.patch',
+        'catalog:',
+        '  a: 1.0.0',
+      ].join('\n'),
+    ),
+    [
+      'patches/@lezer__markdown@1.7.2.patch',
+      'patches/mdast-util-to-hast@13.2.1.patch',
+    ],
+  );
+});
+
+// Regression: the image of 0.13.0 did not build, because the Dockerfile ran
+// pnpm install before it copied the patches folder.
+await test('a Dockerfile that installs before it copies a patch is refused', () => {
+  const patch = 'patches/a@1.0.0.patch';
+  const before = [
+    'COPY package.json pnpm-lock.yaml ./',
+    'RUN pnpm install --frozen-lockfile',
+    'COPY patches ./patches',
+  ].join('\n');
+  assert.deepEqual(patchCopyFailures(before, [patch]), [
+    `Dockerfile installs before it copies ${patch}; copy it before pnpm install.`,
+  ]);
+  const after = [
+    'COPY package.json pnpm-lock.yaml ./',
+    'COPY patches ./patches',
+    'RUN pnpm install --frozen-lockfile',
+  ].join('\n');
+  assert.deepEqual(patchCopyFailures(after, [patch]), []);
+  assert.deepEqual(patchCopyFailures(before, []), []);
 });

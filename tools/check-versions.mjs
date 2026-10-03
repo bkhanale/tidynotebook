@@ -180,6 +180,65 @@ export function resolveVersion(name, specifier, catalogs) {
 }
 
 /**
+ * Reads the patch files that `patchedDependencies` of `pnpm-workspace.yaml`
+ * names.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function patchFiles(text) {
+  /** @type {string[]} */
+  const files = [];
+  let inside = false;
+  for (const line of text.split('\n')) {
+    if (/^\S/.test(line)) inside = /^patchedDependencies:\s*$/.test(line);
+    else if (inside) {
+      const entry = /^\s+\S.*?:\s+['"]?([^'"\s]+)['"]?\s*$/.exec(line);
+      if (entry?.[1]) files.push(entry[1]);
+    }
+  }
+  return files;
+}
+
+/**
+ * The failures of the install step of a Dockerfile against the patch files.
+ *
+ * `pnpm install --frozen-lockfile` reads each patch file, so a `COPY` line
+ * before the first install must bring the file or a folder that holds it.
+ * Without it the image build fails only after a tag is pushed.
+ *
+ * @param {string} dockerfile
+ * @param {string[]} patches
+ * @returns {string[]}
+ */
+export function patchCopyFailures(dockerfile, patches) {
+  const lines = dockerfile.split('\n');
+  const install = lines.findIndex((line) =>
+    /^\s*RUN\s+pnpm\s+install\b/i.test(line),
+  );
+  /** @type {string[]} */
+  const sources = [];
+  for (const line of install === -1 ? [] : lines.slice(0, install)) {
+    const copy = /^\s*COPY\s+(?:--\S+\s+)*(.+)$/i.exec(line);
+    if (!copy) continue;
+    const words = (copy[1] ?? '').trim().split(/\s+/);
+    for (const word of words.slice(0, -1))
+      sources.push(word.replace(/^\.\//, '').replace(/\/$/, ''));
+  }
+  return patches
+    .filter(
+      (file) =>
+        !sources.some(
+          (source) => file === source || file.startsWith(`${source}/`),
+        ),
+    )
+    .map(
+      (file) =>
+        `Dockerfile installs before it copies ${file}; copy it before pnpm install.`,
+    );
+}
+
+/**
  * The version policy over one workspace tree, and the manifests it read.
  *
  * @param {string} [directory]
@@ -187,11 +246,11 @@ export function resolveVersion(name, specifier, catalogs) {
  */
 export async function versionPolicy(directory = root) {
   const manifest = await readJson(join(directory, 'package.json'));
-  const catalogs = parseCatalogs(
-    await readFile(join(directory, 'pnpm-workspace.yaml'), 'utf8').catch(
-      () => '',
-    ),
-  );
+  const workspaceText = await readFile(
+    join(directory, 'pnpm-workspace.yaml'),
+    'utf8',
+  ).catch(() => '');
+  const catalogs = parseCatalogs(workspaceText);
   const runtime = (
     await readFile(join(directory, '.node-version'), 'utf8').catch(() => '')
   ).trim();
@@ -206,13 +265,12 @@ export async function versionPolicy(directory = root) {
       `engines.node is ${String(engines.node)}; .node-version says ${runtime}.`,
     );
   // The container runs the release that every check runs.
-  failures.push(
-    ...imageFailures(
-      await readFile(join(directory, 'Dockerfile'), 'utf8').catch(() => ''),
-      serviceScript(manifest),
-      runtime,
-    ),
-  );
+  const dockerfile = await readFile(
+    join(directory, 'Dockerfile'),
+    'utf8',
+  ).catch(() => '');
+  failures.push(...imageFailures(dockerfile, serviceScript(manifest), runtime));
+  failures.push(...patchCopyFailures(dockerfile, patchFiles(workspaceText)));
   const pinnedManager = String(manifest.packageManager).split('+')[0] ?? '';
   const expectedManager = pinnedManager.replace(/^pnpm@/, '');
   if (engines.pnpm !== expectedManager)

@@ -23,6 +23,8 @@ COPY packages/ui/package.json ./packages/ui/
 COPY tools/sdk-codegen/package.json ./tools/sdk-codegen/
 COPY apps/server/package.json ./apps/server/
 COPY apps/web/package.json ./apps/web/
+# The install applies the patches that pnpm-workspace.yaml names
+COPY patches ./patches
 
 # Install all dependencies including build tooling
 RUN pnpm install --frozen-lockfile
