@@ -30,11 +30,11 @@ request.
   then hands the address to the browser as an anchor with `download`. That is
   the one download path of an export, and the File System Access path goes.
 - A `GET` of the export changes nothing but its job reservation. The session
-  cookie is `SameSite=Lax`, so no cross-site request of a page carries it, and
-  the export refuses a request that states `Sec-Fetch-Site: cross-site`, so a
-  cross-site navigation cannot start a job of the account either. The answer
-  is `Content-Disposition: attachment` with `nosniff`, so no browser renders
-  it.
+  cookie is `SameSite=Lax`, so a request of a page of another site carries it
+  only as a top-level `GET` navigation. The browser states that navigation in
+  `Sec-Fetch-Site: cross-site`, and the export refuses such a request, so a
+  page of another site cannot start a job of the account. The answer is
+  `Content-Disposition: attachment` with `nosniff`, so no browser renders it.
 
 This changes what the contract emit produces, so it is a record of its own.
 It excludes an address builder for every operation: an address that a feature

@@ -69,8 +69,9 @@ table. See [Accounts and identity](../development/identity.md).
   HTML elements with no script, no style and no event, and a link to anything
   other than a web address, a mail address, another note, or an attachment
   loses its destination.
-- A published page runs no script, except the one file of the server that
-  draws a diagram in a sandboxed frame.
+- A published page runs no script, except one file of the server. That file
+  draws a diagram in a sandboxed frame and adds a **Copy** button to a code
+  block. A page with no diagram and no code block runs no script.
 - An image from another site is never fetched by the page on its own. It needs
   an explicit action, so opening a note cannot tell another site that you read
   it.

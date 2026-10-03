@@ -369,8 +369,9 @@ export class ImportIncompleteError extends Error {
 /**
  * A workspace that one export archive cannot hold (issue 243).
  *
- * The export writes the whole archive before it answers, so this refusal is
- * an answer of its own and never a download that stops in the middle.
+ * The export plans the archive from the live heads before its first byte, and
+ * only then streams it (record 0170), so this refusal is an answer of its own
+ * and never a download that stops in the middle.
  */
 export class ExportTooLargeError extends Error {
   constructor(detail: string) {
