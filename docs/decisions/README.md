@@ -215,6 +215,7 @@ and needs no record.
 | [0181](0181-the-work-of-an-open-editor-names-its-generation.md)                       | The work of an open editor names its generation                                 |
 | [0182](0182-the-parse-of-a-note-grows-with-its-size.md)                               | The parse of a note grows with its size                                         |
 | [0183](0183-a-save-never-builds-on-a-parked-save.md)                                  | A save never builds on a parked save                                            |
+| [0184](0184-a-free-name-avoids-every-path-the-server-may-hold.md)                     | A free name avoids every path the server may hold                               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -759,6 +760,10 @@ Record 0183 sends a save of a note on the last accepted head when an earlier
 save of it is parked, so the edit that a refusal asks for saves. A later save
 that carries all the work of a parked save removes it from Needs attention.
 It refines records 0022, 0073, 0087 and 0181.
+
+Record 0184 keeps the accepted path of each note on the device, so a free
+name avoids every path that the server holds or may hold: the local path,
+the accepted path, the path of a queued save and the path of a kept text.
 
 Records 0171 to 0174 follow
 [design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens
