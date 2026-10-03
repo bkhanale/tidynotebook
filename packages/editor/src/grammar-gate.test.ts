@@ -153,8 +153,11 @@ await test('a key in a long note reads only the lines around it', () => {
   checks.reset();
   let typed = state;
   const at = doc.indexOf('Some *words*', doc.length / 2);
-  for (const [index, key] of [...'the *quick* fox'].entries())
-    typed = typed.update({ changes: { from: at + index, insert: key } }).state;
+  const keys = 'the *quick* fox';
+  for (let index = 0; index < keys.length; index += 1)
+    typed = typed.update({
+      changes: { from: at + index, insert: keys.charAt(index) },
+    }).state;
   assert.equal(markdownGrammarOn(typed), true);
   assert.equal(checks.wholes(), 0);
   // Each key reads the paragraph and a blank line on each side, before and

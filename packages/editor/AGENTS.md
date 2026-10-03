@@ -16,9 +16,7 @@ an open note, and the unified diff for History.
 - `create-editor.ts` builds one instance; `extensions.ts`, `language.ts` with
   the fence languages and code tokens of `@notesapp/markdown` (0173),
   `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
-  `grammar-gate.ts` turns the language off past the limits (0182), and
-  `note-measure.ts` keeps the reading of the lines that it asks, so a key
-  reads only the parts of the note around it.
+  `grammar-gate.ts` turns the language off past the limits (0182).
 - `document-binding.ts` joins the live document of an open note to one view
   (0082); `openBoundNote` holds the work of the person until a screen takes
   it (0175). A bound editor takes its undo from Yjs; a plain one keeps
