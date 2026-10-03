@@ -211,6 +211,7 @@ and needs no record.
 | [0177](0177-the-first-screen-loads-no-editor.md)                                      | The first screen loads no editor                                                |
 | [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
 | [0179](0179-an-open-note-follows-a-new-head-in-its-one-editor.md)                     | An open note follows a new head in its one editor                               |
+| [0180](0180-a-start-that-fails-shows-the-application-error-screen.md)                 | A start that fails shows the application error screen                           |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -739,6 +740,11 @@ Record 0179 keeps the one editor of an open note when another device, a
 restore or a snapshot moves its head: the bound document joins the new text,
 and only a new generation of the document reads the note again. It refines
 record 0073.
+
+Record 0180 removes the white page of a start that fails. A load that the
+worker controls starts the entry with no preload links, and a failure before
+the first render shows the application error screen of record 0161 with
+Reload. It refines records 0044 and 0161.
 
 Records 0171 to 0174 follow
 [design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens
