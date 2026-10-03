@@ -194,6 +194,41 @@ await test('the build writes one self-contained diagram script for a published p
   await readFile(join(distribution, publishedDiagramFrameHref));
 });
 
+await test('the built diagram frame sets its text in the face of the page', async () => {
+  // Record 0061. The frame held a handwritten style block that set its text
+  // in a system face, because a face file of the origin is a cross origin
+  // request that the sandboxed frame cannot make. The build now writes the
+  // one stylesheet of the application into the frame, with every face that
+  // it declares inside it, so the frame loads nothing and names the same
+  // family as the stylesheet of the page.
+  const frame = await readFile(join(distribution, diagramFramePath), 'utf8');
+  const styles = [...frame.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(
+    (match) => match[1] ?? '',
+  );
+  assert.equal(styles.length, 1, 'the frame holds one stylesheet');
+  const css = styles[0] ?? '';
+  const faces = [...css.matchAll(/@font-face\{[^}]*\}/g)].map((m) => m[0]);
+  assert.ok(faces.length > 0, 'the frame declares no face');
+  for (const face of faces)
+    assert.match(face, /src:url\(data:font\/woff2;base64,[A-Za-z0-9+/=]+\)/);
+  assert.doesNotMatch(css, /url\((['"]?)\/fonts\//);
+  const family = (text: string): string | undefined =>
+    /--font-sans:([^;]+);/.exec(text)?.[1];
+  // The stylesheet of the page is the built one that names the face.
+  const files = await readdir(join(distribution, 'assets'));
+  const sheets = await Promise.all(
+    files
+      .filter((file) => file.endsWith('.css'))
+      .map((file) => readFile(join(distribution, 'assets', file), 'utf8')),
+  );
+  const page = sheets.find((sheet) => family(sheet) !== undefined);
+  assert.ok(page !== undefined, 'the page stylesheet names no face');
+  assert.equal(family(css), family(page));
+  // The faces of the frame are the faces of the page, file for file.
+  const pageFaces = [...page.matchAll(/url\((['"]?)\/fonts\/([^)'"]+)\1\)/g)];
+  assert.equal(faces.length, pageFaces.length);
+});
+
 await test('the first screen reads every chunk that its scripts import', async () => {
   const screen = await firstScreenScripts(distribution);
   const files = screen.map((script) => script.file);

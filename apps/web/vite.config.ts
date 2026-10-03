@@ -17,6 +17,11 @@ import { defaultThemeFor } from '@notesapp/ui';
 import { devicePaletteCss, themeRegistryData } from './src/lib/first-paint.ts';
 import { startFailureMarkup } from './src/start-failure.ts';
 import { preloadOnlyUncontrolled } from './src/pwa/module-preload.ts';
+import {
+  fontAddresses,
+  frameDocumentSource,
+  inlineFontFaces,
+} from './src/diagram/frame-document.ts';
 
 // The JSX transform comes from Vite's built-in esbuild support with the
 // automatic runtime, so no framework plugin is needed for the production
@@ -290,8 +295,15 @@ function themeAssets(directory: string): Plugin {
  * Mermaid into chunks that the frame then cannot load, which is exactly the
  * failure QA-04 recorded. This plugin therefore builds the frame entry on
  * its own with `inlineDynamicImports`, so Rollup produces one script, and
- * writes that script and the frame styles straight into the HTML. The frame
- * needs no network at all afterwards.
+ * writes that script and the frame stylesheet straight into the HTML. The
+ * frame needs no network at all afterwards.
+ *
+ * The frame entry imports `src/tailwind.css` as the application does, and
+ * the nested build compiles it with the same Tailwind plugin, so the frame
+ * sets its text in the face of the product and holds no style of its own
+ * (record 0061). A face file of `public/fonts` would be a cross origin
+ * request as well, so each one travels inside the stylesheet
+ * (`src/diagram/frame-document.ts`).
  *
  * The nested build sets `configFile: false`, so it never loads this
  * configuration again and cannot recurse.
@@ -305,10 +317,14 @@ function diagramFrame(directory: string): Plugin {
         configFile: false,
         root: directory,
         logLevel: 'warn',
+        plugins: [tailwindcss()],
         build: {
           write: false,
           target: 'es2024',
           minify: true,
+          // One stylesheet beside the script, which the plugin writes into
+          // the document, and no code that injects a style at run time.
+          cssCodeSplit: false,
           rollupOptions: {
             input: resolve(directory, 'src/diagram/frame-main.ts'),
             output: { format: 'iife', inlineDynamicImports: true },
@@ -328,19 +344,21 @@ function diagramFrame(directory: string): Plugin {
         )
         .map((asset) => String(asset.type === 'asset' ? asset.source : ''))
         .join('\n');
-      if (code === '') throw new Error('The diagram frame produced no script.');
-      // A literal closing tag inside the code would end the inline script.
-      const inlineCode = code.replaceAll('</script', '<\\/script');
+      const fonts = new Map<string, string>();
+      for (const address of fontAddresses(styles)) {
+        const bytes = await readFile(
+          resolve(directory, 'public', `.${address}`),
+        );
+        fonts.set(address, bytes.toString('base64'));
+      }
       const template = await readFile(
         resolve(directory, 'src/diagram/frame.html'),
         'utf8',
       );
-      // The replacement is a function on purpose: minified code holds `$&`
-      // and `$\`` sequences that a string replacement would expand.
-      const source = template.replace(
-        '<script type="module" src="./frame-main.ts"></script>',
-        () =>
-          `${styles === '' ? '' : `<style>${styles}</style>`}<script>${inlineCode}</script>`,
+      const source = frameDocumentSource(
+        template,
+        inlineFontFaces(styles, fonts),
+        code,
       );
       this.emitFile({ type: 'asset', fileName: framePath, source });
     },

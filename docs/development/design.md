@@ -3,9 +3,8 @@
 This page is the system that every screen of the product follows. It states the
 intent and the invariant of each part and points at the code that holds it.
 Read it before you touch anything a person sees. The reasons are in
-[design 012](../design/012-a-finished-interface.md) and the records it names.
-`tools/check-design-rules.mjs` holds the rules that a check can hold, and
-`pnpm lint` fails on each one.
+[design 012](../design/012-a-finished-interface.md) and its records. `pnpm lint`
+fails on each rule that `tools/check-design-rules.mjs` holds.
 
 ## The principle
 
@@ -19,7 +18,8 @@ decision you can name. When two treatments would do, take the quieter one.
 One family, Geist, for everything a person reads, and Geist Mono for code, a
 keyboard hint and a copied value. Both are vendored in `apps/web/public/fonts`
 and declared in `apps/web/src/tailwind.css`, the only file that may declare a
-face. No module names a family. Record 0061.
+face. No module or document names a family, and the diagram frame carries
+that stylesheet and its faces inside it. Record 0061.
 
 ## The type steps
 

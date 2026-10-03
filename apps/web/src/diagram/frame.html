@@ -1,42 +1,20 @@
 <!doctype html>
-<html lang="en">
+<!--
+  The frame holds no style and no palette of its own. The build writes the
+  one stylesheet of the application into this document, with its faces, and
+  `frame-main.ts` applies the tokens of the theme that the request names, so
+  the page and the frame are one face and one palette. Before that message
+  arrives the frame paints no background, so the page behind it shows through
+  instead of a wrong colour.
+-->
+<html lang="en" class="scheme-light-dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
     <title>Diagram preview</title>
-    <style>
-      /* The frame holds no palette. `frame-main.ts` applies the tokens of
-         the theme that the request names, so the page and the frame are
-         always one palette and a new theme needs no change here. Before
-         that message arrives the frame paints nothing, so the page behind
-         it shows through instead of a wrong colour. */
-      :root {
-        color-scheme: light dark;
-      }
-      body {
-        background: var(--notes-bg, transparent);
-        color: var(--notes-text, inherit);
-        font-family:
-          system-ui,
-          -apple-system,
-          'Segoe UI',
-          Roboto,
-          sans-serif;
-        line-height: 1.5;
-        margin: 0;
-        padding: 8px;
-      }
-      .notes-diagram-error {
-        margin: 4px 0;
-      }
-      .notes-diagram-source {
-        font-family: ui-monospace, Menlo, Consolas, monospace;
-        white-space: pre-wrap;
-      }
-    </style>
   </head>
-  <body>
+  <body class="m-0 p-2 font-sans text-ink">
     <div id="notes-diagram-host"></div>
     <script type="module" src="./frame-main.ts"></script>
   </body>

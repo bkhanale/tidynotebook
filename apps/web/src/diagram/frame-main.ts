@@ -8,12 +8,18 @@
  * module into the frame document: a self-contained page needs no network at
  * all, so no chunk can be refused (QA-04).
  *
+ * The frame imports the one stylesheet of the application, as `main.tsx`
+ * does, and the build writes it into the frame document with its faces, so
+ * the frame sets its text in the face of the page (record 0061).
+ *
  * The frame answers exactly one request. A second message is ignored, and
  * every answer carries the request identifier back, so a stray frame cannot
  * answer for this one.
  */
 import mermaid from 'mermaid';
+import '../tailwind.css';
 import {
+  diagramFontVariable,
   diagramLimits,
   diagramThemeOptions,
   isParentMessage,
@@ -35,6 +41,27 @@ function paint(request: DiagramRequest): void {
   paletteNames.forEach((name, index) => {
     element.style.setProperty(name, request.palette[index] ?? '');
   });
+  // The page plane paints only once the palette is in place, so a frame
+  // that waits for its request shows the page behind it.
+  document.body.classList.add('bg-app');
+}
+
+/**
+ * The face of the page, loaded before Mermaid measures a label.
+ *
+ * Mermaid sizes each box from the width of its text when it draws, so a face
+ * that arrives after the drawing leaves a label wider than its box. The face
+ * travels inside the frame document, so the load reads no network.
+ */
+async function pageFace(source: string): Promise<string> {
+  const family = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue(diagramFontVariable)
+    .trim();
+  if (family === '') return family;
+  await document.fonts.load(`1rem ${family}`, source);
+  await document.fonts.ready;
+  return family;
 }
 
 /** Renders one validated request and answers with its height. */
@@ -42,13 +69,14 @@ async function render(request: DiagramRequest): Promise<void> {
   paint(request);
   // The colours come from the palette of the request, in light and in dark,
   // so a diagram takes the theme of the page and never one of Mermaid.
-  const themed = diagramThemeOptions(request);
+  const themed = diagramThemeOptions(request, await pageFace(request.source));
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
     theme: themed.theme,
     look: themed.look,
     darkMode: themed.darkMode,
+    fontFamily: themed.fontFamily,
     themeVariables: { ...themed.themeVariables },
   });
   const id = `notes-diagram-${request.requestId.replace(/[^a-zA-Z0-9-]/g, '')}`;
@@ -70,11 +98,11 @@ function fail(requestId: string, message: string, source: string): void {
   if (host !== null) {
     host.textContent = '';
     const note = document.createElement('p');
-    note.className = 'notes-diagram-error';
+    note.className = 'my-1';
     note.textContent = message;
     host.appendChild(note);
     const code = document.createElement('pre');
-    code.className = 'notes-diagram-source';
+    code.className = 'font-mono whitespace-pre-wrap';
     code.textContent = source;
     host.appendChild(code);
   }

@@ -67,11 +67,21 @@ export const paletteNames: readonly string[] = [
   '--notes-border',
 ];
 
+/**
+ * The custom property of the stylesheet that names the face of a diagram.
+ *
+ * `apps/web/src/tailwind.css` declares it, and the frame reads it from the
+ * stylesheet that the build writes into the frame document, so a diagram is
+ * set in the face of the page and no module names a family (record 0061).
+ */
+export const diagramFontVariable = '--font-sans';
+
 /** The theme options that the frame gives Mermaid for one request. */
 export type DiagramThemeOptions = {
   readonly theme: 'base';
   readonly look: 'classic';
   readonly darkMode: boolean;
+  readonly fontFamily: string;
   readonly themeVariables: Readonly<Record<string, string>>;
 };
 
@@ -96,9 +106,17 @@ export type DiagramThemeOptions = {
  * of the `base` theme is a light grey glow that some rules of the `classic`
  * look still read, and that a pale halo draws on a dark page, so the frame
  * sets it to `none`.
+ *
+ * The text is set in the face of the page. Mermaid reads the family in two
+ * places: the option of the whole diagram, which sets the actors, the notes
+ * and the messages of a sequence diagram, and the theme value, which sets
+ * every other label. Both take the value of {@link diagramFontVariable}.
+ *
+ * @param fontFamily the value of {@link diagramFontVariable} in the frame.
  */
 export function diagramThemeOptions(
   request: DiagramRequest,
+  fontFamily: string,
 ): DiagramThemeOptions {
   const colour = (index: number): string => request.palette[index] ?? '';
   const background = colour(0);
@@ -109,8 +127,10 @@ export function diagramThemeOptions(
     theme: 'base',
     look: 'classic',
     darkMode: request.theme === 'dark',
+    fontFamily,
     themeVariables: {
       dropShadow: 'none',
+      fontFamily,
       background,
       mainBkg: surface,
       primaryColor: surface,

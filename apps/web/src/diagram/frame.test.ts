@@ -7,9 +7,11 @@
  * the click is lost. The frame therefore takes no pointer event.
  */
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { themeProperties, themes } from '@notesapp/ui';
 import {
+  diagramFontVariable,
   diagramThemeOptions,
   isParentMessage,
   clampDiagramHeight,
@@ -19,6 +21,20 @@ import {
   longHexColour,
   paletteNames,
 } from './frame.ts';
+
+/** The family that the one stylesheet declares for the face of the page. */
+async function pageFamily(): Promise<string> {
+  const css = await readFile(
+    new URL('../tailwind.css', import.meta.url),
+    'utf8',
+  );
+  const declared = new RegExp(`${diagramFontVariable}:([^;]+);`).exec(css);
+  assert.ok(
+    declared !== null,
+    `tailwind.css declares no ${diagramFontVariable}`,
+  );
+  return (declared[1] ?? '').replace(/\s+/g, ' ').trim();
+}
 
 await test('the diagram frame lets a click reach the editor', () => {
   assert.equal(diagramFrameStyle['pointerEvents'], 'none');
@@ -74,12 +90,10 @@ await test('a diagram takes its colours from the palette of the page in both app
     ['light', light],
     ['dark', dark],
   ] as const) {
-    const options = diagramThemeOptions({
-      requestId: 'r',
-      source: 'graph TD;',
-      theme,
-      palette,
-    });
+    const options = diagramThemeOptions(
+      { requestId: 'r', source: 'graph TD;', theme, palette },
+      'Face',
+    );
     assert.equal(options.theme, 'base');
     assert.equal(options.darkMode, theme === 'dark');
     const variables = options.themeVariables;
@@ -89,10 +103,14 @@ await test('a diagram takes its colours from the palette of the page in both app
     assert.equal(variables['primaryBorderColor'], palette[4]);
     assert.equal(variables['lineColor'], palette[4]);
     // No colour of a Mermaid theme stays: each value is one of the palette,
-    // and the one value that is not a colour turns the shadow off.
+    // and the two values that are not a colour turn the shadow off and name
+    // the face.
     assert.deepEqual(
       Object.entries(variables).filter(([, value]) => !palette.includes(value)),
-      [['dropShadow', 'none']],
+      [
+        ['dropShadow', 'none'],
+        ['fontFamily', 'Face'],
+      ],
     );
   }
 });
@@ -116,7 +134,7 @@ await test('a diagram node draws no shadow in any theme of the registry', () => 
       palette,
     };
     assert.equal(isDiagramRequest(request), true, theme.id);
-    const options = diagramThemeOptions(request);
+    const options = diagramThemeOptions(request, 'Face');
     assert.equal(options.look, 'classic', theme.id);
     assert.equal(options.themeVariables['dropShadow'], 'none', theme.id);
   }
@@ -134,4 +152,24 @@ await test('the frame takes a request from its parent and from no one else', () 
   const top: { parent: unknown } = { parent: null };
   top.parent = top;
   assert.equal(isParentMessage(top, top), false);
+});
+
+await test('a diagram is set in the face that the stylesheet declares', async () => {
+  // The frame set its text in a system face of its own, and Mermaid set each
+  // label in its own default family, while the page around it is Geist
+  // (record 0061). The frame now reads the family of the page from the one
+  // stylesheet and gives it to Mermaid in both places that Mermaid reads.
+  const family = await pageFamily();
+  assert.ok(family.length > 0);
+  const options = diagramThemeOptions(
+    {
+      requestId: 'r',
+      source: 'sequenceDiagram',
+      theme: 'dark',
+      palette: ['#191919', '#141414', '#d0cfcc', '#6fa8f5', '#807e79'],
+    },
+    family,
+  );
+  assert.equal(options.fontFamily, family);
+  assert.equal(options.themeVariables['fontFamily'], family);
 });
