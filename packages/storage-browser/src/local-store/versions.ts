@@ -51,6 +51,7 @@ import {
   expectedHeadOfParent,
   nextCheckpointSequence,
   nextQueueSequence,
+  parentOfNextSave,
   type LocalStoreContext,
 } from './shared.ts';
 
@@ -292,7 +293,15 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
           if (folded === null) return 'moved';
           if (folded.row !== null) await writeDocumentRow(tables, folded.row);
 
-          const parentId = lastCheckpointId ?? draft.baseRevisionId;
+          // A parked save holds no revision on the server, so the save names
+          // the nearest revision of its chain that is not parked, and carries
+          // the parked work with its own (record 0183).
+          const parentId = await parentOfNextSave(
+            ctx,
+            accountId,
+            workspaceId,
+            lastCheckpointId ?? draft.baseRevisionId,
+          );
           const parents = parentId === null ? [] : [parentId];
           await tables.contents.put({
             serverOrigin,
@@ -334,6 +343,8 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             deleted: draft.deleted,
             acceptedHeadRevisionId: file?.acceptedHeadRevisionId ?? null,
             acceptedHeadDigest: file?.acceptedHeadDigest ?? null,
+            // Local work never moves the path that the server holds.
+            acceptedPath: file?.acceptedPath ?? null,
             localHeadRevisionId: revisionId,
             updatedAt: clientTime,
           };

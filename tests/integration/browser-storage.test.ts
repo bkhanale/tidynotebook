@@ -39,6 +39,7 @@ import {
 } from '@notesapp/sync';
 import {
   createDatabase,
+  currentSchemaVersion,
   metaKey,
   migrationSteps,
   openLocalStore,
@@ -2875,7 +2876,7 @@ await test('a parked save of the schema before the cause keeps the sentence of i
     parkedSaveReason('save_refused', 'unrenderable_note'),
   );
   const meta = await withRawDatabase(backend, (tables) => storedMeta(tables));
-  assert.equal(meta.schemaVersion, 9);
+  assert.equal(meta.schemaVersion, currentSchemaVersion);
   await reopened.close();
 });
 
@@ -3639,19 +3640,23 @@ async function release04Store(
       bytes: null,
       size: texts.base.length,
     });
-    await tables.acceptedFiles.put({
-      serverOrigin: origin,
-      accountId: account,
-      workspaceId: workspace,
-      fileId,
-      kind: 'note',
-      path: 'notes/one.md',
-      deleted: false,
-      acceptedHeadRevisionId: 'server-head',
-      acceptedHeadDigest: baseDigest,
-      localHeadRevisionId: 'server-head',
-      updatedAt: '2026-09-06T10:00:00.000Z',
-    });
+    // The row of release 0.4 names no accepted path, and the upgrade gives
+    // it one (record 0184).
+    await tables.acceptedFiles.db
+      .table<Record<string, unknown>, unknown>('acceptedFiles')
+      .put({
+        serverOrigin: origin,
+        accountId: account,
+        workspaceId: workspace,
+        fileId,
+        kind: 'note',
+        path: 'notes/one.md',
+        deleted: false,
+        acceptedHeadRevisionId: 'server-head',
+        acceptedHeadDigest: baseDigest,
+        localHeadRevisionId: 'server-head',
+        updatedAt: '2026-09-06T10:00:00.000Z',
+      });
     await tables.cursors.put({
       serverOrigin: origin,
       accountId: account,
@@ -4573,4 +4578,275 @@ await test('a cached note gives the document of the same read as its text', asyn
   } finally {
     await store.close();
   }
+});
+
+/** One note that the server accepted, with its working copy. */
+async function acceptedNote(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+  path: string,
+  text: string,
+): Promise<{ readonly draft: Draft; readonly revisionId: string }> {
+  const draft = draftOf(account, workspace, randomUUID(), randomUUID(), text, {
+    path,
+  });
+  await store.saveDraft(draft);
+  const created = await store.checkpoint(draft, null, 'text');
+  await store.acknowledge(account, acceptanceOf(created, account, '1'));
+  return { draft, revisionId: created?.input.revisions[0]?.id ?? '' };
+}
+
+/** Writes one more text of a working copy as a version. */
+async function versionOf(store: LocalStore, draft: Draft): Promise<QueueEntry> {
+  await store.saveDraft(draft);
+  const entry = await store.checkpoint(draft, null, 'text');
+  assert.ok(entry !== null, 'the version must be queued');
+  return entry;
+}
+
+await test('a save after a parked save builds on the accepted head and ends the row', async () => {
+  // The defect: the next save named the parked revision as its parent, which
+  // the server does not hold, so every edit was refused with invalid_graph
+  // and Needs attention grew by one row for each (record 0183).
+  const backend = createBackend('parked-then-edit');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const note = await acceptedNote(store, account, workspace, 'n.md', 'a\n');
+  const { fileId } = note.draft;
+  const refused = await versionOf(store, {
+    ...note.draft,
+    text: 'one long paragraph\n',
+    sequence: 2,
+  });
+  await parkRefusedSave(
+    store,
+    account,
+    refused,
+    'unrenderable_note',
+    'note_too_many_marks',
+  );
+  // The person divides the paragraph, as the sentence asks.
+  const divided = await versionOf(store, {
+    ...note.draft,
+    text: 'one long\n\nparagraph\n',
+    sequence: 3,
+  });
+  assert.deepEqual(divided.input.revisions[0]?.parents, [note.revisionId]);
+  assert.equal(divided.input.expectedHeads[fileId], note.revisionId);
+  assert.equal(
+    syncQueueOf(await store.pending(account, workspace)).parked,
+    1,
+    'the refused save waits until a save carries its work',
+  );
+
+  await store.acknowledge(account, acceptanceOf(divided, account, '2'));
+  assert.deepEqual(await store.pending(account, workspace), []);
+  assert.deepEqual(await store.recover(account, workspace), []);
+  const history = await store.listCheckpoints(account, workspace, fileId);
+  assert.ok(
+    history.every(
+      (checkpoint) => checkpoint.revisionId !== refused.input.revisions[0]?.id,
+    ),
+    'the refused version leaves the local history with its row',
+  );
+  await store.close();
+});
+
+await test('parking a save moves its unsent child to its own parent', async () => {
+  const backend = createBackend('parked-child');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const note = await acceptedNote(store, account, workspace, 'n.md', 'a\n');
+  const refused = await versionOf(store, {
+    ...note.draft,
+    text: 'too much\n',
+    sequence: 2,
+  });
+  // The child is made before the server answers the first save.
+  const child = await versionOf(store, {
+    ...note.draft,
+    text: 'fits\n',
+    sequence: 3,
+  });
+  assert.deepEqual(child.input.revisions[0]?.parents, [
+    refused.input.revisions[0]?.id,
+  ]);
+  await parkRefusedSave(store, account, refused, 'unrenderable_note');
+  const waiting = (await store.pending(account, workspace)).find(
+    (entry) => entry.input.mutationId === child.input.mutationId,
+  );
+  assert.deepEqual(waiting?.input.revisions[0]?.parents, [note.revisionId]);
+  assert.equal(
+    waiting?.input.expectedHeads[note.draft.fileId],
+    note.revisionId,
+  );
+  const history = await store.listCheckpoints(
+    account,
+    workspace,
+    note.draft.fileId,
+  );
+  const moved = history.find(
+    (checkpoint) => checkpoint.revisionId === child.input.revisions[0]?.id,
+  );
+  assert.deepEqual(moved?.parents, [note.revisionId]);
+  await store.close();
+});
+
+await test('a newer refused save of a note stands for the one it carries', async () => {
+  const backend = createBackend('parked-twice');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const note = await acceptedNote(store, account, workspace, 'n.md', 'a\n');
+  const first = await versionOf(store, {
+    ...note.draft,
+    text: 'too much\n',
+    sequence: 2,
+  });
+  await parkRefusedSave(store, account, first, 'unrenderable_note');
+  const second = await versionOf(store, {
+    ...note.draft,
+    text: 'too much, and more\n',
+    sequence: 3,
+  });
+  await parkRefusedSave(store, account, second, 'unrenderable_note');
+  const kept = await store.recover(account, workspace);
+  assert.deepEqual(
+    kept.map((record) => record.text),
+    ['too much, and more\n'],
+  );
+  assert.equal(syncQueueOf(await store.pending(account, workspace)).parked, 1);
+  await store.close();
+});
+
+await test('a discarded parked save leaves no working copy on its version', async () => {
+  // The defect: Discard, Retry and Save as new note removed the version and
+  // left the open working copy naming it, so its next save was refused.
+  const backend = createBackend('parked-discard');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const note = await acceptedNote(store, account, workspace, 'n.md', 'a\n');
+  const refused = await versionOf(store, {
+    ...note.draft,
+    text: 'too much\n',
+    sequence: 2,
+  });
+  await parkRefusedSave(store, account, refused, 'unrenderable_note');
+  await store.discardQueueEntry(account, refused.input.mutationId);
+  const next = await versionOf(store, {
+    ...note.draft,
+    text: 'fits\n',
+    sequence: 3,
+  });
+  assert.deepEqual(next.input.revisions[0]?.parents, [note.revisionId]);
+  assert.equal(next.input.expectedHeads[note.draft.fileId], note.revisionId);
+  await store.close();
+});
+
+await test('the held paths name the path the server keeps for a renamed note', async () => {
+  // The defect: a new note took its name from the local paths only, and a
+  // note whose new name was parked had freed its old name on this device and
+  // not on the server, which refused the next new note (record 0184).
+  const backend = createBackend('held-paths');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const note = await acceptedNote(store, account, workspace, 'New note.md', '');
+  const renamed = await versionOf(store, {
+    ...note.draft,
+    path: 'Plan.md',
+    text: '# Plan\n',
+    sequence: 2,
+  });
+  await parkRefusedSave(store, account, renamed, 'unrenderable_note');
+  const local = await store.listLocalFiles(account, workspace);
+  assert.deepEqual(
+    local.map((file) => file.path),
+    ['Plan.md'],
+  );
+  const held = await store.listHeldPaths(account, workspace);
+  assert.deepEqual(held.map((entry) => entry.path).sort(), [
+    'New note.md',
+    'Plan.md',
+  ]);
+  assert.ok(held.every((entry) => entry.fileId === note.draft.fileId));
+  // A note in Trash holds no live path on the server once its deletion is
+  // accepted, and an unsent deletion still holds the name.
+  const trashed = await acceptedNote(store, account, workspace, 'Old.md', '');
+  const [deletion] = await store.trashFiles(account, workspace, [
+    trashed.draft.fileId,
+  ]);
+  assert.ok(
+    (await store.listHeldPaths(account, workspace)).some(
+      (entry) => entry.path === 'Old.md',
+    ),
+  );
+  await store.acknowledge(
+    account,
+    acceptanceOf(deletion ?? null, account, '3'),
+  );
+  assert.ok(
+    (await store.listHeldPaths(account, workspace)).every(
+      (entry) => entry.path !== 'Old.md',
+    ),
+  );
+  await store.close();
+});
+
+await test('the upgrade to version 10 states the path the server holds', async () => {
+  const backend = createBackend('accepted-path-upgrade');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const clean = await acceptedNote(store, account, workspace, 'a.md', '');
+  const renamed = await acceptedNote(store, account, workspace, 'b.md', '');
+  await versionOf(store, { ...renamed.draft, path: 'b2.md', sequence: 2 });
+  await store.close();
+  const remoteFile = randomUUID();
+  await withRawDatabase(backend, async (tables) => {
+    // A row whose accepted head came from the server while local work waits.
+    await tables.acceptedFiles.put({
+      serverOrigin: origin,
+      accountId: account,
+      workspaceId: workspace,
+      fileId: remoteFile,
+      kind: 'note',
+      path: 'd2.md',
+      deleted: false,
+      acceptedHeadRevisionId: 'server-head',
+      acceptedHeadDigest: null,
+      acceptedPath: null,
+      localHeadRevisionId: 'local-head',
+      updatedAt: '2026-10-03T10:00:00.000Z',
+    });
+    await tables.cursors.put({
+      serverOrigin: origin,
+      accountId: account,
+      workspaceId: workspace,
+      cursor: '7',
+      updatedAt: '2026-10-03T10:00:00.000Z',
+    });
+    // Put the rows and the schema back in the shape of version 9.
+    await tables.acceptedFiles.toCollection().modify((value) => {
+      const stored: Record<string, unknown> = value;
+      delete stored['acceptedPath'];
+    });
+    const meta = await storedMeta(tables);
+    await tables.meta.put({ ...meta, schemaVersion: 9 });
+  });
+  const reopened = await openLocalStore(origin, backend.options());
+  const files = await reopened.listAcceptedFiles(account, workspace);
+  const pathOf = (fileId: string): string | null | undefined =>
+    files.find((file) => file.fileId === fileId)?.acceptedPath;
+  assert.equal(pathOf(clean.draft.fileId), 'a.md');
+  assert.equal(pathOf(renamed.draft.fileId), 'b.md');
+  // The device keeps no path of a revision of the server, so the next pull
+  // is a snapshot that states it.
+  assert.equal(pathOf(remoteFile), 'd2.md');
+  assert.equal(await reopened.readCursor(account, workspace), null);
+  await reopened.close();
 });

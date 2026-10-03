@@ -15,7 +15,9 @@
  * - A permanent server failure is kept locally instead of being dropped or
  *   retried forever. The single-user server rebases a stale save itself. The
  *   entry is parked, and its text is also written into the account-bound
- *   recovery area, so a screen can list it and offer a retry.
+ *   recovery area, so a screen can list it and offer a retry. No later save
+ *   builds on a parked one, and a later save that carries all of its work
+ *   supersedes it (record 0183, `parked.ts`).
  *
  * This module is transport agnostic: the caller injects `QueueNetwork`, and
  * the engine builds it from the generated client. Unit tests inject stubs.
@@ -379,17 +381,23 @@ function refusedFiles(entry: QueueEntry, problem: Problem): readonly string[] {
  *
  * The path keeps the folder and the `.md` suffix and adds `(recovered)` to the
  * name. When that name is taken, a number is added, so the recovered note never
- * lands on a live note.
+ * lands on a live note. `taken` holds every path that the server holds or may
+ * hold (record 0184), and two paths that differ only in case are one name, as
+ * every other free name of the application reads them.
  */
-function recoveredNotePath(path: string, taken: ReadonlySet<string>): string {
+export function recoveredNotePath(
+  path: string,
+  taken: readonly string[],
+): string {
+  const held = new Set(taken.map((candidate) => candidate.toLowerCase()));
   const suffix = path.endsWith('.md') ? '.md' : '';
   const stem = path.slice(0, path.length - suffix.length);
-  for (let attempt = 1; attempt < 100; attempt += 1) {
-    const label = attempt === 1 ? ' (recovered)' : ` (recovered ${attempt})`;
+  for (let attempt = 1; ; attempt += 1) {
+    const label =
+      attempt === 1 ? ' (recovered)' : ` (recovered ${String(attempt)})`;
     const candidate = `${stem}${label}${suffix}`;
-    if (!taken.has(candidate)) return candidate;
+    if (!held.has(candidate.toLowerCase())) return candidate;
   }
-  return `${stem} (recovered)${suffix}`;
 }
 
 /**
@@ -407,8 +415,8 @@ async function keepAsRecoveredNote(
   path: string,
   text: string,
 ): Promise<void> {
-  const files = await local.listLocalFiles(accountId, workspaceId);
-  const taken = new Set(files.map((file) => file.path));
+  const held = await local.listHeldPaths(accountId, workspaceId);
+  const taken = held.map((entry) => entry.path);
   const draft: Draft = {
     accountId,
     workspaceId,
@@ -747,7 +755,15 @@ async function submitBatch(
   if (action === 'paused') return 'paused';
   if (action === 'access-lost') return 'access-lost';
   if (action === 'leave') return 'done';
-  for (const entry of batch) {
+  for (const sent of batch) {
+    // Each entry is read again, because the answer to the one before it can
+    // change it: a parked save moves its unsent children to its own parent,
+    // and an accepted save removes the parked saves it carries (record 0183).
+    const entries = await local.pending(accountId, workspaceId);
+    const entry = entries.find(
+      (candidate) => candidate.input.mutationId === sent.input.mutationId,
+    );
+    if (entry === undefined || entry.state === 'conflict') continue;
     const single = await submitSingle(
       local,
       accountId,

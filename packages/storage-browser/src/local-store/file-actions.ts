@@ -31,6 +31,7 @@ import {
   expectedHeadOfParent,
   nextCheckpointSequence,
   nextQueueSequence,
+  parentOfNextSave,
   type LocalStoreContext,
 } from './shared.ts';
 
@@ -275,6 +276,15 @@ export function createFileActionsSlice(
               bytes: null,
               size: byteLength(action.text),
             });
+            // A parked save holds no revision on the server, so the action
+            // names the nearest revision of its chain that is not parked
+            // (record 0183).
+            const parentId = await parentOfNextSave(
+              ctx,
+              accountId,
+              workspaceId,
+              state.parentId,
+            );
             const save = await deletionSave(
               tables,
               {
@@ -292,7 +302,7 @@ export function createFileActionsSlice(
               revisionId,
               fileId: state.fileId,
               workingCopyId: state.workingCopyId,
-              parents: state.parentId === null ? [] : [state.parentId],
+              parents: parentId === null ? [] : [parentId],
               path: action.toPath,
               deleted: action.deleted,
               digest: action.digest,
@@ -319,6 +329,8 @@ export function createFileActionsSlice(
               deleted: action.deleted,
               acceptedHeadRevisionId: file?.acceptedHeadRevisionId ?? null,
               acceptedHeadDigest: file?.acceptedHeadDigest ?? null,
+              // Local work never moves the path that the server holds.
+              acceptedPath: file?.acceptedPath ?? null,
               localHeadRevisionId: revisionId,
               updatedAt: clientTime,
             });
@@ -366,14 +378,14 @@ export function createFileActionsSlice(
                   ctx,
                   accountId,
                   workspaceId,
-                  state.parentId,
+                  parentId,
                 ),
               },
               revisions: [
                 {
                   id: revisionId,
                   fileId: state.fileId,
-                  parents: state.parentId === null ? [] : [state.parentId],
+                  parents: parentId === null ? [] : [parentId],
                   path: action.toPath,
                   deleted: action.deleted,
                   // A move states what this device had seen and no text work:

@@ -71,6 +71,8 @@ import {
 } from '@notesapp/sync';
 import { createDisposableDatabase, openSession } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
+import { markdownLimits } from '@notesapp/markdown';
+import { freeNotePath } from '../../apps/web/src/lib/new-note-draft.ts';
 import { markRelease04, storeRelease04Save } from './support/release-0-4.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
@@ -1740,6 +1742,183 @@ await test('an upgraded device sends a note that only it held', async () => {
     });
     assert.equal(live.data?.head?.text, '# Made offline in 0.4\n');
     assert.equal(live.data?.path, path);
+  } finally {
+    await store.close();
+  }
+});
+
+/** The marks of one paragraph past the limit of one block (record 0182). */
+const pastMarks = markdownLimits.maxBlockMarks + 2;
+
+/** A paragraph past the mark limit of one block. */
+const markedParagraph = 'x*y '.repeat(pastMarks);
+
+/** The same marks divided into two paragraphs, each within the limit. */
+const dividedParagraphs = `${'x*y '.repeat(pastMarks / 2)}\n\n${'x*y '.repeat(pastMarks / 2)}`;
+
+/** The queued saves that wait to be sent, with no parked one. */
+async function unsentOf(store: LocalStore) {
+  return (await queuedOf(store)).filter((entry) => entry.state !== 'conflict');
+}
+
+/** The live note of the server, or a test failure. */
+async function serverNote(fileId: string) {
+  const live = await getFile({
+    headers: browser(ownerCookie),
+    path: { workspaceId, fileId },
+  });
+  assert.equal(live.error, undefined, JSON.stringify(live.error));
+  return live.data;
+}
+
+await test('a refused new note keeps its name, and its fix and the next note save', async () => {
+  // The defects: the next new note took the name that the server still held
+  // for the refused note (record 0184), and every edit of the refused note
+  // built on the refused save and was refused too (record 0183).
+  const store = await openStore('refused-new', 'device-refused-new');
+  // A device syncs before it writes, so its document of a note is the one
+  // that its saves build on.
+  await syncPull(store, ownerCookie, 'engine-refused-new-pull');
+  const run = startEngine(store, ownerCookie, 'engine-refused-new');
+  try {
+    const fileId = randomUUID();
+    const workingCopyId = randomUUID();
+    const held = async (): Promise<readonly string[]> =>
+      (await store.listHeldPaths(ownerAccountId, workspaceId)).map(
+        (entry) => entry.path,
+      );
+    const firstPath = freeNotePath(await held(), 'refused');
+    assert.equal(firstPath, 'refused/New note.md');
+    await createNote(
+      store,
+      draftOf(ownerAccountId, workingCopyId, fileId, null, '', firstPath, 1),
+    );
+    await waitFor(
+      async () => (await queuedOf(store)).length === 0,
+      'the new note reaches the server',
+    );
+    // The editor names the head that it opened, as the note loader does.
+    const head = (await store.listLocalFiles(ownerAccountId, workspaceId)).find(
+      (file) => file.fileId === fileId,
+    )?.acceptedHeadRevisionId;
+    assert.ok(typeof head === 'string');
+    // The heading names the note, and its paragraph is past the limit.
+    await checkpointText(
+      store,
+      draftOf(
+        ownerAccountId,
+        workingCopyId,
+        fileId,
+        head,
+        `# Plan\n\n${markedParagraph}\n`,
+        'refused/Plan.md',
+        2,
+      ),
+    );
+    await waitFor(
+      async () =>
+        (await store.recover(ownerAccountId, workspaceId)).length === 1 &&
+        (await unsentOf(store)).length === 0,
+      'the server refuses the note and the device parks the save',
+    );
+    const [kept] = await store.recover(ownerAccountId, workspaceId);
+    assert.equal(kept?.noteRefusal, 'note_too_many_marks');
+    assert.equal((await serverNote(fileId))?.path, firstPath);
+
+    // The next new note takes a name that the server does not hold.
+    const nextPath = freeNotePath(await held(), 'refused');
+    assert.equal(nextPath, 'refused/New note 2.md');
+    const nextId = randomUUID();
+    await createNote(
+      store,
+      draftOf(ownerAccountId, randomUUID(), nextId, null, '', nextPath, 1),
+    );
+    await waitFor(
+      async () => (await unsentOf(store)).length === 0,
+      'the next new note reaches the server',
+    );
+    assert.equal((await serverNote(nextId))?.path, nextPath);
+    assert.equal((await store.recover(ownerAccountId, workspaceId)).length, 1);
+
+    // The person divides the paragraph, as the sentence asks.
+    await checkpointText(
+      store,
+      draftOf(
+        ownerAccountId,
+        workingCopyId,
+        fileId,
+        head,
+        `# Plan\n\n${dividedParagraphs}\n`,
+        'refused/Plan.md',
+        3,
+      ),
+    );
+    await waitFor(
+      async () =>
+        (await queuedOf(store)).length === 0 &&
+        (await store.recover(ownerAccountId, workspaceId)).length === 0,
+      'the fixed note reaches the server and leaves Needs attention',
+    );
+    const fixed = await serverNote(fileId);
+    assert.equal(fixed?.path, 'refused/Plan.md');
+    assert.equal(fixed?.head?.text, `# Plan\n\n${dividedParagraphs}\n`);
+  } finally {
+    await stopEngine(run);
+    await store.close();
+  }
+});
+
+await test('an existing note that grows past a limit saves again once it fits', async () => {
+  const file = await newFile('refused/Existing.md', '# Existing\n');
+  const store = await openStore('refused-existing', 'device-refused-existing');
+  try {
+    await syncPull(store, ownerCookie, 'engine-refused-existing-pull');
+    const run = startEngine(store, ownerCookie, 'engine-refused-existing');
+    try {
+      await checkpointText(
+        store,
+        draftOf(
+          ownerAccountId,
+          'working-existing',
+          file.fileId,
+          file.revisionId,
+          `# Existing\n\n${markedParagraph}\n`,
+          'refused/Existing.md',
+          1,
+        ),
+      );
+      await waitFor(
+        async () =>
+          (await store.recover(ownerAccountId, workspaceId)).length === 1 &&
+          (await unsentOf(store)).length === 0,
+        'the server refuses the larger note and the device parks the save',
+      );
+      assert.equal((await serverNote(file.fileId))?.head?.text, '# Existing\n');
+      await checkpointText(
+        store,
+        draftOf(
+          ownerAccountId,
+          'working-existing',
+          file.fileId,
+          file.revisionId,
+          `# Existing\n\n${dividedParagraphs}\n`,
+          'refused/Existing.md',
+          2,
+        ),
+      );
+      await waitFor(
+        async () =>
+          (await queuedOf(store)).length === 0 &&
+          (await store.recover(ownerAccountId, workspaceId)).length === 0,
+        'the fixed note reaches the server and leaves Needs attention',
+      );
+    } finally {
+      await stopEngine(run);
+    }
+    assert.equal(
+      (await serverNote(file.fileId))?.head?.text,
+      `# Existing\n\n${dividedParagraphs}\n`,
+    );
   } finally {
     await store.close();
   }

@@ -271,13 +271,15 @@ export function AttentionRoute(): ReactNode {
   const onSaveAsNew = (save: ParkedSave): void => {
     void (async (): Promise<void> => {
       try {
-        const files = await activeStore.listLocalFiles(
+        // The new name avoids every path that the server holds or may hold
+        // (record 0184).
+        const held = await activeStore.listHeldPaths(
           activeAccount,
           activeWorkspace,
         );
         const name = recoveredNoteName(
           save.name,
-          files.map((file) => file.path),
+          held.map((entry) => entry.path),
         );
         await dropParked(save);
         await queueText(generateUUID(), storageNotePath(name), save.text);

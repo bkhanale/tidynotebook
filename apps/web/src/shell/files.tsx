@@ -21,7 +21,7 @@ import {
   type ReactNode,
 } from 'react';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
-import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
+import type { HeldPath, LocalFileSummary, LocalStore } from '@notesapp/sync';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import { useLocalQuery } from '../local-state.ts';
 import {
@@ -37,7 +37,12 @@ import {
   type BoundedFiles,
 } from '../lib/file-load.ts';
 import { msUntilRevalidate } from '../lib/revalidate.ts';
-import { mergeNotes, type NoteSummary } from '../lib/note-list.ts';
+import {
+  mergeNotes,
+  namesInUse,
+  type NameInUse,
+  type NoteSummary,
+} from '../lib/note-list.ts';
 import { folderPaths } from '../lib/note-name.ts';
 import {
   noteOrderStorageKey,
@@ -48,6 +53,12 @@ import {
 /** What every screen reads about the notes of the open area. */
 export type FilesValue = {
   readonly notes: readonly NoteSummary[];
+  /**
+   * Every name that a new or a renamed note avoids: the listed notes and the
+   * paths that the server holds or may hold besides (record 0184). Each
+   * check of a free name reads this list, never `notes` alone.
+   */
+  readonly namesInUse: readonly NameInUse[];
   readonly loading: boolean;
   /** Every folder that the note paths imply, sorted by path. */
   readonly folders: readonly string[];
@@ -79,6 +90,7 @@ export type FilesValue = {
 
 const FilesContext = createContext<FilesValue>({
   notes: [],
+  namesInUse: [],
   loading: true,
   folders: [],
   emptyFolders: [],
@@ -161,6 +173,23 @@ export function FilesProvider({
       change.kind === 'draft' ||
       change.kind === 'queue' ||
       change.kind === 'file' ||
+      change.kind === 'purge' ||
+      change.kind === 'reset',
+  );
+
+  const emptyHeldPaths = useMemo<readonly HeldPath[]>(() => [], []);
+  const heldPaths = useLocalQuery(
+    store.store,
+    accountId,
+    workspaceId,
+    (activeStore: LocalStore, accountId: string, activeWorkspace: string) =>
+      activeStore.listHeldPaths(accountId, activeWorkspace),
+    emptyHeldPaths,
+    (change) =>
+      change.kind === 'draft' ||
+      change.kind === 'queue' ||
+      change.kind === 'file' ||
+      change.kind === 'conflict' ||
       change.kind === 'purge' ||
       change.kind === 'reset',
   );
@@ -268,6 +297,10 @@ export function FilesProvider({
     () => mergeNotes(serverFiles.files, localFiles.value),
     [serverFiles.files, localFiles.value],
   );
+  const names = useMemo(
+    () => namesInUse(notes, heldPaths.value),
+    [notes, heldPaths.value],
+  );
 
   // The notice counts the server rows only. A note that this device holds and
   // the server does not is in the list whatever the bound is, so it is not a
@@ -288,6 +321,7 @@ export function FilesProvider({
   const value = useMemo<FilesValue>(
     () => ({
       notes,
+      namesInUse: names,
       loading,
       folders: folderPaths(notes.map((note) => note.path)),
       emptyFolders: empty.emptyFolders,
@@ -297,7 +331,7 @@ export function FilesProvider({
       limitNotice,
       reload,
     }),
-    [notes, loading, empty, limitNotice, reload],
+    [notes, names, loading, empty, limitNotice, reload],
   );
 
   return (

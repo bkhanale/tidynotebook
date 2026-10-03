@@ -26,7 +26,11 @@ export {
   stateVectorCovers,
 } from './document.ts';
 export type { Coverage, DocumentInEpoch, ObservedInEpoch } from './observed.ts';
-export { observeDocument, observedCoverage } from './observed.ts';
+export {
+  observeDocument,
+  observedCoverage,
+  observedCovers,
+} from './observed.ts';
 export type {
   DocumentSession,
   SessionChange,

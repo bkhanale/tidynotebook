@@ -493,7 +493,7 @@ export function NoteTree({
         pendingFocus.current = key;
         focusRow(key);
       };
-      const plan = renamePlan(target, field.value, files.notes, knownFolders);
+      const plan = renamePlan(target, field.value, files, knownFolders);
       if (plan.kind === 'refused') {
         setMessage({ tone: 'problem', text: plan.problem });
         report({ kind: 'refused' });
@@ -612,7 +612,7 @@ export function NoteTree({
             workspaceId,
             path: target.path,
             text: cached.text,
-            takenPaths: files.notes.map((note) => note.path),
+            takenPaths: files.namesInUse.map((name) => name.path),
           });
         } catch {
           setMessage({
@@ -626,7 +626,14 @@ export function NoteTree({
         void navigate(`/w/${workspaceId}/notes/${fileId}`);
       })();
     },
-    [store.store, accountId, workspaceId, files.notes, onNavigate, navigate],
+    [
+      store.store,
+      accountId,
+      workspaceId,
+      files.namesInUse,
+      onNavigate,
+      navigate,
+    ],
   );
 
   /** Runs one row of a tree menu on the rows it acts on. */

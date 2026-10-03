@@ -196,6 +196,91 @@ export const expectedHeadOfParent = async (
   return null;
 };
 
+/**
+ * The parent that the next save of one chain names (record 0183).
+ *
+ * A save that the server refused for good is parked, and the server holds no
+ * revision of it, so a save that named it as its parent would be refused as
+ * well. The walk starts at the parent that the working copy states and passes
+ * each unaccepted checkpoint of this device whose save is parked. It stops at
+ * the first revision that is not parked: a revision this device did not
+ * create, an accepted checkpoint, or an unsent one. The later save carries the
+ * work of every parked save it passes, because a save is the work since the
+ * state that the server has (record 0085).
+ *
+ * The caller runs inside a transaction that covers the checkpoints and the
+ * queue.
+ */
+export const parentOfNextSave = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+  parentId: string | null,
+): Promise<string | null> => {
+  const seen = new Set<string>();
+  let current = parentId;
+  while (current !== null && !seen.has(current)) {
+    seen.add(current);
+    const stored: unknown = await ctx.tables.checkpoints.get([
+      ctx.serverOrigin,
+      accountId,
+      workspaceId,
+      current,
+    ]);
+    if (stored === undefined) return current;
+    const checkpoint = validateCheckpoint(stored);
+    if (checkpoint.accepted) return current;
+    const queued: unknown = await ctx.tables.queue.get([
+      ctx.serverOrigin,
+      accountId,
+      workspaceId,
+      checkpoint.mutationId,
+    ]);
+    if (queued === undefined || validateQueueRow(queued).state !== 'conflict')
+      return current;
+    current = checkpoint.parents[0] ?? null;
+  }
+  return current;
+};
+
+/**
+ * Moves each working copy of one file off checkpoints that leave the device.
+ *
+ * `removed` maps each removed revision to its parent. A draft whose last
+ * checkpoint or whose base is removed takes the first ancestor that stays, so
+ * its next save names a revision that the server holds or will hold, and its
+ * text is compared with that revision (record 0183). The text stays.
+ *
+ * The caller runs inside a transaction that covers the drafts.
+ */
+export const moveDraftsOffRemoved = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+  fileId: string,
+  removed: ReadonlyMap<string, string | null>,
+): Promise<void> => {
+  const kept = (revisionId: string | null): string | null => {
+    const seen = new Set<string>();
+    let current = revisionId;
+    while (current !== null && removed.has(current) && !seen.has(current)) {
+      seen.add(current);
+      current = removed.get(current) ?? null;
+    }
+    return current;
+  };
+  for (const draft of await draftsOfFile(ctx, accountId, workspaceId, fileId)) {
+    const lastCheckpointId = kept(draft.lastCheckpointId);
+    const baseRevisionId = kept(draft.baseRevisionId);
+    if (
+      lastCheckpointId === draft.lastCheckpointId &&
+      baseRevisionId === draft.baseRevisionId
+    )
+      continue;
+    await ctx.tables.drafts.put({ ...draft, lastCheckpointId, baseRevisionId });
+  }
+};
+
 /** The stored form of a draft the caller supplied. */
 export const draftRow = (
   ctx: LocalStoreContext,
@@ -402,11 +487,15 @@ export const matchesPartition = (
  * Removes the local work that only one mutation held.
  *
  * The checkpoints of the mutation go, and each file it touched goes back to
- * its accepted state: the local head returns to the accepted head, and a
- * deletion flag that the mutation set is cleared, because the accepted head
- * that the server kept is not a tombstone. The caller removes the mutation
- * itself, from the queue or from the moved saves, in the same transaction.
- * The answer names the files that changed.
+ * its accepted state: a local head that the mutation set returns to the
+ * accepted head, and a deletion flag that the mutation set is cleared,
+ * because the accepted head that the server kept is not a tombstone. Each
+ * draft that named a removed checkpoint moves to its first kept ancestor
+ * when `drafts` is `follow` (record 0183). The placement of release 0.4
+ * passes `stay`, because it reads each of its drafts at the checkpoint that
+ * the draft names and places the draft itself right after (record 0088). The caller removes the mutation itself, from the queue or
+ * from the moved saves, in the same transaction. The answer names the files
+ * that changed.
  */
 export const forgetMutationWork = async (
   ctx: LocalStoreContext,
@@ -417,6 +506,7 @@ export const forgetMutationWork = async (
     readonly fileId: string;
     readonly deleted: boolean;
   }[],
+  drafts: 'follow' | 'stay',
 ): Promise<LocalChange[]> => {
   const { serverOrigin, tables, nowIso } = ctx;
   const changes: LocalChange[] = [];
@@ -424,6 +514,8 @@ export const forgetMutationWork = async (
     .where('[serverOrigin+accountId+workspaceId+mutationId]')
     .equals([serverOrigin, accountId, workspaceId, mutationId])
     .toArray();
+  /** Each removed revision of each file, with its parent. */
+  const removed = new Map<string, Map<string, string | null>>();
   for (const row of rows) {
     const checkpoint = validateCheckpoint(row);
     await tables.checkpoints.delete([
@@ -432,6 +524,10 @@ export const forgetMutationWork = async (
       workspaceId,
       checkpoint.revisionId,
     ]);
+    const ofFile =
+      removed.get(checkpoint.fileId) ?? new Map<string, string | null>();
+    ofFile.set(checkpoint.revisionId, checkpoint.parents[0] ?? null);
+    removed.set(checkpoint.fileId, ofFile);
   }
   // The tip of the discarded mutation decides what it had set on the
   // file row: a tombstone tip set the deletion flag, and every tip
@@ -439,6 +535,8 @@ export const forgetMutationWork = async (
   const tips = new Map<string, boolean>();
   for (const revision of revisions) tips.set(revision.fileId, revision.deleted);
   for (const [fileId, wasDeletion] of tips) {
+    const removedOfFile: ReadonlyMap<string, string | null> =
+      removed.get(fileId) ?? new Map<string, string | null>();
     const stored: unknown = await tables.acceptedFiles.get([
       serverOrigin,
       accountId,
@@ -447,13 +545,28 @@ export const forgetMutationWork = async (
     ]);
     if (stored !== undefined) {
       const file = validateAcceptedFile(stored);
+      // A later save of this device keeps the local head that it set. Only
+      // a head that left with this mutation goes back to the accepted one.
+      const headRemoved =
+        file.localHeadRevisionId === null ||
+        removedOfFile.has(file.localHeadRevisionId);
       await tables.acceptedFiles.put({
         ...file,
         deleted: wasDeletion ? false : file.deleted,
-        localHeadRevisionId: file.acceptedHeadRevisionId,
+        localHeadRevisionId: headRemoved
+          ? file.acceptedHeadRevisionId
+          : file.localHeadRevisionId,
         updatedAt: nowIso(),
       });
     }
+    if (drafts === 'follow')
+      await moveDraftsOffRemoved(
+        ctx,
+        accountId,
+        workspaceId,
+        fileId,
+        removedOfFile,
+      );
     // A refused deletion keeps the note live, because it was changed
     // on another device. The tombstone draft that recorded the
     // deletion is stale now, and a leftover would shadow the live

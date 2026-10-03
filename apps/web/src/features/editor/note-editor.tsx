@@ -473,7 +473,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
   /** Gives an automatic name the heading at a version (record 0163). */
   const followHeading = (): void => {
     const next = headingName.next({
-      notes: filesRef.current.notes,
+      notes: filesRef.current.namesInUse,
       fileId,
       typing: nameTypingRef.current,
       edited:
@@ -791,7 +791,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
     // refuse the save, so the reason stands on the note instead.
     const error = duplicateNameProblem(
       validPathRef.current,
-      filesRef.current.notes,
+      filesRef.current.namesInUse,
       fileId,
     );
     if (error !== null) {
@@ -1223,7 +1223,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
       typed: name,
       folder: folderRef.current,
       currentPath: validPathRef.current,
-      notes: filesRef.current.notes,
+      notes: filesRef.current.namesInUse,
       fileId,
     });
     if (outcome.kind === 'refused') {
@@ -1277,7 +1277,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
       ...current,
       path: validPathRef.current,
       text: bufferRef.current,
-      takenPaths: filesRef.current.notes.map((entry) => entry.path),
+      takenPaths: filesRef.current.namesInUse.map((entry) => entry.path),
     }).then(
       (copyId) => navigate(`/w/${current.workspaceId}/notes/${copyId}`),
       (failure: unknown) =>
@@ -1285,7 +1285,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
           isLocalStorageError(failure) ? failure.kind : 'aborted',
         ),
     );
-  }, [filesRef.current.notes, navigate]);
+  }, [filesRef.current.namesInUse, navigate]);
 
   /** Deletes the open note, tells the person, and leaves for the note list. */
   const deleteNoteAndLeave = useCallback((): void => {

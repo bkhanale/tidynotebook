@@ -237,6 +237,7 @@ export function validateAcceptedFile(value: unknown): FileRow {
     kind: member(row, 'kind', ['note', 'attachment'] as const, 'file'),
     acceptedHeadRevisionId: optionalText(row, 'acceptedHeadRevisionId', 'file'),
     acceptedHeadDigest: optionalText(row, 'acceptedHeadDigest', 'file'),
+    acceptedPath: optionalText(row, 'acceptedPath', 'file'),
     localHeadRevisionId: optionalText(row, 'localHeadRevisionId', 'file'),
     deleted: flag(row, 'deleted', 'file'),
     updatedAt: text(row, 'updatedAt', 'file'),
@@ -511,7 +512,78 @@ export const migrationSteps: readonly {
       });
     },
   },
+  {
+    // A file row names the live path that the server holds (record 0184).
+    from: 9,
+    to: 10,
+    run: addAcceptedPaths,
+  },
 ];
+
+/** The text of one field of a stored record, or `null`. */
+function textOf(row: Record<string, unknown>, field: string): string | null {
+  const value: unknown = row[field];
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Gives each file row the live path that the server holds (record 0184).
+ *
+ * A row with no local work states it already: its path is the path of its
+ * accepted head. A row whose local work is ahead names an accepted head that
+ * is a checkpoint of this device or a revision of the server. The checkpoint
+ * states its own path. For a revision of the server the device keeps no path,
+ * so the row keeps its own path for now and the cursor of its workspace goes:
+ * the next pull is a snapshot, which states the accepted path of every file.
+ * A record that is not a record at all stays, and revalidation refuses it.
+ */
+async function addAcceptedPaths(tables: Tables): Promise<void> {
+  /** The key of one file row, as one text. */
+  const keyOf = (row: Record<string, unknown>): string =>
+    JSON.stringify(
+      ['serverOrigin', 'accountId', 'workspaceId', 'fileId'].map((field) =>
+        textOf(row, field),
+      ),
+    );
+  const paths = new Map<string, string | null>();
+  const unknown = new Map<string, readonly [string, string, string]>();
+  for (const value of await tables.acceptedFiles.toArray()) {
+    const row: unknown = value;
+    if (!isWritableRecord(row) || 'acceptedPath' in row) continue;
+    const head = textOf(row, 'acceptedHeadRevisionId');
+    const local = textOf(row, 'localHeadRevisionId');
+    const path = textOf(row, 'path');
+    if (head === null) paths.set(keyOf(row), null);
+    else if (local === null || local === head)
+      paths.set(keyOf(row), row['deleted'] === true ? null : path);
+    else {
+      const partition = [
+        textOf(row, 'serverOrigin') ?? '',
+        textOf(row, 'accountId') ?? '',
+        textOf(row, 'workspaceId') ?? '',
+      ] as const;
+      const stored: unknown = await tables.checkpoints.get([
+        ...partition,
+        head,
+      ]);
+      if (isWritableRecord(stored))
+        paths.set(
+          keyOf(row),
+          stored['deleted'] === true ? null : textOf(stored, 'path'),
+        );
+      else {
+        paths.set(keyOf(row), path);
+        unknown.set(JSON.stringify(partition), partition);
+      }
+    }
+  }
+  await tables.acceptedFiles.toCollection().modify((value: unknown) => {
+    if (!isWritableRecord(value) || 'acceptedPath' in value) return;
+    value['acceptedPath'] = paths.get(keyOf(value)) ?? null;
+  });
+  for (const partition of unknown.values())
+    await tables.cursors.delete([...partition]);
+}
 
 /** The most records held for validation at one time. */
 const validationBatchSize = 100;

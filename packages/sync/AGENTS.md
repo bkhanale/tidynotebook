@@ -23,9 +23,9 @@ local search, and local backlinks.
   save of release 0.4 by its receipt and asks the store to place the moved
   work. It sends nothing while any of it waits (record 0088).
 - `src/queue.ts`, `src/lease.ts`, `src/snapshot.ts`, `src/checkpoints.ts`,
-  `src/local-search.ts`, and `src/local-backlinks.ts` hold their own rules.
-  The last two are pure functions over the rows of `listSearchFiles`, and
-  neither keeps an index of its own (record 0037).
+  `src/parked.ts` (which parked save a later save ends, 0183), `src/local-search.ts`
+  and `src/local-backlinks.ts` hold their own rules. The last two are pure
+  over the rows of `listSearchFiles`, with no index of their own (0037).
 - The lease is one row for the browser profile. `src/lease-keeper.ts` holds it
   for the tab on its own timer, and each engine reads its gate and never
   releases it (0130). The lease tab runs an engine for its open workspace, the
@@ -88,4 +88,5 @@ against a real database is covered by
 | `src/lease.ts`       | The single sender lease                  |
 | `src/checkpoints.ts` | When a save becomes a checkpoint         |
 | `src/create-note.ts` | The one way to make a note               |
+| `src/parked.ts`      | Which parked saves a later save ends     |
 | `src/protocol.ts`    | Whether client and server protocols fit  |

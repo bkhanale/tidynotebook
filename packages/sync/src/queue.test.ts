@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueueEntry } from './local-port.ts';
-import { takeBatchable } from './queue.ts';
+import { recoveredNotePath, takeBatchable } from './queue.ts';
 
 const workspaceId = 'w0000000-0000-4000-8000-000000000001';
 
@@ -80,4 +80,21 @@ await test('a second chain of one file ends the run', () => {
 await test('a save that was sent once is not combined', () => {
   const sent = { ...save('r1', 'note', 'head'), state: 'sending' as const };
   assert.deepEqual(takeBatchable([sent, save('r2', 'note', 'r1')]), []);
+});
+
+await test('a recovered note avoids every held path in any case', () => {
+  // The held paths name the accepted path of a note as well as its path on
+  // this device, and the workspace reads two cases of one name as one name
+  // on every other surface (record 0184).
+  assert.equal(
+    recoveredNotePath('notes/plan.md', [
+      'notes/Plan (recovered).md',
+      'notes/plan (recovered 2).md',
+    ]),
+    'notes/plan (recovered 3).md',
+  );
+  assert.equal(
+    recoveredNotePath('notes/plan.md', ['notes/plan.md']),
+    'notes/plan (recovered).md',
+  );
 });

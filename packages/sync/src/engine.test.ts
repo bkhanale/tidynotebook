@@ -18,6 +18,7 @@ import {
   LocalStorageError,
   type Draft,
   type FileSaveSnapshot,
+  type HeldPath,
   type LegacyReceipt,
   type LegacySave,
   type LocalAcceptedFile,
@@ -424,6 +425,11 @@ class FakeStore implements LocalStore {
 
   listAcceptedFiles(): Promise<readonly LocalAcceptedFile[]> {
     return Promise.resolve([]);
+  }
+
+  async listHeldPaths(): Promise<readonly HeldPath[]> {
+    const files = await this.listLocalFiles();
+    return files.map((file) => ({ fileId: file.fileId, path: file.path }));
   }
 
   listLocalFiles(): Promise<readonly LocalFileSummary[]> {

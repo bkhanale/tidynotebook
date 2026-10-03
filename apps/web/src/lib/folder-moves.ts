@@ -10,7 +10,7 @@
  * This module stays pure so the rules can be tested without a browser and
  * without a built storage package. `folders.tsx` performs the writes.
  */
-import type { NoteSummary } from './note-list.ts';
+import type { NameInUse, NoteSummary } from './note-list.ts';
 import {
   baseNameOf,
   displayNoteName,
@@ -18,6 +18,19 @@ import {
   noteNameProblem,
   rewriteFolder,
 } from './note-name.ts';
+
+/**
+ * The notes of the area, and every name that a moved note must avoid.
+ *
+ * `notes` says which notes a folder holds. `namesInUse` adds the paths that
+ * the server holds or may hold besides (record 0184), so a move never takes
+ * a name that an unsent or a parked save left on the server. The files frame
+ * is one (`FilesValue`).
+ */
+export type MoveArea = {
+  readonly notes: readonly NoteSummary[];
+  readonly namesInUse: readonly NameInUse[];
+};
 
 /** One note that moves, with the path it moves to. */
 export type PathMove = {
@@ -33,7 +46,7 @@ export type PathMove = {
  */
 export function moveProblem(
   moves: readonly PathMove[],
-  notes: readonly NoteSummary[],
+  inUse: readonly NameInUse[],
 ): string | null {
   if (moves.length === 0) return 'Nothing moves with that name.';
   // Two notes of one move that land on one path would take one name.
@@ -46,9 +59,9 @@ export function moveProblem(
   }
   const moving = new Set(moves.map((move) => move.fileId));
   const taken = new Set(
-    notes
-      .filter((note) => !moving.has(note.fileId))
-      .map((note) => note.path.toLowerCase()),
+    inUse
+      .filter((name) => !moving.has(name.fileId))
+      .map((name) => name.path.toLowerCase()),
   );
   for (const move of moves) {
     const problem = noteNameProblem(displayNoteName(move.toPath));
@@ -126,14 +139,15 @@ function isInside(inner: string, outer: string): boolean {
 export function planDrop(
   item: DragItem,
   toFolder: string,
-  notes: readonly NoteSummary[],
+  area: MoveArea,
   emptyFolders: readonly string[] = [],
 ): DropOutcome {
+  const { notes } = area;
   if (item.kind === 'note') {
     const toPath = joinNotePath(toFolder, baseNameOf(item.path));
     if (toPath === item.path) return { plan: null, problem: null };
     const moves: readonly PathMove[] = [{ fileId: item.fileId, toPath }];
-    const problem = moveProblem(moves, notes);
+    const problem = moveProblem(moves, area.namesInUse);
     if (problem !== null) return { plan: null, problem };
     return { plan: { moves, folderMove: null }, problem: null };
   }
@@ -160,7 +174,7 @@ export function planDrop(
     };
   const moves = folderMoves(notes, item.folder, target);
   if (moves.length > 0) {
-    const problem = moveProblem(moves, notes);
+    const problem = moveProblem(moves, area.namesInUse);
     if (problem !== null) return { plan: null, problem };
   }
   return {
@@ -209,7 +223,7 @@ function insideMovedFolder(
 export function planMove(
   items: readonly DragItem[],
   toFolder: string,
-  notes: readonly NoteSummary[],
+  area: MoveArea,
   emptyFolders: readonly string[] = [],
 ): MoveOutcome {
   const folders = items.flatMap((item) =>
@@ -219,7 +233,7 @@ export function planMove(
   const moves: PathMove[] = [];
   const rewrites: { from: string; to: string }[] = [];
   for (const item of outermost) {
-    const outcome = planDrop(item, toFolder, notes, emptyFolders);
+    const outcome = planDrop(item, toFolder, area, emptyFolders);
     if (outcome.problem !== null)
       return { plan: null, problem: outcome.problem };
     if (outcome.plan === null) continue;
@@ -235,7 +249,7 @@ export function planMove(
         'Two folders would take one name there. Move them one at a time.',
     };
   if (moves.length > 0) {
-    const problem = moveProblem(moves, notes);
+    const problem = moveProblem(moves, area.namesInUse);
     if (problem !== null) return { plan: null, problem };
   }
   if (moves.length === 0 && rewrites.length === 0)

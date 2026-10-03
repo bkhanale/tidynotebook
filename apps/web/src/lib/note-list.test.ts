@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { freeNotePath } from './new-note-draft.ts';
 import {
   ancestorFolders,
   buildNoteTree,
   mergeNotes,
+  namesInUse,
   notesInFolder,
   recentNotes,
   type NoteSummary,
@@ -308,4 +310,28 @@ await test('ancestorFolders is empty for a root note', () => {
 
 await test('ancestorFolders lists the one folder of a note one level deep', () => {
   assert.deepEqual(ancestorFolders('Work/Q1.md'), ['Work']);
+});
+
+await test('the names in use join the listed notes with the held paths', () => {
+  // A new note took the name Plan from its heading, and the save of that
+  // name is parked. The list shows Plan, and the server still holds
+  // "New note.md" for it (record 0184).
+  const listed = [note('a', 'Plan.md', '2026-10-03T10:00:00Z')];
+  const held = [
+    { fileId: 'a', path: 'Plan.md' },
+    { fileId: 'a', path: 'New note.md' },
+  ];
+  const names = namesInUse(listed, held);
+  assert.deepEqual(names, [
+    { fileId: 'a', path: 'Plan.md' },
+    { fileId: 'a', path: 'New note.md' },
+  ]);
+  // The next new note does not take the name that the server holds.
+  assert.equal(
+    freeNotePath(
+      names.map((name) => name.path),
+      '',
+    ),
+    'New note 2.md',
+  );
 });

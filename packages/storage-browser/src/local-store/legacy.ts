@@ -255,6 +255,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
         save.workspaceId,
         save.mutationId,
         save.revisions,
+        'stay',
       )),
     );
   };
@@ -730,6 +731,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
                   ...validateAcceptedFile(file),
                   acceptedHeadRevisionId: checkpoint.revisionId,
                   acceptedHeadDigest: checkpoint.digest,
+                  acceptedPath: checkpoint.deleted ? null : checkpoint.path,
                   updatedAt: nowIso(),
                 });
               changes.push({

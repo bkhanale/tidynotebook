@@ -9,8 +9,12 @@
  *
  * The rules are pure, so `tree-rename.test.ts` states each one.
  */
-import { folderMoves, moveProblem, type PathMove } from './folder-moves.ts';
-import type { NoteSummary } from './note-list.ts';
+import {
+  folderMoves,
+  moveProblem,
+  type MoveArea,
+  type PathMove,
+} from './folder-moves.ts';
 import {
   baseNameOf,
   cleanNoteBaseName,
@@ -55,7 +59,7 @@ export function renameStartName(target: RenameTarget): string {
 export function renamePlan(
   target: RenameTarget,
   typed: string,
-  notes: readonly NoteSummary[],
+  area: MoveArea,
   folders: readonly string[],
 ): RenameOutcome {
   const name = cleanNoteBaseName(typed);
@@ -66,7 +70,7 @@ export function renamePlan(
     if (problem !== null) return { kind: 'refused', problem };
     const path = joinNotePath(folder, storageNotePath(name));
     if (path === target.path) return { kind: 'unchanged' };
-    const clash = duplicateNameProblem(path, notes, target.fileId);
+    const clash = duplicateNameProblem(path, area.namesInUse, target.fileId);
     if (clash !== null) return { kind: 'refused', problem: clash };
     return {
       kind: 'rename',
@@ -101,9 +105,9 @@ export function renamePlan(
       kind: 'refused',
       problem: `A folder named ${name} already exists there. Choose a different name.`,
     };
-  const moves = folderMoves(notes, target.path, toFolder);
+  const moves = folderMoves(area.notes, target.path, toFolder);
   if (moves.length > 0) {
-    const clash = moveProblem(moves, notes);
+    const clash = moveProblem(moves, area.namesInUse);
     if (clash !== null) return { kind: 'refused', problem: clash };
   }
   return {

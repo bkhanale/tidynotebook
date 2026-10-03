@@ -41,10 +41,13 @@ export function useCreateNote(
         return;
       }
       void (async (): Promise<void> => {
+        // The name avoids every path that the server holds or may hold, so
+        // a note whose new name is unsent or parked keeps its old one
+        // (record 0184).
         let taken: readonly string[] = [];
         try {
-          const files = await store.listLocalFiles(accountId, workspaceId);
-          taken = files.map((file) => file.path);
+          const held = await store.listHeldPaths(accountId, workspaceId);
+          taken = held.map((entry) => entry.path);
         } catch {
           taken = [];
         }

@@ -305,10 +305,28 @@ export type LocalAcceptedFile = {
   readonly acceptedHeadRevisionId: string | null;
   /** The content digest of the accepted head, when it is known. */
   readonly acceptedHeadDigest: string | null;
+  /**
+   * The live path that the server holds for the file: the path of the
+   * accepted head, or `null` when there is no accepted head or it is a
+   * tombstone. `path` is the newest path of this device, which an unsent or a
+   * parked save can hold apart from it (record 0184).
+   */
+  readonly acceptedPath: string | null;
   /** The newest local checkpoint, or `null` when none exists. */
   readonly localHeadRevisionId: string | null;
   readonly deleted: boolean;
   readonly updatedAt: string;
+};
+
+/**
+ * One path that the server holds or may hold, with the file that holds it.
+ *
+ * A file can hold more than one: its path on this device, its accepted path,
+ * the path of a queued save, and the path of a kept text (record 0184).
+ */
+export type HeldPath = {
+  readonly fileId: string;
+  readonly path: string;
 };
 
 /**
@@ -875,6 +893,12 @@ export type LocalStore = {
    *
    * `errorCode` is optional, so a caller that does not know why the server
    * refused the mutation keeps the stored reason.
+   *
+   * In the same transaction, each unsent save that names a revision of the
+   * parked mutation as its parent takes the parent of that revision, so no
+   * later save builds on a revision that the server does not hold, and each
+   * earlier parked mutation that this one supersedes leaves with its
+   * checkpoints and its kept text (record 0183).
    */
   markConflict(
     accountId: string,
@@ -891,7 +915,9 @@ export type LocalStore = {
    * mutation, and the local head that they set are removed in one
    * transaction, so the file goes back to its accepted state. A deletion flag
    * that the discarded mutation set is cleared as well, because the accepted
-   * head that the server kept is not a tombstone.
+   * head that the server kept is not a tombstone. A draft that names a removed
+   * checkpoint moves to its first kept ancestor, so the next save of that
+   * working copy names a revision that the server holds (record 0183).
    *
    * Discarding an unknown mutation does nothing.
    */
@@ -927,6 +953,9 @@ export type LocalStore = {
    * newest checkpoint of this mutation for that note. The answers of one
    * commit share its cursor, so the mutations of one sent batch make one
    * Review for a note and its base is the last checkpoint of the batch.
+   *
+   * Each parked mutation that the accepted one supersedes leaves in the same
+   * transaction, with its checkpoints and its kept text (record 0183).
    */
   acknowledge(accountId: string, result: AcceptedChangeset): Promise<void>;
 
@@ -1046,6 +1075,20 @@ export type LocalStore = {
     accountId: string,
     workspaceId: string,
   ): Promise<readonly LocalFileSummary[]>;
+
+  /**
+   * Every path of one workspace that the server holds or may hold.
+   *
+   * The answer names, for each file, the path of `listLocalFiles` unless the
+   * note is in Trash, the accepted path, the path of each live queued save
+   * in any state, and the path of each kept text. A free name avoids all of
+   * them, so a note never takes a name that an unsent or a parked save left
+   * on the server (record 0184).
+   */
+  listHeldPaths(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly HeldPath[]>;
 
   /** Save state derived only from records of one file. */
   readFileSaveSnapshot(

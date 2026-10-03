@@ -31,8 +31,11 @@ import {
   TextField,
 } from '@notesapp/ui';
 import { applyMoves } from './apply-moves.ts';
-import { planMove, type DragItem } from '../../lib/folder-moves.ts';
-import type { NoteSummary } from '../../lib/note-list.ts';
+import {
+  planMove,
+  type DragItem,
+  type MoveArea,
+} from '../../lib/folder-moves.ts';
 import { childFolderPath } from '../../lib/folder-selection.ts';
 import {
   baseNameOf,
@@ -227,7 +230,7 @@ export function MoveItemsDialog({
   store,
   accountId,
   workspaceId,
-  notes,
+  area,
   folders,
   emptyFolders,
   items,
@@ -239,7 +242,8 @@ export function MoveItemsDialog({
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
-  readonly notes: readonly NoteSummary[];
+  /** The notes and the names in use of the area (record 0184). */
+  readonly area: MoveArea;
   /** Every folder that a person can choose, sorted by path. */
   readonly folders: readonly string[];
   /** The folders that only this device remembers. */
@@ -297,7 +301,7 @@ export function MoveItemsDialog({
         return;
       }
     }
-    const outcome = planMove(items, folder, notes, emptyFolders);
+    const outcome = planMove(items, folder, area, emptyFolders);
     if (outcome.problem !== null) {
       setError(outcome.problem);
       return;

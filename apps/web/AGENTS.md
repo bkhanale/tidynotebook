@@ -38,10 +38,10 @@ those two alone.
   one primary button, a `Page` for every state with not found (0062) and the
   sections of `lib/page-sections.ts` (0137). Route it with a `framePages`
   handle (0091), call a generated operation, and add `lib/palette-items.ts`.
-- **Testable logic.** Add a pure `src/lib/<name>.ts` and its `.test.ts`. A file
-  that imports React is not `lib`; it stays with its feature.
+- **Testable logic.** A pure `src/lib/<name>.ts` and its test. React stays out.
 - **A move or a deletion.** Call `applyMoves` in `features/folders/` or
   `deleteNotes` in `features/editor/`. No screen holds either value (0032).
+  A name check reads `namesInUse` of `shell/files.tsx`, never `notes` (0184).
 - **A formatting tool.** One row of `formatActions` in the editor and one
   tool in `lib/format-toolbar.ts`: its palette row and slash menu row (0094).
 

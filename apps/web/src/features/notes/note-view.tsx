@@ -98,7 +98,7 @@ export function NoteView(): ReactNode {
           store={store.store}
           accountId={accountId}
           workspaceId={workspaceId}
-          notes={files.notes}
+          area={files}
           folders={moveFolders}
           emptyFolders={files.emptyFolders}
           items={[{ kind: 'note', fileId, path: notePath }]}

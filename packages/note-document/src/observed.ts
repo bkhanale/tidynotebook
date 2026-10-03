@@ -65,6 +65,45 @@ function rangesCovered(
   return true;
 }
 
+/** The snapshot of one observed state, or `null` when it does not decode. */
+function decodeObserved(state: Uint8Array): Y.Snapshot | null {
+  try {
+    return Y.decodeSnapshot(state);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether snapshot `outer` names every insertion and deletion of `inner`. */
+function snapshotCovers(outer: Y.Snapshot, inner: Y.Snapshot): boolean {
+  for (const [client, clock] of inner.sv)
+    if ((outer.sv.get(client) ?? 0) < clock) return false;
+  for (const [client, deleted] of inner.ds.clients)
+    if (!rangesCovered(deleted, outer.ds.clients.get(client) ?? []))
+      return false;
+  return true;
+}
+
+/**
+ * Whether one observed state holds every insertion and deletion of another.
+ *
+ * A device writes all of its work into one document of each generation, so a
+ * later save of a note observes the work of an earlier one unless the
+ * document changed under it. This answers that question for two saves
+ * (record 0183). Two generations, or a state that does not decode, answer
+ * `false`, so a caller keeps the earlier work.
+ */
+export function observedCovers(
+  later: ObservedInEpoch,
+  earlier: ObservedInEpoch,
+): boolean {
+  if (later.epoch !== earlier.epoch) return false;
+  const outer = decodeObserved(later.state);
+  const inner = decodeObserved(earlier.state);
+  if (outer === null || inner === null) return false;
+  return snapshotCovers(outer, inner);
+}
+
 /**
  * Decides whether an observed state covers all work of a current document.
  *
@@ -77,20 +116,13 @@ export function observedCoverage(
 ): DocumentResult<Coverage> {
   if (observed.epoch !== current.epoch)
     return { ok: true, value: 'other-epoch' };
-  let seen: Y.Snapshot;
-  try {
-    seen = Y.decodeSnapshot(observed.state);
-  } catch {
-    return { ok: false, refusal: 'malformed' };
-  }
+  const seen = decodeObserved(observed.state);
+  if (seen === null) return { ok: false, refusal: 'malformed' };
   const doc = loadDocument(current.document);
   const now = Y.snapshot(doc);
   doc.destroy();
-  for (const [client, clock] of now.sv)
-    if ((seen.sv.get(client) ?? 0) < clock)
-      return { ok: true, value: 'unseen-work' };
-  for (const [client, deleted] of now.ds.clients)
-    if (!rangesCovered(deleted, seen.ds.clients.get(client) ?? []))
-      return { ok: true, value: 'unseen-work' };
-  return { ok: true, value: 'covered' };
+  return {
+    ok: true,
+    value: snapshotCovers(seen, now) ? 'covered' : 'unseen-work',
+  };
 }

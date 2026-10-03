@@ -64,6 +64,11 @@ and offers four actions: **Retry**, **Save as new note**, **Copy text**, and
 **Discard**. When no save waits there any more, the line at the bottom of the
 sidebar states your other work again.
 
+You can also change the note itself. For example, when the row says "Divide
+the paragraph.", divide the paragraph in the note. Your next save goes to your
+server with all of your text, and the row goes away. A new note never takes the
+name that a waiting save still holds on your server.
+
 After an update of Notesapp, earlier work on this device that could not go into
 its note waits there too. That note shows a notice, and its Review compares the
 earlier work with the note now and opens Needs attention.

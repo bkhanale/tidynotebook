@@ -4,7 +4,9 @@
  * The queue orders the mutations of one partition and records their state as
  * they are sent, acknowledged, conflicted, discarded, or reparented. An
  * acknowledgment marks the accepted checkpoints, advances the accepted head,
- * rebases the next pending child, and writes the receipt.
+ * rebases the next pending child, removes the parked saves that it carried,
+ * and writes the receipt. Parking a save moves its unsent children to its
+ * parent (record 0183, `parked.ts`).
  */
 import type { AcceptedChangeset } from '@notesapp/core';
 import {
@@ -26,6 +28,7 @@ import {
   validateQueueRow,
 } from '../migrations.ts';
 import { legacyWorkspaces } from './legacy.ts';
+import { dropSupersededSaves, moveChildrenOffParked } from './parked.ts';
 import { recordMergeReview } from './reviews.ts';
 import {
   draftsOfFile,
@@ -44,6 +47,23 @@ type QueueSlice = Pick<
   | 'acknowledge'
   | 'listLocalConflicts'
 >;
+
+/**
+ * The live path that the server holds after it accepted one checkpoint.
+ *
+ * The answer names the path the server stored, which can differ from the
+ * submitted one when it placed the save after a newer head (record 0184).
+ */
+function acceptedPathOf(
+  result: AcceptedChangeset,
+  checkpoint: CheckpointRow,
+): string | null {
+  const revision = result.revisions.find(
+    (candidate) => candidate.revisionId === checkpoint.revisionId,
+  );
+  if (revision?.deleted ?? checkpoint.deleted) return null;
+  return revision?.path ?? checkpoint.path;
+}
 
 export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
   const { serverOrigin, db, tables, nowIso, publish } = ctx;
@@ -148,21 +168,38 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
     ): Promise<void> {
       const changes: LocalChange[] = [];
       await guard('marking a mutation as conflicting', () =>
-        db.transaction('rw', tables.queue, async () => {
-          const entry = await queueEntryOf(accountId, mutationId);
-          if (entry === null) return;
-          await tables.queue.put({
-            ...entry,
-            state: 'conflict',
-            errorCode: details?.errorCode ?? entry.errorCode,
-          });
-          changes.push({
-            accountId,
-            workspaceId: entry.workspaceId,
-            fileId: entry.input.revisions[0]?.fileId ?? null,
-            kind: 'queue',
-          });
-        }),
+        db.transaction(
+          'rw',
+          [
+            tables.queue,
+            tables.checkpoints,
+            tables.acceptedFiles,
+            tables.drafts,
+            tables.recovery,
+            tables.reviews,
+          ],
+          async () => {
+            const entry = await queueEntryOf(accountId, mutationId);
+            if (entry === null) return;
+            const parked: QueueRow = {
+              ...entry,
+              state: 'conflict',
+              errorCode: details?.errorCode ?? entry.errorCode,
+            };
+            await tables.queue.put(parked);
+            changes.push({
+              accountId,
+              workspaceId: entry.workspaceId,
+              fileId: entry.input.revisions[0]?.fileId ?? null,
+              kind: 'queue',
+            });
+            // No later save builds on the parked one, and the newest
+            // refused text of a note stands for the ones it carries
+            // (record 0183).
+            changes.push(...(await moveChildrenOffParked(ctx, parked)));
+            changes.push(...(await dropSupersededSaves(ctx, parked)));
+          },
+        ),
       );
       for (const change of changes) publish(change);
     },
@@ -198,6 +235,7 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
                 workspaceId,
                 entry.mutationId,
                 entry.input.revisions,
+                'follow',
               )),
             );
             changes.push({
@@ -269,6 +307,7 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
             tables.receipts,
             tables.drafts,
             tables.reviews,
+            tables.recovery,
           ],
           async () => {
             const entry = await queueEntryOf(accountId, result.mutationId);
@@ -374,6 +413,7 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
                 deleted: later?.deleted ?? checkpoint.deleted,
                 acceptedHeadRevisionId: checkpoint.revisionId,
                 acceptedHeadDigest: checkpoint.digest,
+                acceptedPath: acceptedPathOf(result, checkpoint),
                 localHeadRevisionId:
                   file?.localHeadRevisionId ?? checkpoint.revisionId,
                 updatedAt: nowIso(),
@@ -438,6 +478,9 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
             }
             for (const row of rebasedQueue.values())
               await tables.queue.put(row);
+            // A parked save whose work this save carried is done: the
+            // server holds every word of it now (record 0183).
+            changes.push(...(await dropSupersededSaves(ctx, entry)));
             await tables.receipts.put({
               serverOrigin,
               accountId,

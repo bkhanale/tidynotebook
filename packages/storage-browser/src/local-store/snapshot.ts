@@ -454,6 +454,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   deleted: item.deleted,
                   acceptedHeadRevisionId: item.revisionId,
                   acceptedHeadDigest: item.digest,
+                  acceptedPath: item.deleted ? null : item.path,
                   localHeadRevisionId: item.revisionId,
                   // The file changed when the server accepted this revision,
                   // not when this device received it.
@@ -473,6 +474,9 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   ...file,
                   acceptedHeadRevisionId: item.revisionId,
                   acceptedHeadDigest: item.digest,
+                  // The server holds this path while the local work waits,
+                  // so a free name avoids it (record 0184).
+                  acceptedPath: item.deleted ? null : item.path,
                   updatedAt: nowIso(),
                 });
               }
@@ -607,6 +611,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               deleted: false,
               acceptedHeadRevisionId: note.revisionId,
               acceptedHeadDigest: note.digest,
+              acceptedPath: note.path,
               localHeadRevisionId: note.revisionId,
               updatedAt: nowIso(),
             });
@@ -763,6 +768,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   deleted: file.deleted,
                   acceptedHeadRevisionId: file.revisionId,
                   acceptedHeadDigest: file.digest,
+                  acceptedPath: file.deleted ? null : file.path,
                   localHeadRevisionId: file.revisionId,
                   updatedAt: nowIso(),
                 });
@@ -781,6 +787,9 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   ...current,
                   acceptedHeadRevisionId: file.revisionId,
                   acceptedHeadDigest: file.digest,
+                  // The server holds this path while the local work waits,
+                  // so a free name avoids it (record 0184).
+                  acceptedPath: file.deleted ? null : file.path,
                   updatedAt: nowIso(),
                 });
               }

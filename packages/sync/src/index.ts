@@ -16,6 +16,7 @@ export type {
   CheckpointSource,
   Draft,
   FileMove,
+  HeldPath,
   LocalAcceptedFile,
   LocalCachedNote,
   LocalConflict,
@@ -48,6 +49,8 @@ export {
   isLocalStorageError,
   LocalStorageError,
 } from './local-port.ts';
+export type { ObservedCovers, ObservedSave } from './parked.ts';
+export { supersededSaves, supersedes } from './parked.ts';
 export type {
   RemoteChange,
   RemoteFileChange,

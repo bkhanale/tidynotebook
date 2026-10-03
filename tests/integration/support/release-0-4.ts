@@ -80,7 +80,9 @@ export async function storeRelease04Save(
     workspaceId,
     save.fileId,
   ]);
-  await raw.tables.acceptedFiles.put({
+  // The row of release 0.4 names no accepted path, and the upgrade gives it
+  // one (record 0184).
+  await raw.db.table<Record<string, unknown>, unknown>('acceptedFiles').put({
     serverOrigin,
     accountId,
     workspaceId,

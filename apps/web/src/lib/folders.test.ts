@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { NoteSummary } from './note-list.ts';
+import type { NameInUse, NoteSummary } from './note-list.ts';
 import {
   folderMoves,
   moveProblem,
   planDrop,
   planMove,
+  type MoveArea,
 } from './folder-moves.ts';
 import {
   pruneEmptyFolders,
@@ -27,6 +28,12 @@ const notes: readonly NoteSummary[] = [
   note('b', 'plans/deep/two.md'),
   note('c', 'other.md'),
 ];
+
+/** The area of these notes, with any other name that the server holds. */
+const area = (
+  list: readonly NoteSummary[],
+  held: readonly NameInUse[] = [],
+): MoveArea => ({ notes: list, namesInUse: [...list, ...held] });
 
 await test('a folder rename moves every note inside it and nothing else', () => {
   assert.deepEqual(folderMoves(notes, 'plans', 'roadmaps'), [
@@ -58,7 +65,7 @@ await test('a note dropped on a folder moves into it', () => {
   const outcome = planDrop(
     { kind: 'note', fileId: 'c', path: 'other.md' },
     'plans',
-    notes,
+    area(notes),
   );
   assert.equal(outcome.problem, null);
   assert.deepEqual(outcome.plan?.moves, [
@@ -71,7 +78,7 @@ await test('a note dropped on the root moves to the top', () => {
   const outcome = planDrop(
     { kind: 'note', fileId: 'a', path: 'plans/one.md' },
     '',
-    notes,
+    area(notes),
   );
   assert.deepEqual(outcome.plan?.moves, [{ fileId: 'a', toPath: 'one.md' }]);
 });
@@ -80,7 +87,7 @@ await test('a note dropped where it already is changes nothing', () => {
   const outcome = planDrop(
     { kind: 'note', fileId: 'a', path: 'plans/one.md' },
     'plans',
-    notes,
+    area(notes),
   );
   assert.equal(outcome.plan, null);
   assert.equal(outcome.problem, null);
@@ -91,17 +98,18 @@ await test('a drop that would take a used name is refused', () => {
   const outcome = planDrop(
     { kind: 'note', fileId: 'c', path: 'other.md' },
     'plans',
-    clash,
+    area(clash),
   );
   assert.equal(outcome.plan, null);
   assert.ok(String(outcome.problem).includes('already exists'));
 });
 
 await test('a folder dropped on another folder nests inside it', () => {
-  const outcome = planDrop({ kind: 'folder', folder: 'plans' }, 'archive', [
-    ...notes,
-    note('d', 'archive/old.md'),
-  ]);
+  const outcome = planDrop(
+    { kind: 'folder', folder: 'plans' },
+    'archive',
+    area([...notes, note('d', 'archive/old.md')]),
+  );
   assert.equal(outcome.problem, null);
   assert.deepEqual(outcome.plan?.moves, [
     { fileId: 'a', toPath: 'archive/plans/one.md' },
@@ -116,22 +124,24 @@ await test('a folder dropped on another folder nests inside it', () => {
 await test('a folder cannot be dropped into itself or into its own child', () => {
   assert.ok(
     String(
-      planDrop({ kind: 'folder', folder: 'plans' }, 'plans', notes).problem,
+      planDrop({ kind: 'folder', folder: 'plans' }, 'plans', area(notes))
+        .problem,
     ).length > 0,
   );
   assert.ok(
     String(
-      planDrop({ kind: 'folder', folder: 'plans' }, 'plans/deep', notes)
+      planDrop({ kind: 'folder', folder: 'plans' }, 'plans/deep', area(notes))
         .problem,
     ).includes('into itself'),
   );
 });
 
 await test('a folder dropped where a folder of that name exists is refused', () => {
-  const outcome = planDrop({ kind: 'folder', folder: 'deep' }, 'plans', [
-    ...notes,
-    note('d', 'deep/three.md'),
-  ]);
+  const outcome = planDrop(
+    { kind: 'folder', folder: 'deep' },
+    'plans',
+    area([...notes, note('d', 'deep/three.md')]),
+  );
   assert.equal(outcome.plan, null);
   assert.ok(String(outcome.problem).includes('already exists'));
 });
@@ -140,7 +150,7 @@ await test('an empty folder moves with no note move at all', () => {
   const outcome = planDrop(
     { kind: 'folder', folder: 'ideas' },
     'plans',
-    notes,
+    area(notes),
     ['ideas'],
   );
   assert.equal(outcome.problem, null);
@@ -155,7 +165,7 @@ await test('a remembered empty folder blocks a drop of the same name', () => {
   const outcome = planDrop(
     { kind: 'folder', folder: 'ideas' },
     'plans',
-    notes,
+    area(notes),
     ['ideas', 'plans/ideas'],
   );
   assert.equal(outcome.plan, null);
@@ -190,7 +200,7 @@ await test('a move of several rows moves every row in one plan', () => {
       { kind: 'folder', folder: 'plans/deep' },
     ],
     'archive',
-    notes,
+    area(notes),
   );
   assert.equal(outcome.problem, null);
   assert.deepEqual(outcome.plan, {
@@ -209,7 +219,7 @@ await test('a row inside a moved folder travels with the folder', () => {
       { kind: 'note', fileId: 'a', path: 'plans/one.md' },
     ],
     'archive',
-    notes,
+    area(notes),
   );
   assert.deepEqual(outcome.plan?.moves, [
     { fileId: 'a', toPath: 'archive/plans/one.md' },
@@ -225,7 +235,7 @@ await test('two rows that land on one name refuse the whole move', () => {
       { kind: 'note', fileId: 'y', path: 'two/same.md' },
     ],
     'archive',
-    twins,
+    area(twins),
   );
   assert.equal(outcome.plan, null);
   assert.match(outcome.problem ?? '', /^Two notes would be named/u);
@@ -233,15 +243,36 @@ await test('two rows that land on one name refuse the whole move', () => {
 
 await test('one refused row refuses the move and a move in place does nothing', () => {
   assert.equal(
-    planMove([{ kind: 'folder', folder: 'plans' }], 'plans/deep', notes).plan,
+    planMove([{ kind: 'folder', folder: 'plans' }], 'plans/deep', area(notes))
+      .plan,
     null,
   );
   assert.deepEqual(
     planMove(
       [{ kind: 'note', fileId: 'a', path: 'plans/one.md' }],
       'plans',
-      notes,
+      area(notes),
     ),
     { plan: null, problem: null },
+  );
+});
+
+await test('a move onto a name that the server still holds is refused', () => {
+  // Note c took a new name on this device, and its save of that name is
+  // parked, so the server still holds other.md for it (record 0184).
+  const renamed = [...notes.slice(0, 2), note('c', 'renamed.md')];
+  const outcome = planDrop(
+    { kind: 'note', fileId: 'a', path: 'plans/other.md' },
+    '',
+    area(renamed, [{ fileId: 'c', path: 'other.md' }]),
+  );
+  assert.match(outcome.problem ?? '', /already exists there/u);
+  assert.equal(
+    planMove(
+      [{ kind: 'note', fileId: 'a', path: 'plans/other.md' }],
+      '',
+      area(renamed, [{ fileId: 'c', path: 'other.md' }]),
+    ).plan,
+    null,
   );
 });

@@ -483,6 +483,12 @@ export const schemaVersions: readonly {
     version: 9,
     stores: {},
   },
+  {
+    // A file row names the live path that the server holds for it (record
+    // 0184). No index changes.
+    version: 10,
+    stores: {},
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */

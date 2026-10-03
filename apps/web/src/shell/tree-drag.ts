@@ -16,9 +16,8 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import type { LocalStore } from '@notesapp/sync';
-import { planMove, type DragItem } from '../lib/folder-moves.ts';
+import { planMove, type DragItem, type MoveArea } from '../lib/folder-moves.ts';
 import { applyMoves } from '../features/folders/apply-moves.ts';
-import type { NoteSummary } from '../lib/note-list.ts';
 
 /** The media type of one dragged row. It stays inside this application. */
 const dragMediaType = 'application/x-notesapp-tree';
@@ -53,7 +52,7 @@ export function useTreeDrag({
   store,
   accountId,
   workspaceId,
-  notes,
+  area,
   emptyFolders,
   moveEmptyFolders,
   openFolder,
@@ -61,7 +60,8 @@ export function useTreeDrag({
   readonly store: LocalStore | null;
   readonly accountId: string | null;
   readonly workspaceId: string;
-  readonly notes: readonly NoteSummary[];
+  /** The notes and the names in use of the area (record 0184). */
+  readonly area: MoveArea;
   readonly emptyFolders: readonly string[];
   readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
   readonly openFolder: (folder: string) => void;
@@ -94,10 +94,10 @@ export function useTreeDrag({
     (folder: string): boolean => {
       const current = dragged.current;
       if (current === null) return false;
-      const outcome = planMove(current, folder, notes, emptyFolders);
+      const outcome = planMove(current, folder, area, emptyFolders);
       return outcome.plan !== null;
     },
-    [notes, emptyFolders],
+    [area, emptyFolders],
   );
 
   const drop = useCallback(
@@ -105,7 +105,7 @@ export function useTreeDrag({
       const current = dragged.current;
       end();
       if (current === null) return;
-      const outcome = planMove(current, folder, notes, emptyFolders);
+      const outcome = planMove(current, folder, area, emptyFolders);
       if (outcome.problem !== null) {
         setProblem(outcome.problem);
         return;
@@ -133,7 +133,7 @@ export function useTreeDrag({
     },
     [
       end,
-      notes,
+      area,
       emptyFolders,
       moveEmptyFolders,
       openFolder,

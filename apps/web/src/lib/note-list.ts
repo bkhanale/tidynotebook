@@ -58,6 +58,36 @@ export function mergeNotes(
     });
 }
 
+/** One name that a note holds, as a path with the note that holds it. */
+export type NameInUse = {
+  readonly fileId: string;
+  readonly path: string;
+};
+
+/**
+ * Every name that a new or a renamed note must avoid (record 0184).
+ *
+ * The listed notes name the path that each note shows. The held paths of the
+ * store name what the server holds or may hold besides: the accepted path of
+ * a note whose new name is unsent or parked, the path of each queued save,
+ * and the path of each kept text. A note that renames itself skips its own
+ * entries, because the server never refuses a note its own name.
+ */
+export function namesInUse(
+  notes: readonly NameInUse[],
+  held: readonly NameInUse[],
+): readonly NameInUse[] {
+  const seen = new Set<string>();
+  const names: NameInUse[] = [];
+  for (const entry of [...notes, ...held]) {
+    const key = `${entry.fileId}\n${entry.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push({ fileId: entry.fileId, path: entry.path });
+  }
+  return names;
+}
+
 /** The most recently changed notes, newest first. */
 export function recentNotes(
   notes: readonly NoteSummary[],

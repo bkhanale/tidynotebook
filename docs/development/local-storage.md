@@ -49,9 +49,9 @@ entry can never refer to missing content.
 The checkpoint of an open editor freezes the document of the note and never
 writes the editor text into it. See
 [decision 0133](../decisions/0133-an-open-note-saves-the-text-of-its-document.md).
-A checkpoint uses the working copy's last version as its parent. Two open tabs
-can still send versions based on the same accepted head, and the server places
-the later accepted save after its current head. Every save therefore stays in
+A checkpoint uses the last version of the working copy that is not parked as
+its parent. Two tabs can still send versions based on the same accepted head,
+and the server places the later accepted save after its current head. Every save therefore stays in
 one linear history, with no conflict workflow. See
 [Files, revisions, and atomic changes](files-and-revisions.md).
 
@@ -65,10 +65,11 @@ An acknowledgment removes the matching queue item, marks its revision as
 accepted, advances the accepted head, and stores the receipt. It never removes
 a newer draft or a newer queued save.
 
-A save that the server refuses for good is parked in the recovery area with
-its answer code, and a refused note keeps the limit of the grammar (record
-0182). The "Needs attention" screen names that cause and offers a retry, a new
-note, a copy or a discard. The editor keeps the current text either way.
+A save that the server refuses for good is parked with its answer code and
+the limit that refused its note (record 0182). Needs attention offers a retry,
+a new note, a copy or a discard. No later save names a parked save as its
+parent, and a later save that carries all its work ends its row (record 0183).
+A free name avoids every path that the server may hold (record 0184).
 
 ## Review
 
@@ -134,8 +135,7 @@ document is written, and a fold leaves out an update that cannot apply. See
 
 ## Compatibility data
 
-The local database has no branch store and no conflict store. A schema version
-removed the branch table of the withdrawn conflict-branch feature. A queued
+The local database has no branch store and no conflict store. A queued
 mutation that the server refuses for good keeps the state name `conflict` with
 the reason of the refusal, which is the only meaning that word still has.
 

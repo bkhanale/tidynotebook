@@ -9,6 +9,7 @@
  */
 import type {
   FileSaveSnapshot,
+  HeldPath,
   LocalAcceptedFile,
   LocalFileSummary,
   LocalStore,
@@ -24,6 +25,7 @@ import {
   validateContent,
   validateDraft,
   validateQueueRow,
+  validateRecovery,
 } from '../migrations.ts';
 import {
   draftHoldsWork,
@@ -36,6 +38,7 @@ type FilesSlice = Pick<
   LocalStore,
   | 'listAcceptedFiles'
   | 'listLocalFiles'
+  | 'listHeldPaths'
   | 'readFileSaveSnapshot'
   | 'listSearchFiles'
   | 'hasContent'
@@ -43,6 +46,100 @@ type FilesSlice = Pick<
 
 export function createFilesSlice(ctx: LocalStoreContext): FilesSlice {
   const { serverOrigin, db, tables } = ctx;
+
+  /**
+   * The files of one partition as navigation shows them: each accepted row,
+   * with the newest leading draft of its file over it. The caller runs
+   * inside a transaction that covers the accepted files and the drafts.
+   */
+  const localSummaries = async (
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly LocalFileSummary[]> => {
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
+    const acceptedRows: unknown[] = await tables.acceptedFiles
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .between(range.lower, range.upper, true, true)
+      .toArray();
+    const draftRows: unknown[] = await tables.drafts.toArray();
+    const result = new Map<string, LocalFileSummary>();
+    const accepted = new Map<string, FileRow>();
+    for (const raw of acceptedRows) {
+      const file = validateAcceptedFile(raw);
+      accepted.set(file.fileId, file);
+      result.set(file.fileId, {
+        fileId: file.fileId,
+        path: file.path,
+        kind: file.kind,
+        deleted: file.deleted,
+        updatedAt: file.updatedAt,
+        acceptedHeadRevisionId: file.acceptedHeadRevisionId,
+        localHeadRevisionId: file.localHeadRevisionId,
+        localOnly: file.acceptedHeadRevisionId === null,
+      });
+    }
+    const newestDrafts = new Map<string, DraftRow>();
+    for (const raw of draftRows) {
+      const draft = validateDraft(raw);
+      if (!matchesPartition(ctx, draft, accountId, workspaceId)) continue;
+      const previous = newestDrafts.get(draft.fileId);
+      if (
+        previous === undefined ||
+        draft.savedAt > previous.savedAt ||
+        (draft.savedAt === previous.savedAt &&
+          draft.sequence > previous.sequence)
+      )
+        newestDrafts.set(draft.fileId, draft);
+    }
+    for (const draft of newestDrafts.values()) {
+      const known = result.get(draft.fileId);
+      if (!draftLeads(accepted.get(draft.fileId), draft)) continue;
+      result.set(draft.fileId, {
+        fileId: draft.fileId,
+        path: draft.path,
+        kind: known?.kind ?? 'note',
+        deleted: draft.deleted,
+        updatedAt: draft.savedAt,
+        acceptedHeadRevisionId: known?.acceptedHeadRevisionId ?? null,
+        localHeadRevisionId:
+          known?.localHeadRevisionId ?? draft.lastCheckpointId,
+        localOnly: known?.acceptedHeadRevisionId == null,
+      });
+    }
+    return [...result.values()].sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+    );
+  };
+
+  /**
+   * The paths of the queued saves and the kept texts of one partition. The
+   * caller runs inside a transaction that covers the queue and the recovery
+   * area.
+   */
+  const pathsOfWork = async (
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly HeldPath[]> => {
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
+    const held: HeldPath[] = [];
+    const queued: unknown[] = await tables.queue
+      .where('[serverOrigin+accountId+workspaceId+sequence]')
+      .between(range.lower, range.upper, true, true)
+      .toArray();
+    for (const row of queued)
+      for (const revision of validateQueueRow(row).input.revisions)
+        if (!revision.deleted)
+          held.push({ fileId: revision.fileId, path: revision.path });
+    const kept: unknown[] = await tables.recovery
+      .where('[serverOrigin+accountId+workspaceId+recoveryId]')
+      .between(range.lower, range.upper, true, true)
+      .toArray();
+    for (const row of kept) {
+      const record = validateRecovery(row);
+      held.push({ fileId: record.fileId, path: record.path });
+    }
+    return held;
+  };
 
   return {
     listAcceptedFiles(
@@ -68,61 +165,48 @@ export function createFilesSlice(ctx: LocalStoreContext): FilesSlice {
       workspaceId: string,
     ): Promise<readonly LocalFileSummary[]> {
       return guard('reading local files', () =>
-        db.transaction('r', [tables.acceptedFiles, tables.drafts], async () => {
-          const range = partitionRange(serverOrigin, accountId, workspaceId);
-          const acceptedRows: unknown[] = await tables.acceptedFiles
-            .where('[serverOrigin+accountId+workspaceId+fileId]')
-            .between(range.lower, range.upper, true, true)
-            .toArray();
-          const draftRows: unknown[] = await tables.drafts.toArray();
-          const result = new Map<string, LocalFileSummary>();
-          const accepted = new Map<string, FileRow>();
-          for (const raw of acceptedRows) {
-            const file = validateAcceptedFile(raw);
-            accepted.set(file.fileId, file);
-            result.set(file.fileId, {
-              fileId: file.fileId,
-              path: file.path,
-              kind: file.kind,
-              deleted: file.deleted,
-              updatedAt: file.updatedAt,
-              acceptedHeadRevisionId: file.acceptedHeadRevisionId,
-              localHeadRevisionId: file.localHeadRevisionId,
-              localOnly: file.acceptedHeadRevisionId === null,
+        db.transaction('r', [tables.acceptedFiles, tables.drafts], () =>
+          localSummaries(accountId, workspaceId),
+        ),
+      );
+    },
+
+    listHeldPaths(
+      accountId: string,
+      workspaceId: string,
+    ): Promise<readonly HeldPath[]> {
+      return guard('reading the paths in use', () =>
+        db.transaction(
+          'r',
+          [tables.acceptedFiles, tables.drafts, tables.queue, tables.recovery],
+          async () => {
+            // A note in Trash holds no live path on the server, and a restore
+            // takes a free one there. While its deletion waits, its accepted
+            // path below still holds the name.
+            const held: HeldPath[] = [];
+            for (const file of await localSummaries(accountId, workspaceId))
+              if (!file.deleted)
+                held.push({ fileId: file.fileId, path: file.path });
+            const range = partitionRange(serverOrigin, accountId, workspaceId);
+            const rows: unknown[] = await tables.acceptedFiles
+              .where('[serverOrigin+accountId+workspaceId+fileId]')
+              .between(range.lower, range.upper, true, true)
+              .toArray();
+            for (const row of rows) {
+              const file = validateAcceptedFile(row);
+              if (file.acceptedPath !== null)
+                held.push({ fileId: file.fileId, path: file.acceptedPath });
+            }
+            held.push(...(await pathsOfWork(accountId, workspaceId)));
+            const seen = new Set<string>();
+            return held.filter((entry) => {
+              const key = `${entry.fileId}\n${entry.path}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
             });
-          }
-          const newestDrafts = new Map<string, DraftRow>();
-          for (const raw of draftRows) {
-            const draft = validateDraft(raw);
-            if (!matchesPartition(ctx, draft, accountId, workspaceId)) continue;
-            const previous = newestDrafts.get(draft.fileId);
-            if (
-              previous === undefined ||
-              draft.savedAt > previous.savedAt ||
-              (draft.savedAt === previous.savedAt &&
-                draft.sequence > previous.sequence)
-            )
-              newestDrafts.set(draft.fileId, draft);
-          }
-          for (const draft of newestDrafts.values()) {
-            const known = result.get(draft.fileId);
-            if (!draftLeads(accepted.get(draft.fileId), draft)) continue;
-            result.set(draft.fileId, {
-              fileId: draft.fileId,
-              path: draft.path,
-              kind: known?.kind ?? 'note',
-              deleted: draft.deleted,
-              updatedAt: draft.savedAt,
-              acceptedHeadRevisionId: known?.acceptedHeadRevisionId ?? null,
-              localHeadRevisionId:
-                known?.localHeadRevisionId ?? draft.lastCheckpointId,
-              localOnly: known?.acceptedHeadRevisionId == null,
-            });
-          }
-          return [...result.values()].sort((left, right) =>
-            left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-          );
-        }),
+          },
+        ),
       );
     },
 

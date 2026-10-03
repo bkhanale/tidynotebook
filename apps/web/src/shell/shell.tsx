@@ -411,7 +411,7 @@ function Sidebar({
     store: store.store,
     accountId: session.account?.accountId ?? null,
     workspaceId,
-    notes: files.notes,
+    area: files,
     emptyFolders: files.emptyFolders,
     moveEmptyFolders: files.moveEmptyFolders,
     openFolder,
@@ -1786,7 +1786,7 @@ function ShellFrame({
               store={store.store}
               accountId={session.account.accountId}
               workspaceId={workspaceId}
-              notes={files.notes}
+              area={files}
               folders={allFolders}
               emptyFolders={files.emptyFolders}
               items={moveItems.items}

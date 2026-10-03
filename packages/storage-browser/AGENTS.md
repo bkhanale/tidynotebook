@@ -26,16 +26,16 @@ channel, and composes these area modules behind the one port, each a factory
 over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 
 - `channel.ts`: the message shape of the invalidation channel (0019, 0175).
-- `shared.ts`: the context type, the cross-area row helpers, and the one
-  precondition rule of a submission, `expectedHeadOfParent` (0073).
+- `shared.ts`: the context, the row helpers, `expectedHeadOfParent` (0073)
+  and `parentOfNextSave`, which passes a parked save (0183).
 - `drafts.ts`: save, read, rebase, drop a draft; read a cached note.
 - `versions.ts`: checkpoint a save and list local history.
 - `file-actions.ts`: move or trash a file, every working copy (0032).
-- `queue.ts`: the save queue, the receipts, the local conflicts.
+- `queue.ts`, `parked.ts`: the queue, the receipts, the parked saves (0183).
 - `recovery.ts`: the recovery area and the private-data reset.
 - `reviews.ts`: the Reviews of this device, written with their cause (0087).
 - `preferences.ts`: pins, the sign-out marker, the sync lease.
-- `files.ts`: the reads over the cached mirror of server state.
+- `files.ts`: the reads of the cached mirror, and the paths in use (0184).
 - `snapshot.ts`: snapshots, remote changes, and the kept read of a screen.
 - `documents.ts`, `legacy.ts`: documents, their updates, 0.4 work (0084, 0175).
 
