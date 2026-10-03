@@ -20,7 +20,10 @@
  *   key are counted apart;
  * - Event Timing counts the `keydown`, `keypress` and `input` entries of 16 ms
  *   or more, and the long task observer counts tasks over 50 ms;
- * - 4x CPU is the throttle of Chromium, which stands for a mid-range phone.
+ * - 4x CPU is the throttle of Chromium, which stands for a mid-range phone;
+ * - the case `plain field` types into a bare text field on the same page,
+ *   which no code of the application handles. A key waits for the next
+ *   frame, so this is the floor of the latency in the browser of the run.
  *
  * Every number it prints is a measured result for the report of the run.
  */
@@ -165,6 +168,14 @@ function installProbe(): void {
   window.notesappTypingProbe = probe;
 }
 
+/** Puts a bare text field on the page and the focus in it. */
+function focusPlainField(): void {
+  const field = document.createElement('textarea');
+  field.setAttribute('aria-label', 'Plain field of the measurement');
+  document.body.append(field);
+  field.focus();
+}
+
 /** Puts the focus in the text of the open note. */
 function focusEditor(): void {
   const content = document.querySelector('.cm-content');
@@ -218,24 +229,33 @@ async function typeKeys(device: Device, count: number): Promise<void> {
 /** One case: a note and a CPU throttle. */
 type TypingCase = {
   readonly name: string;
-  readonly note: SeededNote;
+  /** The note to type into, or `null` for a bare text field. */
+  readonly note: SeededNote | null;
   readonly cpuRate: number;
 };
 
 /** Opens the note of a case, types into it and reads the probe. */
 async function runCase(device: Device, item: TypingCase) {
-  await device.page.goto(
-    new URL(
-      `/w/${device.workspaceId}/notes/${item.note.fileId}`,
-      device.page.url(),
-    ).href,
-  );
-  await device.page.locator('.cm-content').waitFor({ timeout: 60_000 });
-  // A click on the text could land on a link, which opens it (record 0075),
-  // so the caret goes in through focus and the end key.
-  await device.page.evaluate(focusEditor, undefined);
-  await device.page.keyboard.press('Control+End');
-  await device.page.keyboard.press('Enter');
+  if (item.note === null) {
+    // The field stands on the page of All notes, where no editor runs.
+    await device.page.goto(
+      new URL(`/w/${device.workspaceId}`, device.page.url()).href,
+    );
+    await device.page.evaluate(focusPlainField, undefined);
+  } else {
+    await device.page.goto(
+      new URL(
+        `/w/${device.workspaceId}/notes/${item.note.fileId}`,
+        device.page.url(),
+      ).href,
+    );
+    await device.page.locator('.cm-content').waitFor({ timeout: 60_000 });
+    // A click on the text could land on a link, which opens it (record
+    // 0075), so the caret goes in through focus and the end key.
+    await device.page.evaluate(focusEditor, undefined);
+    await device.page.keyboard.press('Control+End');
+    await device.page.keyboard.press('Enter');
+  }
   // The open of a note reads the outline, the backlinks and the history. A
   // case starts after that work, so it measures typing alone.
   await pause(idleMs);
@@ -291,6 +311,7 @@ try {
     if (small === undefined || large === undefined || huge === undefined)
       throw new Error('The corpus lacks a note of a case.');
     const cases: TypingCase[] = [
+      { name: 'plain field', note: null, cpuRate: 1 },
       { name: '2 KB', note: small, cpuRate: 1 },
       { name: '50 KB', note: large, cpuRate: 1 },
       { name: '500 KB', note: huge, cpuRate: 1 },
