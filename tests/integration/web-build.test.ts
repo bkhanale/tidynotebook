@@ -228,3 +228,17 @@ await test('the built shell holds the screen of a start that failed', async () =
   assert.match(shell, /addEventListener\(\s*'error'/);
   assert.match(shell, /'unhandledrejection'/);
 });
+
+await test('the built shell preloads the entry only on a load that no worker controls', async () => {
+  // Record 0180. On a controlled load a preload link and the module script
+  // both reached the worker for one module, and the browser aborted one of
+  // them, so the entry failed and the page stayed white.
+  const shell = await readFile(join(distribution, 'index.html'), 'utf8');
+  assert.doesNotMatch(shell, /<link rel="modulepreload"/);
+  const script = /<script>(\(function addEntryPreloads[\s\S]*?)<\/script>/.exec(
+    shell,
+  )?.[1];
+  assert.ok(script !== undefined, 'no preload script');
+  assert.match(script, /controller/);
+  assert.match(script, /\["\/assets\/[^"]+\.js"/);
+});
