@@ -382,6 +382,10 @@ const importNoteRefusals: Readonly<
     `The note "${name}" in the zip file is too large to show. Make the note smaller, then import again.`,
   note_too_deep: (name) =>
     `The note "${name}" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.`,
+  note_too_many_marks: (name) =>
+    `A paragraph of the note "${name}" in the zip file has too many formatting marks. Divide the paragraph, then import again.`,
+  note_too_many_cells: (name) =>
+    `The tables of the note "${name}" in the zip file have too many cells. Move some rows to another note, then import again.`,
 };
 
 /**
@@ -469,6 +473,8 @@ const domainStatus: Readonly<
   too_many_files: { status: 422, code: 'too_many_files' },
   note_too_large: { status: 422, code: 'unrenderable_note' },
   note_too_deep: { status: 422, code: 'unrenderable_note' },
+  note_too_many_marks: { status: 422, code: 'unrenderable_note' },
+  note_too_many_cells: { status: 422, code: 'unrenderable_note' },
   // The refusals of one document. Each of them leaves the accepted state as
   // it was, so the device keeps its work and acts on the answer.
   epoch_mismatch: { status: 409, code: 'epoch_mismatch' },
@@ -552,6 +558,10 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
     'The change rewrites more files than one request may hold. Move fewer files at a time.',
   note_too_large: 'This note is too large to render.',
   note_too_deep: 'This note nests too deeply to render.',
+  note_too_many_marks:
+    'A paragraph of this note has too many formatting marks to render. Divide the paragraph.',
+  note_too_many_cells:
+    'The tables of this note have too many cells to render. Move some rows to another note.',
   // The one refusal of the reader path. The word is the word of
   // `titles.published_link_unavailable` and of `PublishedRefusal` in the
   // contract, so a refusal that arrives as a domain failure and a refusal that

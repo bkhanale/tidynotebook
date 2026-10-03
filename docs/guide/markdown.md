@@ -244,5 +244,15 @@ shown as plain text.
 
 ## Limits
 
-A very large note, or one nested very deeply, is shown as source with one
-sentence that says why. Nothing is truncated and no text is lost.
+Some notes are too much Markdown to show formatted:
+
+- a very large note,
+- a note nested very deeply,
+- a paragraph with very many formatting marks, such as a long run of nested
+  links or emphasis,
+- tables with very many cells.
+
+Such a note is shown as source with one sentence that says why. The editor
+shows it as plain text. A save of the note stops and tells you what to
+change. For example, divide the paragraph, or move some rows of a table to
+another note. Nothing is truncated and no text is lost.

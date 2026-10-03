@@ -1533,6 +1533,36 @@ await test('a note whose HTML nests too deeply is refused with a message', async
   }
 });
 
+await test('a note of too many marks or table cells is refused with its own message', async () => {
+  // Record 0186. The parse of a short note of nested images held a worker
+  // for seconds, and a note of many table cells held it longer with each
+  // cell. Each is now the typed refusal of its own limit, before the parse.
+  const cases = [
+    [
+      'notes/marks.md',
+      `${'!['.repeat(3000)}x${'](u)'.repeat(3000)}\n`,
+      'A paragraph of this note has too many formatting marks to render. Divide the paragraph.',
+    ],
+    [
+      'notes/cells.md',
+      `|a|b|\n|-|-|\n${'|c|d|\n'.repeat(3000)}`,
+      'The tables of this note have too many cells to render. Move some rows to another note.',
+    ],
+  ] as const;
+  for (const [path, text, detail] of cases) {
+    const fileId = randomUUID();
+    const refused = await createFile({
+      headers: browser(cookie),
+      path: { workspaceId },
+      body: { fileId, path, document: firstSave(text), ...ids() },
+    });
+    assert.equal(responseOf(refused.response).status, 422, path);
+    assert.equal(problemCode(refused.error), 'unrenderable_note');
+    assert.equal(problemDetail(refused.error), detail);
+    assert.deepEqual(problemFiles(refused.error), [fileId]);
+  }
+});
+
 await test('a full workspace still accepts a deletion', async (t) => {
   // The control reserve is 1 MiB, so a limit just above it leaves room for one
   // small note and for the operations that manage a full workspace.

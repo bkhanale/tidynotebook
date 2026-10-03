@@ -16,6 +16,7 @@ an open note, and the unified diff for History.
 - `create-editor.ts` builds one instance; `extensions.ts`, `language.ts` with
   the fence languages and code tokens of `@notesapp/markdown` (0173),
   `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
+  `grammar-gate.ts` turns the language off past the limits (0186).
 - `document-binding.ts` joins the live document of an open note to one view
   (0082); `openBoundNote` holds the work of the person until a screen takes
   it (0175). A bound editor takes its undo from Yjs; a plain one keeps
@@ -23,8 +24,7 @@ an open note, and the unified diff for History.
   composition runs, because an update inside it loses the composed text.
 - `live-preview.ts` has the decorations, the inline HTML of 0157 among them,
   `widgets.ts` the widgets, `table-grid.ts` and `table-controls.ts` the table
-  (0095 to 0098, 0147), and `list-move.ts` and `list-controls.ts` the move of
-  a list item (0106).
+  (0095 to 0098, 0147), `list-move.ts` and `list-controls.ts` an item (0106).
 - `editor-theme.ts` is the typed CodeMirror adapter and the one place here
   that sets presentation in TypeScript. It reads the named steps of
   `apps/web/src/tailwind.css`, which `editorThemeVariables` lists for the

@@ -16,7 +16,7 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
   sanitized HTML. `links.ts` extracts note links and attachment references.
   `plain-text.ts` is the one plain text rule, `readableText`, which search
   indexes and quotes (0162, 0167); `indexNote` gives links and text at once.
-- `policy.ts` classifies a URL. `limits.ts` holds the limits and
+- `policy.ts` classifies a URL. `limits.ts` holds the limits (0186) and
   `MarkdownLimitError`, `math*.ts` the math rules (0171),
   `alerts.ts` the alert marker and `ordered-markers.ts` the style and label of
   an ordered item (0089), which the live preview reads as well.
@@ -80,18 +80,18 @@ through the editor path, so both surfaces must agree on structure.
 
 ## Key files
 
-| File                     | Purpose                                     |
-| ------------------------ | ------------------------------------------- |
-| `src/index.ts`           | The one public entry point                  |
-| `src/parse.ts`           | The parser and its extension set            |
-| `src/render.ts`          | `renderMarkdown`                            |
-| `src/wiki-links.ts`      | The one converter of wiki links (0172)      |
-| `src/policy.ts`          | The sanitizer schema and the URL policy     |
-| `src/html-elements.ts`   | The HTML that an author may write (0157)    |
-| `src/code-languages.ts`  | The one list of fence languages (0173)      |
-| `src/code-tokens.ts`     | The one map of code tokens (0159)           |
-| `src/alerts.ts`          | The alert marker and the five tones         |
-| `src/footnote-syntax.ts` | The footnote label rule (0156)              |
-| `src/ordered-markers.ts` | The label and style of an ordered item      |
-| `src/limits.ts`          | Size and depth limits, `MarkdownLimitError` |
-| `test-data/content.ts`   | The equivalence corpus                      |
+| File                     | Purpose                                  |
+| ------------------------ | ---------------------------------------- |
+| `src/index.ts`           | The one public entry point               |
+| `src/parse.ts`           | The parser and its extension set         |
+| `src/render.ts`          | `renderMarkdown`                         |
+| `src/wiki-links.ts`      | The one converter of wiki links (0172)   |
+| `src/policy.ts`          | The sanitizer schema and the URL policy  |
+| `src/html-elements.ts`   | The HTML that an author may write (0157) |
+| `src/code-languages.ts`  | The one list of fence languages (0173)   |
+| `src/code-tokens.ts`     | The one map of code tokens (0159)        |
+| `src/alerts.ts`          | The alert marker and the five tones      |
+| `src/footnote-syntax.ts` | The footnote label rule (0156)           |
+| `src/ordered-markers.ts` | The label and style of an ordered item   |
+| `src/limits.ts`          | The four limits, `MarkdownLimitError`    |
+| `test-data/content.ts`   | The equivalence corpus                   |

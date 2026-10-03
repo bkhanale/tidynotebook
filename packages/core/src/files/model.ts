@@ -265,8 +265,9 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  * states nothing about the link. `publications/errors.ts` holds the one value
  * that carries this code.
  *
- * `note_too_large` and `note_too_deep` mean that the Markdown of a note is
- * above a fixed limit of the Markdown package, so the note cannot be read as
+ * `note_too_large`, `note_too_deep`, `note_too_many_marks` and
+ * `note_too_many_cells` mean that the Markdown of a note is above a fixed
+ * limit of the Markdown package (record 0186), so the note cannot be read as
  * Markdown. Storage reports them when it indexes an accepted revision.
  *
  * `too_many_files` means that one changeset would rewrite more files than
@@ -313,6 +314,8 @@ export type DomainErrorCode =
   | 'document_too_large'
   | 'note_too_large'
   | 'note_too_deep'
+  | 'note_too_many_marks'
+  | 'note_too_many_cells'
   | 'published_link_unavailable'
   | 'not_found'
   | 'last_administrator'

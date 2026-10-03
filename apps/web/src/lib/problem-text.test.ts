@@ -96,3 +96,12 @@ await test('an inherited member cannot pass as a problem', () => {
   assert.equal(problemCode(inherited), null);
   assert.equal(problemStatus(inherited), null);
 });
+
+await test('a note over a limit of the grammar reads as its cause and the action', () => {
+  // Record 0186. The sentence said that the note could not be rendered, and
+  // not what the person can change.
+  assert.equal(
+    problemSentence('unrenderable_note', 422),
+    'This note has too much Markdown to show formatted. Divide a long paragraph or table, or make the note smaller.',
+  );
+});

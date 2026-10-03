@@ -1,23 +1,26 @@
 /**
- * The two resource limits of this package.
+ * The resource limits of this package (record 0186).
  *
- * A note is written by the one person who owns the deployment, so these
- * limits guard against an accident rather than against an attack: a pasted
- * dump that is larger than any note, and nesting deep enough to stop the
- * parser. Nothing here asserts a wall-clock duration. A timing assertion
- * measures the machine that runs it, and the test runner runs files in
- * parallel, so such an assertion fails for reasons that have nothing to do
- * with the code under test.
+ * A note can be written by a member of a workspace or by anybody who signs
+ * up, and the server and every device parse it, so these limits keep the
+ * work of a parse in proportion to the size of the note: a dump larger than
+ * any note, nesting deep enough to stop the parser, an inline block of more
+ * marks than any note holds, and more table cells than any note holds.
+ * Nothing here asserts a wall-clock duration. A timing assertion measures
+ * the machine that runs it, and the test runner runs files in parallel, so
+ * such an assertion fails for reasons that have nothing to do with the code
+ * under test. A limit is proved by a count instead.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractAttachmentRefs, extractLinks, indexNote } from './links.ts';
 import {
+  inlineMarks,
   markdownLimits,
   MarkdownLimitError,
-  withinParseLimits,
+  measureLines,
 } from './limits.ts';
-import { parseMarkdown } from './parse.ts';
+import { lineLimits, parseMarkdown, withinParseLimits } from './parse.ts';
 import { readableText } from './plain-text.ts';
 import { renderMarkdown } from './render.ts';
 import { mapRelativeReferences } from './rewrite.ts';
@@ -157,9 +160,10 @@ await test('a carriage return also ends a line for the prefix scan', async () =>
 });
 
 await test('a deeply nested tree is refused after parsing', async () => {
-  // The prefix scan bounds one line. Repeated emphasis nests through inline
-  // content instead, so this proves the tree guard still runs.
-  const source = `${'*'.repeat(400)}x${'*'.repeat(400)}`;
+  // The prefix scan bounds one line, and the mark limit bounds one inline
+  // block. Block quotes and emphasis inside them nest together, each within
+  // its own limit, so this proves the tree guard still runs.
+  const source = `${'> '.repeat(60)}${'*a '.repeat(50)}x${' b*'.repeat(50)}`;
   const error = await refusal(parseMarkdown, source);
   assert.equal(error.reason, 'nesting-depth');
   assert.ok(error.actual > markdownLimits.maxNestingDepth);
@@ -190,11 +194,137 @@ await test('an ordinary note is accepted and rendered', async () => {
   assert.match(await renderMarkdown(source), /<table>/);
 });
 
-await test('the package states two limits and nothing else', () => {
+await test('the package states four limits and nothing else', () => {
   assert.deepEqual(Object.keys(markdownLimits).sort(), [
+    'maxBlockMarks',
     'maxInputBytes',
     'maxNestingDepth',
+    'maxTableCells',
   ]);
+});
+
+/** A paragraph of exactly `marks` marks: links of two marks each. */
+function paragraphOfMarks(marks: number): string {
+  const links = 'a [link](u) '.repeat(Math.floor(marks / 2));
+  return `${links}${marks % 2 === 1 ? '_x' : 'x'}\n`;
+}
+
+await test('a mark is a character that can open or close an inline construct', () => {
+  assert.equal(inlineMarks('plain words, a b c.'), 0);
+  assert.equal(inlineMarks('*a* _b_ ~~c~~ [d](e) $f$ <g>'), 13);
+  // An escaped character is no mark, and the pairs of inline math are one.
+  assert.equal(inlineMarks('\\* \\[ \\_'), 0);
+  assert.equal(inlineMarks('\\(x\\)'), 2);
+  assert.equal(inlineMarks(paragraphOfMarks(128)), 128);
+});
+
+await test('an inline block at the mark limit is read and one above it is refused', async () => {
+  // The audit of 2026-10-02. micromark matches the marks of one inline block
+  // against each other, so a short note of nested images or emphasis held a
+  // server worker for seconds before the depth check refused it.
+  const limit = markdownLimits.maxBlockMarks;
+  for (const [name, call] of entryPoints) {
+    assert.ok((await call(paragraphOfMarks(limit))) !== undefined, name);
+    const error = await refusal(call, paragraphOfMarks(limit + 1));
+    assert.equal(error.reason, 'block-marks', name);
+    assert.equal(error.limit, limit, name);
+    assert.equal(error.actual, limit + 1, name);
+  }
+  // A heading and a table cell are inline blocks of their own.
+  const heading = `# ${paragraphOfMarks(limit + 1)}`;
+  assert.equal((await refusal(parseMarkdown, heading)).reason, 'block-marks');
+  const cell = `|a|b|\n|-|-|\n|${paragraphOfMarks(limit + 1).trim()}|c|\n`;
+  assert.equal((await refusal(parseMarkdown, cell)).reason, 'block-marks');
+});
+
+await test('the shapes that grew with the square of their marks are refused', async () => {
+  const shapes = [
+    `${'!['.repeat(3000)}x${'](u)'.repeat(3000)}`,
+    `${'*a '.repeat(3000)}x${' b*'.repeat(3000)}`,
+    `${'*'.repeat(3000)}x${'*'.repeat(3000)}`,
+    `x${']'.repeat(3000)}`,
+    '\\('.repeat(3000),
+    '$a '.repeat(3000),
+    `a ${'<!-- '.repeat(3000)}`,
+    `${'~~a '.repeat(3000)}x${' b~~'.repeat(3000)}`,
+  ];
+  for (const source of shapes) {
+    const error = await refusal(parseMarkdown, source);
+    assert.equal(error.reason, 'block-marks', source.slice(0, 12));
+    await assert.rejects(renderMarkdown(source), MarkdownLimitError);
+  }
+});
+
+await test('a part of many small blocks is read, because each block is within the limit', async () => {
+  // The count of a part between blank lines only says that a block may be
+  // over the limit. The parse of the blocks decides, so a long list, a
+  // large table and a large code block are never refused for their marks.
+  const limit = markdownLimits.maxBlockMarks;
+  const item = paragraphOfMarks(limit - 8).trim();
+  const list = Array.from({ length: 40 }, () => `- ${item}`).join('\n');
+  const table = `|a|b|\n|-|-|\n${`|${item}|${item}|\n`.repeat(40)}`;
+  const code = `\`\`\`\n${'*a[b]_c$<d>\n'.repeat(400)}\`\`\`\n`;
+  const html = `<div>\n${'<p>*a* [b](c)</p>\n'.repeat(400)}</div>\n`;
+  for (const source of [list, table, code, html]) {
+    assert.ok(measureLines(source.split('\n')).partMarks > limit);
+    assert.equal(lineLimits(source.split('\n')), 'unsure');
+    assert.equal(withinParseLimits(source), true);
+    assert.equal(parseMarkdown(source).type, 'root');
+  }
+});
+
+/** A table of `lines` lines of one cell each: `|a|`, `|-|` and rows. */
+function tableOfLines(lines: number, last = ''): string {
+  return `|a|\n|-|\n${'|c|\n'.repeat(lines - 2)}${last}`;
+}
+
+await test('the table cells of a note at the limit are read and one above is refused', async () => {
+  // The table extension keeps one list of edits for the whole note, so its
+  // work grew with the square of the cells of all the tables together.
+  // Each line of a table counts its pipes and itself.
+  const limit = markdownLimits.maxTableCells;
+  const lines = Math.floor(limit / 3);
+  const atLimit = tableOfLines(lines, 'c\n'.repeat(limit - lines * 3));
+  assert.equal(measureLines(atLimit.split('\n')).tableCells, limit);
+  for (const [name, call] of entryPoints)
+    assert.ok((await call(atLimit)) !== undefined, name);
+  const above = `${atLimit}c\n`;
+  for (const [name, call] of entryPoints) {
+    const error = await refusal(call, above);
+    assert.equal(error.reason, 'table-cells', name);
+    assert.equal(error.limit, limit, name);
+    assert.equal(error.actual, limit + 1, name);
+  }
+});
+
+await test('the cells of every table of a note count together, and a row with no pipe counts', async () => {
+  const small = '|a|b|\n|-|-|\n|c|d|\n\n';
+  const many = small.repeat(Math.floor(markdownLimits.maxTableCells / 12) + 1);
+  assert.equal((await refusal(parseMarkdown, many)).reason, 'table-cells');
+  const bare = `|a|\n|-|\n${'c\n'.repeat(markdownLimits.maxTableCells)}`;
+  assert.equal((await refusal(parseMarkdown, bare)).reason, 'table-cells');
+  // A line that ends with a carriage return ends there, as in micromark.
+  const crlf = bare.replaceAll('\n', '\r\n');
+  assert.equal((await refusal(parseMarkdown, crlf)).reason, 'table-cells');
+});
+
+await test('the reading of the lines refuses a note with no copy of it', () => {
+  // The editor reads the lines of its document on each change. The answer
+  // is the answer of `withinParseLimits` whenever it is not unsure.
+  const cases = [
+    'A short note.\n',
+    `${'> '.repeat(markdownLimits.maxNestingDepth + 1)}x`,
+    tableOfLines(markdownLimits.maxTableCells),
+    paragraphOfMarks(markdownLimits.maxBlockMarks + 1),
+  ];
+  assert.deepEqual(
+    cases.map((source) => lineLimits(source.split('\n'))),
+    ['within', 'outside', 'outside', 'unsure'],
+  );
+  assert.deepEqual(
+    cases.map((source) => withinParseLimits(source)),
+    [true, false, false, false],
+  );
 });
 
 await test('nested HTML is refused with the nesting error and never a stack error', async () => {
@@ -210,11 +340,17 @@ await test('nested HTML is refused with the nesting error and never a stack erro
       String(depth),
     );
   }
-  // Unclosed tags nest as well, so they count the same.
+  // Unclosed tags nest as well, so they count the same. Inline tags are
+  // marks of their paragraph too, so many of them meet the mark limit first.
+  await assert.rejects(
+    renderMarkdown(`${'<b>'.repeat(markdownLimits.maxNestingDepth + 1)}x\n`),
+    (error: unknown) =>
+      error instanceof MarkdownLimitError && error.reason === 'nesting-depth',
+  );
   await assert.rejects(
     renderMarkdown(`${'<b>'.repeat(5000)}x\n`),
     (error: unknown) =>
-      error instanceof MarkdownLimitError && error.reason === 'nesting-depth',
+      error instanceof MarkdownLimitError && error.reason === 'block-marks',
   );
   // HTML at the limit still renders.
   const depth = markdownLimits.maxNestingDepth;
@@ -241,8 +377,14 @@ await test('every entry point refuses the nested HTML that the renderer refuses'
     ])
       for (const [name, call] of entryPoints) {
         const error = await refusal(call, source);
-        assert.equal(error.reason, 'nesting-depth', name);
-        assert.equal(error.limit, depth, name);
+        // Inline tags are marks of their paragraph, so past the mark limit
+        // that limit refuses them first. An HTML block holds no inline block.
+        const inline = source.startsWith('a ');
+        const reason =
+          inline && levels > markdownLimits.maxBlockMarks
+            ? 'block-marks'
+            : 'nesting-depth';
+        assert.equal(error.reason, reason, name);
       }
   // A neutral tag is text in every reader, so it opens no level.
   const neutral = `${'<textarea>'.repeat(depth + 1)}x\n`;
@@ -263,6 +405,10 @@ await test('a surface asks whether the parse takes a note before it offers an ac
   );
   assert.equal(
     withinParseLimits(`${'> '.repeat(markdownLimits.maxNestingDepth + 1)}x`),
+    false,
+  );
+  assert.equal(
+    withinParseLimits(paragraphOfMarks(markdownLimits.maxBlockMarks + 1)),
     false,
   );
 });

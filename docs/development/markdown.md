@@ -127,23 +127,24 @@ both rules, and its test walks the whole registry.
 
 ## Limits
 
-NotesApp is one self-hosted deployment with one author, and that author is the
-only person who can put text in front of the parser. The two limits guard
-against an accident rather than an attack: a document size and a nesting depth,
-both stated in `packages/markdown/src/limits.ts`.
+A member of a workspace, or anybody who signs up, can write a note that the
+server and every device parse, so the work of a parse stays in proportion to
+the size of the note
+([decision 0186](../decisions/0186-the-parse-of-a-note-grows-with-its-size.md)).
+`packages/markdown/src/limits.ts` states four counts: the size of a note, the
+nesting depth, the marks of one inline block, and the table cells of a note.
 
-Nesting is checked twice. A prefix scan runs before the parse, because nesting
-is the one shape that can stop the parser rather than slow it down. The tree is
-measured again after the parse, because an inline construct nests without a
-line prefix. Both counts are in levels an author wrote. `parseMarkdown` also
-counts the tags of the HTML of a note, so every reader refuses the same notes.
+One reading of the lines runs before the parse. It checks the size and the
+nesting of each line prefix, counts the table cells from a delimiter row to
+the next blank line, and counts the marks of each part between blank lines.
+Only when a part holds more marks than one block may, a parse with every
+inline construct off finds the blocks of the one grammar, and each is held
+to the limit (`parse.test.ts`). After the parse, the depth of the tree and of
+the HTML of a note is checked.
 
-There is no wall-clock timeout and no cost score. A timeout would bound one
-render on one machine and make the outcome depend on the load of that machine,
-so the same note could render for one reader and fail for another.
-
-Every entry point parses through the same function, so every consumer is
-bounded. A refused document throws rather than being truncated, because a half
-note looks like data loss. The error message is technical, so the storage
-package maps it to a domain code and the boundary answers with a sentence the
-person can read.
+There is no wall-clock timeout and no cost score, so a note passes or fails
+the same way on every machine. Every entry point parses through
+`parseMarkdown`, and the editor keeps its Markdown language only for a note
+within `withinParseLimits` (`packages/editor/src/grammar-gate.ts`). A refused
+note is never truncated: a reader shows its source, and the boundary answers
+the domain code of each limit with a sentence the person can read.

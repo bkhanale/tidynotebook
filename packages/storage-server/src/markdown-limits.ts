@@ -13,16 +13,30 @@
  * path that has no `Result` of its own.
  */
 import type { DomainErrorCode } from '@notesapp/core';
-import { MarkdownLimitError } from '@notesapp/markdown';
+import {
+  MarkdownLimitError,
+  type MarkdownLimitReason,
+} from '@notesapp/markdown';
 
 /** The domain codes of a note that the Markdown package refuses. */
 export type MarkdownRefusalCode = Extract<
   DomainErrorCode,
-  'note_too_large' | 'note_too_deep'
+  | 'note_too_large'
+  | 'note_too_deep'
+  | 'note_too_many_marks'
+  | 'note_too_many_cells'
 >;
+
+/** The domain code of each limit of the Markdown package. */
+const refusals: Readonly<Record<MarkdownLimitReason, MarkdownRefusalCode>> = {
+  'input-size': 'note_too_large',
+  'nesting-depth': 'note_too_deep',
+  'block-marks': 'note_too_many_marks',
+  'table-cells': 'note_too_many_cells',
+};
 
 /** The domain code of a refused note, or null for any other value. */
 export function markdownLimitCode(value: unknown): MarkdownRefusalCode | null {
   if (!(value instanceof MarkdownLimitError)) return null;
-  return value.reason === 'input-size' ? 'note_too_large' : 'note_too_deep';
+  return refusals[value.reason];
 }

@@ -549,62 +549,73 @@ await test('the migration makes a row of an earlier rule again', async () => {
   assert.ok(!hit.excerpt.some((part) => part.text.includes('**')));
 });
 
-await test('the migration drops the row of a note that the grammar refuses and goes on', async () => {
-  // Review of the audit of 2026-10-02. The text of search read the HTML of a
-  // note with no bound, so a stored note of 5000 nested elements threw a
-  // RangeError. The migration runs before the server serves, so that one
-  // note stopped the server from starting. The grammar now refuses the note
-  // as the renderer does, and the run drops its row and reads the next note.
-  const [deepId, laterId] = [randomUUID(), randomUUID()].toSorted();
-  assert.ok(deepId !== undefined && laterId !== undefined);
-  const deep = await accept([
-    revision({
-      fileId: deepId,
-      path: 'old/Deep.md',
-      text: '# Deep\nA note of an earlier release.\n',
-    }),
-  ]);
-  await accept([
-    revision({
-      fileId: laterId,
-      path: 'old/Later.md',
-      text: '# Later\nThe harbour master counts barges.\n',
-    }),
-  ]);
-  await storeTextOfAnEarlierRelease(
-    database,
-    workspaceId,
-    deep.id,
-    `${'<div>'.repeat(5000)}x\n`,
-  );
-  const client = new pg.Client({ connectionString: database.migrationUrl });
-  await client.connect();
-  try {
-    // Both rows hold an earlier rule, so the run reads both notes, the
-    // refused one first.
-    await client.query(
-      'update search_index set text_rule = 0 where workspace_id = $1 and file_id = any($2::uuid[])',
-      [workspaceId, [deepId, laterId]],
-    );
-    await runMigrations({
-      documents: createDocumentService(),
-      databaseUrl: database.migrationUrl,
-      runtimePassword: testPassword(),
-      authPassword: testIdentityPassword(),
-    });
-    const rows = await client.query<{ file_id: string; body: string }>(
-      'select file_id, body from search_index where workspace_id = $1 and file_id = any($2::uuid[])',
-      [workspaceId, [deepId, laterId]],
-    );
-    assert.deepEqual(rows.rows, [
-      { file_id: laterId, body: 'The harbour master counts barges.' },
+for (const [kind, refusedText, words] of [
+  ['deep HTML', `${'<div>'.repeat(5000)}x\n`, 'harbour master counts barges'],
+  [
+    'too many marks',
+    `${'!['.repeat(3000)}x${'](u)'.repeat(3000)}\n`,
+    'lock master counts boats',
+  ],
+] as const)
+  await test(`the migration drops the row of a note that the grammar refuses and goes on (${kind})`, async () => {
+    // Review of the audit of 2026-10-02. The text of search read the HTML of a
+    // note with no bound, so a stored note of 5000 nested elements threw a
+    // RangeError. The migration runs before the server serves, so that one
+    // note stopped the server from starting. The grammar now refuses the note
+    // as the renderer does, and the run drops its row and reads the next note.
+    // A note over the mark limit of record 0186 can be stored by an earlier
+    // release in the same way, and the run treats it the same way.
+    const [deepId, laterId] = [randomUUID(), randomUUID()].toSorted();
+    assert.ok(deepId !== undefined && laterId !== undefined);
+    const deep = await accept([
+      revision({
+        fileId: deepId,
+        path: `old/Deep ${kind}.md`,
+        text: '# Deep\nA note of an earlier release.\n',
+      }),
     ]);
-  } finally {
-    await client.end();
-  }
-  // Search reads the row that the run wrote after the refused note.
-  assert.deepEqual(await markedWords(laterId, 'harbour'), ['harbour']);
-});
+    await accept([
+      revision({
+        fileId: laterId,
+        path: `old/Later ${kind}.md`,
+        text: `# Later ${kind}\nThe ${words}.\n`,
+      }),
+    ]);
+    await storeTextOfAnEarlierRelease(
+      database,
+      workspaceId,
+      deep.id,
+      refusedText,
+    );
+    const client = new pg.Client({ connectionString: database.migrationUrl });
+    await client.connect();
+    try {
+      // Both rows hold an earlier rule, so the run reads both notes, the
+      // refused one first.
+      await client.query(
+        'update search_index set text_rule = 0 where workspace_id = $1 and file_id = any($2::uuid[])',
+        [workspaceId, [deepId, laterId]],
+      );
+      await runMigrations({
+        documents: createDocumentService(),
+        databaseUrl: database.migrationUrl,
+        runtimePassword: testPassword(),
+        authPassword: testIdentityPassword(),
+      });
+      const rows = await client.query<{ file_id: string; body: string }>(
+        'select file_id, body from search_index where workspace_id = $1 and file_id = any($2::uuid[])',
+        [workspaceId, [deepId, laterId]],
+      );
+      assert.deepEqual(rows.rows, [
+        { file_id: laterId, body: `The ${words}.` },
+      ]);
+    } finally {
+      await client.end();
+    }
+    // Search reads the row that the run wrote after the refused note.
+    const first = words.slice(0, words.indexOf(' '));
+    assert.deepEqual(await markedWords(laterId, first), [first]);
+  });
 
 await test('search requires the current role and a read grant', async () => {
   const created = verifyActor(accountId, [{ workspaceId, actions: ['write'] }]);

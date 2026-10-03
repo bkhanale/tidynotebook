@@ -10,6 +10,7 @@
  * content survive them.
  */
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { withinParseLimits } from '@notesapp/markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import {
   EditorView,
@@ -35,6 +36,7 @@ import { isRemoteChange } from './document-binding.ts';
 type BoundEditorDocument = { readonly extension: Extension };
 import { editorCommands } from './extensions.ts';
 import { editorTheme } from './editor-theme.ts';
+import { gatedMarkdown } from './grammar-gate.ts';
 import { noteMarkdownExtensions } from './language.ts';
 import { livePreview } from './live-preview.ts';
 import {
@@ -143,12 +145,18 @@ const spellCheckCompartment = new Compartment();
  * the language and its code colors, the decoration layer, and the block
  * widget layer inside its compartment. Other composition (keymaps, search,
  * completion, paste) is added next to this call, never inside it.
+ *
+ * The language reads only a note within the limits of the one grammar
+ * (`./grammar-gate.ts`, record 0186). `within` is the answer for the first
+ * document, and every later layer reads the syntax tree, so a note over a
+ * limit shows as plain text.
  */
 export function livePreviewExtensions(
   resolvers: RichWidgetResolvers,
+  within = true,
 ): Extension {
   return [
-    noteMarkdownExtensions(),
+    gatedMarkdown(noteMarkdownExtensions(), within),
     livePreview(),
     richCompartment.of(richWidgets(resolvers)),
     tableGridView(),
@@ -214,7 +222,7 @@ export function createEditor(
       // A bound editor takes its undo from Yjs, so the two histories never
       // both answer the same key.
       ...(bound === undefined ? [history()] : [bound.extension]),
-      livePreviewExtensions(options.rich ?? {}),
+      livePreviewExtensions(options.rich ?? {}, withinParseLimits(initialText)),
       placeholder(emptyNoteHint),
       themeCompartment.of(editorTheme(options.theme ?? 'dark')),
       saveKeymap,

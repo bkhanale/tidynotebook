@@ -62,7 +62,8 @@ const sentences: Readonly<Record<string, string>> = {
   stale_head: 'This note changed. The device reads it again and retries.',
   unauthenticated: 'The session ended. Sign in again.',
   unauthorized: 'The session ended. Sign in again.',
-  unrenderable_note: 'This note could not be rendered.',
+  unrenderable_note:
+    'This note has too much Markdown to show formatted. Divide a long paragraph or table, or make the note smaller.',
   unsupported_media_type: 'That file kind is not accepted.',
 };
 

@@ -969,7 +969,9 @@ await test('the room of an import counts the notes as their links convert', asyn
   // note in the archive, before its wiki links grew into standard links. The
   // check let the import start, the first batch went in, and the store
   // refused a later one, so half of the vault came in.
-  const unit = '[[a b c d]] ';
+  // Each link is a paragraph of its own, so no block holds more marks than
+  // the grammar reads (record 0186).
+  const unit = '[[a b c d]]\n\n';
   const links = 30_000;
   const small: [string, string][] = Array.from(
     { length: maxFilesPerChangeset },
@@ -981,7 +983,7 @@ await test('the room of an import counts the notes as their links convert', asyn
     ['Vault/Home.md', unit.repeat(links)],
   ]);
   const archived = unit.length * links;
-  const converted = '[a b c d](a%20b%20c%20d.md) '.length * links;
+  const converted = '[a b c d](a%20b%20c%20d.md)\n\n'.length * links;
   assert.ok(converted > archived * 2);
   const notes = small.length + 2;
   const target = await createWorkspace({

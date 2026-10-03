@@ -84,6 +84,14 @@ await test('a refused note of an import names the note and its own cause', () =>
       'note_too_deep',
       'The note "trip/Day 1" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.',
     ],
+    [
+      'note_too_many_marks',
+      'A paragraph of the note "trip/Day 1" in the zip file has too many formatting marks. Divide the paragraph, then import again.',
+    ],
+    [
+      'note_too_many_cells',
+      'The tables of the note "trip/Day 1" in the zip file have too many cells. Move some rows to another note, then import again.',
+    ],
   ] as const;
   for (const [code, detail] of cases) {
     const classified = classifyError(
@@ -100,6 +108,14 @@ await test('a raw Markdown limit error never becomes a 500', () => {
   const cases = [
     ['input-size', 'This note is too large to render.'],
     ['nesting-depth', 'This note nests too deeply to render.'],
+    [
+      'block-marks',
+      'A paragraph of this note has too many formatting marks to render. Divide the paragraph.',
+    ],
+    [
+      'table-cells',
+      'The tables of this note have too many cells to render. Move some rows to another note.',
+    ],
   ] as const;
   for (const [reason, detail] of cases) {
     const classified = classifyError(new MarkdownLimitError(reason, 100, 101));

@@ -225,10 +225,14 @@ await test('deep HTML is refused with the nesting error, as the renderer refuses
       `${'<table><tr><td>'.repeat(levels)}x\n`,
       `a ${'<span>'.repeat(levels)}x\n`,
     ]) {
+      // Inline tags are marks of their paragraph too, so past the mark limit
+      // that limit refuses them first, in every reader alike.
+      const reason =
+        source.startsWith('a ') && levels > markdownLimits.maxBlockMarks
+          ? 'block-marks'
+          : 'nesting-depth';
       const refused = (error: unknown): boolean =>
-        error instanceof MarkdownLimitError &&
-        error.reason === 'nesting-depth' &&
-        error.limit === depth;
+        error instanceof MarkdownLimitError && error.reason === reason;
       assert.throws(() => readableText(source), refused, String(levels));
       assert.throws(() => indexNote(source), refused, String(levels));
       await assert.rejects(renderMarkdown(source), refused, String(levels));

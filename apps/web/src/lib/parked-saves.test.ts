@@ -136,3 +136,12 @@ await test('an over the limit rename names its own cause', () => {
   assert.match(sentence, /too many notes/);
   assert.notEqual(sentence, parkedSaveReason('save_refused', 'invalid_graph'));
 });
+
+await test('a save of a note over a limit of the grammar names the cause and the action', () => {
+  // Record 0186. A note over a limit of the grammar is refused with its own
+  // problem code, and the list read the general sentence, so the person did
+  // not learn what to change.
+  const sentence = parkedSaveReason('save_refused', 'unrenderable_note');
+  assert.notEqual(sentence, parkedSaveReason('save_refused', null));
+  assert.match(sentence, /Divide a long paragraph or table/);
+});
