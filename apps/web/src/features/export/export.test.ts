@@ -59,6 +59,7 @@ await test('each refusal of an import names its cause and the next step', () => 
     'archive_invalid',
     'unsupported_media_type',
     'quota_exceeded',
+    'unrenderable_note',
   ].map((code) => importRefusalMessage({ code }));
   assert.equal(
     new Set(messages).size,
@@ -67,6 +68,23 @@ await test('each refusal of an import names its cause and the next step', () => 
   );
   for (const message of messages)
     assert.doesNotMatch(message, /[\u2013\u2014]|_/);
+});
+
+await test('a refused note of an import shows the note and the cause that the server names', () => {
+  // Review of the audit of 2026-10-02. The import answered every limit of
+  // the grammar as a note that is too large, and the screen read the
+  // general sentence, so a person did not learn which note to change.
+  const detail =
+    'The note "trip/Day 1" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.';
+  assert.equal(
+    importRefusalMessage({ code: 'unrenderable_note', detail }),
+    detail,
+  );
+  // An answer with no detail still names the cause and the next step.
+  assert.equal(
+    importRefusalMessage({ code: 'unrenderable_note' }),
+    'A note in the zip file cannot be read as Markdown. Change the note, then import again.',
+  );
 });
 
 await test('an unknown refusal of an import gets the general sentence', () => {

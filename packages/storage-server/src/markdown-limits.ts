@@ -15,8 +15,14 @@
 import type { DomainErrorCode } from '@notesapp/core';
 import { MarkdownLimitError } from '@notesapp/markdown';
 
+/** The domain codes of a note that the Markdown package refuses. */
+export type MarkdownRefusalCode = Extract<
+  DomainErrorCode,
+  'note_too_large' | 'note_too_deep'
+>;
+
 /** The domain code of a refused note, or null for any other value. */
-export function markdownLimitCode(value: unknown): DomainErrorCode | null {
+export function markdownLimitCode(value: unknown): MarkdownRefusalCode | null {
   if (!(value instanceof MarkdownLimitError)) return null;
   return value.reason === 'input-size' ? 'note_too_large' : 'note_too_deep';
 }

@@ -39,7 +39,10 @@ export {
   type WorkspaceStoreOptions,
 } from './workspace-store/index.ts';
 export { readOnlyTransactionCode } from './workspace-store/publication-transaction.ts';
-export { markdownLimitCode } from './markdown-limits.ts';
+export {
+  markdownLimitCode,
+  type MarkdownRefusalCode,
+} from './markdown-limits.ts';
 export {
   openAttachmentStore,
   type AttachmentBytes,

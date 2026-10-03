@@ -62,12 +62,9 @@ import {
   type ChangesetInput,
   type WorkspaceStore,
 } from '@notesapp/core';
+import { markdownLimits, parseMarkdown } from '@notesapp/markdown';
 import {
-  MarkdownLimitError,
-  markdownLimits,
-  parseMarkdown,
-} from '@notesapp/markdown';
-import {
+  markdownLimitCode,
   writeChargeBytes,
   type AttachmentStore,
 } from '@notesapp/storage-server';
@@ -79,6 +76,7 @@ import {
   DomainProblemError,
   ForbiddenError,
   ImportIncompleteError,
+  ImportNoteRefusedError,
   InvalidContentError,
   PayloadTooLargeError,
   RequestContractError,
@@ -637,8 +635,11 @@ async function checkArchive(
     try {
       parseMarkdown(text);
     } catch (error) {
-      if (error instanceof MarkdownLimitError)
-        throw new DomainProblemError({ code: 'note_too_large', fileIds: [] });
+      // Each limit of the grammar has its own code, so the person reads the
+      // real cause of the refusal and the note that has it.
+      const refused = markdownLimitCode(error);
+      if (refused !== null)
+        throw new ImportNoteRefusedError(refused, note.path);
       throw error;
     }
     notes.push({ ...note, bytes: utf8Bytes(text) });

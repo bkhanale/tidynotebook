@@ -87,13 +87,19 @@ const importRefusals: Readonly<Record<string, string>> = {
     'The server has no room for this zip file now. Try again later, or ask the administrator for more room.',
   quota_exceeded:
     'Your account has no room for these files. Delete some notes or images, then import again.',
+  unrenderable_note:
+    'A note in the zip file cannot be read as Markdown. Change the note, then import again.',
 };
 
 /** The message of a refused import. */
 export function importRefusalMessage(error: unknown): string {
   const code = problemCode(error);
-  // The server states how many files came in, which only it knows.
-  if (code === 'import_incomplete' && problemDetail(error) !== '')
+  // The server states how many files came in, or which note it refused and
+  // why, which only it knows.
+  if (
+    (code === 'import_incomplete' || code === 'unrenderable_note') &&
+    problemDetail(error) !== ''
+  )
     return problemDetail(error);
   return (
     archiveJobMessage(code) ??

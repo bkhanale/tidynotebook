@@ -10,6 +10,7 @@ import type { DomainError, DomainErrorCode, Result } from '@notesapp/core';
 import {
   markdownLimitCode,
   WorkspaceUnavailableError,
+  type MarkdownRefusalCode,
 } from '@notesapp/storage-server';
 import { readProperty } from '../values.ts';
 
@@ -363,6 +364,40 @@ export class ImportIncompleteError extends Error {
   constructor(detail: string) {
     super(detail);
     this.name = 'ImportIncompleteError';
+  }
+}
+
+/**
+ * What a person reads when the grammar refuses one note of an import.
+ *
+ * The import checks every note before its first commit, so no file has an
+ * identifier yet. The sentence names the note by its place in the zip file,
+ * without the `.md` suffix, so the person can find it, and states what to
+ * change in it.
+ */
+const importNoteRefusals: Readonly<
+  Record<MarkdownRefusalCode, (name: string) => string>
+> = {
+  note_too_large: (name) =>
+    `The note "${name}" in the zip file is too large to show. Make the note smaller, then import again.`,
+  note_too_deep: (name) =>
+    `The note "${name}" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.`,
+};
+
+/**
+ * A note of an import that the Markdown package refuses.
+ *
+ * It answers with the problem code of every refused note, and its detail
+ * names the note and the cause, from `importNoteRefusals`.
+ */
+export class ImportNoteRefusedError extends Error {
+  readonly refusal: MarkdownRefusalCode;
+
+  constructor(refusal: MarkdownRefusalCode, path: string) {
+    const name = path.endsWith('.md') ? path.slice(0, -'.md'.length) : path;
+    super(importNoteRefusals[refusal](name));
+    this.name = 'ImportNoteRefusedError';
+    this.refusal = refusal;
   }
 }
 
@@ -840,6 +875,13 @@ export function classifyError(error: unknown): {
     return {
       status: 503,
       code: 'import_incomplete',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof ImportNoteRefusedError)
+    return {
+      status: domainStatus[error.refusal].status,
+      code: domainStatus[error.refusal].code,
       detail: error.message,
       issues: [],
     };

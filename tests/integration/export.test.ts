@@ -1466,6 +1466,12 @@ await test('a note that a late batch refuses stops the import before any commit'
   });
   assert.equal(responseOf(refused.response).status, 422);
   assert.equal(readProperty(refused.error, 'code'), 'unrenderable_note');
+  // The note nests too deeply, and the answer says so and names the note.
+  // It read as a note that is too large, with no name.
+  assert.equal(
+    readProperty(refused.error, 'detail'),
+    'The note "many/deep" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.',
+  );
   const exported = readArchive(
     await archiveBytes(
       (

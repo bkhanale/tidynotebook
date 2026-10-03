@@ -5,6 +5,7 @@ import {
   classifyError,
   createProblem,
   DomainProblemError,
+  ImportNoteRefusedError,
   PublishedLinkUnavailableError,
   RequestContractError,
   RequestMediaTypeError,
@@ -68,6 +69,30 @@ await test('a note above the Markdown limits becomes a 422 for the author', () =
     assert.equal(classified.code, 'unrenderable_note');
     assert.equal(classified.detail, detail);
     assert.deepEqual(classified.fileIds, ['file-1']);
+  }
+});
+
+await test('a refused note of an import names the note and its own cause', () => {
+  // Review of the audit of 2026-10-02. The import mapped every limit of the
+  // grammar to a note that is too large, so a deep note read as a large one.
+  const cases = [
+    [
+      'note_too_large',
+      'The note "trip/Day 1" in the zip file is too large to show. Make the note smaller, then import again.',
+    ],
+    [
+      'note_too_deep',
+      'The note "trip/Day 1" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.',
+    ],
+  ] as const;
+  for (const [code, detail] of cases) {
+    const classified = classifyError(
+      new ImportNoteRefusedError(code, 'trip/Day 1.md'),
+    );
+    assert.equal(classified.status, 422);
+    assert.equal(classified.code, 'unrenderable_note');
+    assert.equal(classified.detail, detail);
+    assert.doesNotMatch(classified.detail, /\.md|[\u2013\u2014]/);
   }
 });
 
