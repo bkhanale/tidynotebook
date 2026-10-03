@@ -1506,6 +1506,33 @@ await test('a note that nests too deeply is refused with a message', async () =>
   assert.equal(accepted.error, undefined, JSON.stringify(accepted.error));
 });
 
+await test('a note whose HTML nests too deeply is refused with a message', async () => {
+  // Review of the audit of 2026-10-02. The renderer refused HTML deeper than
+  // the limit and the search index of a commit read it: 500 levels saved a
+  // note that no page could show, and 5000 levels left the boundary as a 500
+  // with a RangeError. Both are now the typed refusal of every deep note.
+  for (const levels of [500, 5000]) {
+    const fileId = randomUUID();
+    const refused = await createFile({
+      headers: browser(cookie),
+      path: { workspaceId },
+      body: {
+        fileId,
+        path: `notes/deep-html-${String(levels)}.md`,
+        document: firstSave(`${'<div>'.repeat(levels)}x\n`),
+        ...ids(),
+      },
+    });
+    assert.equal(responseOf(refused.response).status, 422, String(levels));
+    assert.equal(problemCode(refused.error), 'unrenderable_note');
+    assert.equal(
+      problemDetail(refused.error),
+      'This note nests too deeply to render.',
+    );
+    assert.deepEqual(problemFiles(refused.error), [fileId]);
+  }
+});
+
 await test('a full workspace still accepts a deletion', async (t) => {
   // The control reserve is 1 MiB, so a limit just above it leaves room for one
   // small note and for the operations that manage a full workspace.

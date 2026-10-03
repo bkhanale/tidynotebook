@@ -208,6 +208,40 @@ export async function limitAccountTo(
   }
 }
 
+/**
+ * Writes `text` as the stored Markdown of one accepted revision.
+ *
+ * A limit of the grammar can be newer than a note, so a store can hold a note
+ * that a commit of today refuses. No application call writes one, so the test
+ * writes it as the schema owner, through the purge setting of the immutability
+ * trigger, and inside one transaction.
+ */
+export async function storeTextOfAnEarlierRelease(
+  database: TestDatabase,
+  workspaceId: string,
+  revisionId: string,
+  text: string,
+): Promise<void> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    await session.query('begin');
+    await session.query("select set_config('notesapp.purge', 'on', true)");
+    const rows = await session.query(
+      `update contents c set markdown = $3
+         from revisions r
+        where r.workspace_id = $1 and r.id = $2
+          and c.workspace_id = r.workspace_id and c.digest = r.content_digest
+        returning c.digest`,
+      [workspaceId, revisionId, text],
+    );
+    if (rows.length !== 1)
+      throw new Error('notesapp: no stored content for that revision.');
+    await session.query('commit');
+  } finally {
+    await session.close();
+  }
+}
+
 /** The SHA-256 digest of UTF-8 Markdown, as the design defines it. */
 export function markdownDigest(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');

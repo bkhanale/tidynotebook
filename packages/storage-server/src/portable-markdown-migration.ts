@@ -6,7 +6,12 @@ import {
   type DocumentService,
   verifyActor,
 } from '@notesapp/core';
-import { migrateLegacyReferences } from '@notesapp/markdown';
+import {
+  MarkdownLimitError,
+  migrateLegacyReferences,
+  type LegacyReferenceMap,
+  type PortableMigration,
+} from '@notesapp/markdown';
 import pg from 'pg';
 import { openWorkspaceStore } from './workspace-store/index.ts';
 
@@ -30,6 +35,28 @@ type AttachmentRevisionRow = {
   readonly revision_id: string;
   readonly path: string;
 };
+
+/**
+ * The portable form of one note, or `null` when the grammar refuses it.
+ *
+ * This run reads every live note at each start, before the server serves. A
+ * note that a release before a limit of the grammar accepted can be over that
+ * limit now. The grammar cannot read its references, so the note keeps its
+ * text as it is, and the run goes on to the next note. One such note never
+ * stops the server from starting.
+ */
+function portableNote(
+  markdown: string,
+  path: string,
+  references: LegacyReferenceMap,
+): PortableMigration | null {
+  try {
+    return migrateLegacyReferences(markdown, path, references);
+  } catch (error) {
+    if (error instanceof MarkdownLimitError) return null;
+    throw error;
+  }
+}
 
 /** Rewrites every live legacy reference and records each unresolved target. */
 export async function migratePortableMarkdown(
@@ -86,10 +113,11 @@ export async function migratePortableMarkdown(
         throw new Error('notesapp: the migration owner is not valid.');
       for (const row of rows) {
         if (row.kind !== 'note' || row.markdown === null) continue;
-        const migrated = migrateLegacyReferences(row.markdown, row.path, {
+        const migrated = portableNote(row.markdown, row.path, {
           notes,
           attachments,
         });
+        if (migrated === null) continue;
         for (const reference of migrated.deadReferences) {
           await client.query(
             `insert into portable_markdown_migration_report

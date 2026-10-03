@@ -10,7 +10,11 @@ import {
   ok,
   type Result,
 } from '@notesapp/core';
-import { rewriteRelativeReferences } from '@notesapp/markdown';
+import {
+  MarkdownLimitError,
+  rewriteRelativeReferences,
+  type ReferenceRewrite,
+} from '@notesapp/markdown';
 import { noteTitle, searchableNote, searchTextRule } from '../search-text.ts';
 import {
   contents,
@@ -29,6 +33,30 @@ function tips(input: AcceptedInput): ReadonlyMap<string, StoredRevisionInput> {
   const result = new Map<string, StoredRevisionInput>();
   for (const revision of input.revisions) result.set(revision.fileId, revision);
   return result;
+}
+
+/**
+ * The rewrite of a stored note that links to a moved path, or `null` when the
+ * grammar refuses the note.
+ *
+ * A release before a limit of the grammar can have accepted the note, so it
+ * can be over that limit now. The person did not send it in this changeset,
+ * so it must not refuse the move of another note. The grammar cannot read its
+ * links, so it keeps its text as it is. A note that the changeset sends is
+ * read by `rewriteRelativeReferences` alone, so its refusal refuses the
+ * changeset with the typed limit failure.
+ */
+function storedRewrite(
+  text: string,
+  path: string,
+  movedPaths: ReadonlyMap<string, string>,
+): ReferenceRewrite | null {
+  try {
+    return rewriteRelativeReferences(text, path, movedPaths);
+  } catch (error) {
+    if (error instanceof MarkdownLimitError) return null;
+    throw error;
+  }
 }
 
 /** Replaces search and link rows for every accepted head in one write. */
@@ -239,12 +267,8 @@ export async function expandMovedReferences(
       source.text === null
     )
       continue;
-    const changed = rewriteRelativeReferences(
-      source.text,
-      source.path,
-      movedPaths,
-    );
-    if (changed.count === 0) continue;
+    const changed = storedRewrite(source.text, source.path, movedPaths);
+    if (changed === null || changed.count === 0) continue;
     const stored = await readDocument(db, workspaceId, source.fileId);
     if (stored === null) continue;
     const edited = service.replaceText(stored.bytes, changed.text);

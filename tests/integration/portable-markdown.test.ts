@@ -17,6 +17,7 @@ import {
   openSession,
   revision,
   seedWorkspace,
+  storeTextOfAnEarlierRelease,
 } from './support/database.ts';
 
 const database = await createDisposableDatabase();
@@ -222,6 +223,108 @@ await test('the data migration starts the document of every note that has none',
   } finally {
     await session.close();
   }
+});
+
+/** A link to `a.md` above HTML that nests deeper than the grammar reads. */
+const refusedNote = `[A](a.md)\n\n${'<div>'.repeat(5000)}x\n`;
+
+await test('a move keeps a stored note that the grammar refuses and moves the rest', async () => {
+  // Review of the audit of 2026-10-02. A limit of the grammar can be newer
+  // than a stored note. The rewrite of an inbound link read that note and
+  // threw the limit failure, so the move of another note was refused.
+  const workspaceId = randomUUID();
+  const accountId = randomUUID();
+  await seedWorkspace(database, workspaceId, [{ accountId, role: 'owner' }]);
+  const actor = memberActor(accountId, workspaceId);
+  const target = revision({ fileId: randomUUID(), path: 'a.md' });
+  const plain = revision({
+    fileId: randomUUID(),
+    path: 'plain.md',
+    text: '[A](a.md)\n',
+  });
+  const refused = revision({
+    fileId: randomUUID(),
+    path: 'refused.md',
+    text: '[A](a.md)\n\nOld text.\n',
+  });
+  const seeded = await commitChangeset(
+    store,
+    actor,
+    changeset(workspaceId, [target, plain, refused]),
+    'refused-seed',
+  );
+  assert.equal(seeded.ok, true, JSON.stringify(seeded));
+  await storeTextOfAnEarlierRelease(
+    database,
+    workspaceId,
+    refused.id,
+    refusedNote,
+  );
+
+  const moved = revision({
+    fileId: target.fileId,
+    parents: [target.id],
+    path: 'archive/a.md',
+  });
+  const accepted = await commitChangeset(
+    store,
+    actor,
+    changeset(workspaceId, [moved], {
+      expectedHeads: { [target.fileId]: target.id },
+    }),
+    'refused-move',
+  );
+  assert.equal(accepted.ok, true, JSON.stringify(accepted));
+  if (accepted.ok) assert.equal(accepted.value.revisionIds.length, 2);
+  const linked = await readFile(store, actor, workspaceId, plain.fileId);
+  assert.equal(linked.ok, true);
+  if (linked.ok) assert.equal(linked.value.head?.text, '[A](archive/a.md)\n');
+  const kept = await readFile(store, actor, workspaceId, refused.fileId);
+  assert.equal(kept.ok, true);
+  if (kept.ok) assert.equal(kept.value.head?.revisionId, refused.id);
+});
+
+await test('the data migration goes on past a note that the grammar refuses', async () => {
+  // The migration of portable links reads every live note at each start,
+  // before the server serves, so one refused note stopped the start.
+  const workspaceId = randomUUID();
+  const accountId = randomUUID();
+  await seedWorkspace(database, workspaceId, [{ accountId, role: 'owner' }]);
+  const actor = memberActor(accountId, workspaceId);
+  const target = revision({ fileId: randomUUID(), path: 'plan.md' });
+  // The run reads the notes by path, so the refused note comes first.
+  const refused = revision({
+    fileId: randomUUID(),
+    path: 'a-refused.md',
+    // Its own text, so it has a content row of its own.
+    text: `[plan](/notes/${target.fileId}) and more\n`,
+  });
+  const legacy = revision({
+    fileId: randomUUID(),
+    path: 'b-legacy.md',
+    text: `[plan](/notes/${target.fileId})\n`,
+  });
+  const seeded = await commitChangeset(
+    store,
+    actor,
+    changeset(workspaceId, [target, refused, legacy]),
+    'refused-legacy-seed',
+  );
+  assert.equal(seeded.ok, true, JSON.stringify(seeded));
+  await storeTextOfAnEarlierRelease(
+    database,
+    workspaceId,
+    refused.id,
+    `[plan](/notes/${target.fileId})\n\n${'<div>'.repeat(5000)}x\n`,
+  );
+
+  await migratePortableMarkdown(database.migrationUrl, createDocumentService());
+  const migrated = await readFile(store, actor, workspaceId, legacy.fileId);
+  assert.equal(migrated.ok, true);
+  if (migrated.ok) assert.equal(migrated.value.head?.text, '[plan](plan.md)\n');
+  const kept = await readFile(store, actor, workspaceId, refused.fileId);
+  assert.equal(kept.ok, true);
+  if (kept.ok) assert.equal(kept.value.head?.revisionId, refused.id);
 });
 
 await store.close();
