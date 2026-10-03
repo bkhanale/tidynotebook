@@ -111,7 +111,10 @@ await test('each run adds one commit on the branch and leaves the worktree alone
       { cwd: work, repository: 'o/r' },
     );
     const tipOne = git(remote, ['rev-parse', screenshotBranch]);
-    assert.match(first, new RegExp(`/o/r/blob/${tipOne}/first/find-light\\.png\\?raw=true`));
+    assert.match(
+      first,
+      new RegExp(`/o/r/blob/${tipOne}/first/find-light\\.png\\?raw=true`),
+    );
     assert.equal(git(remote, ['log', '--format=%P', '-1', tipOne]), '');
 
     publishScreenshots('second', [join(shots, 'find-dark.png')], {
@@ -124,7 +127,10 @@ await test('each run adds one commit on the branch and leaves the worktree alone
       git(remote, ['ls-tree', '-r', '--name-only', tipTwo]).split('\n'),
       ['first/find-dark.png', 'first/find-light.png', 'second/find-dark.png'],
     );
-    assert.equal(git(remote, ['show', `${tipTwo}:first/find-light.png`]), 'light');
+    assert.equal(
+      git(remote, ['show', `${tipTwo}:first/find-light.png`]),
+      'light',
+    );
 
     assert.throws(
       () =>

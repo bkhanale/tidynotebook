@@ -119,7 +119,8 @@ export function screenshotTable(repository, commit, name, files) {
     if (row.light === undefined && row.dark === undefined) continue;
     const light =
       row.light === undefined ? '' : image(row.light, `${title}, light`);
-    const dark = row.dark === undefined ? '' : image(row.dark, `${title}, dark`);
+    const dark =
+      row.dark === undefined ? '' : image(row.dark, `${title}, dark`);
     lines.push(`| ${title} | ${light} | ${dark} |`);
   }
   return lines.join('\n') + '\n';
@@ -193,7 +194,12 @@ export function publishScreenshots(name, files, options = {}) {
       '-m',
       `chore: screenshots of ${name}`,
     ]);
-    git(cwd, ['push', '--quiet', 'origin', `${commit}:refs/heads/${screenshotBranch}`]);
+    git(cwd, [
+      'push',
+      '--quiet',
+      'origin',
+      `${commit}:refs/heads/${screenshotBranch}`,
+    ]);
     return screenshotTable(
       repository,
       commit,
