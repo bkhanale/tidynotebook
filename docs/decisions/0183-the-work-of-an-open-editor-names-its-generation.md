@@ -23,10 +23,12 @@ feed page that named it failed, so the sync of the workspace stopped.
   generation never enters another (record 0084). The editor takes its
   generation from the read that the loader opened it from. A note that the
   device starts is generation 1.
-- The appends of an editor run one at a time, in order. After a failed append
-  no later append runs. The work waits in the editor, and the next version
-  writes the whole document first. The draft states no vector meanwhile, so
-  its text is the recovery copy.
+- After a failed append the editor appends nothing more. The work waits in
+  the editor, and the next version writes the whole document first. The draft
+  states no vector meanwhile, so its text is the recovery copy. Each append
+  still starts at once, so a key is on the disk one frame after it reaches
+  the editor, and one that started before the failure was known is left out
+  by the fold until the whole document arrives.
 - The editor knows the changes that the store took. A read of the stored
   document that lacks one of them, or that holds a new generation under keys
   of the editor, marks the work as not written, with the same result.
@@ -43,6 +45,6 @@ another generation and a fold that refuses the whole row for one update.
 - No pending update makes a note unreadable or stops the sync.
 - A new generation under typed keys saves nothing until the next open of the
   note, which takes the text of the draft.
-- `note-work.test.ts` holds the order and the repair of the appends,
+- `note-work.test.ts` holds the stop and the repair of the appends,
   `head-replaced.test.ts` the generation of the editor, and
   `tests/integration/browser-storage.test.ts` the refusals and the fold.

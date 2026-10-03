@@ -7,11 +7,12 @@
  * of the document. A hidden tab and the end of the screen append at once,
  * because a hidden tab runs no frame.
  *
- * The appends run one at a time, in order, because each one builds on the
- * one before it. After a failed append no later append runs: the work waits
- * in the editor, and the next version writes the whole document first, which
+ * After a failed append the editor appends nothing more: the work waits in
+ * the editor, and the next version writes the whole document first, which
  * holds every change. A read of the stored document that lacks a change the
  * store took, as after a snapshot that replaced the row, has the same result.
+ * An append that started before the failure was known can build on the work
+ * that failed, and the store leaves it out until the whole document arrives.
  *
  * The draft is recovery data and follows after a pause. It states the state
  * vector of the document only after the store took every change that the
@@ -95,59 +96,50 @@ export type NoteWork = {
 
 /** Builds the writes of one open editor. */
 export function createNoteWork(ports: NoteWorkPorts): NoteWork {
-  // Every write of the work runs in this one chain, in order, so an append
-  // never runs before the one that it builds on.
-  let writes: Promise<void> = Promise.resolve();
-  let lost = false;
+  let appends: Promise<void> = Promise.resolve();
+  // Each loss of work counts once, and a whole write repairs every loss
+  // that it saw begin. A loss that begins while that write runs stays.
+  let losses = 0;
+  let repaired = 0;
+  const isLost = (): boolean => losses > repaired;
   let taken: Uint8Array | null = null;
   let cancelFrame: (() => void) | null = null;
   let versioned: number | null = null;
-
-  /** Runs `write` after every write before it. Settles with it. */
-  const inOrder = <T>(write: () => Promise<T>): Promise<T> => {
-    const run = writes.then(write);
-    writes = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  };
 
   /** Takes the work that waits and appends it. Settles with every append. */
   const flush = (): Promise<void> => {
     cancelFrame?.();
     cancelFrame = null;
+    // After a loss the work waits in the editor, because it can build on
+    // the work that the store lacks. The whole document of the next version
+    // holds it, and the next take after that writes it again, which changes
+    // nothing that the store already holds.
+    if (isLost()) return appends;
     const work = ports.takeWork();
-    if (work === null) return writes;
+    if (work === null) return appends;
     // The vector names this work and every change before it.
     const vector = ports.stateVector();
-    return inOrder(async (): Promise<void> => {
-      // The work builds on the work that failed, so the store cannot take
-      // it alone. The whole document of the next version holds it.
-      if (lost) return;
-      try {
-        await ports.started();
-        await ports.append(work);
-        if (vector !== null) taken = vector;
-      } catch {
-        // A version would freeze a document without this work. The next
-        // version writes the whole document first, which merges in every
-        // missing change.
-        lost = true;
-      }
-    });
+    const lossesBefore = losses;
+    // The append starts at once, so the key is on the disk one frame after
+    // it reached the editor (record 0175). The store runs the appends in
+    // the order they start.
+    const written = ports
+      .started()
+      .then(() => ports.append(work))
+      .then(
+        () => {
+          if (vector !== null && losses === lossesBefore) taken = vector;
+        },
+        () => {
+          // A version would freeze a document without this work. The next
+          // version writes the whole document first, which merges in every
+          // missing change.
+          losses += 1;
+        },
+      );
+    appends = Promise.all([appends, written]).then(() => undefined);
+    return appends;
   };
-
-  /** Writes the whole document after lost work. Throws a store failure. */
-  const repair = (): Promise<void> =>
-    inOrder(async (): Promise<void> => {
-      if (!lost) return;
-      await ports.started();
-      const vector = ports.stateVector();
-      await ports.merge(ports.wholeWork());
-      lost = false;
-      if (vector !== null) taken = vector;
-    });
 
   return {
     changed: () => {
@@ -166,7 +158,9 @@ export function createNoteWork(ports: NoteWorkPorts): NoteWork {
       const vector = ports.stateVector();
       await settled;
       const stated =
-        lost || vector === null ? draft : { ...draft, documentVector: vector };
+        isLost() || vector === null
+          ? draft
+          : { ...draft, documentVector: vector };
       await ports.saveDraft(stated);
       return stated;
     },
@@ -174,14 +168,25 @@ export function createNoteWork(ports: NoteWorkPorts): NoteWork {
       const settled = flush();
       let claimed = ports.sequence();
       const vector = ports.stateVector();
+      // The whole document of a known loss is read now, while the document
+      // is open: the end of the screen releases it before the write runs.
+      const known = isLost()
+        ? { whole: ports.wholeWork(), losses, sequence: ports.sequence() }
+        : null;
       await settled;
       await ports.started();
-      if (lost) {
-        // The whole document holds every change of the view, so this
-        // version claims every change up to now.
-        claimed = ports.sequence();
+      if (isLost()) {
         try {
-          await repair();
+          const repair = known ?? {
+            whole: ports.wholeWork(),
+            losses,
+            sequence: ports.sequence(),
+          };
+          await ports.merge(repair.whole);
+          repaired = Math.max(repaired, repair.losses);
+          // The whole document holds every change up to its read, so this
+          // version claims them.
+          claimed = repair.sequence;
         } catch (failure: unknown) {
           ports.draftOwed();
           return { kind: 'failed', failure };
@@ -191,7 +196,7 @@ export function createNoteWork(ports: NoteWorkPorts): NoteWork {
       // not in the stored document, so the draft states no vector for it.
       const draft = ports.draft(false);
       const stated =
-        ports.sequence() === claimed && vector !== null && !lost
+        ports.sequence() === claimed && vector !== null && !isLost()
           ? { ...draft, documentVector: vector }
           : draft;
       try {
@@ -206,13 +211,13 @@ export function createNoteWork(ports: NoteWorkPorts): NoteWork {
       }
     },
     versionedSequence: () => versioned,
-    lost: () => lost,
+    lost: isLost,
     takenMark: () => taken,
     readStored: (stored, mark) => {
-      if (mark !== null && !ports.holds(stored, mark)) lost = true;
+      if (mark !== null && !ports.holds(stored, mark)) losses += 1;
     },
     storeLacksWork: () => {
-      lost = true;
+      losses += 1;
     },
     stop: () => {
       cancelFrame?.();

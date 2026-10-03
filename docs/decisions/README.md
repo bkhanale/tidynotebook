@@ -749,9 +749,9 @@ Reload. It refines records 0044 and 0161.
 
 Record 0183 makes each write of open editor work name the generation of its
 document, so the store refuses work of another generation. The appends of an
-editor run in order and stop after a failure until the whole document is
-written, and a fold leaves out an update that cannot apply instead of making
-the note unreadable. It refines records 0175 and 0179.
+editor stop after a failure until the whole document is written, and a fold
+leaves out an update that cannot apply instead of making the note unreadable.
+It refines records 0175 and 0179.
 
 Records 0171 to 0174 follow
 [design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens

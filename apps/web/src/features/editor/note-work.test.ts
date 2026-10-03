@@ -80,7 +80,9 @@ class Editor {
       this.appended.push(keys);
       if (this.appendGate !== null) await this.appendGate;
       if (this.appendFails) throw new Error('quota');
-      this.stored.push(...keys);
+      // Work that the store holds already changes nothing, as in Yjs.
+      for (const key of keys)
+        if (!this.stored.includes(key)) this.stored.push(key);
     },
     merge: async (work) => {
       if (this.mergeGate !== null) await this.mergeGate;
@@ -238,46 +240,39 @@ await test('only the editor that wrote a document change skips it', () => {
   assert.equal(readAfterChange({ ...change, kind: 'file' }, 'copy-1'), 'join');
 });
 
-await test('no append runs after an append that failed', async () => {
-  // Record 0183. The appends ran side by side, so the append of the next
-  // frame wrote work that built on the one that failed. The store could not
-  // apply it, and every read of the note failed.
+await test('no append runs once an append failed', async () => {
+  // Record 0183. Every frame appended its work after an append had failed,
+  // and that work built on the work that the store lacked. The store could
+  // not apply it, and every read of the note failed.
   const editor = new Editor();
-  const gate = deferred();
-  editor.appendGate = gate.promise;
+  editor.appendFails = true;
   editor.type('a');
   editor.runFrames();
+  await settle();
+  assert.equal(editor.work.lost(), true);
+  editor.appendFails = false;
+  // The keys of later frames wait in the editor.
   editor.type('b');
   editor.runFrames();
-  await settle();
-  // The second append waits for the first.
-  assert.deepEqual(editor.appended, [['a']]);
-  editor.appendFails = true;
-  gate.resolve();
-  editor.appendGate = null;
   await editor.work.flush();
   assert.deepEqual(editor.appended, [['a']]);
   assert.deepEqual(editor.stored, []);
-  assert.equal(editor.work.lost(), true);
-  // The keys of later frames wait in the editor too.
-  editor.type('c');
-  await editor.work.flush();
-  assert.deepEqual(editor.appended, [['a']]);
   // The draft keeps the text and states no vector.
   const draft = await editor.work.writeDraft(false);
-  assert.equal(draft.text, 'abc');
+  assert.equal(draft.text, 'ab');
   assert.equal(draft.documentVector, undefined);
   // The version writes the whole document, so no key is lost.
-  editor.appendFails = false;
   await editor.work.version();
-  assert.deepEqual(editor.versions, ['abc']);
+  assert.deepEqual(editor.versions, ['ab']);
   assert.equal(editor.work.lost(), false);
-  editor.type('d');
+  // The work that waited goes with the next take, and appends go on.
+  editor.type('c');
   await editor.work.flush();
-  assert.deepEqual(editor.stored, ['a', 'b', 'c', 'd']);
+  assert.deepEqual(editor.appended.at(-1), ['b', 'c']);
+  assert.deepEqual(editor.stored, ['a', 'b', 'c']);
 });
 
-await test('a key typed while the whole document is written is appended after it', async () => {
+await test('a key typed while the whole document is written goes after it', async () => {
   const editor = new Editor();
   editor.appendFails = true;
   editor.type('a');
@@ -288,12 +283,32 @@ await test('a key typed while the whole document is written is appended after it
   const version = editor.work.version();
   await settle();
   editor.type('b');
-  const flushed = editor.work.flush();
+  await editor.work.flush();
   gate.resolve();
   editor.mergeGate = null;
   await version;
-  await flushed;
+  assert.deepEqual(editor.stored, ['a']);
+  await editor.work.flush();
   assert.deepEqual(editor.stored, ['a', 'b']);
+});
+
+await test('a loss that begins while the whole document is written stays', async () => {
+  // The write read the whole document before the loss, so it cannot repair
+  // it, and the next version writes the whole document again.
+  const editor = new Editor();
+  editor.appendFails = true;
+  editor.type('a');
+  await editor.work.flush();
+  editor.appendFails = false;
+  const gate = deferred();
+  editor.mergeGate = gate.promise;
+  const version = editor.work.version();
+  await settle();
+  editor.work.storeLacksWork();
+  gate.resolve();
+  editor.mergeGate = null;
+  await version;
+  assert.equal(editor.work.lost(), true);
 });
 
 await test('a stored document that lacks the work of the editor gets it again', async () => {
