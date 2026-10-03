@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildNoteTree, type NoteSummary } from './note-list.ts';
 import {
-  focusAfterRemoval,
+  isFieldKey,
+  placeAfterChange,
   rowKeyOf,
   treeKeyAction,
 } from './tree-navigation.ts';
@@ -110,14 +111,114 @@ await test('F2, the menu keys and Delete act on the row that has the focus', () 
   assert.deepEqual(treeKeyAction('next', at('note:gone')), { kind: 'none' });
 });
 
-await test('the focus goes to the next row after a move to Trash', () => {
+await test('the focus goes to the next row that stays when its row leaves', () => {
   // The review of the merged branch: the focus went to the page after a
-  // move to Trash from the keys.
-  const order = ['folder:Work', 'note:b', 'note:a', 'note:c'];
-  assert.equal(focusAfterRemoval(order, ['note:b', 'note:a']), 'note:c');
-  assert.equal(focusAfterRemoval(order, ['note:c']), 'note:a');
-  assert.equal(focusAfterRemoval(order, order), null);
-  assert.equal(focusAfterRemoval(order, []), null);
+  // move to Trash from the keys. The second review: it still went there after
+  // a move to Trash from the menu of a row, or a move into a closed folder.
+  const previous = ['folder:Work', 'note:b', 'note:a', 'note:c'];
+  const without = (...gone: string[]): string[] =>
+    previous.filter((key) => !gone.includes(key));
+  assert.deepEqual(
+    placeAfterChange({
+      previous,
+      current: without('note:b', 'note:a'),
+      key: 'note:b',
+      focusFell: true,
+    }),
+    { key: 'note:c', focus: true },
+  );
+  // The last row gives its place to the row before it.
+  assert.deepEqual(
+    placeAfterChange({
+      previous,
+      current: without('note:c'),
+      key: 'note:c',
+      focusFell: true,
+    }),
+    { key: 'note:a', focus: true },
+  );
+  // A folder that leaves with its open rows gives its place past them.
+  assert.deepEqual(
+    placeAfterChange({
+      previous: ['folder:Work', 'note:w1', 'note:w2', 'note:z'],
+      current: ['note:z'],
+      key: 'folder:Work',
+      focusFell: true,
+    }),
+    { key: 'note:z', focus: true },
+  );
+  assert.deepEqual(
+    placeAfterChange({ previous, current: [], key: 'note:a', focusFell: true }),
+    { key: null, focus: false },
+  );
+});
+
+await test('a row that leaves while the focus is elsewhere moves the place only', () => {
+  const previous = ['note:a', 'note:b'];
+  assert.deepEqual(
+    placeAfterChange({
+      previous,
+      current: ['note:b'],
+      key: 'note:a',
+      focusFell: false,
+    }),
+    { key: 'note:b', focus: false },
+  );
+});
+
+await test('a row that stays keeps the place, and takes back a focus that fell', () => {
+  const previous = ['note:a', 'note:b'];
+  assert.deepEqual(
+    placeAfterChange({
+      previous,
+      current: previous,
+      key: 'note:a',
+      focusFell: false,
+    }),
+    { key: 'note:a', focus: false },
+  );
+  assert.deepEqual(
+    placeAfterChange({
+      previous,
+      current: ['note:b', 'note:a'],
+      key: 'note:a',
+      focusFell: true,
+    }),
+    { key: 'note:a', focus: true },
+  );
+  assert.deepEqual(
+    placeAfterChange({
+      previous,
+      current: previous,
+      key: null,
+      focusFell: true,
+    }),
+    { key: null, focus: false },
+  );
+});
+
+await test('a place the tree did not show yet stays, such as a renamed folder', () => {
+  assert.deepEqual(
+    placeAfterChange({
+      previous: ['folder:Old', 'note:a'],
+      current: ['folder:Old', 'note:a'],
+      key: 'folder:New',
+      focusFell: false,
+    }),
+    { key: 'folder:New', focus: false },
+  );
+});
+
+await test('a key in a field of a row belongs to the field', () => {
+  // The second review: a refused rename stopped every key of the tree.
+  const inField = {
+    closest: (selector: string) =>
+      selector.split(', ').includes('input') ? {} : null,
+  };
+  const onRow = { closest: () => null };
+  assert.equal(isFieldKey(inField), true);
+  assert.equal(isFieldKey(onRow), false);
+  assert.equal(isFieldKey(null), false);
 });
 
 await test('the row of an element is read from the element', () => {

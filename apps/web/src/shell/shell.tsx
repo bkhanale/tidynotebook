@@ -166,6 +166,7 @@ import { useTreeDrag } from './tree-drag.ts';
 import { NoteTree, rowSpacerClassName } from './tree.tsx';
 import {
   treeListClassName,
+  treeMessageClassName,
   treeRowClassName,
   treeRowLeadingClassName,
   treeRowNameClassName,
@@ -385,7 +386,10 @@ function Sidebar({
   /** Opens the Publish dialog of the frame for one note or one folder. */
   readonly onPublish: (scope: PublicationScope) => void;
   /** Opens the Move to folder dialog of the frame for some rows. */
-  readonly onMove: (items: readonly DragItem[]) => void;
+  readonly onMove: (
+    items: readonly DragItem[],
+    returnFocus: () => void,
+  ) => void;
   readonly onNewNoteIn: (folder: string) => void;
   readonly onNewWorkspace: () => void;
   readonly onRenameWorkspace: () => void;
@@ -649,7 +653,7 @@ function Sidebar({
                 )}
               </section>
               {drag.problem === null ? null : (
-                <p className="mx-2 my-2 text-control text-danger" role="alert">
+                <p className={treeMessageClassName('problem')} role="alert">
                   {drag.problem}
                 </p>
               )}
@@ -959,9 +963,12 @@ function ShellFrame({
   const [publishScope, setPublishScope] = useState<PublicationScope | null>(
     null,
   );
-  // The rows that the Move to folder dialog moves, or `null` while it is
-  // closed (record 0164).
-  const [moveItems, setMoveItems] = useState<readonly DragItem[] | null>(null);
+  // The rows that the Move to folder dialog moves, and how the tree takes the
+  // focus back when it closes, or `null` while it is closed (record 0164).
+  const [moveItems, setMoveItems] = useState<{
+    readonly items: readonly DragItem[];
+    readonly returnFocus: () => void;
+  } | null>(null);
   // Which workspace dialog is open, or `null` for none. The frame owns these
   // and not the sidebar: the sidebar is transformed so it slides, and a
   // transform makes its box the containing block of a `position: fixed` child,
@@ -1624,7 +1631,9 @@ function ShellFrame({
                 onNavigate={() => setDrawerOpen(false)}
                 onNewFolderIn={(folder) => setNewFolderParent(folder)}
                 onPublish={setPublishScope}
-                onMove={setMoveItems}
+                onMove={(items, returnFocus) =>
+                  setMoveItems({ items, returnFocus })
+                }
                 onNewNoteIn={(folder) => newNote.create(folder)}
                 onNewWorkspace={() => setWorkspaceDialog('create')}
                 onRenameWorkspace={() => setWorkspaceDialog('rename')}
@@ -1780,7 +1789,8 @@ function ShellFrame({
               notes={files.notes}
               folders={allFolders}
               emptyFolders={files.emptyFolders}
-              items={moveItems}
+              items={moveItems.items}
+              returnFocus={moveItems.returnFocus}
               onFolderMoved={files.moveEmptyFolders}
             />
           )}

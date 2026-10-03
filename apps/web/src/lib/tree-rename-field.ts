@@ -10,6 +10,16 @@
  * therefore acts once: a field that closed or that is keeping its name
  * ignores every later event until the screen reports how the keep ended.
  *
+ * The field also knows whether the focus left it, because a person who moved
+ * away is somewhere else now. A second review found two faults from that:
+ * a kept name took the focus back from the editor that a person clicked
+ * into, and a name that a blur could not keep opened the field again with no
+ * focus, so the tree took no key. A keep therefore gives the focus back to the
+ * row only when the focus is still in the field, as after Enter. A refused
+ * name opens the field again beside its reason when the focus is still in it,
+ * and gives the old name back when the focus left it: the row keeps its name,
+ * the reason stays under the tree, and F2 starts again.
+ *
  * The machine is pure, so `tree-rename-field.test.ts` states each path.
  */
 
@@ -27,6 +37,8 @@ export type RenameField = {
   readonly key: string;
   readonly value: string;
   readonly phase: RenamePhase;
+  /** The focus left the field, so the end of the rename does not take it. */
+  readonly focusLeft: boolean;
 };
 
 /** What happens to one field. */
@@ -35,17 +47,23 @@ export type RenameEvent =
   | { readonly kind: 'enter' }
   | { readonly kind: 'blur' }
   | { readonly kind: 'escape' }
-  /** The keep was refused: the field opens again beside its reason. */
+  /**
+   * The keep was refused. The field opens again beside its reason, or gives
+   * the old name back when the focus left it.
+   */
   | { readonly kind: 'refused' }
   /** The keep landed, or changed nothing. */
   | { readonly kind: 'kept' };
 
-/** What the screen does after one event. */
+/**
+ * What the screen does after one event: write the name, give the focus back
+ * to the row, or nothing.
+ */
 export type RenameEffect = 'keep' | 'give-back' | 'none';
 
 /** The field that F2 or Rename opens on one row. */
 export function openRename(key: string, value: string): RenameField {
-  return { key, value, phase: 'editing' };
+  return { key, value, phase: 'editing', focusLeft: false };
 }
 
 /** The next field and the one effect of an event. */
@@ -60,21 +78,35 @@ export function renameStep(
         ? { field: { ...field, value: event.value }, effect: 'none' }
         : stay;
     case 'enter':
-    case 'blur':
       return field.phase === 'editing'
         ? { field: { ...field, phase: 'keeping' }, effect: 'keep' }
+        : stay;
+    case 'blur':
+      // A blur while the name is being kept writes nothing more, but the end
+      // of the keep must not take the focus back from where it went.
+      if (field.phase === 'editing')
+        return {
+          field: { ...field, phase: 'keeping', focusLeft: true },
+          effect: 'keep',
+        };
+      return field.phase === 'keeping'
+        ? { field: { ...field, focusLeft: true }, effect: 'none' }
         : stay;
     case 'escape':
       return field.phase === 'editing'
         ? { field: { ...field, phase: 'closed' }, effect: 'give-back' }
         : stay;
     case 'refused':
-      return field.phase === 'keeping'
-        ? { field: { ...field, phase: 'editing' }, effect: 'none' }
-        : stay;
+      if (field.phase !== 'keeping') return stay;
+      return {
+        field: { ...field, phase: field.focusLeft ? 'closed' : 'editing' },
+        effect: 'none',
+      };
     case 'kept':
-      return field.phase === 'keeping'
-        ? { field: { ...field, phase: 'closed' }, effect: 'none' }
-        : stay;
+      if (field.phase !== 'keeping') return stay;
+      return {
+        field: { ...field, phase: 'closed' },
+        effect: field.focusLeft ? 'none' : 'give-back',
+      };
   }
 }

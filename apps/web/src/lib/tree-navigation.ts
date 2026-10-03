@@ -114,29 +114,70 @@ function activate(row: ActionableRow): TreeKeyAction {
     : { kind: 'select-folder', path: row.path };
 }
 
+/** The place of the tree after its rows changed, and whether it takes the focus. */
+export type TreePlace = {
+  /** The row in the tab order, which takes the focus when the tree has it. */
+  readonly key: string | null;
+  /** The focus fell to the page with its row, so this row takes it. */
+  readonly focus: boolean;
+};
+
 /**
- * The row that takes the focus after some rows left the tree, such as a move
- * to Trash from the keys: the first row after the last row that left, else
- * the last row before the first one, else no row.
+ * Where the place of the tree goes after its rows changed.
+ *
+ * A row that leaves the tree takes no focus with it: a move to Trash from the
+ * keys or from the menu of a row, a move into a closed folder, a rename of a
+ * folder and a change from another device each remove the row that had it.
+ * The review of the merged branch found that only the Delete key moved the
+ * focus, so a move to Trash from the menu sent it to the page. One rule now
+ * serves every way a row leaves: the place goes to the first row after it
+ * that stays, else to the last row before it that stays, and that row takes
+ * the focus when the focus fell to the page with the row that left.
+ *
+ * A place that the tree did not show before, such as the new row of a renamed
+ * folder, stays, because the tree shows it once the rename lands.
  */
-export function focusAfterRemoval(
-  order: readonly string[],
-  removed: readonly string[],
-): string | null {
-  const gone = new Set(removed);
-  const positions = order.flatMap((key, index) =>
-    gone.has(key) ? [index] : [],
-  );
-  if (positions.length === 0) return null;
-  const last = Math.max(...positions);
-  const after = order.slice(last + 1).find((key) => !gone.has(key));
-  if (after !== undefined) return after;
-  const first = Math.min(...positions);
-  return (
-    order
-      .slice(0, first)
+export function placeAfterChange(input: {
+  /** The keys of the rows a person can act on, before the change. */
+  readonly previous: readonly string[];
+  /** The keys of the rows a person can act on, after the change. */
+  readonly current: readonly string[];
+  /** The row of the place of the tree before the change. */
+  readonly key: string | null;
+  /** The row with the focus left the document and the page has the focus. */
+  readonly focusFell: boolean;
+}): TreePlace {
+  const { previous, current, key, focusFell } = input;
+  if (key === null) return { key: null, focus: false };
+  const stays = new Set(current);
+  if (stays.has(key)) return { key, focus: focusFell };
+  const at = previous.indexOf(key);
+  if (at === -1) return { key, focus: false };
+  const next =
+    previous.slice(at + 1).find((row) => stays.has(row)) ??
+    previous
+      .slice(0, at)
       .reverse()
-      .find((key) => !gone.has(key)) ?? null
+      .find((row) => stays.has(row)) ??
+    null;
+  return { key: next, focus: focusFell && next !== null };
+}
+
+/**
+ * Whether a key press belongs to a field inside a row, such as the name field
+ * of a rename, and not to the tree.
+ *
+ * The field takes its own keys: the arrows move the caret and Delete removes
+ * a letter. The review of the merged branch found that the tree skipped every
+ * key while any rename stood open, so a field that lost its focus stopped the
+ * arrows, F2 and Delete on every row. The target of the key decides now.
+ */
+export function isFieldKey(
+  target: { closest(selector: string): unknown } | null,
+): boolean {
+  return (
+    target !== null &&
+    target.closest('input, textarea, select, [contenteditable="true"]') !== null
   );
 }
 

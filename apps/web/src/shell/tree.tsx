@@ -83,18 +83,21 @@ import {
   treeIndentClassName,
   treeItemClassName,
   treeItemsClassName,
+  treeMessageClassName,
   treeRowClassName,
   treeRowLeadingClassName,
   treeRowNameClassName,
 } from '../lib/tree-row.ts';
 import {
-  focusAfterRemoval,
+  isFieldKey,
+  placeAfterChange,
   rowKeyOf,
   treeKeyAction,
 } from '../lib/tree-navigation.ts';
 import {
   openRename,
   renameStep,
+  type RenameEffect,
   type RenameEvent,
   type RenameField,
 } from '../lib/tree-rename-field.ts';
@@ -105,7 +108,6 @@ import {
   noteRowKey,
   visibleTreeRows,
   type ActionableRow,
-  type TreeRowEntry,
 } from '../lib/tree-rows.ts';
 import {
   actionTargets,
@@ -154,8 +156,14 @@ export type NoteTreeProps = {
   readonly onNewFolderIn: (folder: string) => void;
   /** Opens the Publish dialog of the frame for one note or one folder. */
   readonly onPublish: (scope: PublicationScope) => void;
-  /** Opens the Move to folder dialog of the frame for some rows. */
-  readonly onMove: (items: readonly DragItem[]) => void;
+  /**
+   * Opens the Move to folder dialog of the frame for some rows, with the way
+   * the tree takes the focus back when the dialog closes.
+   */
+  readonly onMove: (
+    items: readonly DragItem[],
+    returnFocus: () => void,
+  ) => void;
 };
 
 /** The row that a rename in place edits, and its field. */
@@ -193,30 +201,6 @@ function dragItemOf(target: TreeTarget): DragItem {
   return target.kind === 'note'
     ? { kind: 'note', fileId: target.fileId, path: target.path }
     : { kind: 'folder', folder: target.path };
-}
-
-/**
- * The rows that one move to Trash removes: the rows it started from, the
- * rows of its notes and every row inside a folder it moved.
- */
-function removedKeys(
-  rows: readonly TreeRowEntry[],
-  keys: readonly string[],
-  plan: {
-    readonly items: readonly { readonly fileId: string }[];
-    readonly dropFolders: readonly string[];
-  },
-): readonly string[] {
-  const notes = new Set(plan.items.map((item) => noteRowKey(item.fileId)));
-  const folders = plan.dropFolders.map((folder) => `${folder}/`);
-  return rows.flatMap((row) => {
-    if (row.kind === 'empty') return [];
-    const path = row.kind === 'note' ? row.note.path : `${row.path}/`;
-    const inside = folders.some((folder) => path.startsWith(folder));
-    return keys.includes(row.key) || notes.has(row.key) || inside
-      ? [row.key]
-      : [];
-  });
 }
 
 /** The place on the screen of one element, for a menu that opens beside it. */
@@ -291,6 +275,12 @@ export function NoteTree({
   const [busy, setBusy] = useState(false);
   const elements = useRef(new Map<string, HTMLElement>());
   const pendingFocus = useRef<string | null>(null);
+  // The row element that has the focus, so the commit that removes it knows
+  // that the focus fell to the page with it, and the order of the rows that
+  // the last commit showed, so the place of the tree can follow a row that
+  // left (lib/tree-navigation.ts).
+  const focusedRow = useRef<HTMLElement | null>(null);
+  const previousOrder = useRef(order);
   const revealedFor = useRef<string | null>(null);
   const focusIndex =
     focusKey === null ? null : (indexByKey.get(focusKey) ?? null);
@@ -349,6 +339,43 @@ export function NoteTree({
     [indexByKey, rowsInView],
   );
 
+  // A row that leaves the tree gives its place to the next row that stays,
+  // and that row takes the focus when the focus fell to the page with the row
+  // that left. Every way a row leaves runs through here: a move to Trash from
+  // the keys or from a menu, a move, a rename of a folder, a drag and a change
+  // from another device (record 0164).
+  useLayoutEffect(() => {
+    const previous = previousOrder.current;
+    previousOrder.current = order;
+    const element = focusedRow.current;
+    const active = document.activeElement;
+    const focusFell =
+      element !== null &&
+      !element.isConnected &&
+      (active === null || active === document.body);
+    if (previous === order && !focusFell) return;
+    if (focusFell) focusedRow.current = null;
+    const place = placeAfterChange({
+      previous,
+      current: order,
+      key: focusKey,
+      focusFell,
+    });
+    if (place.focus && place.key !== null) focusRow(place.key);
+    else if (place.key !== focusKey) setFocusKey(place.key);
+  });
+
+  // The way the tree takes the focus back after a dialog that it opened, such
+  // as Move to folder, whose move can take away the row that opened it. It
+  // reads the place of the tree when the dialog closes.
+  const returnFocusRef = useRef((): void => {});
+  returnFocusRef.current = (): void => {
+    if (focusKey !== null) focusRow(focusKey);
+  };
+  const returnFocus = useCallback((): void => {
+    returnFocusRef.current();
+  }, []);
+
   /** The rows an action started from one row acts on. */
   const targetsFor = useCallback(
     (key: string): readonly string[] => actionTargets(selection, order, key),
@@ -367,7 +394,7 @@ export function NoteTree({
 
   /** Moves the notes of some rows to Trash, as one store operation. */
   const trash = useCallback(
-    (keys: readonly string[], fromKeys = false): void => {
+    (keys: readonly string[]): void => {
       if (busy) return;
       const plan = trashPlan(targetsOfKeys(keys), files.notes);
       setMessage(null);
@@ -407,15 +434,6 @@ export function NoteTree({
         requestSync();
         for (const folder of plan.dropFolders) files.removeEmptyFolders(folder);
         setSelection(emptySelection);
-        // A move to Trash from the keys leaves the focus on the next row, so
-        // the focus never falls to the page with the rows that left.
-        if (fromKeys) {
-          const next = focusAfterRemoval(order, removedKeys(rows, keys, plan));
-          if (next !== null) {
-            pendingFocus.current = next;
-            setFocusKey(next);
-          }
-        }
         if (holdsOpenNote) void navigate(`/w/${workspaceId}`);
       })();
     },
@@ -430,8 +448,6 @@ export function NoteTree({
       announce,
       requestSync,
       navigate,
-      order,
-      rows,
     ],
   );
 
@@ -454,27 +470,37 @@ export function NoteTree({
   /** Writes the name that the field keeps, and reports how the keep ended. */
   const keepName = useCallback(
     (target: RenameTarget, field: RenameField): void => {
-      const report = (event: RenameEvent, focus: string | null): void => {
+      const report = (event: RenameEvent): RenameEffect => {
         // A keep reports to its own field. A rename that a person started on
         // another row while this one wrote is not this field.
         const current = renamingRef.current;
-        if (current === null || current.field.key !== field.key) return;
+        if (current === null || current.field.key !== field.key) return 'none';
         const step = renameStep(current.field, event);
         setRenaming(
           step.field.phase === 'closed'
             ? null
             : { ...current, field: step.field },
         );
-        if (focus !== null) focusRow(focus);
+        return step.effect;
+      };
+      // The row takes the focus back only when the focus is still in the
+      // field, as after Enter. A person who moved away keeps the focus where
+      // it went (lib/tree-rename-field.ts).
+      const kept = (key: string): void => {
+        if (report({ kind: 'kept' }) !== 'give-back') return;
+        // The row of a renamed folder has a new key, so it takes the focus
+        // once the tree renders it.
+        pendingFocus.current = key;
+        focusRow(key);
       };
       const plan = renamePlan(target, field.value, files.notes, knownFolders);
       if (plan.kind === 'refused') {
         setMessage({ tone: 'problem', text: plan.problem });
-        report({ kind: 'refused' }, null);
+        report({ kind: 'refused' });
         return;
       }
       if (plan.kind === 'unchanged') {
-        report({ kind: 'kept' }, field.key);
+        kept(field.key);
         return;
       }
       const done = (): void => {
@@ -485,11 +511,7 @@ export function NoteTree({
           if (selectedFolder === moved.from) onSelectFolder(moved.to);
         }
         setMessage(null);
-        const key = moved === null ? field.key : folderRowKey(moved.to);
-        // The row of a renamed folder has a new key, so it takes the focus
-        // once the tree renders it.
-        pendingFocus.current = key;
-        report({ kind: 'kept' }, key === field.key ? key : null);
+        kept(moved === null ? field.key : folderRowKey(moved.to));
       };
       const activeStore = store.store;
       if (plan.moves.length === 0) {
@@ -501,7 +523,7 @@ export function NoteTree({
           tone: 'problem',
           text: 'Local storage is unavailable, so the name did not change.',
         });
-        report({ kind: 'refused' }, null);
+        report({ kind: 'refused' });
         return;
       }
       setBusy(true);
@@ -515,7 +537,7 @@ export function NoteTree({
         setBusy(false);
         if (failure !== null) {
           setMessage({ tone: 'problem', text: failure });
-          report({ kind: 'refused' }, null);
+          report({ kind: 'refused' });
           return;
         }
         done();
@@ -638,7 +660,7 @@ export function NoteTree({
           return;
         }
         case 'move':
-          onMove(targets.map(dragItemOf));
+          onMove(targets.map(dragItemOf), returnFocus);
           return;
         case 'duplicate':
           duplicate(first);
@@ -682,6 +704,7 @@ export function NoteTree({
       onPublish,
       startRename,
       onMove,
+      returnFocus,
       duplicate,
       onNewNoteIn,
       onNewFolderIn,
@@ -730,10 +753,12 @@ export function NoteTree({
 
   /** The keys of the tree, from the row of the element that has the focus. */
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (renamingRef.current !== null) return;
+    const target = event.target instanceof Element ? event.target : null;
+    // The name field of a rename takes its own keys, and every other row
+    // still takes the keys of the tree.
+    if (isFieldKey(target)) return;
     const intent = treeKeyIntent(event);
     if (intent === null) return;
-    const target = event.target instanceof Element ? event.target : null;
     const key = rowKeyOf(target) ?? focusKey ?? order[0];
     if (key === undefined) return;
     const action = treeKeyAction(intent, { rows, order, key, selecting });
@@ -779,7 +804,7 @@ export function NoteTree({
         return;
       }
       case 'trash':
-        trash(targetsFor(action.key), true);
+        trash(targetsFor(action.key));
         return;
     }
   };
@@ -846,7 +871,13 @@ export function NoteTree({
                 if (element === null) elements.current.delete(row.key);
                 else elements.current.set(row.key, element);
               }}
-              onFocus={() => setFocusKey(row.key)}
+              onFocus={(element) => {
+                focusedRow.current = element;
+                setFocusKey(row.key);
+              }}
+              onLeave={(element) => {
+                if (focusedRow.current === element) focusedRow.current = null;
+              }}
               onPick={(event) => pickWith(event, row.key)}
               onPlainClick={() => {
                 setSelection(emptySelection);
@@ -872,7 +903,7 @@ export function NoteTree({
       </div>
       {message === null ? null : (
         <p
-          className={`mx-2 my-2 text-control ${message.tone === 'problem' ? 'text-danger' : 'text-muted'}`}
+          className={treeMessageClassName(message.tone)}
           role={message.tone === 'problem' ? 'alert' : 'status'}
         >
           {message.text}
@@ -920,6 +951,7 @@ function TreeRow({
   drag,
   register,
   onFocus,
+  onLeave,
   onPick,
   onPlainClick,
   onToggle,
@@ -942,7 +974,10 @@ function TreeRow({
   readonly renaming: RenameField | null;
   readonly drag: TreeDrag;
   readonly register: (element: HTMLElement | null) => void;
-  readonly onFocus: () => void;
+  /** The row took the focus, from itself or from an element inside it. */
+  readonly onFocus: (element: HTMLElement) => void;
+  /** The focus moved from the row to an element outside it. */
+  readonly onLeave: (element: HTMLElement) => void;
   /** Builds the selection when a modifier key is down, and says if it did. */
   readonly onPick: (event: ReactMouseEvent) => boolean;
   readonly onPlainClick: () => void;
@@ -1039,7 +1074,12 @@ function TreeRow({
       tabIndex={tabbable ? 0 : -1}
       className={`${treeIndentClassName(row.level)} ${treeItemClassName}`}
       draggable={renaming === null}
-      onFocus={onFocus}
+      onFocus={(event) => onFocus(event.currentTarget)}
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (next instanceof Node && !event.currentTarget.contains(next))
+          onLeave(event.currentTarget);
+      }}
       onClick={(event) => {
         if (renaming !== null) return;
         if (onPick(event)) return;

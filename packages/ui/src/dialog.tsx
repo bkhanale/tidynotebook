@@ -3,7 +3,9 @@
  *
  * The dialog owns every rule that a modal needs, so no screen repeats them:
  * a labelled title, Escape, a focus trap on Tab and Shift plus Tab, focus
- * restore to the element that opened it, and `inert` on the page behind it
+ * restore to the element that opened it, or to the place that `returnFocus`
+ * names when the act of the dialog can remove that element, and `inert` on
+ * the page behind it
  * where the browser supports that property. The scrim uses the theme token,
  * so both palettes dim the page by the same amount.
  *
@@ -27,6 +29,7 @@ import {
   type DialogAlign,
   type DialogWidth,
 } from './dialog-classes.ts';
+import { giveFocusBack } from './dialog-focus.ts';
 import { transitionRaise } from './motion.ts';
 
 export type { DialogWidth } from './dialog-classes.ts';
@@ -57,7 +60,10 @@ function setPageInert(panel: HTMLElement | null, inert: boolean): () => void {
  *
  * `open` controls visibility. `onClose` runs for Escape, for the close
  * control, and for a pointer press on the scrim. The panel receives focus
- * when it opens unless a child already claimed it.
+ * when it opens unless a child already claimed it. When it closes, the focus
+ * goes back to the element that opened it, or `returnFocus` gives it back
+ * instead: a row that the act of the dialog moves away is no place to return
+ * to.
  */
 export function Dialog({
   open,
@@ -69,6 +75,7 @@ export function Dialog({
   align = 'top',
   children,
   describedBy,
+  returnFocus,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -80,6 +87,8 @@ export function Dialog({
   readonly align?: DialogAlign | undefined;
   readonly children: ReactNode;
   readonly describedBy?: string | undefined;
+  /** Gives the focus back on close, in place of the element that opened it. */
+  readonly returnFocus?: (() => void) | undefined;
 }): ReactNode {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -92,6 +101,10 @@ export function Dialog({
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
+  const returnRef = useRef(returnFocus);
+  useEffect(() => {
+    returnRef.current = returnFocus;
+  }, [returnFocus]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,7 +154,7 @@ export function Dialog({
       window.removeEventListener('keydown', onKeyDown, true);
       releaseInert();
       document.body.style.overflow = previousOverflow;
-      openerRef.current?.focus();
+      giveFocusBack(openerRef.current, returnRef.current);
     };
   }, [open]);
 

@@ -232,6 +232,7 @@ export function MoveItemsDialog({
   emptyFolders,
   items,
   onFolderMoved,
+  returnFocus,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -247,6 +248,11 @@ export function MoveItemsDialog({
   readonly items: readonly DragItem[];
   /** Follows a folder of the move with the folders this device remembers. */
   readonly onFolderMoved: (fromFolder: string, toFolder: string) => void;
+  /**
+   * Gives the focus back when the dialog closes. The row that opened it can
+   * leave the tree with the move, so the tree names where the focus goes.
+   */
+  readonly returnFocus?: (() => void) | undefined;
 }): ReactNode {
   const [target, setTarget] = useState<string | null>('');
   const [custom, setCustom] = useState('');
@@ -327,6 +333,7 @@ export function MoveItemsDialog({
       title="Move to folder"
       titleId="move-items-title"
       width="small"
+      returnFocus={returnFocus}
     >
       <form
         onSubmit={(event): void => {

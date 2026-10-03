@@ -86,10 +86,13 @@ the header, marked **Note actions**, does the same with the keyboard.
 
 To rename a row, select it and press **F2**, or select **Rename** in its menu.
 The name becomes a field in the row. Press **Enter** to keep the new name, or
-**Escape** to keep the old one. Renaming a folder renames the path of every
-note inside it. A move or a rename is refused when a note or a folder of that
-name is already there, and when a folder would move into itself. The reason
-appears as one line in the sidebar.
+**Escape** to keep the old one. When you move away from the field, the row
+also keeps the new name, and the focus stays where you moved it. Renaming a
+folder renames the path of every note inside it. A move or a rename is refused
+when a note or a folder of that name is already there, and when a folder would
+move into itself. The reason appears as one line at the foot of the tree.
+After **Enter**, the field stays open, so you can type a different name. After
+you move away, the row keeps its old name. Press **F2** to try again.
 
 ## Select several notes
 
@@ -109,7 +112,9 @@ Trash. You can also drag a selected row to move the whole selection. Press
 The tree takes one stop of **Tab**. **Up** and **Down** move between rows,
 **Home** and **End** go to the first and the last row, **Right** opens a
 folder and **Left** closes it or goes to the folder above. **Enter** opens a
-note or selects a folder. **Delete** moves the selection to Trash.
+note or selects a folder. **Delete** moves the selection to Trash. When a row
+leaves the tree, for example after **Move to Trash** or **Move to folder**, the
+focus goes to the next row.
 
 ## Find a note
 

@@ -6,6 +6,7 @@ import {
   treeItemClassName,
   treeItemsClassName,
   treeListClassName,
+  treeMessageClassName,
   treeRowClassName,
   treeRowLeadingClassName,
   treeRowNameClassName,
@@ -159,4 +160,17 @@ await test('the top of the tree separates from the All notes row', () => {
   assert.ok(treeListClassName.includes('mt-0.5'));
   assert.ok(!treeListClassName.includes('border'));
   assert.ok(!treeListClassName.includes('pl-'));
+});
+
+await test('the line under the tree stays in view at the foot of its box', () => {
+  // The second review: a refused rename near the top of a long tree put its
+  // reason below the last row, out of view.
+  for (const tone of ['status', 'problem'] as const) {
+    const line = treeMessageClassName(tone).split(' ');
+    assert.ok(line.includes('sticky'));
+    assert.ok(line.includes('-bottom-2'));
+    assert.ok(line.includes('bg-surface'));
+  }
+  assert.ok(treeMessageClassName('problem').split(' ').includes('text-danger'));
+  assert.ok(treeMessageClassName('status').split(' ').includes('text-muted'));
 });

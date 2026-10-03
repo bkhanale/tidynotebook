@@ -145,3 +145,19 @@ export const treeItemsClassName = 'm-0 list-none space-y-0.5 p-0';
  * space and by fill and never by a rule.
  */
 export const treeListClassName = 'mt-0.5';
+
+/**
+ * The one line under the tree: a result, or the reason an action stopped,
+ * such as a name that a rename refused.
+ *
+ * The line follows the last row, and a tree of many rows is longer than its
+ * box, so the line stays at the foot of the box while the tree scrolls. A
+ * person who renamed a row near the top of a long tree sees the reason, which
+ * the second review of the merged branch found below the fold. It takes the
+ * fill of the sidebar, so the rows that scroll under it do not show through,
+ * and it sticks one step below the padding of the box, which is the foot of
+ * the box itself, so no row shows under it either.
+ */
+export function treeMessageClassName(tone: 'status' | 'problem'): string {
+  return `sticky -bottom-2 z-10 bg-surface px-2 py-2 text-control ${tone === 'problem' ? 'text-danger' : 'text-muted'}`;
+}
