@@ -153,6 +153,28 @@ export function parkedSaveTime(createdAt: string, now: Date): string {
   return 'more than a month ago';
 }
 
+/** The two lines of text of one row of the Needs attention list. */
+export type ParkedSaveLines = {
+  /** Why the save waits, and that the text stays on this device. */
+  readonly cause: string;
+  /** When the text was kept, as a relative time in its own sentence. */
+  readonly kept: string;
+};
+
+/**
+ * The text of one row, as separate sentences.
+ *
+ * The cause is one or more whole sentences, and the time is a sentence of
+ * its own. A time that followed the cause in one sentence read as "The text
+ * stays on this device less than a minute ago.", which states a wrong fact.
+ */
+export function parkedSaveLines(save: ParkedSave, now: Date): ParkedSaveLines {
+  return {
+    cause: `${save.reason} The text stays on this device.`,
+    kept: `Kept ${parkedSaveTime(save.createdAt, now)}.`,
+  };
+}
+
 /**
  * A free note name for a recovered copy.
  *

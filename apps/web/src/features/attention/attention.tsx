@@ -40,7 +40,7 @@ import { useLocalStore, useSession } from '../../app.tsx';
 import { copyText } from '../../platform.ts';
 import { storageNotePath } from '../../lib/note-name.ts';
 import {
-  parkedSaveTime,
+  parkedSaveLines,
   recoveredNoteName,
   type ParkedSave,
 } from '../../lib/parked-saves.ts';
@@ -62,15 +62,14 @@ function ParkedSaveRow({
 }): ReactNode {
   const [copied, setCopied] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const lines = parkedSaveLines(save, now);
 
   return (
     <ListRow className="flex-col items-stretch py-3">
       <div className="min-w-0">
         <p className="m-0 truncate text-ui text-strong">{save.name}</p>
-        <p className="m-0 text-control text-muted">
-          {save.reason} The text stays on this device{' '}
-          {parkedSaveTime(save.createdAt, now)}.
-        </p>
+        <p className="m-0 text-control text-muted">{lines.cause}</p>
+        <p className="m-0 text-control text-muted">{lines.kept}</p>
       </div>
       <details>
         <summary className="cursor-pointer text-control text-muted">

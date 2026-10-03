@@ -2,20 +2,28 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
 import {
+  noticeReadsQueue,
   noticeStartsOver,
   startingSyncState,
   syncDot,
   syncDotClassName,
   syncFooter,
   syncNeedsAttention,
-  syncStateFileId,
+  syncQueueOf,
   syncStateMessage,
   syncStateOfNotice,
   syncStateOfQueue,
+  syncStateOnline,
   syncLineBudget,
   syncStatusClassNames,
+  type SyncQueue,
   type SyncState,
 } from './sync-state.ts';
+
+/** A queue of one workspace with the counts a test names. */
+function queueOf(unsent: number, parked: number): SyncQueue {
+  return { unsent, parked };
+}
 
 const notices: readonly SyncNotice[] = [
   { kind: 'pushed', mutationIds: ['m1'], fileIds: ['f1'] },
@@ -48,6 +56,7 @@ await test('every engine notice maps to a typed state or to nothing', () => {
     const state = syncStateOfNotice(notice);
     if (
       notice.kind === 'snapshot-restart' ||
+      notice.kind === 'preserved' ||
       notice.kind === 'superseded' ||
       notice.kind === 'lease-held' ||
       notice.kind === 'lease-lost'
@@ -59,15 +68,30 @@ await test('every engine notice maps to a typed state or to nothing', () => {
   }
 });
 
-await test('a refused save names the file it kept', () => {
-  const state = syncStateOfNotice({
+await test('a refused save lets the queue state what waits', () => {
+  // A refusal that parks the save leaves it in the queue, and a refusal that
+  // keeps the text as a new note parks nothing. Only the queue knows which,
+  // so the notice changes no state and asks for a queue read.
+  const notice: SyncNotice = {
     kind: 'preserved',
     mutationId: 'm2',
     code: 'path_conflict',
     fileIds: ['f2'],
-  });
-  assert.deepEqual(state, { kind: 'attention', fileId: 'f2' });
-  assert.equal(syncStateFileId(state ?? { kind: 'starting' }), 'f2');
+  };
+  assert.equal(syncStateOfNotice(notice), null);
+  assert.equal(noticeReadsQueue(notice), true);
+});
+
+await test('every notice that changes the queue reads the queue', () => {
+  const reads = notices.filter(noticeReadsQueue).map((notice) => notice.kind);
+  assert.deepEqual(reads, [
+    'pushed',
+    'preserved',
+    'snapshot-activated',
+    'changes-applied',
+    'resumed',
+    'protocol',
+  ]);
 });
 
 const states: readonly SyncState[] = [
@@ -75,7 +99,8 @@ const states: readonly SyncState[] = [
   { kind: 'in-step' },
   { kind: 'sending' },
   { kind: 'waiting' },
-  { kind: 'attention', fileId: 'f2' },
+  { kind: 'attention', parked: 1 },
+  { kind: 'attention', parked: 3 },
   { kind: 'delete-refused', path: 'plans/old.md' },
   { kind: 'signed-out' },
   { kind: 'other-account' },
@@ -97,7 +122,7 @@ await test('every state has one sentence with no code and no identifier', () => 
 
 await test('a state without a known note still reads as a sentence', () => {
   assert.ok(
-    syncStateMessage({ kind: 'attention', fileId: undefined }).startsWith(
+    syncStateMessage({ kind: 'delete-refused', path: 'a.md' }).startsWith(
       'A note',
     ),
   );
@@ -106,7 +131,7 @@ await test('a state without a known note still reads as a sentence', () => {
 await test('only the states that need an answer ask for one', () => {
   assert.equal(syncNeedsAttention({ kind: 'in-step' }), false);
   assert.equal(syncNeedsAttention({ kind: 'waiting' }), false);
-  assert.equal(syncNeedsAttention({ kind: 'attention', fileId: 'f' }), true);
+  assert.equal(syncNeedsAttention({ kind: 'attention', parked: 1 }), true);
   assert.equal(syncNeedsAttention({ kind: 'signed-out' }), true);
   assert.equal(syncNeedsAttention({ kind: 'stopped' }), true);
   // An update is an action that the person takes. A server that runs an
@@ -120,7 +145,7 @@ await test('another account on this browser is its own cause', () => {
   assert.deepEqual(state, { kind: 'other-account' });
   assert.equal(syncNeedsAttention({ kind: 'other-account' }), true);
   // The work waits for its account, so the queue never hides the cause.
-  assert.deepEqual(syncStateOfQueue({ kind: 'other-account' }, 0), {
+  assert.deepEqual(syncStateOfQueue({ kind: 'other-account' }, queueOf(0, 0)), {
     kind: 'other-account',
   });
   assert.match(
@@ -148,7 +173,7 @@ await test('the lease of the sending tab says nothing to the person', () => {
   // as long as it stayed open.
   assert.equal(syncStateOfNotice({ kind: 'lease-held' }), null);
   assert.equal(syncStateOfNotice({ kind: 'lease-lost' }), null);
-  assert.deepEqual(syncStateOfQueue(startingSyncState, 0), {
+  assert.deepEqual(syncStateOfQueue(startingSyncState, queueOf(0, 0)), {
     kind: 'in-step',
   });
 });
@@ -165,31 +190,163 @@ await test('a protocol misfit names its cause and a fit starts over', () => {
   const resumed = syncStateOfNotice({ kind: 'protocol', fit: 'compatible' });
   assert.deepEqual(resumed, startingSyncState);
   // The next queue read may then replace it, because the state is quiet.
-  assert.deepEqual(syncStateOfQueue(resumed ?? startingSyncState, 0), {
-    kind: 'in-step',
-  });
-  assert.deepEqual(syncStateOfQueue({ kind: 'update-required' }, 0), {
-    kind: 'update-required',
-  });
+  assert.deepEqual(
+    syncStateOfQueue(resumed ?? startingSyncState, queueOf(0, 0)),
+    {
+      kind: 'in-step',
+    },
+  );
+  assert.deepEqual(
+    syncStateOfQueue({ kind: 'update-required' }, queueOf(0, 0)),
+    {
+      kind: 'update-required',
+    },
+  );
 });
 
 await test('an empty queue reports that everything reached the server', () => {
-  const next = syncStateOfQueue({ kind: 'sending' }, 0);
+  const next = syncStateOfQueue({ kind: 'sending' }, queueOf(0, 0));
   assert.deepEqual(next, { kind: 'in-step' });
   assert.equal(syncStateMessage(next), 'Everything is saved to the server.');
 });
 
 await test('a queued save reports that a send is in progress', () => {
-  assert.deepEqual(syncStateOfQueue({ kind: 'starting' }, 2), {
+  assert.deepEqual(syncStateOfQueue({ kind: 'starting' }, queueOf(2, 0)), {
     kind: 'sending',
   });
 });
 
 await test('a queue count never overwrites a state the person must read', () => {
-  const parked: SyncState = { kind: 'attention', fileId: 'file' };
-  assert.deepEqual(syncStateOfQueue(parked, 0), parked);
   const offline: SyncState = { kind: 'waiting' };
-  assert.deepEqual(syncStateOfQueue(offline, 0), offline);
+  assert.deepEqual(syncStateOfQueue(offline, queueOf(0, 1)), offline);
+  const signedOut: SyncState = { kind: 'signed-out' };
+  assert.deepEqual(syncStateOfQueue(signedOut, queueOf(0, 1)), signedOut);
+});
+
+await test('a parked save counts as no send', () => {
+  // A parked entry stays in the queue with its state `conflict`, and the
+  // engine never sends it again.
+  assert.deepEqual(syncQueueOf([]), queueOf(0, 0));
+  assert.deepEqual(
+    syncQueueOf([
+      { state: 'conflict' },
+      { state: 'pending' },
+      { state: 'sending' },
+      { state: 'conflict' },
+    ]),
+    queueOf(2, 2),
+  );
+});
+
+/** The footer of one queue read, online, after a quiet first state. */
+function footerOfQueue(current: SyncState, queue: SyncQueue) {
+  return syncFooter({
+    state: syncStateOfQueue(current, queue),
+    online: true,
+    noteName: null,
+    openNoteWriteFailed: false,
+  });
+}
+
+await test('a parked save alone never reads as a send', () => {
+  // The defect this covers: a save the server refused waited in Needs
+  // attention, and the footer said "Sending your save to the server." with
+  // a neutral dot, because the queue count held the parked entry.
+  const queue = syncQueueOf([{ state: 'conflict' }]);
+  for (const current of [
+    startingSyncState,
+    { kind: 'sending' } as const,
+    { kind: 'in-step' } as const,
+  ])
+    assert.deepEqual(footerOfQueue(current, queue), {
+      line: '1 save needs attention.',
+      dot: 'attention',
+    });
+  assert.deepEqual(footerOfQueue(startingSyncState, queueOf(0, 2)), {
+    line: '2 saves need attention.',
+    dot: 'attention',
+  });
+});
+
+await test('a parked save outranks a send that ends on its own', () => {
+  assert.deepEqual(footerOfQueue({ kind: 'sending' }, queueOf(3, 1)), {
+    line: '1 save needs attention.',
+    dot: 'attention',
+  });
+});
+
+await test('a send of another note keeps the parked save in view', () => {
+  // A push sets the quiet state, and the last queue read states it.
+  const pushed = syncStateOfNotice({
+    kind: 'pushed',
+    mutationIds: ['m1'],
+    fileIds: ['f1'],
+  });
+  assert.deepEqual(
+    syncStateOfQueue(pushed ?? startingSyncState, queueOf(0, 1)),
+    {
+      kind: 'attention',
+      parked: 1,
+    },
+  );
+});
+
+await test('the footer follows the parked save when the person acts', () => {
+  const parked = syncStateOfQueue(startingSyncState, queueOf(0, 1));
+  // Retry and Save as new note queue the text again: it is a send now.
+  const retried = syncStateOfQueue(parked, queueOf(1, 0));
+  assert.deepEqual(retried, { kind: 'sending' });
+  assert.deepEqual(syncStateOfQueue(retried, queueOf(0, 0)), {
+    kind: 'in-step',
+  });
+  // Discard empties the queue, and no engine notice follows it.
+  assert.deepEqual(footerOfQueue(parked, queueOf(0, 0)), {
+    line: 'Everything is saved to the server.',
+    dot: 'saved',
+  });
+  // One of two parked saves is discarded, so one still waits.
+  assert.deepEqual(
+    syncStateOfQueue({ kind: 'attention', parked: 2 }, queueOf(0, 1)),
+    {
+      kind: 'attention',
+      parked: 1,
+    },
+  );
+});
+
+await test('a parked save with no connection states the connection', () => {
+  // The device cannot send anything, and the Needs attention link below the
+  // line states the parked save. The line and the dot state one fact.
+  const offline = syncStateOfQueue({ kind: 'waiting' }, queueOf(1, 1));
+  assert.deepEqual(
+    syncFooter({
+      state: offline,
+      online: false,
+      noteName: null,
+      openNoteWriteFailed: false,
+    }),
+    { line: 'No connection. Notes stay on this device.', dot: 'pending' },
+  );
+  // When the connection returns, the queue states where the work stands.
+  const online = syncStateOnline(offline);
+  assert.deepEqual(online, startingSyncState);
+  assert.deepEqual(syncStateOfQueue(online, queueOf(0, 1)), {
+    kind: 'attention',
+    parked: 1,
+  });
+});
+
+await test('a returned connection with nothing to send is in step', () => {
+  // The defect this covers: no engine notice follows an empty pass, so the
+  // footer said "No connection." while the device was online again.
+  const online = syncStateOnline({ kind: 'waiting' });
+  assert.deepEqual(syncStateOfQueue(online, queueOf(0, 0)), {
+    kind: 'in-step',
+  });
+  // A state the person must read stays.
+  assert.deepEqual(syncStateOnline({ kind: 'signed-out' }), {
+    kind: 'signed-out',
+  });
 });
 
 await test('a lost connection says that there is no connection', () => {
@@ -222,7 +379,7 @@ await test('the dot of the footer states where the work stands', () => {
   assert.equal(syncDot({ kind: 'starting' }, true), 'pending');
   assert.equal(syncDot({ kind: 'sending' }, true), 'pending');
   assert.equal(syncDot({ kind: 'waiting' }, true), 'pending');
-  assert.equal(syncDot({ kind: 'attention', fileId: 'f' }, true), 'attention');
+  assert.equal(syncDot({ kind: 'attention', parked: 1 }, true), 'attention');
   assert.equal(syncDot({ kind: 'signed-out' }, true), 'attention');
   assert.equal(syncDot({ kind: 'stopped' }, true), 'attention');
   assert.equal(

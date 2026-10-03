@@ -4,6 +4,7 @@ import type { RecoveryRecord } from '@notesapp/sync';
 import { noteRefusals } from '@notesapp/core';
 import {
   noteRefusalSentence,
+  parkedSaveLines,
   parkedSaveReason,
   parkedSaveTime,
   parkedSaves,
@@ -113,6 +114,87 @@ await test('a parked save time reads in words', () => {
     'more than a month ago',
   );
   assert.equal(parkedSaveTime('not a time', now), 'at an unknown time');
+});
+
+/** Whether a line is whole sentences, each with a capital and a stop. */
+function wholeSentences(line: string): boolean {
+  return line
+    .split(/(?<=\.) /)
+    .every((sentence) => /^[A-Z0-9][^.]*[^ .]\.$/.test(sentence));
+}
+
+await test('a row states its cause and its time as separate sentences', () => {
+  // The defect this covers: the row read "Divide the paragraph. The text
+  // stays on this device less than a minute ago.", one wrong sentence.
+  const now = new Date('2026-09-10T12:00:00.000Z');
+  const row = parkedSaves([
+    recordOf({
+      code: 'unrenderable_note',
+      noteRefusal: 'note_too_many_marks',
+      createdAt: '2026-09-10T11:59:30.000Z',
+    }),
+  ])[0];
+  assert.ok(row !== undefined);
+  assert.deepEqual(parkedSaveLines(row, now), {
+    cause:
+      'A paragraph of this note has too many formatting marks. Divide the paragraph. The text stays on this device.',
+    kept: 'Kept less than a minute ago.',
+  });
+});
+
+await test('every cause and every age reads as whole sentences', () => {
+  const now = new Date('2026-09-10T12:00:00.000Z');
+  const records: RecoveryRecord[] = [
+    ...noteRefusals.map((noteRefusal) =>
+      recordOf({ code: 'unrenderable_note', noteRefusal }),
+    ),
+    ...[
+      'path_conflict',
+      'stale_head',
+      'deleted_remotely',
+      'invalid_graph',
+      'too_many_files',
+      'invalid_path',
+      'invalid_content',
+      'mutation_reused',
+      'purged',
+      'quota',
+      'snapshot_required',
+      'unsupported_version',
+      'not_found',
+      'forbidden',
+      'unrenderable_note',
+      'unplaced_work',
+      'a_code_from_a_newer_server',
+    ].map((code) => recordOf({ code })),
+    recordOf({ code: null }),
+    ...(['purged', 'sign_out', 'stale_draft'] as const).map((reason) =>
+      recordOf({ reason, code: null }),
+    ),
+  ];
+  const ages = [
+    '2026-09-10T12:00:00.000Z',
+    '2026-09-10T11:59:00.000Z',
+    '2026-09-10T11:15:00.000Z',
+    '2026-09-10T11:00:00.000Z',
+    '2026-09-10T07:00:00.000Z',
+    '2026-09-09T12:00:00.000Z',
+    '2026-09-01T12:00:00.000Z',
+    '2026-06-01T12:00:00.000Z',
+    'not a time',
+  ];
+  for (const record of records)
+    for (const createdAt of ages) {
+      const row = parkedSaves([{ ...record, createdAt }])[0];
+      assert.ok(row !== undefined);
+      const lines = parkedSaveLines(row, now);
+      assert.ok(wholeSentences(lines.cause), lines.cause);
+      assert.ok(lines.cause.endsWith(' The text stays on this device.'));
+      assert.ok(!lines.cause.includes(' ago'), lines.cause);
+      assert.ok(wholeSentences(lines.kept), lines.kept);
+      assert.match(lines.kept, /^Kept .+\.$/);
+      assert.ok(!lines.kept.includes(createdAt), lines.kept);
+    }
 });
 
 await test('a recovered copy never writes over an earlier one', () => {

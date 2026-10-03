@@ -81,11 +81,13 @@ import {
   problemStatus,
 } from './lib/problem-text.ts';
 import {
-  noticeStartsOver,
+  noticeReadsQueue,
   startingSyncState,
-  syncStateFileId,
+  syncQueueOf,
   syncStateOfNotice,
   syncStateOfQueue,
+  syncStateOnline,
+  type SyncQueue,
   type SyncState,
 } from './lib/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
@@ -949,28 +951,6 @@ function useThemeLoader(stored: Preferences | null): ThemeValue {
 }
 
 /**
- * The note name of one file, or a general phrase when it is unknown.
- *
- * A status line must never show a raw identifier. The local file list is the
- * only place a name is needed from, so a read failure falls back to words.
- */
-async function noteNameOf(
-  store: LocalStore,
-  accountId: string,
-  workspaceId: string,
-  fileId: string | undefined,
-): Promise<string> {
-  if (fileId === undefined) return 'a note';
-  try {
-    const files = await store.listLocalFiles(accountId, workspaceId);
-    const path = files.find((file) => file.fileId === fileId)?.path;
-    return path === undefined ? 'a note' : displayNoteName(path);
-  } catch {
-    return 'a note';
-  }
-}
-
-/**
  * Runs the foreground sync engine of the workspace the person is reading.
  *
  * Returns the typed sync state. The engine only announces changes, so the
@@ -1006,32 +986,25 @@ export function useWorkspaceSync(
     const activeAccount = accountId;
     const activeWorkspace = workspaceId;
     const controller = new AbortController();
+    // The last queue this hook read. A notice states its state through it at
+    // once, so a send of one note never reads as "everything is saved" for
+    // a moment while a parked save still waits.
+    let queue: SyncQueue | null = null;
     const onNotice = (notice: SyncNotice): void => {
       // A paused session cannot send for this account. The lease goes to a
       // tab that can, so a tab of another account is not kept waiting.
       if (notice.kind === 'paused') void notices.suspend();
       const next = syncStateOfNotice(notice);
-      if (next === null) return;
-      setState(next);
-      // A notice that only proves that sync runs again starts over, and the
-      // queue states where the work stands, because nothing else may
-      // announce for a while.
-      if (noticeStartsOver(notice)) {
-        readQueue();
-        return;
+      if (next !== null) {
+        setState(queue === null ? next : syncStateOfQueue(next, queue));
+        setNoteName(
+          next.kind === 'delete-refused' ? displayNoteName(next.path) : null,
+        );
       }
-      if (next.kind === 'delete-refused') {
-        setNoteName(displayNoteName(next.path));
-        return;
-      }
-      const fileId = syncStateFileId(next);
-      if (fileId === null) {
-        setNoteName(null);
-        return;
-      }
-      void noteNameOf(activeStore, activeAccount, activeWorkspace, fileId).then(
-        setNoteName,
-      );
+      // A send, a refusal, a pull, and a session that serves the engine again
+      // each change the queue or prove the connection, and nothing else may
+      // announce for a while, so the queue states where the work stands.
+      if (noticeReadsQueue(notice)) readQueue();
     };
     const engine = createSyncEngine(store, accountId, workspaceId, {
       announce: onNotice,
@@ -1051,9 +1024,10 @@ export function useWorkspaceSync(
      * Reports what the queue of this device holds right now.
      *
      * The engine announces only what it did, so a device with nothing to
-     * send never reports anything. The count of queued saves fills that
-     * gap and keeps a quiet state honest: a queued save means a send is in
-     * progress, an empty queue means everything reached the server.
+     * send never reports anything. The queue fills that gap and keeps a
+     * quiet state honest: a queued save means a send is in progress, a
+     * parked save waits for the person, and an empty queue means everything
+     * reached the server.
      */
     const readQueue = (): void => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -1063,7 +1037,10 @@ export function useWorkspaceSync(
       void activeStore
         .pending(activeAccount, activeWorkspace)
         .then((entries) => {
-          setState((current) => syncStateOfQueue(current, entries.length));
+          if (controller.signal.aborted) return;
+          queue = syncQueueOf(entries);
+          const read = queue;
+          setState((current) => syncStateOfQueue(current, read));
         })
         .catch(() => {
           // A queue that cannot be read changes nothing the person needs to
@@ -1081,6 +1058,7 @@ export function useWorkspaceSync(
       }
     });
     const onOnline = (): void => {
+      setState(syncStateOnline);
       readQueue();
       requestSync();
     };

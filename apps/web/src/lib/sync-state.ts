@@ -12,7 +12,11 @@
  * they read a word. Both readings come from this module, so they cannot
  * disagree.
  */
-import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
+import {
+  transportFailedCode,
+  type QueueState,
+  type SyncNotice,
+} from '@notesapp/sync';
 
 /** Where sync stands right now. */
 export type SyncState =
@@ -24,8 +28,11 @@ export type SyncState =
   | { readonly kind: 'sending' }
   /** The device has no connection, so saves wait here. */
   | { readonly kind: 'waiting' }
-  /** A save was refused and waits in the Needs attention list. */
-  | { readonly kind: 'attention'; readonly fileId: string | undefined }
+  /**
+   * The server refused saves for good, so they are parked and wait in the
+   * Needs attention list. Nothing sends them until the person acts.
+   */
+  | { readonly kind: 'attention'; readonly parked: number }
   /** A delete did not run because the note changed elsewhere. */
   | { readonly kind: 'delete-refused'; readonly path: string }
   /** The session ended, so sync stopped until the person signs in. */
@@ -60,6 +67,25 @@ export function noticeStartsOver(notice: SyncNotice): boolean {
 }
 
 /**
+ * Whether the queue of the device states where the work stands after one
+ * notice.
+ *
+ * A send, a refusal, and a pull each change what the queue holds or prove
+ * that the connection works, so the caller reads the queue after them. A
+ * refused save is parked in the queue, so the queue and not the notice
+ * states how many saves wait for the person.
+ */
+export function noticeReadsQueue(notice: SyncNotice): boolean {
+  return (
+    noticeStartsOver(notice) ||
+    notice.kind === 'pushed' ||
+    notice.kind === 'preserved' ||
+    notice.kind === 'snapshot-activated' ||
+    notice.kind === 'changes-applied'
+  );
+}
+
+/**
  * Selects the state for one engine notice.
  *
  * Returns `null` for a notice that does not change what the person sees,
@@ -67,8 +93,10 @@ export function noticeStartsOver(notice: SyncNotice): boolean {
  */
 export function syncStateOfNotice(notice: SyncNotice): SyncState | null {
   if (notice.kind === 'pushed') return { kind: 'in-step' };
-  if (notice.kind === 'preserved')
-    return { kind: 'attention', fileId: notice.fileIds[0] };
+  // A refused save is parked in the queue, and a refusal that kept the text
+  // as a new note parks nothing. The queue read that follows the notice
+  // states which one happened and how many saves wait (`syncStateOfQueue`).
+  if (notice.kind === 'preserved') return null;
   // A save that passed a newer head joins the work of that head, so nothing
   // of the other device went to History alone. When the save joined work
   // that this device had not seen, the note offers Review, and that is the
@@ -124,8 +152,12 @@ export function syncStateMessage(
   if (state.kind === 'sending') return 'Sending your save to the server.';
   if (state.kind === 'waiting')
     return 'No connection. Saves wait on this device.';
+  // The status only states the fact. The Needs attention link below it is
+  // the way to the saves, so the cause has one message and one action.
   if (state.kind === 'attention')
-    return `${named} did not save. Open Needs attention.`;
+    return state.parked === 1
+      ? '1 save needs attention.'
+      : `${String(state.parked)} saves need attention.`;
   if (state.kind === 'delete-refused')
     return `${named} changed on another device. It is kept.`;
   if (state.kind === 'signed-out') return 'The session ended. Sign in to save.';
@@ -177,21 +209,63 @@ export function syncStateIsQuiet(state: SyncState): boolean {
   );
 }
 
+/** What the queue of one workspace holds, as the footer states it. */
+export type SyncQueue = {
+  /** Saves that wait to go to the server, or go now. */
+  readonly unsent: number;
+  /** Saves the server refused for good. Nothing sends them again. */
+  readonly parked: number;
+};
+
+/**
+ * Counts the queue entries of one workspace by what happens to them.
+ *
+ * A parked entry stays in the queue with its state `conflict`, and the
+ * engine never sends it again. It is not a send in progress.
+ */
+export function syncQueueOf(
+  entries: readonly { readonly state: QueueState }[],
+): SyncQueue {
+  const parked = entries.filter((entry) => entry.state === 'conflict').length;
+  return { unsent: entries.length - parked, parked };
+}
+
 /**
  * Selects the state that the queue of this device implies.
  *
  * The engine only announces what it did, so a device with an empty queue
  * gets no announcement at all. Without this rule the first state of a
  * session stays "sending" for as long as the tab is open, even though
- * nothing waits to go up. A queued save means a send is in progress; an
- * empty queue means everything reached the server.
+ * nothing waits to go up.
+ *
+ * A parked save outranks a send: the send ends on its own, and the parked
+ * save waits for the person for as long as the tab is open. A parked save is
+ * never a send in progress, so a queue that holds only parked saves never
+ * reads as sending. The attention state is the queue too, so it ends when
+ * the person retries, discards, or keeps the last parked save as a new note.
+ * An empty queue means everything reached the server.
  */
 export function syncStateOfQueue(
   current: SyncState,
-  pendingCount: number,
+  queue: SyncQueue,
 ): SyncState {
-  if (!syncStateIsQuiet(current)) return current;
-  return pendingCount > 0 ? { kind: 'sending' } : { kind: 'in-step' };
+  if (!syncStateIsQuiet(current) && current.kind !== 'attention')
+    return current;
+  if (queue.parked > 0) return { kind: 'attention', parked: queue.parked };
+  return queue.unsent > 0 ? { kind: 'sending' } : { kind: 'in-step' };
+}
+
+/**
+ * The state when the browser reports a connection again.
+ *
+ * A lost connection is the one state that the queue does not replace, so
+ * the state starts over and the queue read that follows states where the
+ * work stands. Without this, a device with nothing to send kept the line of
+ * a lost connection after the connection returned, because no engine notice
+ * came. When the connection is still down, the engine reports it again.
+ */
+export function syncStateOnline(current: SyncState): SyncState {
+  return current.kind === 'waiting' ? startingSyncState : current;
 }
 
 /** Whether a state asks the person to do something. */
@@ -204,12 +278,6 @@ export function syncNeedsAttention(state: SyncState): boolean {
     state.kind === 'delete-refused' ||
     state.kind === 'update-required'
   );
-}
-
-/** The note a state speaks about, when it names one. */
-export function syncStateFileId(state: SyncState): string | null {
-  if (state.kind === 'attention') return state.fileId ?? null;
-  return null;
 }
 
 /** What the dot of the sidebar footer states. */
