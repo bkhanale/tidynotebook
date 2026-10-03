@@ -49,7 +49,7 @@ This package is browser code: no Node built in module and no server package.
 ## How to add a common thing here
 
 - **A decoration.** Read the node from the Lezer tree with
-  `syntaxTree(state)` in `live-preview.ts`. Never scan the source text.
+  `syntaxTree(state)`. Never scan the source, or the whole note on a key.
 - **A command and its key.** Add the command, dispatch it through
   `editingTransaction`, and list it in `shortcuts`. A formatting command is
   one row of `formatActions`; its key, tool and palette row read it (0094).

@@ -42,7 +42,9 @@ import {
   type EditorState,
   type Extension,
   type Range,
+  type Transaction,
 } from '@codemirror/state';
+import type { SyntaxNode, Tree } from '@lezer/common';
 import {
   Decoration,
   EditorView,
@@ -265,18 +267,26 @@ function referenceKey(label: string): string {
 }
 
 /**
- * The link definitions of one document, by label.
+ * The link definitions of one document, by label, and the ranges that hold
+ * them.
  *
  * A reference image names its destination somewhere else in the note, so the
  * widget finder needs the definitions before it can resolve one. They come
- * from the syntax tree, like every other fact of the preview.
+ * from the syntax tree, like every other fact of the preview. The walk enters
+ * only the blocks that can hold a definition and never the text of a block.
  */
-function linkDefinitions(state: EditorState): ReadonlyMap<string, string> {
+function linkDefinitions(state: EditorState): {
+  readonly definitions: ReadonlyMap<string, string>;
+  readonly ranges: readonly SourceRange[];
+} {
   const doc = state.doc;
-  const found = new Map<string, string>();
+  const definitions = new Map<string, string>();
+  const ranges: SourceRange[] = [];
   syntaxTree(state).iterate({
     enter: (node) => {
-      if (node.name !== 'LinkReference') return true;
+      if (node.name !== 'LinkReference')
+        return definitionContainers.has(node.name);
+      ranges.push({ from: node.from, to: node.to });
       const label = node.node.getChild('LinkLabel');
       const url = node.node.getChild('URL');
       if (label === null || url === null) return false;
@@ -284,11 +294,291 @@ function linkDefinitions(state: EditorState): ReadonlyMap<string, string> {
         doc.sliceString(label.from + 1, Math.max(label.from + 1, label.to - 1)),
       );
       // The first definition of a label wins, as CommonMark states.
-      if (!found.has(key)) found.set(key, doc.sliceString(url.from, url.to));
+      if (!definitions.has(key))
+        definitions.set(key, doc.sliceString(url.from, url.to));
       return false;
     },
   });
-  return found;
+  return { definitions, ranges };
+}
+
+/** The blocks that can hold a link definition. */
+const definitionContainers = new Set([
+  'Document',
+  'Blockquote',
+  'BulletList',
+  'OrderedList',
+  'ListItem',
+]);
+
+/** One range of the source. */
+type SourceRange = { readonly from: number; readonly to: number };
+
+/**
+ * One range that the widget field decorates: a widget, or source that hides
+ * with no widget in its place, such as a hard break marker, a setext heading
+ * underline or a code fence line.
+ */
+type Region = {
+  readonly from: number;
+  readonly to: number;
+  /** The range that the selection touches to show the source again. */
+  readonly revealFrom: number;
+  readonly revealTo: number;
+  readonly widget: RichWidget | null;
+};
+
+/** What one scan of a range of the tree found. */
+type RegionScan = {
+  readonly regions: Region[];
+  /** Whether the range holds a link definition. */
+  readonly definitions: boolean;
+  /** How many tree nodes the scan entered. */
+  readonly visited: number;
+};
+
+/**
+ * Finds the regions of one range of the tree, in document order.
+ *
+ * One walk finds every kind, and it enters a block only when the block can
+ * hold a region. A range of whole top-level blocks gives the regions of
+ * those blocks and of nothing else, which is what lets the field scan only
+ * the blocks that an edit changed.
+ */
+function scanRegions(
+  state: EditorState,
+  range: SourceRange,
+  definitions: ReadonlyMap<string, string>,
+): RegionScan {
+  const doc = state.doc;
+  const regions: Region[] = [];
+  const slice = (from: number, to: number): string => doc.sliceString(from, to);
+  const paragraphs: SourceRange[] = [];
+  let sawDefinition = false;
+  let visited = 0;
+  const hide = (from: number, to: number, reveal: SourceRange): void => {
+    regions.push({
+      from,
+      to,
+      revealFrom: reveal.from,
+      revealTo: reveal.to,
+      widget: null,
+    });
+  };
+  const widget = (found: RichWidget): void => {
+    regions.push({
+      from: found.from,
+      to: found.to,
+      revealFrom: found.from,
+      revealTo: found.to,
+      widget: found,
+    });
+  };
+  syntaxTree(state).iterate({
+    from: range.from,
+    to: range.to,
+    enter: (node) => {
+      visited += 1;
+      const name = node.name;
+      if (name === 'LinkReference') {
+        sawDefinition = true;
+        return false;
+      }
+      if (name === 'FencedCode') {
+        const info = node.node.getChild('CodeInfo');
+        const infoText = info === null ? '' : slice(info.from, info.to);
+        if (diagramFence(infoText)) {
+          const text = node.node.getChild('CodeText');
+          const lines = lineRange(state, node.from, node.to);
+          widget({
+            ...lines,
+            kind: 'diagram',
+            source: slice(lines.from, lines.to),
+            content: text === null ? '' : slice(text.from, text.to),
+            destination: '',
+            block: true,
+          });
+          return false;
+        }
+        for (const line of fenceLines(state, node.node))
+          hide(line.from, line.to, { from: node.from, to: node.to });
+        return false;
+      }
+      if (name === 'MathBlock') {
+        const lines = lineRange(state, node.from, node.to);
+        const parts: string[] = [];
+        for (const text of node.node.getChildren('MathText'))
+          parts.push(slice(text.from, text.to));
+        widget({
+          ...lines,
+          kind: 'math-display',
+          source: slice(lines.from, lines.to),
+          content: parts.join('\n'),
+          destination: '',
+          block: true,
+        });
+        return false;
+      }
+      if (name === 'InlineMath') {
+        widget(inlineMath(state, node.node));
+        return false;
+      }
+      if (name === 'Image') {
+        const found = imageRegion(state, node.node, definitions);
+        if (found === null) return true;
+        widget(found);
+        return false;
+      }
+      if (name === 'SetextHeading1' || name === 'SetextHeading2') {
+        // Hiding the underline and the line break above it joins the
+        // underline into the heading line, so the heading shows its text
+        // only. A cursor on either line brings the underline back.
+        const mark = node.node.getChild('HeaderMark');
+        const line = mark === null ? null : doc.lineAt(mark.from);
+        if (line !== null && line.from > 0)
+          hide(line.from - 1, line.to, { from: node.from, to: node.to });
+        return true;
+      }
+      if (name === 'Paragraph') {
+        paragraphs.push({ from: node.from, to: node.to });
+        return true;
+      }
+      if (name === 'HardBreak') {
+        // The marker hides with the rest of the source of its paragraph, and
+        // never its line break, which is what the marker asks for (decision
+        // 0107).
+        const paragraph = paragraphs[paragraphs.length - 1];
+        if (paragraph !== undefined)
+          hide(
+            node.from,
+            Math.min(node.to, doc.lineAt(node.from).to),
+            paragraph,
+          );
+        return true;
+      }
+      return true;
+    },
+    leave: (node) => {
+      if (node.name === 'Paragraph') paragraphs.pop();
+    },
+  });
+  regions.sort((left, right) => left.from - right.from || left.to - right.to);
+  return { regions, definitions: sawDefinition, visited };
+}
+
+/** The region of one inline math node. */
+function inlineMath(state: EditorState, node: SyntaxNode): RichWidget {
+  const slice = (from: number, to: number): string =>
+    state.doc.sliceString(from, to);
+  const text = node.getChild('MathText');
+  // A run of dollars can span the lines of its paragraph, as remark reads
+  // it, so the marks of a quote and the indent of a list on a later line
+  // belong to the note and not to the formula.
+  let content = '';
+  if (text !== null) {
+    let at = text.from;
+    for (const mark of [
+      ...node.getChildren('QuoteMark'),
+      ...text.getChildren('QuoteMark'),
+    ].sort((left, right) => left.from - right.from)) {
+      if (mark.from < text.from || mark.to > text.to) continue;
+      content += slice(at, mark.from);
+      at = mark.to;
+    }
+    content += slice(at, text.to);
+    content = content.replace(/\n[ \t]+/g, '\n');
+  }
+  return {
+    from: node.from,
+    to: node.to,
+    kind: 'math-inline',
+    source: slice(node.from, node.to),
+    content,
+    destination: '',
+    block: false,
+  };
+}
+
+/** The region of one image node, or `null` when it renders no widget. */
+function imageRegion(
+  state: EditorState,
+  node: SyntaxNode,
+  definitions: ReadonlyMap<string, string>,
+): RichWidget | null {
+  const doc = state.doc;
+  const slice = (from: number, to: number): string => doc.sliceString(from, to);
+  const text = slice(node.from, node.to);
+  const alt = imageAlt(text);
+  const url = node.getChild('URL');
+  // A reference image names its destination elsewhere in the note. The full
+  // form carries the label, and the collapsed and shortcut forms use the alt
+  // text as the label, which is what CommonMark states.
+  const label = node.getChild('LinkLabel');
+  const destination =
+    url !== null
+      ? slice(url.from, url.to)
+      : (definitions.get(
+          referenceKey(
+            label === null
+              ? alt
+              : slice(label.from + 1, Math.max(label.from + 1, label.to - 1)),
+          ),
+        ) ?? null);
+  if (destination === null) return null;
+  const attachment = attachmentIdOf(destination);
+  if (attachment === null && !isExternalImage(destination)) return null;
+  const line = doc.lineAt(node.from);
+  const alone =
+    line.text.trim() === text.trim() &&
+    doc.lineAt(node.to).number === line.number;
+  return {
+    from: alone ? line.from : node.from,
+    to: alone ? line.to : node.to,
+    kind: 'image',
+    source: text,
+    content: alt,
+    destination,
+    block: alone,
+  };
+}
+
+/**
+ * The fence lines that a fenced code block hides.
+ *
+ * A fenced code block hides its opening and its closing fence line, so the
+ * reader sees the highlighted code alone and not the ` ``` ` lines (decision
+ * 0002). Each hidden range covers one fence line and the one line break that
+ * joins it to the code, so the line collapses. A single line fence keeps its
+ * open and close on one line, so it is left as source rather than hiding the
+ * code with the fences.
+ */
+function fenceLines(
+  state: EditorState,
+  fence: SyntaxNode,
+): readonly SourceRange[] {
+  const doc = state.doc;
+  const marks = fence.getChildren('CodeMark');
+  const open = marks[0] ?? null;
+  if (open === null) return [];
+  const openLine = doc.lineAt(open.from);
+  const close = marks.length > 1 ? (marks[marks.length - 1] ?? null) : null;
+  const closeLine = close === null ? null : doc.lineAt(close.from);
+  if (closeLine === null || closeLine.number > openLine.number + 1) {
+    // The opening line and the line break after it, so the first code line
+    // moves up into its place, and the closing line and the line break
+    // before it.
+    const hides: SourceRange[] = [
+      { from: openLine.from, to: Math.min(doc.length, openLine.to + 1) },
+    ];
+    if (closeLine !== null)
+      hides.push({ from: closeLine.from - 1, to: closeLine.to });
+    return hides;
+  }
+  // An empty block holds no code between its fences, so one range hides both
+  // lines and cannot overlap.
+  if (closeLine.number === openLine.number + 1)
+    return [{ from: openLine.from, to: closeLine.to }];
+  return [];
 }
 
 /**
@@ -299,117 +589,15 @@ function linkDefinitions(state: EditorState): ReadonlyMap<string, string> {
  * stays editable source.
  */
 export function findRichRegions(state: EditorState): readonly RichWidget[] {
-  const doc = state.doc;
+  const { definitions } = linkDefinitions(state);
   const found: RichWidget[] = [];
-  const slice = (from: number, to: number): string => doc.sliceString(from, to);
-  const definitions = linkDefinitions(state);
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (found.length >= richLimits.maxWidgets) return false;
-      const name = node.name;
-      if (name === 'FencedCode') {
-        const info = node.node.getChild('CodeInfo');
-        if (!diagramFence(info === null ? '' : slice(info.from, info.to)))
-          return false;
-        const text = node.node.getChild('CodeText');
-        const range = lineRange(state, node.from, node.to);
-        found.push({
-          ...range,
-          kind: 'diagram',
-          source: slice(range.from, range.to),
-          content: text === null ? '' : slice(text.from, text.to),
-          destination: '',
-          block: true,
-        });
-        return false;
-      }
-      if (name === 'MathBlock') {
-        const range = lineRange(state, node.from, node.to);
-        const parts: string[] = [];
-        for (const text of node.node.getChildren('MathText'))
-          parts.push(slice(text.from, text.to));
-        found.push({
-          ...range,
-          kind: 'math-display',
-          source: slice(range.from, range.to),
-          content: parts.join('\n'),
-          destination: '',
-          block: true,
-        });
-        return false;
-      }
-      if (name === 'InlineMath') {
-        const text = node.node.getChild('MathText');
-        // A run of dollars can span the lines of its paragraph, as remark
-        // reads it, so the marks of a quote and the indent of a list on a
-        // later line belong to the note and not to the formula.
-        let content = '';
-        if (text !== null) {
-          let at = text.from;
-          for (const mark of [
-            ...node.node.getChildren('QuoteMark'),
-            ...text.getChildren('QuoteMark'),
-          ].sort((left, right) => left.from - right.from)) {
-            if (mark.from < text.from || mark.to > text.to) continue;
-            content += slice(at, mark.from);
-            at = mark.to;
-          }
-          content += slice(at, text.to);
-          content = content.replace(/\n[ \t]+/g, '\n');
-        }
-        found.push({
-          from: node.from,
-          to: node.to,
-          kind: 'math-inline',
-          source: slice(node.from, node.to),
-          content,
-          destination: '',
-          block: false,
-        });
-        return false;
-      }
-      if (name === 'Image') {
-        const text = slice(node.from, node.to);
-        const alt = imageAlt(text);
-        const url = node.node.getChild('URL');
-        // A reference image names its destination elsewhere in the note. The
-        // full form carries the label, and the collapsed and shortcut forms
-        // use the alt text as the label, which is what CommonMark states.
-        const label = node.node.getChild('LinkLabel');
-        const destination =
-          url !== null
-            ? slice(url.from, url.to)
-            : (definitions.get(
-                referenceKey(
-                  label === null
-                    ? alt
-                    : slice(
-                        label.from + 1,
-                        Math.max(label.from + 1, label.to - 1),
-                      ),
-                ),
-              ) ?? null);
-        if (destination === null) return false;
-        const attachment = attachmentIdOf(destination);
-        const line = doc.lineAt(node.from);
-        const alone =
-          line.text.trim() === text.trim() &&
-          doc.lineAt(node.to).number === line.number;
-        if (attachment === null && !isExternalImage(destination)) return false;
-        found.push({
-          from: alone ? line.from : node.from,
-          to: alone ? line.to : node.to,
-          kind: 'image',
-          source: text,
-          content: alt,
-          destination,
-          block: alone,
-        });
-        return false;
-      }
-      return true;
-    },
-  });
+  for (const region of scanRegions(
+    state,
+    { from: 0, to: state.doc.length },
+    definitions,
+  ).regions)
+    if (region.widget !== null && found.length < richLimits.maxWidgets)
+      found.push(region.widget);
   return found;
 }
 
@@ -697,6 +885,283 @@ export type RichWidgetSet = {
 };
 
 /**
+ * The regions of one state, and what the field needs to keep them right.
+ *
+ * The field keeps this index from one transaction to the next. An edit
+ * scans only the top-level blocks that it changed, and the rest of the index
+ * moves with the edit, so the cost of a key follows the change and not the
+ * length of the note.
+ */
+export type RegionIndex = {
+  readonly regions: readonly Region[];
+  readonly definitions: ReadonlyMap<string, string>;
+  /** Where the link definitions stand, so an edit of one scans again. */
+  readonly definitionRanges: readonly SourceRange[];
+  /** How far the tree reached when the index was last scanned. */
+  readonly parsedTo: number;
+  /** How many tree nodes the update that made this index entered. */
+  readonly visited: number;
+};
+
+/** The index of one state, from a scan of the whole tree. */
+export function regionIndexOf(state: EditorState): RegionIndex {
+  const { definitions, ranges } = linkDefinitions(state);
+  const scan = scanRegions(
+    state,
+    { from: 0, to: state.doc.length },
+    definitions,
+  );
+  return {
+    regions: scan.regions,
+    definitions,
+    definitionRanges: ranges,
+    parsedTo: syntaxTree(state).length,
+    visited: scan.visited,
+  };
+}
+
+/**
+ * The top-level block that holds one node, or `null` for the document.
+ *
+ * The note language wraps the Markdown document in a document of its own,
+ * so a block is a node whose parent is a `Document` and that is not one.
+ */
+function topBlockOf(node: SyntaxNode): SyntaxNode | null {
+  for (let at: SyntaxNode = node; at.parent !== null; at = at.parent)
+    if (at.parent.name === 'Document' && at.name !== 'Document') return at;
+  return null;
+}
+
+/** The innermost `Document` node of a tree, whose children are blocks. */
+function documentNode(tree: Tree): SyntaxNode {
+  let node = tree.topNode;
+  for (
+    let inner = node.firstChild;
+    inner !== null && inner.name === 'Document';
+    inner = node.firstChild
+  )
+    node = inner;
+  return node;
+}
+
+/** The top-level blocks of a tree that touch one position, as one range. */
+function blocksAt(tree: Tree, position: number): SourceRange {
+  let from = position;
+  let to = position;
+  for (const side of [-1, 1] as const) {
+    const block = topBlockOf(tree.resolve(position, side));
+    if (block === null || block.from > position || block.to < position)
+      continue;
+    from = Math.min(from, block.from);
+    to = Math.max(to, block.to);
+  }
+  return { from, to };
+}
+
+/** The first top-level block of a tree that starts at or after a position. */
+function topBlockFrom(tree: Tree, position: number): SyntaxNode | null {
+  let node = documentNode(tree).childAfter(position);
+  while (node !== null && node.from < position) node = node.nextSibling;
+  return node;
+}
+
+/**
+ * The range of the new document that one edit can have changed, as whole
+ * top-level blocks, or `null` when the edit changed a link definition and
+ * the whole note scans again.
+ *
+ * The range starts with the blocks around the edit, in the old tree and in
+ * the new one. An edit can change how the text after it parses, as an open
+ * code fence does, so the range then grows block by block until a block of
+ * the new tree stands where the same block of the old tree stood.
+ */
+function changedBlocks(
+  transaction: Transaction,
+  index: RegionIndex,
+): SourceRange | null {
+  let fromA = Number.POSITIVE_INFINITY;
+  let toA = Number.NEGATIVE_INFINITY;
+  let fromB = Number.POSITIVE_INFINITY;
+  let toB = Number.NEGATIVE_INFINITY;
+  transaction.changes.iterChangedRanges((startA, endA, startB, endB) => {
+    fromA = Math.min(fromA, startA);
+    toA = Math.max(toA, endA);
+    fromB = Math.min(fromB, startB);
+    toB = Math.max(toB, endB);
+  });
+  const oldTree = syntaxTree(transaction.startState);
+  const newTree = syntaxTree(transaction.state);
+  const shift = toB - toA;
+  const oldBlocks = {
+    from: blocksAt(oldTree, fromA).from,
+    to: blocksAt(oldTree, toA).to,
+  };
+  if (
+    index.definitionRanges.some(
+      (range) => range.from <= oldBlocks.to && range.to >= oldBlocks.from,
+    )
+  )
+    return null;
+  let from = Math.min(fromB, oldBlocks.from, blocksAt(newTree, fromB).from);
+  let to = Math.max(toB, oldBlocks.to + shift, blocksAt(newTree, toB).to);
+  // Grow until the blocks of the two trees stand in the same places again.
+  for (;;) {
+    const next = topBlockFrom(newTree, to);
+    if (next === null) {
+      to = Math.max(to, Math.min(newTree.length, transaction.newDoc.length));
+      break;
+    }
+    const before = topBlockFrom(oldTree, Math.max(0, to - shift));
+    if (
+      before !== null &&
+      before.name === next.name &&
+      before.from + shift === next.from &&
+      before.to + shift === next.to
+    )
+      break;
+    to = next.to;
+  }
+  const doc = transaction.newDoc;
+  from = doc.lineAt(Math.max(0, Math.min(from, doc.length))).from;
+  to = doc.lineAt(Math.max(0, Math.min(to, doc.length))).to;
+  return { from, to };
+}
+
+/**
+ * Whether one region belongs to a range of blocks: it lies inside it, or
+ * it overlaps it. A region that only touches the range belongs to the block
+ * beside it.
+ */
+function meets(region: Region, range: SourceRange): boolean {
+  return (
+    (region.revealFrom >= range.from && region.revealTo <= range.to) ||
+    (region.revealFrom < range.to && region.revealTo > range.from)
+  );
+}
+
+/** One region moved by the changes of a transaction. */
+function mapRegion(region: Region, transaction: Transaction): Region {
+  const map = (position: number): number =>
+    transaction.changes.mapPos(position);
+  const from = map(region.from);
+  const to = map(region.to);
+  return {
+    from,
+    to,
+    revealFrom: map(region.revealFrom),
+    revealTo: map(region.revealTo),
+    widget: region.widget === null ? null : { ...region.widget, from, to },
+  };
+}
+
+/** The index with the regions of one range scanned again. */
+function rescan(
+  state: EditorState,
+  kept: readonly Region[],
+  range: SourceRange,
+  index: Omit<RegionIndex, 'regions' | 'parsedTo' | 'visited'>,
+): RegionIndex | null {
+  const scan = scanRegions(state, range, index.definitions);
+  if (scan.definitions) return null;
+  const regions = [
+    ...kept.filter((region) => !meets(region, range)),
+    ...scan.regions.filter((region) => meets(region, range)),
+  ].sort((left, right) => left.from - right.from || left.to - right.to);
+  return {
+    ...index,
+    regions,
+    parsedTo: syntaxTree(state).length,
+    visited: scan.visited,
+  };
+}
+
+/**
+ * The index after one transaction.
+ *
+ * An edit scans the blocks that it changed. A parse that reached further
+ * scans the blocks that it added. A transaction that changes neither keeps
+ * the index. A change of a link definition scans the whole note, because an
+ * image anywhere can name it.
+ */
+export function nextRegionIndex(
+  index: RegionIndex,
+  transaction: Transaction,
+): RegionIndex {
+  const state = transaction.state;
+  if (transaction.docChanged) {
+    const range = changedBlocks(transaction, index);
+    if (range === null) return regionIndexOf(state);
+    const definitionRanges = index.definitionRanges.map((range) => ({
+      from: transaction.changes.mapPos(range.from),
+      to: transaction.changes.mapPos(range.to),
+    }));
+    return (
+      rescan(
+        state,
+        index.regions.map((region) => mapRegion(region, transaction)),
+        range,
+        { definitions: index.definitions, definitionRanges },
+      ) ?? regionIndexOf(state)
+    );
+  }
+  const tree = syntaxTree(state);
+  if (tree.length <= index.parsedTo) return index;
+  // The parser reached text that the index has not seen. The block where the
+  // last parse stopped can have grown, so the scan starts there.
+  const range = {
+    from: blocksAt(tree, index.parsedTo).from,
+    to: tree.length,
+  };
+  return rescan(state, index.regions, range, index) ?? regionIndexOf(state);
+}
+
+/**
+ * The decorations of one index under the selection of a state.
+ *
+ * A region whose range the selection touches is left out, so its source
+ * shows and stays editable.
+ */
+function decorate(
+  index: RegionIndex,
+  state: EditorState,
+  resolvers: RichWidgetResolvers,
+): RichWidgetSet {
+  const selection = state.selection.main;
+  const widgetItems: Range<Decoration>[] = [];
+  const items: Range<Decoration>[] = [];
+  const atomicItems: Range<Decoration>[] = [];
+  let widgets = 0;
+  for (const region of index.regions) {
+    if (region.widget !== null) {
+      // The cap counts in document order, so the same widgets render
+      // wherever the selection stands.
+      if (widgets >= richLimits.maxWidgets) continue;
+      widgets += 1;
+    }
+    if (region.to <= region.from) continue;
+    if (selection.from <= region.revealTo && selection.to >= region.revealFrom)
+      continue;
+    if (region.widget !== null) {
+      const decoration = Decoration.replace({
+        widget: new RichWidgetType(region.widget, resolvers),
+        block: region.widget.block,
+      });
+      widgetItems.push(decoration.range(region.from, region.to));
+      atomicItems.push(decoration.range(region.from, region.to));
+      continue;
+    }
+    const hidden = Decoration.replace({});
+    items.push(hidden.range(region.from, region.to));
+    atomicItems.push(hidden.range(region.from, region.to));
+  }
+  return {
+    widgets: Decoration.set(widgetItems, true),
+    hides: Decoration.set(items, true),
+    atomic: RangeSet.of(atomicItems, true),
+  };
+}
+
+/**
  * Builds the widgets and the hidden source of one state.
  *
  * A region whose range the selection touches is left out, so its source
@@ -707,226 +1172,35 @@ export function buildRichWidgets(
   state: EditorState,
   resolvers: RichWidgetResolvers,
 ): RichWidgetSet {
-  const selection = state.selection.main;
-  const touches = (from: number, to: number): boolean =>
-    selection.from <= to && selection.to >= from;
-  const widgetItems: Range<Decoration>[] = [];
-  const items: Range<Decoration>[] = [];
-  const atomicItems: Range<Decoration>[] = [];
-  for (const widget of findRichRegions(state)) {
-    if (widget.to <= widget.from) continue;
-    if (touches(widget.from, widget.to)) continue;
-    const decoration = Decoration.replace({
-      widget: new RichWidgetType(widget, resolvers),
-      block: widget.block,
-    });
-    widgetItems.push(decoration.range(widget.from, widget.to));
-    atomicItems.push(decoration.range(widget.from, widget.to));
-  }
-  for (const marker of findHardBreakMarkers(state)) {
-    if (marker.to <= marker.from) continue;
-    if (touches(marker.paragraphFrom, marker.paragraphTo)) continue;
-    const hide = Decoration.replace({});
-    items.push(hide.range(marker.from, marker.to));
-    atomicItems.push(hide.range(marker.from, marker.to));
-  }
-  for (const underline of findSetextUnderlines(state)) {
-    if (touches(underline.headingFrom, underline.headingTo)) continue;
-    const hide = Decoration.replace({});
-    items.push(hide.range(underline.from, underline.to));
-    atomicItems.push(hide.range(underline.from, underline.to));
-  }
-  for (const fence of findCodeFences(state)) {
-    if (touches(fence.blockFrom, fence.blockTo)) continue;
-    for (const line of fence.hides) {
-      if (line.to <= line.from) continue;
-      const hide = Decoration.replace({});
-      items.push(hide.range(line.from, line.to));
-      atomicItems.push(hide.range(line.from, line.to));
-    }
-  }
-  return {
-    widgets: Decoration.set(widgetItems, true),
-    hides: Decoration.set(items, true),
-    atomic: RangeSet.of(atomicItems, true),
-  };
+  return decorate(regionIndexOf(state), state, resolvers);
 }
 
-/**
- * One hard break marker of a paragraph, without its line break.
- *
- * `from` and `to` cover the backslash or the two spaces the author wrote, and
- * never the line break itself, because the break is what the marker asks for.
- * `paragraphFrom` and `paragraphTo` are the range the selection must touch to
- * bring the marker back.
- */
-type HardBreakMarker = {
-  readonly from: number;
-  readonly to: number;
-  readonly paragraphFrom: number;
-  readonly paragraphTo: number;
-};
+/** The value of the widget field: the index and its decorations. */
+type RichWidgetField = RichWidgetSet & { readonly index: RegionIndex };
 
-/**
- * The hard break markers of every paragraph of one document.
- *
- * A new line is a line break on every surface (decision 0107), so each source
- * line keeps its own screen line and nothing here joins two lines. The marker
- * of a hard break is notation that adds nothing to that line break, so it
- * hides with the rest of the source of its paragraph.
- *
- * The ranges come from the syntax tree. A `HardBreak` node covers its marker
- * and the line break, so the hidden range stops at the end of the line.
- */
-function findHardBreakMarkers(state: EditorState): readonly HardBreakMarker[] {
-  const doc = state.doc;
-  const markers: HardBreakMarker[] = [];
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (node.name !== 'Paragraph') return true;
-      syntaxTree(state).iterate({
-        from: node.from,
-        to: node.to,
-        enter: (inner) => {
-          if (inner.name !== 'HardBreak') return true;
-          markers.push({
-            from: inner.from,
-            to: Math.min(inner.to, doc.lineAt(inner.from).to),
-            paragraphFrom: node.from,
-            paragraphTo: node.to,
-          });
-          return true;
-        },
-      });
-      return true;
-    },
-  });
-  return markers;
-}
-
-/**
- * The ranges that hold a setext heading underline and the line break above.
- *
- * Hiding both joins the underline into the heading line, so the heading
- * shows its text only. The selection range that reveals it covers the whole
- * heading, so a cursor on either line brings the underline back.
- */
-function findSetextUnderlines(state: EditorState): readonly {
-  from: number;
-  to: number;
-  headingFrom: number;
-  headingTo: number;
-}[] {
-  const found: {
-    from: number;
-    to: number;
-    headingFrom: number;
-    headingTo: number;
-  }[] = [];
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (node.name !== 'SetextHeading1' && node.name !== 'SetextHeading2')
-        return true;
-      const mark = node.node.getChild('HeaderMark');
-      if (mark === null) return false;
-      const line = state.doc.lineAt(mark.from);
-      if (line.from === 0) return false;
-      found.push({
-        from: line.from - 1,
-        to: line.to,
-        headingFrom: node.from,
-        headingTo: node.to,
-      });
-      return false;
-    },
-  });
-  return found;
-}
-
-/**
- * The fence lines of a fenced code block, with the block range that reveals
- * them.
- *
- * A fenced code block hides its opening and its closing fence line, so the
- * reader sees the highlighted code alone and not the ` ``` ` lines (decision
- * 0002). Each hidden range covers one fence line and the one line break that
- * joins it to the code, so the line collapses. The block shows its fences
- * again while the selection touches it, so the source stays editable. A
- * mermaid fence is a diagram widget, so it is left out here.
- */
-function findCodeFences(state: EditorState): readonly {
-  hides: readonly { from: number; to: number }[];
-  blockFrom: number;
-  blockTo: number;
-}[] {
-  const doc = state.doc;
-  const found: {
-    hides: { from: number; to: number }[];
-    blockFrom: number;
-    blockTo: number;
-  }[] = [];
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (node.name !== 'FencedCode') return true;
-      const fence = node.node;
-      const info = fence.getChild('CodeInfo');
-      if (
-        diagramFence(info === null ? '' : doc.sliceString(info.from, info.to))
-      )
-        return false;
-      const marks = fence.getChildren('CodeMark');
-      const open = marks[0] ?? null;
-      if (open === null) return false;
-      const openLine = doc.lineAt(open.from);
-      const close = marks.length > 1 ? (marks[marks.length - 1] ?? null) : null;
-      const closeLine = close === null ? null : doc.lineAt(close.from);
-      const hides: { from: number; to: number }[] = [];
-      if (closeLine === null || closeLine.number > openLine.number + 1) {
-        // The opening line and the line break after it, so the first code
-        // line moves up into its place.
-        hides.push({
-          from: openLine.from,
-          to: Math.min(doc.length, openLine.to + 1),
-        });
-        if (closeLine !== null)
-          // The closing line and the line break before it.
-          hides.push({ from: closeLine.from - 1, to: closeLine.to });
-      } else if (closeLine.number === openLine.number + 1) {
-        // An empty block holds no code between its fences, so one range hides
-        // both lines and cannot overlap.
-        hides.push({ from: openLine.from, to: closeLine.to });
-      }
-      // A single line fence keeps its open and close on one line, so it is
-      // left as source rather than hiding the code with the fences.
-      if (hides.length > 0)
-        found.push({ hides, blockFrom: node.from, blockTo: node.to });
-      return false;
-    },
-  });
-  return found;
-}
+/** The field of one extension, which a test reads through `regionIndex`. */
+const indexFields = new WeakMap<object, StateField<RichWidgetField>>();
 
 /**
  * The widget extension.
  *
  * Block replacements come from a state field, because CodeMirror refuses
- * block decorations from a view plugin. The set is rebuilt when the
- * document changes, when the selection moves, and when the parser has
- * produced more tree, which is what a long note does while it loads.
+ * block decorations from a view plugin. The regions move with each edit and
+ * only the blocks that the edit changed are read again. The decorations are
+ * built again when the regions change and when the selection moves, so the
+ * source of a region shows while the selection touches it.
  */
 export function richWidgets(resolvers: RichWidgetResolvers = {}): Extension {
-  const field = StateField.define<RichWidgetSet>({
-    create: (state) => buildRichWidgets(state, resolvers),
+  const field = StateField.define<RichWidgetField>({
+    create: (state) => {
+      const index = regionIndexOf(state);
+      return { ...decorate(index, state, resolvers), index };
+    },
     update: (current, transaction) => {
-      const treeChanged =
-        syntaxTree(transaction.startState) !== syntaxTree(transaction.state);
-      if (
-        !transaction.docChanged &&
-        transaction.selection === undefined &&
-        !treeChanged
-      )
+      const index = nextRegionIndex(current.index, transaction);
+      if (index === current.index && transaction.selection === undefined)
         return current;
-      return buildRichWidgets(transaction.state, resolvers);
+      return { ...decorate(index, transaction.state, resolvers), index };
     },
     provide: (self) => [
       // A widget replaces its whole source, so no text decoration of the
@@ -938,5 +1212,21 @@ export function richWidgets(resolvers: RichWidgetResolvers = {}): Extension {
       ),
     ],
   });
-  return [field];
+  const extension: Extension = [field];
+  indexFields.set(extension, field);
+  return extension;
+}
+
+/**
+ * The region index that the widget extension keeps in one state, or `null`
+ * when the state has none. Tests read it to hold the cost of an edit.
+ */
+export function regionIndex(
+  state: EditorState,
+  extension: Extension,
+): RegionIndex | null {
+  const field = indexFields.get(extension);
+  return field === undefined
+    ? null
+    : (state.field(field, false)?.index ?? null);
 }
