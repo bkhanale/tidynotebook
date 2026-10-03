@@ -1174,6 +1174,36 @@ await test('a long document costs a bounded number of tree visits', () => {
   );
 });
 
+await test('a screen with no footnote reference reads no definition of the note', () => {
+  // Each new tree walked the blocks of the whole note for footnote
+  // definitions, so each key on a long note paid for the whole note. The
+  // walk counts in `visited` and runs only for a reference on the screen.
+  const lines: string[] = [];
+  for (let index = 0; index < 1000; index += 1)
+    lines.push(
+      `## Section ${String(index)}`,
+      '',
+      `- item ${String(index)}`,
+      '',
+    );
+  const plain = stateOf(`${lines.join('\n')}\n[^1]: a note\n`);
+  const screen = buildPreview(plain, [{ from: 0, to: 2000 }], {
+    from: 0,
+    to: 0,
+  });
+  const referenced = stateOf(
+    `A claim.[^1]\n\n${lines.join('\n')}\n[^1]: a note\n`,
+  );
+  const withReference = buildPreview(referenced, [{ from: 0, to: 2000 }], {
+    from: 0,
+    to: 0,
+  });
+  assert.ok(
+    screen.visited * 4 < withReference.visited,
+    `${String(screen.visited)} nodes without a reference, ${String(withReference.visited)} with one`,
+  );
+});
+
 await test('a block of deep HTML costs what the screen shows', () => {
   // Review S2 of record 0157. The preview walked the whole HTML tree of a
   // block for each build, so one block of deep HTML cost every tag of it.

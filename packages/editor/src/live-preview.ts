@@ -514,7 +514,10 @@ const definedByTree = new WeakMap<Tree, ReadonlySet<string>>();
  * rest yet. The tree that reaches the end rebuilds the preview, and a label
  * with no definition then goes back to its text.
  */
-function footnoteDefined(state: EditorState): (identifier: string) => boolean {
+function footnoteDefined(
+  state: EditorState,
+  onVisit: () => void,
+): (identifier: string) => boolean {
   const tree = syntaxTree(state);
   if (tree.length < state.doc.length) return () => true;
   let defined = definedByTree.get(tree);
@@ -522,6 +525,7 @@ function footnoteDefined(state: EditorState): (identifier: string) => boolean {
     const found = new Set<string>();
     tree.iterate({
       enter: (node) => {
+        onVisit();
         if (node.name === footnoteDefinitionNode) {
           const label = footnoteLabelOf(state.doc, node.node);
           if (label !== null) found.add(footnoteIdentifier(label));
@@ -755,7 +759,16 @@ export function buildPreview(
   };
 
   const tree = syntaxTree(state);
-  const footnoteIsDefined = footnoteDefined(state);
+  // The definitions are read only when a reference is on the screen. Their
+  // walk covers the blocks of the whole note, and a key on a note with no
+  // reference in view must not pay for it.
+  let definedLabels: ((identifier: string) => boolean) | null = null;
+  const footnoteIsDefined = (identifier: string): boolean => {
+    definedLabels ??= footnoteDefined(state, () => {
+      visited += 1;
+    });
+    return definedLabels(identifier);
+  };
 
   /**
    * Draws the marks and the label of one footnote node.

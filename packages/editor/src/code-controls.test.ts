@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EditorState } from '@codemirror/state';
 import {
+  barsOnScreen,
   codeBlockBars,
   codeBlockSelection,
   codeBlockText,
@@ -89,4 +90,30 @@ await test('a refused copy selects the code of its block and no fence', () => {
   const empty = stateOf('```js\n```\n');
   assert.deepEqual(codeBlockSelection(empty, 0), { from: 5, to: 5 });
   assert.equal(codeBlockSelection(state, 1), null);
+});
+
+await test('a screen with no code block reads no limit of the whole note', () => {
+  // The bars read the limits of the parse, which convert the whole note to a
+  // string, on each key, even with no code block on the screen.
+  const state = stateOf(note);
+  let asked = 0;
+  const copies = (): boolean => {
+    asked += 1;
+    return true;
+  };
+  const item = note.indexOf('- item');
+  assert.deepEqual(
+    barsOnScreen(state, [{ from: item, to: item + 6 }], copies),
+    [],
+  );
+  assert.deepEqual(barsOnScreen(state, [{ from: 0, to: 6 }], copies), []);
+  assert.equal(asked, 0);
+  const shown = barsOnScreen(state, [{ from: 0, to: 30 }], copies);
+  assert.equal(shown.length, 1);
+  assert.equal(asked, 1);
+  // A note past the limits shows no bar.
+  assert.deepEqual(
+    barsOnScreen(state, [{ from: 0, to: 30 }], () => false),
+    [],
+  );
 });

@@ -162,6 +162,25 @@ export function codeBlockSelection(
 }
 
 /**
+ * The code blocks of the screen that carry a bar.
+ *
+ * `copies` asks the limits of the parse, which read the whole note, so it
+ * runs only when the screen holds a code block. A key on a screen with none,
+ * which is most keys, reads nothing of the rest of the note.
+ */
+export function barsOnScreen(
+  state: EditorState,
+  ranges: readonly { readonly from: number; readonly to: number }[],
+  copies: (doc: Text) => boolean,
+): readonly CodeBlockBar[] {
+  const blocks: CodeBlockBar[] = [];
+  for (const range of ranges)
+    for (const block of codeBlockBars(state, range.from, range.to))
+      if (!blocks.some((done) => done.from === block.from)) blocks.push(block);
+  return blocks.length === 0 || !copies(state.doc) ? [] : blocks;
+}
+
+/**
  * Whether the parse takes a note, so a copy of its blocks can work.
  *
  * The answer is kept for each version of the text, so the bars measure it
@@ -341,25 +360,24 @@ class CodeControls {
         // A browser with no clipboard copies nothing, and the parse refuses a
         // note past its limits, so neither shows a bar.
         if (typeof navigator.clipboard?.writeText !== 'function') return [];
-        if (!copiesFrom(view.state.doc)) return [];
+        const blocks = barsOnScreen(view.state, view.visibleRanges, copiesFrom);
+        if (blocks.length === 0) return [];
         const scroller = view.scrollDOM.getBoundingClientRect();
         const placed: { block: CodeBlockBar; place: Place }[] = [];
-        for (const range of view.visibleRanges)
-          for (const block of codeBlockBars(view.state, range.from, range.to)) {
-            if (placed.some((done) => done.block.from === block.from)) continue;
-            const { node } = view.domAtPos(block.from);
-            const element = node instanceof Element ? node : node.parentElement;
-            const line = element?.closest('.cm-line')?.getBoundingClientRect();
-            if (line === undefined) continue;
-            placed.push({
-              block,
-              place: {
-                top: line.top - scroller.top + view.scrollDOM.scrollTop,
-                left: line.left - scroller.left + view.scrollDOM.scrollLeft,
-                width: line.width,
-              },
-            });
-          }
+        for (const block of blocks) {
+          const { node } = view.domAtPos(block.from);
+          const element = node instanceof Element ? node : node.parentElement;
+          const line = element?.closest('.cm-line')?.getBoundingClientRect();
+          if (line === undefined) continue;
+          placed.push({
+            block,
+            place: {
+              top: line.top - scroller.top + view.scrollDOM.scrollTop,
+              left: line.left - scroller.left + view.scrollDOM.scrollLeft,
+              width: line.width,
+            },
+          });
+        }
         return placed;
       },
       write: (placed): void => {
