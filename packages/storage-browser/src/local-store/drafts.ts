@@ -364,9 +364,20 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
       );
       const withDocument = (note: CachedText | null): LocalCachedNote | null =>
         note === null ? null : { ...note, document: snapshot.document };
+      // The editor appends each key to the document at once, and a draft
+      // follows only after a pause. A note that no draft leads therefore
+      // reads as the text of its document, which can hold keys that no draft
+      // and no version holds yet. The text of the head would undo them as
+      // new work of the open (record 0175).
+      const withHead = (note: CachedText | null): LocalCachedNote | null => {
+        const document = snapshot.document;
+        return note === null || note.deleted || document === null
+          ? withDocument(note)
+          : withDocument({ ...note, text: readDocumentText(document.bytes) });
+      };
 
       const draft = snapshot.draft;
-      if (draft === null) return withDocument(snapshot.head);
+      if (draft === null) return withHead(snapshot.head);
       const accepted = snapshot.accepted;
       const draftBase = draft.lastCheckpointId ?? draft.baseRevisionId;
 
@@ -387,7 +398,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
               )) === accepted.digest;
         if (equal) {
           await dropStaleDraft(accountId, workspaceId, draft);
-          return withDocument(snapshot.head);
+          return withHead(snapshot.head);
         }
       }
 
@@ -407,7 +418,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
       // The draft no longer describes its file and holds no stale text to
       // choose from, so the accepted row is the newer statement of the path
       // and of the deletion state.
-      if (!snapshot.leads && !stale) return withDocument(snapshot.head);
+      if (!snapshot.leads && !stale) return withHead(snapshot.head);
 
       // A draft lags the document of its editor, which takes each key at
       // once. A document that holds every change the draft saw is the newer

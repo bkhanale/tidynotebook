@@ -1890,6 +1890,44 @@ await test('a draft that lags its document opens with the text of the document',
   await store.close();
 });
 
+await test('keys that no draft holds open with the text of the document', async () => {
+  // Record 0175. A tab that closed one frame after its last key left the key
+  // in the document and no draft. The open read the text of the head, and
+  // the editor wrote that text over the document as new work, so the key
+  // went.
+  const backend = createBackend('document-no-draft');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const head = startDocument('one\n');
+  await store.cacheServerNote(account, workspace, {
+    fileId,
+    path: 'notes/one.md',
+    kind: 'note',
+    revisionId: 'rev-1',
+    digest: await contentDigest('one\n'),
+    text: 'one\n',
+    document: head,
+    epoch: 1,
+  });
+  const read = await store.readNoteDocument(account, workspace, fileId);
+  assert.ok(read !== null);
+  const key = typeInto(read.bytes, 'one\ntwo\n');
+  await store.appendNoteWork(account, workspace, fileId, key.update, 'c-1');
+  const reopened = await openLocalStore(origin, backend.options());
+  const cached = await reopened.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, 'one\ntwo\n');
+  assert.equal(
+    cached?.document === null || cached === null
+      ? null
+      : readDocumentText(cached.document.bytes),
+    'one\ntwo\n',
+  );
+  await reopened.close();
+  await store.close();
+});
+
 await test('browser stores share a fallback bus without BroadcastChannel', async () => {
   const windowDescriptor = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -1967,7 +2005,13 @@ await test('a draft that matches a newer accepted head is dropped on open', asyn
           revisionId: remoteRevision,
           path: 'notes/one.md',
           fileKind: 'note',
-          document: null,
+          // The feed sends the work of every note (record 0085). A whole
+          // document stands for the save of the other device.
+          document: {
+            kind: 'document',
+            bytes: startDocument(shared),
+            epoch: 1,
+          },
           deleted: false,
           digest: await contentDigest(shared),
           text: shared,
@@ -2250,7 +2294,12 @@ await test('a restore reaches a device that holds the replaced text', async () =
           revisionId: 'restored-revision',
           path: 'notes/one.md',
           fileKind: 'note',
-          document: null,
+          // The feed sends the work of every note (record 0085).
+          document: {
+            kind: 'document',
+            bytes: startDocument('older\n'),
+            epoch: 1,
+          },
           deleted: false,
           digest: await contentDigest('older\n'),
           text: 'older\n',

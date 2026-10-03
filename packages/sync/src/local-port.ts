@@ -340,9 +340,10 @@ export type LocalCachedNote = {
    *
    * An editor opens from this pair. A document read apart from its text can
    * hold work that arrived between the two reads, and the open would then
-   * write that difference as new work (record 0133). A draft whose document
-   * holds every change that the draft saw gives the text of that document,
-   * because the draft lags it (record 0175).
+   * write that difference as new work (record 0133). A note that no draft
+   * leads, and a draft whose document holds every change that the draft saw,
+   * give the text of that document: the editor writes each key to the
+   * document before any draft (record 0175).
    */
   readonly document: NoteDocument | null;
 };
