@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # The Node release of .node-version, pinned by tag and SHA-256 digest
-FROM node:26.8.1-bookworm-slim@sha256:367679cf9792759492a486e4aa4b421764d71a9546a6dae8aab81a99eb797b3e AS base
+FROM node:26.10.0-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS base
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -39,7 +39,7 @@ COPY apps ./apps
 RUN pnpm build
 RUN pnpm --filter @notesapp/server deploy --prod /prod/server
 
-FROM node:26.8.1-bookworm-slim@sha256:367679cf9792759492a486e4aa4b421764d71a9546a6dae8aab81a99eb797b3e AS runner
+FROM node:26.10.0-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS runner
 # Create non-root system group and user
 RUN groupadd -g 10001 notesapp && \
     useradd -u 10001 -g notesapp -m -d /home/notesapp -s /bin/bash notesapp
