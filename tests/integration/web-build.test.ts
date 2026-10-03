@@ -22,7 +22,11 @@ import {
   publishedPageScriptFile,
   publishedPageScriptHref,
 } from '@notesapp/server';
-import { diagramFramePath } from '../../apps/web/src/diagram/frame.ts';
+import {
+  diagramFontVariable,
+  diagramFramePath,
+} from '../../apps/web/src/diagram/frame.ts';
+import { frameEntry } from '../../apps/web/src/diagram/frame-document.ts';
 import { publishedPageScriptName } from '../../apps/web/vite.config.ts';
 import { appIcons, iconHashLength } from '../../apps/web/src/pwa/icons.ts';
 import {
@@ -213,7 +217,7 @@ await test('the built diagram frame sets its text in the face of the page', asyn
     assert.match(face, /src:url\(data:font\/woff2;base64,[A-Za-z0-9+/=]+\)/);
   assert.doesNotMatch(css, /url\((['"]?)\/fonts\//);
   const family = (text: string): string | undefined =>
-    /--font-sans:([^;]+);/.exec(text)?.[1];
+    new RegExp(`${diagramFontVariable}:([^;]+);`).exec(text)?.[1];
   // The stylesheet of the page is the built one that names the face.
   const files = await readdir(join(distribution, 'assets'));
   const sheets = await Promise.all(
@@ -227,6 +231,14 @@ await test('the built diagram frame sets its text in the face of the page', asyn
   // The faces of the frame are the faces of the page, file for file.
   const pageFaces = [...page.matchAll(/url\((['"]?)\/fonts\/([^)'"]+)\1\)/g)];
   assert.equal(faces.length, pageFaces.length);
+  // The source of the frame names its entry and holds no style of its own,
+  // so the one stylesheet above is the only style that it carries.
+  const template = await readFile(
+    join(import.meta.dirname, '../../apps/web/src/diagram/frame.html'),
+    'utf8',
+  );
+  assert.ok(template.includes(frameEntry));
+  assert.doesNotMatch(template, /<style\b|\sstyle\s*=|font-family/);
 });
 
 await test('the first screen reads every chunk that its scripts import', async () => {

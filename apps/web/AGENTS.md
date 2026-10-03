@@ -61,13 +61,10 @@ on each rule below.
 - No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation;
   `lib/reader-path.ts` names the reader path (0031) and `lib/legal-path.ts`
   the legal pages (0140), and the installed worker stands aside for both.
-- No handwritten CSS, CSS module, style sheet, `<style>` element or
-  `style=` attribute, in a module or in a document such as `index.html` and
-  `src/diagram/frame.html`. The frame imports `src/tailwind.css`, and the
-  build writes it in with its faces (`src/diagram/frame-document.ts`). No
-  colour value outside the theme tokens, no off-scale utility such as
-  `text-xs`, `text-sm` or `w-[32rem]`, no built in shadow utility (0052), no
-  motion utility (0054), and no filter that makes a colour (0057).
+- No handwritten CSS, CSS module, `<style>` or `style=` in a module or an
+  `.html` file, no colour outside the theme tokens, no off-scale utility such
+  as `text-xs` or `w-[32rem]`, no built in shadow utility (0052), no motion
+  utility (0054), and no filter that makes a colour (0057).
 - No class that writes a control: read `buttonClassName`, `rowClassName`,
   `fieldClassName`, `kbdClassName` and `focusOutline` from `@notesapp/ui`
   (0065). No `uppercase`, no `tracking-wide` or wider, no `font-bold` or

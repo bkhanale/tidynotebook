@@ -7,7 +7,6 @@
  * stylesheet inside it, and these tests hold the rules of that text.
  */
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   fontAddresses,
@@ -61,17 +60,4 @@ await test('the frame document holds its stylesheet and its script', () => {
   assert.throws(() => frameDocumentSource('<html></html>', 'a', 'b'));
   assert.throws(() => frameDocumentSource(template, '', 'b'));
   assert.throws(() => frameDocumentSource(template, 'a', ''));
-});
-
-await test('the frame template names its entry and holds no style of its own', async () => {
-  // The template held a handwritten style block with a family of its own,
-  // so a diagram was not set in the face of the page (record 0061).
-  const template = await readFile(
-    new URL('./frame.html', import.meta.url),
-    'utf8',
-  );
-  assert.ok(template.includes(frameEntry));
-  assert.doesNotMatch(template, /<style\b/);
-  assert.doesNotMatch(template, /\sstyle\s*=/);
-  assert.doesNotMatch(template, /font-family/);
 });

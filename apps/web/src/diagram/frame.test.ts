@@ -7,7 +7,6 @@
  * the click is lost. The frame therefore takes no pointer event.
  */
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { themeProperties, themes } from '@notesapp/ui';
 import {
@@ -22,20 +21,6 @@ import {
   longHexColour,
   paletteNames,
 } from './frame.ts';
-
-/** The family that the one stylesheet declares for the face of the page. */
-async function pageFamily(): Promise<string> {
-  const css = await readFile(
-    new URL('../tailwind.css', import.meta.url),
-    'utf8',
-  );
-  const declared = new RegExp(`${diagramFontVariable}:([^;]+);`).exec(css);
-  assert.ok(
-    declared !== null,
-    `tailwind.css declares no ${diagramFontVariable}`,
-  );
-  return (declared[1] ?? '').replace(/\s+/g, ' ').trim();
-}
 
 await test('the diagram frame lets a click reach the editor', () => {
   assert.equal(diagramFrameStyle['pointerEvents'], 'none');
@@ -155,13 +140,15 @@ await test('the frame takes a request from its parent and from no one else', () 
   assert.equal(isParentMessage(top, top), false);
 });
 
-await test('a diagram is set in the face that the stylesheet declares', async () => {
+await test('a diagram is set in the face that the stylesheet declares', () => {
   // The frame set its text in a system face of its own, and Mermaid set each
   // label in its own default family, while the page around it is Geist
   // (record 0061). The frame now reads the family of the page from the one
   // stylesheet and gives it to Mermaid in both places that Mermaid reads.
-  const family = await pageFamily();
-  assert.ok(family.length > 0);
+  // `tests/integration/web-build.test.ts` proves that the built frame
+  // declares this variable with the family of the page.
+  assert.equal(diagramFontVariable, '--font-sans');
+  const family = 'Face of the page';
   const options = diagramThemeOptions(
     {
       requestId: 'r',
