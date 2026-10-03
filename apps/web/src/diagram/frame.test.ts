@@ -8,6 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { themeProperties, themes } from '@notesapp/ui';
 import {
   diagramThemeOptions,
   isParentMessage,
@@ -87,9 +88,37 @@ await test('a diagram takes its colours from the palette of the page in both app
     assert.equal(variables['primaryTextColor'], palette[2]);
     assert.equal(variables['primaryBorderColor'], palette[4]);
     assert.equal(variables['lineColor'], palette[4]);
-    // No colour of a Mermaid theme stays: each value is one of the palette.
-    for (const value of Object.values(variables))
-      assert.ok(palette.includes(value), value);
+    // No colour of a Mermaid theme stays: each value is one of the palette,
+    // and the one value that is not a colour turns the shadow off.
+    assert.deepEqual(
+      Object.entries(variables).filter(([, value]) => !palette.includes(value)),
+      [['dropShadow', 'none']],
+    );
+  }
+});
+
+await test('a diagram node draws no shadow in any theme of the registry', () => {
+  // Mermaid 12 draws a flowchart and a sequence diagram in its `neo` look,
+  // which puts a shadow under each node. The `base` theme colours it a light
+  // grey, so every node of a dark page had a pale halo. The `neo` look also
+  // adds a shadow filter of a colour that no palette reaches. A node is part
+  // of the page and not a raised surface, so no theme draws a shadow.
+  assert.ok(themes.length > 2);
+  for (const theme of themes) {
+    const properties = new Map(themeProperties(theme));
+    const palette = paletteNames.map((name) =>
+      longHexColour(properties.get(name) ?? ''),
+    );
+    const request = {
+      requestId: 'r',
+      source: 'graph TD;',
+      theme: theme.appearance,
+      palette,
+    };
+    assert.equal(isDiagramRequest(request), true, theme.id);
+    const options = diagramThemeOptions(request);
+    assert.equal(options.look, 'classic', theme.id);
+    assert.equal(options.themeVariables['dropShadow'], 'none', theme.id);
   }
 });
 

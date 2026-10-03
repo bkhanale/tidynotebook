@@ -70,6 +70,7 @@ export const paletteNames: readonly string[] = [
 /** The theme options that the frame gives Mermaid for one request. */
 export type DiagramThemeOptions = {
   readonly theme: 'base';
+  readonly look: 'classic';
   readonly darkMode: boolean;
   readonly themeVariables: Readonly<Record<string, string>>;
 };
@@ -85,6 +86,16 @@ export type DiagramThemeOptions = {
  * component edge, as a code block is, the text is the text of the page, and
  * an edge is drawn in the component edge, which meets the 3 to 1 minimum of a
  * line a person must see (record 0063).
+ *
+ * A node has no shadow. A diagram is part of the page and not a raised
+ * surface, so its fill and its edge separate it, as they separate a code
+ * block. Mermaid puts a shadow on a node in two ways, and both are closed
+ * here. The `neo` look, which a flowchart and a sequence diagram take by
+ * default, adds a shadow filter whose colour Mermaid fixes and no palette
+ * reaches, so the frame asks for the `classic` look. The `dropShadow` value
+ * of the `base` theme is a light grey glow that some rules of the `classic`
+ * look still read, and that a pale halo draws on a dark page, so the frame
+ * sets it to `none`.
  */
 export function diagramThemeOptions(
   request: DiagramRequest,
@@ -96,8 +107,10 @@ export function diagramThemeOptions(
   const border = colour(4);
   return {
     theme: 'base',
+    look: 'classic',
     darkMode: request.theme === 'dark',
     themeVariables: {
+      dropShadow: 'none',
       background,
       mainBkg: surface,
       primaryColor: surface,

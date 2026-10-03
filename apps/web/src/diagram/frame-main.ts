@@ -47,6 +47,7 @@ async function render(request: DiagramRequest): Promise<void> {
     startOnLoad: false,
     securityLevel: 'strict',
     theme: themed.theme,
+    look: themed.look,
     darkMode: themed.darkMode,
     themeVariables: { ...themed.themeVariables },
   });
