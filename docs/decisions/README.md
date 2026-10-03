@@ -216,6 +216,7 @@ and needs no record.
 | [0182](0182-the-parse-of-a-note-grows-with-its-size.md)                               | The parse of a note grows with its size                                         |
 | [0183](0183-a-save-never-builds-on-a-parked-save.md)                                  | A save never builds on a parked save                                            |
 | [0184](0184-a-free-name-avoids-every-path-the-server-may-hold.md)                     | A free name avoids every path the server may hold                               |
+| [0185](0185-a-step-of-the-grammar-that-grows-faster-than-the-note-is-patched.md)      | A step of the grammar that grows faster than the note is patched                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -764,6 +765,10 @@ It refines records 0022, 0073, 0087 and 0181.
 Record 0184 keeps the accepted path of each note on the device, so a free
 name avoids every path that the server holds or may hold: the local path,
 the accepted path, the path of a queued save and the path of a kept text.
+
+Record 0185 patches each step of the grammar, the render and the editor parse
+that read their input again for each part of it, so every shape of note
+grows with its size and no note is refused for it. It corrects record 0182.
 
 Records 0171 to 0174 follow
 [design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens
