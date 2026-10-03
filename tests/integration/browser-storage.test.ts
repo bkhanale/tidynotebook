@@ -46,6 +46,10 @@ import {
   type LocalStoreOptions,
   type MetaRow,
 } from '@notesapp/storage-browser';
+import {
+  parkedSaveReason,
+  parkedSaves,
+} from '../../apps/web/src/lib/parked-saves.ts';
 
 const origin = 'https://notes.example.test';
 
@@ -997,6 +1001,7 @@ await test('a record upgrade edits the stored rows of a real database', async ()
       text: 'text\n',
       reason: 'purged',
       code: null,
+      noteRefusal: null,
       mutationId: null,
       createdAt: '2026-09-06T10:00:00.000Z',
     });
@@ -2742,6 +2747,76 @@ await test('an unknown refusal code still parks the text', async () => {
   assert.equal(kept[0]?.code, 'deleted_remotely');
   assert.equal(kept[0]?.reason, 'save_refused');
   await store.close();
+});
+
+await test('a parked save keeps the limit of the grammar that refused its note', async () => {
+  // Record 0182. The record kept only the answer code, which is one code for
+  // every limit, so Needs attention named no cause and no change that helps.
+  const backend = createBackend('parked-refusal');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const draft = draftOf(account, workspace, randomUUID(), 'copy-a', 'cells\n');
+  await store.saveDraft(draft);
+  const entry = await store.checkpoint(draft, null, 'text');
+  assert.ok(entry !== null);
+  await parkRefusedSave(
+    store,
+    account,
+    entry,
+    'unrenderable_note',
+    'note_too_many_cells',
+  );
+  await store.close();
+
+  // The record is read again through the validation of a new open.
+  const reopened = await openLocalStore(origin, backend.options());
+  const kept = await reopened.recover(account, workspace);
+  assert.equal(kept[0]?.noteRefusal, 'note_too_many_cells');
+  assert.equal(
+    parkedSaves(kept)[0]?.reason,
+    'The tables of this note have too many cells. Move some rows to another note.',
+  );
+  await reopened.close();
+});
+
+await test('a parked save of the schema before the cause keeps the sentence of its code', async () => {
+  // A device of the earlier release kept the record with no cause. The step
+  // to the new schema gives it none, so the record still opens and reads the
+  // sentence of its answer code.
+  const backend = createBackend('parked-before-cause');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const draft = draftOf(account, workspace, randomUUID(), 'copy-a', 'old\n');
+  await store.saveDraft(draft);
+  const entry = await store.checkpoint(draft, null, 'text');
+  assert.ok(entry !== null);
+  await parkRefusedSave(store, account, entry, 'unrenderable_note');
+  await store.close();
+
+  await withRawDatabase(backend, async (tables) => {
+    // Put the record and the schema back in the shape of version 8.
+    await tables.recovery.toCollection().modify((value) => {
+      const stored: Record<string, unknown> = value;
+      delete stored['noteRefusal'];
+    });
+    const meta = await storedMeta(tables);
+    await tables.meta.put({ ...meta, schemaVersion: 8 });
+  });
+
+  const reopened = await openLocalStore(origin, backend.options());
+  const kept = await reopened.recover(account, workspace);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]?.noteRefusal, null);
+  assert.equal(kept[0]?.code, 'unrenderable_note');
+  assert.equal(
+    parkedSaves(kept)[0]?.reason,
+    parkedSaveReason('save_refused', 'unrenderable_note'),
+  );
+  const meta = await withRawDatabase(backend, (tables) => storedMeta(tables));
+  assert.equal(meta.schemaVersion, 9);
+  await reopened.close();
 });
 
 await test('a draft with no base is not reported as stale', async () => {

@@ -405,6 +405,7 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
             text: entry.text,
             reason: entry.reason,
             code: entry.code ?? null,
+            noteRefusal: entry.noteRefusal ?? null,
             mutationId: entry.mutationId ?? null,
             createdAt: entry.createdAt ?? nowIso(),
           };

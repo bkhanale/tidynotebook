@@ -20,7 +20,11 @@
  * This module is transport agnostic: the caller injects `QueueNetwork`, and
  * the engine builds it from the generated client. Unit tests inject stubs.
  */
-import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
+import type {
+  AcceptedChangeset,
+  ChangesetInput,
+  NoteRefusal,
+} from '@notesapp/core';
 import { generateUUID } from '@notesapp/core';
 import type { Draft, LocalStore, QueueEntry } from './local-port.ts';
 import { createNote } from './create-note.ts';
@@ -31,6 +35,8 @@ export type Problem = {
   readonly status: number;
   readonly code: string;
   readonly fileIds: readonly string[];
+  /** The limit of the grammar that refused a note (record 0182). */
+  readonly noteRefusal?: NoteRefusal;
 };
 
 /** The outcome of one service call: a value or a stable problem. */
@@ -284,9 +290,11 @@ function submissionAction(problem: Problem): SubmissionAction {
  * so the person can retry the save, keep the text as a new note, copy it, or
  * discard it on purpose.
  *
- * The server answer code travels with the record. The interface maps a known
- * code to one sentence and falls back to a general sentence for a code it
- * does not know, so a new refusal reason needs no change here.
+ * The server answer code travels with the record, and so does the limit of
+ * the grammar that refused a note, so the interface names that cause. The
+ * interface maps a known code to one sentence and falls back to a general
+ * sentence for a code it does not know, so a new refusal reason needs no
+ * change here.
  *
  * The caller announces the notice, because only the caller knows which files
  * the refusal named.
@@ -296,6 +304,7 @@ export async function parkRefusedSave(
   accountId: string,
   entry: QueueEntry,
   code: string,
+  noteRefusal: NoteRefusal | null = null,
 ): Promise<void> {
   const workspaceId = entry.input.workspaceId;
   await local.markConflict(accountId, entry.input.mutationId, {
@@ -318,6 +327,7 @@ export async function parkRefusedSave(
       text,
       reason: 'save_refused',
       code,
+      noteRefusal,
       mutationId: entry.input.mutationId,
     });
   }
@@ -823,7 +833,13 @@ async function submitSingle(
       entry,
       outcome.problem,
     );
-  await parkRefusedSave(local, accountId, entry, outcome.problem.code);
+  await parkRefusedSave(
+    local,
+    accountId,
+    entry,
+    outcome.problem.code,
+    outcome.problem.noteRefusal ?? null,
+  );
   ctx.announce({
     kind: 'preserved',
     mutationId: input.mutationId,

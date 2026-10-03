@@ -65,10 +65,10 @@ An acknowledgment removes the matching queue item, marks its revision as
 accepted, advances the accepted head, and stores the receipt. It never removes
 a newer draft or a newer queued save.
 
-A save that the server refuses for good stays on the device as failed work. It
-is parked in the recovery area and listed on the "Needs attention" screen,
-where the person can retry it, keep it as a new note, copy it, or discard it.
-The editor keeps the current text either way.
+A save that the server refuses for good is parked in the recovery area with
+its answer code, and a refused note keeps the limit of the grammar (record
+0182). The "Needs attention" screen names that cause and offers a retry, a new
+note, a copy or a discard. The editor keeps the current text either way.
 
 ## Review
 

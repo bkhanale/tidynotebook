@@ -13,7 +13,13 @@
  * whose shape is unknown.
  */
 import { LocalStorageError, type QueueState } from '@notesapp/sync';
-import type { ChangesetInput, ContentRef, RevisionInput } from '@notesapp/core';
+import {
+  isNoteRefusal,
+  type ChangesetInput,
+  type ContentRef,
+  type NoteRefusal,
+  type RevisionInput,
+} from '@notesapp/core';
 import type { Table } from 'dexie';
 import {
   metaKey,
@@ -343,6 +349,20 @@ export function validateDocumentUpdate(value: unknown): DocumentUpdateRow {
   };
 }
 
+/**
+ * The limit of the grammar that refused the note of a recovery entry.
+ *
+ * The step to version 9 gives each earlier record `null`, so a record with
+ * no such field, or with a value that no release names, is refused.
+ */
+function noteRefusalOf(row: Record<string, unknown>): NoteRefusal | null {
+  const value: unknown = row['noteRefusal'];
+  if (value === null) return null;
+  if (!isNoteRefusal(value))
+    corrupt('recovery.noteRefusal is not a limit of the grammar or null');
+  return value;
+}
+
 /** Narrows one stored recovery entry. */
 export function validateRecovery(value: unknown): RecoveryRow {
   const row = object(value, 'recovery');
@@ -359,6 +379,7 @@ export function validateRecovery(value: unknown): RecoveryRow {
       'recovery',
     ),
     code: addedText(row, 'code', 'recovery'),
+    noteRefusal: noteRefusalOf(row),
     mutationId: addedText(row, 'mutationId', 'recovery'),
     createdAt: text(row, 'createdAt', 'recovery'),
   };
@@ -407,7 +428,9 @@ export function validateMeta(value: unknown): MetaRow {
  * drafts of release 0.4 aside until they are placed (record 0088). Version 6
  * holds those tables, and its step reads a snapshot again for a store of
  * release 0.5.0, whose feed could leave a note empty. Version 7 adds the
-Review table, which starts empty, so its step only records the move. A gap
+ * Review table, which starts empty, so its step only records the move.
+ * Version 9 gives each earlier recovery record no cause of a refused note.
+ * A gap
  * between two stored versions with no step is a refusal, never a silent
  * continuation.
  */
@@ -475,6 +498,18 @@ export const migrationSteps: readonly {
     from: 7,
     to: 8,
     run: () => Promise.resolve(),
+  },
+  {
+    // A record kept before a device stored the cause of a refused note
+    // names none, so Needs attention keeps its sentence of the answer code.
+    from: 8,
+    to: 9,
+    run: async (tables): Promise<void> => {
+      await tables.recovery.toCollection().modify((value: unknown) => {
+        if (!isWritableRecord(value)) return;
+        if (!('noteRefusal' in value)) value['noteRefusal'] = null;
+      });
+    },
   },
 ];
 

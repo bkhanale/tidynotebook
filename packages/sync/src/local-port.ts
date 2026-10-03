@@ -15,7 +15,11 @@
  *
  * Local browser data is not a backup. It is the working copy of one device.
  */
-import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
+import type {
+  AcceptedChangeset,
+  ChangesetInput,
+  NoteRefusal,
+} from '@notesapp/core';
 import type { LocalSearchFile } from './local-search.ts';
 
 /**
@@ -267,6 +271,8 @@ export type RecoveryInput = {
   readonly reason: RecoveryReason;
   /** The server answer code that refused the save, when there was one. */
   readonly code?: string | null;
+  /** The limit of the grammar that refused the note, when it was one. */
+  readonly noteRefusal?: NoteRefusal | null;
   /** The parked queue entry this text came from, when there is one. */
   readonly mutationId?: string | null;
   readonly recoveryId?: string;
@@ -581,6 +587,12 @@ export type RecoveryRecord = {
   readonly reason: RecoveryReason;
   /** The server answer code that refused the save, or `null`. */
   readonly code: string | null;
+  /**
+   * The limit of the Markdown grammar that refused the note (record 0182),
+   * or `null`: for another refusal, another reason, and a record kept
+   * before the device stored the cause.
+   */
+  readonly noteRefusal: NoteRefusal | null;
   /** The parked queue entry this text came from, or `null`. */
   readonly mutationId: string | null;
   readonly createdAt: string;

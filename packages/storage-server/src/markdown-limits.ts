@@ -12,23 +12,14 @@
  * turns it into a `Result`, and the HTTP boundary uses it as the answer for a
  * path that has no `Result` of its own.
  */
-import type { DomainErrorCode } from '@notesapp/core';
+import type { NoteRefusal } from '@notesapp/core';
 import {
   MarkdownLimitError,
   type MarkdownLimitReason,
 } from '@notesapp/markdown';
 
-/** The domain codes of a note that the Markdown package refuses. */
-export type MarkdownRefusalCode = Extract<
-  DomainErrorCode,
-  | 'note_too_large'
-  | 'note_too_deep'
-  | 'note_too_many_marks'
-  | 'note_too_many_cells'
->;
-
 /** The domain code of each limit of the Markdown package. */
-const refusals: Readonly<Record<MarkdownLimitReason, MarkdownRefusalCode>> = {
+const refusals: Readonly<Record<MarkdownLimitReason, NoteRefusal>> = {
   'input-size': 'note_too_large',
   'nesting-depth': 'note_too_deep',
   'block-marks': 'note_too_many_marks',
@@ -36,7 +27,7 @@ const refusals: Readonly<Record<MarkdownLimitReason, MarkdownRefusalCode>> = {
 };
 
 /** The domain code of a refused note, or null for any other value. */
-export function markdownLimitCode(value: unknown): MarkdownRefusalCode | null {
+export function markdownLimitCode(value: unknown): NoteRefusal | null {
   if (!(value instanceof MarkdownLimitError)) return null;
   return refusals[value.reason];
 }

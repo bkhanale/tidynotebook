@@ -293,6 +293,27 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  * that does not name the current versions of the legal documents (record
  * 0120).
  */
+/**
+ * The domain codes of a note over a limit of the Markdown grammar (record
+ * 0182), each the cause of its own message. This is the one list: the server
+ * maps each limit to one of them, the problem of a refused note names one in
+ * `noteRefusal`, and a device keeps it with a parked save.
+ */
+export const noteRefusals = [
+  'note_too_large',
+  'note_too_deep',
+  'note_too_many_marks',
+  'note_too_many_cells',
+] as const;
+
+/** One cause of a refused note; see {@link noteRefusals}. */
+export type NoteRefusal = (typeof noteRefusals)[number];
+
+/** Whether a value is one of {@link noteRefusals}, as a boundary reads it. */
+export function isNoteRefusal(value: unknown): value is NoteRefusal {
+  return noteRefusals.some((refusal) => refusal === value);
+}
+
 export type DomainErrorCode =
   | 'forbidden'
   | 'stale_head'
@@ -312,10 +333,7 @@ export type DomainErrorCode =
   | 'document_dependency_missing'
   | 'document_unsupported'
   | 'document_too_large'
-  | 'note_too_large'
-  | 'note_too_deep'
-  | 'note_too_many_marks'
-  | 'note_too_many_cells'
+  | NoteRefusal
   | 'published_link_unavailable'
   | 'not_found'
   | 'last_administrator'

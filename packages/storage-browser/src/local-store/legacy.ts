@@ -217,6 +217,8 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
       text: entry.text,
       reason: 'save_refused',
       code: entry.code,
+      // Work of release 0.4 that could not be placed is no refused note.
+      noteRefusal: null,
       mutationId: entry.mutationId,
       createdAt: nowIso(),
     });

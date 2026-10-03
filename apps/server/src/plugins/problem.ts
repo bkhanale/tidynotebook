@@ -6,11 +6,16 @@
  * rejected value, or a stack trace.
  */
 import type { ValidationIssue } from '@notesapp/api-contract';
-import type { DomainError, DomainErrorCode, Result } from '@notesapp/core';
+import {
+  isNoteRefusal,
+  type DomainError,
+  type DomainErrorCode,
+  type NoteRefusal,
+  type Result,
+} from '@notesapp/core';
 import {
   markdownLimitCode,
   WorkspaceUnavailableError,
-  type MarkdownRefusalCode,
 } from '@notesapp/storage-server';
 import { readProperty } from '../values.ts';
 
@@ -99,6 +104,8 @@ export type Problem = {
   readonly blanks?: readonly string[];
   /** The kind of a failed test message (record 0148). */
   readonly reason?: string;
+  /** The limit of the grammar that a refused note is over (record 0182). */
+  readonly noteRefusal?: NoteRefusal;
 };
 
 const titles: Readonly<Record<ProblemCode, string>> = {
@@ -376,10 +383,10 @@ export class ImportIncompleteError extends Error {
  * change in it.
  */
 const importNoteRefusals: Readonly<
-  Record<MarkdownRefusalCode, (name: string) => string>
+  Record<NoteRefusal, (name: string) => string>
 > = {
   note_too_large: (name) =>
-    `The note "${name}" in the zip file is too large to show. Make the note smaller, then import again.`,
+    `The note "${name}" in the zip file is too large. Move some of its text to another note, then import again.`,
   note_too_deep: (name) =>
     `The note "${name}" in the zip file has too many levels of lists, quotes or HTML. Remove some levels, then import again.`,
   note_too_many_marks: (name) =>
@@ -395,9 +402,9 @@ const importNoteRefusals: Readonly<
  * names the note and the cause, from `importNoteRefusals`.
  */
 export class ImportNoteRefusedError extends Error {
-  readonly refusal: MarkdownRefusalCode;
+  readonly refusal: NoteRefusal;
 
-  constructor(refusal: MarkdownRefusalCode, path: string) {
+  constructor(refusal: NoteRefusal, path: string) {
     const name = path.endsWith('.md') ? path.slice(0, -'.md'.length) : path;
     super(importNoteRefusals[refusal](name));
     this.name = 'ImportNoteRefusedError';
@@ -556,12 +563,16 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   invalid_content: 'Submitted content does not match its declared digest.',
   too_many_files:
     'The change rewrites more files than one request may hold. Move fewer files at a time.',
-  note_too_large: 'This note is too large to render.',
-  note_too_deep: 'This note nests too deeply to render.',
+  // The web names the same causes in the same words when it keeps a refused
+  // save (`apps/web/src/lib/parked-saves.ts`, record 0182).
+  note_too_large:
+    'This note is too large. Move some of its text to another note.',
+  note_too_deep:
+    'This note nests too deeply. Remove some levels of lists, quotes or HTML.',
   note_too_many_marks:
-    'A paragraph of this note has too many formatting marks to render. Divide the paragraph.',
+    'A paragraph of this note has too many formatting marks. Divide the paragraph.',
   note_too_many_cells:
-    'The tables of this note have too many cells to render. Move some rows to another note.',
+    'The tables of this note have too many cells. Move some rows to another note.',
   // The one refusal of the reader path. The word is the word of
   // `titles.published_link_unavailable` and of `PublishedRefusal` in the
   // contract, so a refusal that arrives as a domain failure and a refusal that
@@ -694,6 +705,7 @@ export function createProblem(input: {
   readonly missing?: readonly string[];
   readonly blanks?: readonly string[];
   readonly reason?: string;
+  readonly noteRefusal?: NoteRefusal;
 }): Problem {
   const issues = input.issues ?? [];
   const fileIds = input.fileIds ?? [];
@@ -712,6 +724,9 @@ export function createProblem(input: {
     ...(missing.length > 0 ? { missing } : {}),
     ...(blanks.length > 0 ? { blanks } : {}),
     ...(input.reason === undefined ? {} : { reason: input.reason }),
+    ...(input.noteRefusal === undefined
+      ? {}
+      : { noteRefusal: input.noteRefusal }),
   };
 }
 
@@ -725,6 +740,7 @@ export function classifyError(error: unknown): {
   missing?: readonly string[];
   blanks?: readonly string[];
   reason?: string;
+  noteRefusal?: NoteRefusal;
 } {
   if (error instanceof LegalDocumentUnfinishedError)
     return {
@@ -760,6 +776,10 @@ export function classifyError(error: unknown): {
       ...(error.domain.fileIds.length > 0
         ? { fileIds: error.domain.fileIds }
         : {}),
+      // A refused note names its limit, so a device keeps the cause.
+      ...(isNoteRefusal(error.domain.code)
+        ? { noteRefusal: error.domain.code }
+        : {}),
     };
   }
   // A Markdown limit that no use case turned into a `Result` still answers
@@ -772,6 +792,7 @@ export function classifyError(error: unknown): {
       code: mapped.code,
       detail: domainTitles[refused],
       issues: [],
+      noteRefusal: refused,
     };
   }
   if (error instanceof PreconditionRequiredError)
@@ -894,6 +915,7 @@ export function classifyError(error: unknown): {
       code: domainStatus[error.refusal].code,
       detail: error.message,
       issues: [],
+      noteRefusal: error.refusal,
     };
   if (error instanceof ExportTooLargeError)
     return {

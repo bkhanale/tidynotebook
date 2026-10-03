@@ -11,6 +11,7 @@
  * newer server without a change here: an unknown code reads as one general
  * sentence, and the person still keeps the text.
  */
+import type { NoteRefusal } from '@notesapp/core';
 import type { RecoveryReason, RecoveryRecord } from '@notesapp/sync';
 import { displayNoteName } from './note-name.ts';
 
@@ -42,6 +43,27 @@ const codeSentences: Readonly<Record<string, string>> = {
     'An earlier version of the app kept this text. The note changed after that, so the text does not fit it.',
 };
 
+/**
+ * One sentence for each limit of the grammar that refuses a note (record
+ * 0182), in the words of the answer to the commit of that note, so a cause
+ * reads the same on every surface.
+ */
+const noteRefusalSentences: Readonly<Record<NoteRefusal, string>> = {
+  note_too_large:
+    'This note is too large. Move some of its text to another note.',
+  note_too_deep:
+    'This note nests too deeply. Remove some levels of lists, quotes or HTML.',
+  note_too_many_marks:
+    'A paragraph of this note has too many formatting marks. Divide the paragraph.',
+  note_too_many_cells:
+    'The tables of this note have too many cells. Move some rows to another note.',
+};
+
+/** The sentence of one limit of the grammar that refused a note. */
+export function noteRefusalSentence(refusal: NoteRefusal): string {
+  return noteRefusalSentences[refusal];
+}
+
 /** One sentence for each reason a text reached the recovery area. */
 const reasonSentences: Readonly<Record<RecoveryReason, string>> = {
   purged: 'The note was permanently deleted.',
@@ -54,14 +76,20 @@ const reasonSentences: Readonly<Record<RecoveryReason, string>> = {
 /**
  * Why one kept text needs attention, in one sentence.
  *
- * A refused save is explained by its server code. A code this release does
- * not know falls back to the general sentence, so a newer refusal reason is
- * still readable. No code, no identifier, and no timestamp reach the person.
+ * A refused save is explained by the limit of the grammar that refused its
+ * note, when the record keeps one, and otherwise by its server code. A
+ * record kept before a device stored that limit reads the sentence of its
+ * code. A code this release does not know falls back to the general
+ * sentence, so a newer refusal reason is still readable. No code, no
+ * identifier, and no timestamp reach the person.
  */
 export function parkedSaveReason(
   reason: RecoveryReason,
   code: string | null,
+  noteRefusal: NoteRefusal | null = null,
 ): string {
+  if (reason === 'save_refused' && noteRefusal !== null)
+    return noteRefusalSentence(noteRefusal);
   if (reason === 'save_refused' && code !== null) {
     const sentence = codeSentences[code];
     if (sentence !== undefined) return sentence;
@@ -95,7 +123,7 @@ export function parkedSaves(
       mutationId: record.mutationId,
       name: displayNoteName(record.path),
       path: record.path,
-      reason: parkedSaveReason(record.reason, record.code),
+      reason: parkedSaveReason(record.reason, record.code, record.noteRefusal),
       text: record.text,
       createdAt: record.createdAt,
     }))

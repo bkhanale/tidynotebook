@@ -111,11 +111,12 @@ export type {
   ContentRef,
   DomainError,
   DomainErrorCode,
+  NoteRefusal,
   Result,
   RevisionInput,
   SupersededHead,
 } from './files/model.ts';
-export { fail, ok } from './files/model.ts';
+export { fail, isNoteRefusal, noteRefusals, ok } from './files/model.ts';
 export type { PathKind } from './files/path.ts';
 export {
   cleanFolderPath,

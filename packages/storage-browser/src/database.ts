@@ -346,7 +346,9 @@ export type Tables = {
  * the work of release 0.4 until it is placed on the documents of version 5
  * (record 0088). Version 7 holds the Reviews of this device (record 0087).
  * Version 8 holds the updates of an open editor that wait to be folded into
- * the document of their note (record 0175).
+ * the document of their note (record 0175). Version 9 keeps, with a parked
+ * save, the limit of the grammar that refused its note (record 0182). It
+ * changes no index, and its step gives each earlier record no cause.
  */
 export const schemaVersions: readonly {
   readonly version: number;
@@ -474,6 +476,12 @@ export const schemaVersions: readonly {
       documentUpdates:
         '[serverOrigin+accountId+workspaceId+fileId+updateId], [serverOrigin+accountId+workspaceId+fileId]',
     },
+  },
+  {
+    // A recovery record names the limit of the grammar that refused its
+    // note, or none (record 0182). No index changes.
+    version: 9,
+    stores: {},
   },
 ];
 

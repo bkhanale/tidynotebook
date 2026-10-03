@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RecoveryRecord } from '@notesapp/sync';
+import { noteRefusals } from '@notesapp/core';
 import {
+  noteRefusalSentence,
   parkedSaveReason,
   parkedSaveTime,
   parkedSaves,
@@ -20,6 +22,7 @@ function recordOf(extra: Partial<RecoveryRecord> = {}): RecoveryRecord {
     text: 'kept text',
     reason: 'save_refused',
     code: 'path_conflict',
+    noteRefusal: null,
     mutationId: 'mutation-1',
     createdAt: '2026-09-10T10:00:00.000Z',
     ...extra,
@@ -144,4 +147,33 @@ await test('a save of a note over a limit of the grammar names the cause and the
   const sentence = parkedSaveReason('save_refused', 'unrenderable_note');
   assert.notEqual(sentence, parkedSaveReason('save_refused', null));
   assert.match(sentence, /Divide a long paragraph or table/);
+});
+
+await test('each limit of the grammar that refused a note has its own sentence', () => {
+  // Record 0182. Every limit answered the one code unrenderable_note, so the
+  // list read one sentence for four causes and named no change that helps.
+  const sentences = noteRefusals.map((refusal) =>
+    parkedSaveReason('save_refused', 'unrenderable_note', refusal),
+  );
+  assert.equal(new Set(sentences).size, noteRefusals.length);
+  for (const [index, refusal] of noteRefusals.entries()) {
+    assert.equal(sentences[index], noteRefusalSentence(refusal));
+    assert.ok(!(sentences[index] ?? '').includes('_'), refusal);
+    assert.doesNotMatch(sentences[index] ?? '', /[\u2013\u2014]/);
+  }
+  const row = parkedSaves([
+    recordOf({ code: 'unrenderable_note', noteRefusal: 'note_too_many_marks' }),
+  ])[0];
+  assert.equal(
+    row?.reason,
+    'A paragraph of this note has too many formatting marks. Divide the paragraph.',
+  );
+});
+
+await test('a record kept before the cause was stored keeps the sentence of its code', () => {
+  assert.equal(
+    parkedSaves([recordOf({ code: 'unrenderable_note', noteRefusal: null })])[0]
+      ?.reason,
+    parkedSaveReason('save_refused', 'unrenderable_note'),
+  );
 });

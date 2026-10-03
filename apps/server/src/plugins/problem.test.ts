@@ -58,8 +58,14 @@ await test('a wrong request body media type becomes a 415', () => {
 
 await test('a note above the Markdown limits becomes a 422 for the author', () => {
   const cases = [
-    ['note_too_large', 'This note is too large to render.'],
-    ['note_too_deep', 'This note nests too deeply to render.'],
+    [
+      'note_too_large',
+      'This note is too large. Move some of its text to another note.',
+    ],
+    [
+      'note_too_deep',
+      'This note nests too deeply. Remove some levels of lists, quotes or HTML.',
+    ],
   ] as const;
   for (const [code, detail] of cases) {
     const classified = classifyError(
@@ -78,7 +84,7 @@ await test('a refused note of an import names the note and its own cause', () =>
   const cases = [
     [
       'note_too_large',
-      'The note "trip/Day 1" in the zip file is too large to show. Make the note smaller, then import again.',
+      'The note "trip/Day 1" in the zip file is too large. Move some of its text to another note, then import again.',
     ],
     [
       'note_too_deep',
@@ -104,17 +110,67 @@ await test('a refused note of an import names the note and its own cause', () =>
   }
 });
 
+await test('a refused note names its limit in the problem, and no other problem does', () => {
+  // Record 0182. Every limit answered the one code unrenderable_note, so a
+  // device that kept the refused save could not tell the person the cause.
+  for (const code of [
+    'note_too_large',
+    'note_too_deep',
+    'note_too_many_marks',
+    'note_too_many_cells',
+  ] as const) {
+    const domain = classifyError(new DomainProblemError({ code, fileIds: [] }));
+    assert.equal(domain.noteRefusal, code);
+    const imported = classifyError(new ImportNoteRefusedError(code, 'a.md'));
+    assert.equal(imported.noteRefusal, code);
+  }
+  assert.equal(
+    classifyError(new MarkdownLimitError('table-cells', 10, 11)).noteRefusal,
+    'note_too_many_cells',
+  );
+  const other = classifyError(
+    new DomainProblemError({ code: 'path_conflict', fileIds: [] }),
+  );
+  assert.equal(other.noteRefusal, undefined);
+  const body = createProblem({
+    code: 'unrenderable_note',
+    status: 422,
+    detail: 'x',
+    instance: '/api',
+    requestId: 'r',
+    noteRefusal: 'note_too_many_marks',
+  });
+  assert.equal(body.noteRefusal, 'note_too_many_marks');
+  assert.equal(
+    'noteRefusal' in
+      createProblem({
+        code: 'forbidden',
+        status: 403,
+        detail: 'x',
+        instance: '/api',
+        requestId: 'r',
+      }),
+    false,
+  );
+});
+
 await test('a raw Markdown limit error never becomes a 500', () => {
   const cases = [
-    ['input-size', 'This note is too large to render.'],
-    ['nesting-depth', 'This note nests too deeply to render.'],
+    [
+      'input-size',
+      'This note is too large. Move some of its text to another note.',
+    ],
+    [
+      'nesting-depth',
+      'This note nests too deeply. Remove some levels of lists, quotes or HTML.',
+    ],
     [
       'block-marks',
-      'A paragraph of this note has too many formatting marks to render. Divide the paragraph.',
+      'A paragraph of this note has too many formatting marks. Divide the paragraph.',
     ],
     [
       'table-cells',
-      'The tables of this note have too many cells to render. Move some rows to another note.',
+      'The tables of this note have too many cells. Move some rows to another note.',
     ],
   ] as const;
   for (const [reason, detail] of cases) {

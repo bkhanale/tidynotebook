@@ -395,6 +395,7 @@ class FakeStore implements LocalStore {
       text: entry.text,
       reason: entry.reason,
       code: entry.code ?? null,
+      noteRefusal: entry.noteRefusal ?? null,
       mutationId: entry.mutationId ?? null,
       createdAt: entry.createdAt ?? new Date(this.nowMs).toISOString(),
     };
@@ -1047,6 +1048,36 @@ await test('a preserved save writes its text into the recovery area', async () =
   assert.equal(kept.code, 'path_conflict');
   assert.equal(kept.mutationId, 'mutation-2');
   assert.equal(kept.workspaceId, workspaceId);
+});
+
+await test('a note refused by a limit of the grammar is parked with its cause', async () => {
+  // Record 0182. The record kept the one code of every limit, so Needs
+  // attention could not name the cause.
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
+  const ops = stubOperations({
+    commit: () =>
+      Promise.resolve({
+        ok: false as const,
+        problem: {
+          status: 422,
+          code: 'unrenderable_note',
+          fileIds: ['file-a'],
+          noteRefusal: 'note_too_deep' as const,
+        },
+      }),
+  });
+  await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext([], []),
+    noPull,
+  );
+  assert.equal(store.recovery.length, 1);
+  assert.equal(store.recovery[0]?.code, 'unrenderable_note');
+  assert.equal(store.recovery[0]?.noteRefusal, 'note_too_deep');
 });
 
 await test('a refusal code this release does not know is parked too', async () => {

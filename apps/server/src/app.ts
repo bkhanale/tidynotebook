@@ -540,6 +540,10 @@ export async function createAppWithHandlers(
           ...(classified.reason !== undefined && status === classified.status
             ? { reason: classified.reason }
             : {}),
+          ...(classified.noteRefusal !== undefined &&
+          status === classified.status
+            ? { noteRefusal: classified.noteRefusal }
+            : {}),
         }),
       );
   });

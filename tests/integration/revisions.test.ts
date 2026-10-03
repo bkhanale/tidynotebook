@@ -67,6 +67,7 @@ import {
   limitAccountTo,
 } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
+import { noteRefusalSentence } from '../../apps/web/src/lib/parked-saves.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
 function readProperty(value: unknown, key: string): unknown {
@@ -1488,8 +1489,9 @@ await test('a note that nests too deeply is refused with a message', async () =>
   assert.equal(problemCode(refused.error), 'unrenderable_note');
   assert.equal(
     problemDetail(refused.error),
-    'This note nests too deeply to render.',
+    'This note nests too deeply. Remove some levels of lists, quotes or HTML.',
   );
+  assert.equal(readProperty(refused.error, 'noteRefusal'), 'note_too_deep');
   assert.deepEqual(problemFiles(refused.error), [fileId]);
 
   // The refused save changed nothing, so the path is still free.
@@ -1527,7 +1529,7 @@ await test('a note whose HTML nests too deeply is refused with a message', async
     assert.equal(problemCode(refused.error), 'unrenderable_note');
     assert.equal(
       problemDetail(refused.error),
-      'This note nests too deeply to render.',
+      'This note nests too deeply. Remove some levels of lists, quotes or HTML.',
     );
     assert.deepEqual(problemFiles(refused.error), [fileId]);
   }
@@ -1537,19 +1539,22 @@ await test('a note of too many marks or table cells is refused with its own mess
   // Record 0182. The parse of a short note of nested images held a worker
   // for seconds, and a note of many table cells held it longer with each
   // cell. Each is now the typed refusal of its own limit, before the parse.
+  // The device keeps the limit with a refused save, and its Needs attention
+  // list reads the same sentence as this answer (record 0182).
   const cases = [
     [
       'notes/marks.md',
       `${'!['.repeat(3000)}x${'](u)'.repeat(3000)}\n`,
-      'A paragraph of this note has too many formatting marks to render. Divide the paragraph.',
+      'note_too_many_marks',
     ],
     [
       'notes/cells.md',
       `|a|b|\n|-|-|\n${'|c|d|\n'.repeat(3000)}`,
-      'The tables of this note have too many cells to render. Move some rows to another note.',
+      'note_too_many_cells',
     ],
   ] as const;
-  for (const [path, text, detail] of cases) {
+  for (const [path, text, refusal] of cases) {
+    const detail = noteRefusalSentence(refusal);
     const fileId = randomUUID();
     const refused = await createFile({
       headers: browser(cookie),
@@ -1559,6 +1564,7 @@ await test('a note of too many marks or table cells is refused with its own mess
     assert.equal(responseOf(refused.response).status, 422, path);
     assert.equal(problemCode(refused.error), 'unrenderable_note');
     assert.equal(problemDetail(refused.error), detail);
+    assert.equal(readProperty(refused.error, 'noteRefusal'), refusal);
     assert.deepEqual(problemFiles(refused.error), [fileId]);
   }
 });
