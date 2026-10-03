@@ -345,3 +345,28 @@ await test('a stored document holds the work of a vector only with every inserti
   assert.equal(documentHolds(other.value.document, vector), true);
   note.release();
 });
+
+await test('a released note opens again with every change and no start work', () => {
+  // React mounts the effects of the note screen twice in development. The
+  // first clean up released the note, and the second mount bound its view
+  // to the ended session: no key reached the store, and each write failed
+  // with "The document session has ended."
+  const note = openBoundNote(startDocument('one\n'), 'one\ntwo\n');
+  assert.notEqual(note.startWork, null);
+  assert.equal(note.reopen(), note);
+  const other = replaceDocumentText(note.work(), 'zero\none\ntwo\n');
+  assert.ok(other.ok);
+  note.join(other.value.document);
+  const vector = note.stateVector();
+  note.release();
+  const again = note.reopen();
+  assert.notEqual(again, note);
+  assert.equal(again.text(), 'zero\none\ntwo\n');
+  assert.equal(again.startWork, null);
+  assert.equal(documentHolds(again.work(), vector), true);
+  assert.equal(again.takeLocalWork(), null);
+  // A second release of the ended note changes nothing.
+  note.release();
+  assert.equal(note.reopen().text(), 'zero\none\ntwo\n');
+  again.release();
+});

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createCoalescedRead } from './coalesced-read.ts';
+import { createCoalescedRead, createMountedRead } from './coalesced-read.ts';
 
 /** A read whose runs the test ends one by one. */
 function controlledRead(): {
@@ -69,4 +69,34 @@ await test('a stopped read starts no later run', async () => {
   await read.finish();
   coalesced.ask();
   assert.equal(read.runs, 1);
+});
+
+await test('a read that mounts again after a stop still reads', async () => {
+  // React mounts the effects of a screen twice in development. The note
+  // editor stopped its one read at the first stop, so the second mount
+  // asked for nothing: remote work, a new path and the save state no longer
+  // reached the screen.
+  const read = controlledRead();
+  const mounted = createMountedRead(read.run);
+  mounted.ask();
+  assert.equal(read.runs, 0);
+  const first = mounted.mount();
+  first();
+  mounted.ask();
+  assert.equal(read.runs, 0);
+  const second = mounted.mount();
+  mounted.ask();
+  assert.equal(read.runs, 1);
+  await read.finish();
+  mounted.ask();
+  assert.equal(read.runs, 2);
+  // A late stop of the first mount leaves the second one reading.
+  first();
+  await read.finish();
+  mounted.ask();
+  assert.equal(read.runs, 3);
+  second();
+  await read.finish();
+  mounted.ask();
+  assert.equal(read.runs, 3);
 });

@@ -37,7 +37,6 @@ import {
 import {
   createEditor,
   documentHolds,
-  openBoundNote,
   plainTextContext,
   runFormatAction,
   setEditorRich,
@@ -100,7 +99,8 @@ import { useRegisterNoteDraftFlush } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
 import { createWriteSchedule } from './write-schedule.ts';
 import { createNoteWork, readAfterChange } from './note-work.ts';
-import { createCoalescedRead } from '../../lib/coalesced-read.ts';
+import { useScreenNote } from './screen-note.ts';
+import { createMountedRead } from '../../lib/coalesced-read.ts';
 import { formatPaletteRows } from '../../lib/format-toolbar.ts';
 import {
   headToAdopt,
@@ -330,17 +330,11 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // vector of a closed document.
   const releasedRef = useRef(false);
   const sequenceRef = useRef(initialSequence);
-  // The live document of this note, built once for this working copy. The
-  // editor binds to it, so the text on the screen and the text of the note
-  // are one value (records 0081, 0082). A stored draft that the document does
-  // not hold yet becomes local work of this device, so nothing is lost while
-  // a device moves from a text draft to a document.
-  const liveDocument = useMemo(
-    () => openBoundNote(initialDocument?.bytes ?? null, initialText),
-    [initialDocument, initialText],
+  // The live document of this note (`screen-note.ts`).
+  const { noteRef: sessionRef, mountNote: mountSession } = useScreenNote(
+    initialDocument,
+    initialText,
   );
-  const sessionRef = useRef(liveDocument);
-  sessionRef.current = liveDocument;
   const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
   const [pathError, setPathError] = useState('');
   // The save facts of the note change no render (record 0175).
@@ -680,12 +674,14 @@ const NoteEditorBody = memo(function NoteEditorBody({
   /**
    * One queue read at a time for a burst of store changes (record 0176). A
    * change that can bring work into the document asks for a join as well. A
-   * draft never touches the document, so a draft write asks for none.
+   * draft never touches the document, so a draft write asks for none. The
+   * effect below mounts the read, so a second mount of the effect, as React
+   * runs in development, reads the store as the first did.
    */
   const joinWantedRef = useRef(false);
   const queueRead = useMemo(
     () =>
-      createCoalescedRead(async (): Promise<void> => {
+      createMountedRead(async (): Promise<void> => {
         const join = joinWantedRef.current;
         joinWantedRef.current = false;
         await refreshQueue.current(join);
@@ -870,6 +866,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
   };
 
   useEffect(() => {
+    const unmountRead = queueRead.mount();
     askQueue(true);
     const unsubscribe = live.current.store.subscribe((change) => {
       const current = live.current;
@@ -889,7 +886,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
     return () => {
       unsubscribe();
       window.clearInterval(polling);
-      queueRead.stop();
+      unmountRead();
       documentWork.cancel();
     };
   }, [workingCopyId, documentWork, queueRead, askQueue]);
@@ -961,7 +958,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
-    const bound = sessionRef.current;
+    const bound = mountSession();
     const view = createEditor(
       container,
       bufferRef.current,
@@ -1043,7 +1040,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // the one source of the text, so the save path that follows sends exactly
   // the work this device added.
   useEffect(() => {
-    const bound = sessionRef.current;
+    const bound = mountSession();
     releasedRef.current = false;
     const start = bound.startWork;
     if (start !== null) {

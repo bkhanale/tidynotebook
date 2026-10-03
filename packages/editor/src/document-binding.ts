@@ -279,8 +279,22 @@ export type BoundNote = {
    * frame and before every save.
    */
   takeLocalWork(): Uint8Array | null;
-  /** Releases the binding and ends the note. Every later call throws. */
+  /**
+   * Releases the binding and ends the note. Every later call throws, except
+   * `reopen`. The screen takes the local work that waits before it.
+   */
   release(): void;
+  /**
+   * The note opened again from the state it held at its release, or this
+   * note while it is open.
+   *
+   * React mounts the effects of a screen twice in development: it mounts,
+   * cleans up and mounts again with the same values. The clean up releases
+   * the note, so the second mount opens it again. The new note holds every
+   * change of the released one and has no start work, so nothing is written
+   * twice, and the undo history starts again.
+   */
+  reopen(): BoundNote;
 };
 
 /**
@@ -303,7 +317,9 @@ export function openBoundNote(
   const session = openDocumentSession(opened);
   const binding = bindDocument(session);
   const localWork = holdLocalWork(session);
-  return {
+  // The whole document at the release, which `reopen` opens again.
+  let released: Uint8Array | null = null;
+  const note: BoundNote = {
     startWork:
       opened === bytes
         ? null
@@ -318,9 +334,18 @@ export function openBoundNote(
     onLocalWork: localWork.listen,
     takeLocalWork: localWork.take,
     release(): void {
+      if (released !== null) return;
       localWork.stop();
+      // Remote work that a composition held joins the document first.
       binding.release();
+      released = session.encode();
       session.destroy();
     },
+    reopen(): BoundNote {
+      return released === null
+        ? note
+        : openBoundNote(released, readDocumentText(released));
+    },
   };
+  return note;
 }
