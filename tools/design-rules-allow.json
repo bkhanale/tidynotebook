@@ -12,6 +12,11 @@
       "reason": "The sandboxed diagram frame writes the SVG that the isolated Mermaid renderer produced. The frame runs on a sandboxed origin, so the markup never reaches the application origin. Decision record 0013."
     },
     {
+      "file": "apps/web/src/diagram/frame-document.ts",
+      "rule": "inline-style",
+      "reason": "The build writes the one built stylesheet of the application into the sandboxed diagram frame, because the frame has an opaque origin and cannot load a file of the origin. The element holds the output of apps/web/src/tailwind.css and no style of its own. Records 0061 and 0158."
+    },
+    {
       "file": "packages/ui/src/control-classes.ts",
       "rule": "stateful-edge",
       "reason": "The box of the checkbox recipe is one of the five controls that decision 0063 reserves the component edge for. A person reads the state of a checkbox from its shape alone, so its edge must meet the 3 to 1 non text minimum that theme.test.ts holds `border` to."

@@ -7,10 +7,14 @@
  * instead of a review.
  *
  * It parses `.ts` and `.tsx` under `apps/web/src`, `apps/docs/src`,
- * `packages/ui/src` and `packages/editor/src`, plus the one file of the server that writes the
- * published page, excluding test files, and reports:
+ * `packages/ui/src` and `packages/editor/src`, plus the two files of the
+ * server that write a page, excluding test files. It reads every `.html`
+ * file of those trees and the shell document `apps/web/index.html` as well,
+ * because a document is design code too (see {@link scanDocument}). It
+ * reports:
  *
- * - `inline-style`: a `style` JSX attribute.
+ * - `inline-style`: a `style` JSX attribute, a `style` attribute or a
+ *   `<style>` element in a document, or a string that writes either.
  * - `inner-html`: `dangerouslySetInnerHTML`, or an assignment to `innerHTML`.
  * - `colour-literal`: a hex colour or an `rgb(` value in a string, outside
  *   `packages/ui/src/themes/`, which is the one registry that holds colour.
@@ -84,11 +88,17 @@ export const scannedDirectories = [
 /**
  * The files this check reads outside those trees.
  *
- * The published page of decision 0031 is a document that one file of the
- * server writes, and it reads the class strings of the application, so it is
- * design code as well. Nothing else of the server is.
+ * The published page of decision 0031 and the legal page of decision 0140
+ * are documents that two files of the server write, and they read the class
+ * strings of the application, so they are design code as well. Nothing else
+ * of the server is. The shell document of the application is the entry of
+ * every screen, and its body carries classes too.
  */
-export const scannedFiles = ['apps/server/src/routes/published-document.ts'];
+export const scannedFiles = [
+  'apps/server/src/routes/published-document.ts',
+  'apps/server/src/routes/legal-document.ts',
+  'apps/web/index.html',
+];
 
 /** The one directory that may hold a colour value. */
 export const themeDirectory = 'packages/ui/src/themes/';
@@ -223,6 +233,20 @@ const fadedOpacity = /(?:^|[\s:])(opacity-(?:[1-9]\d?|0\.\d+))(?![\w-])/;
 const motionUtility =
   /(?:^|[\s:])((?:transition(?:-[a-z]+)?|duration-[a-z0-9]+|ease-[a-z]+))(?![\w-])/g;
 const markdownSuffix = /\.md\b/;
+/** A `<style>` element, as a document or a string of markup writes one. */
+const styleElement = /<style\b/i;
+/** A `style` attribute, as a document or a string of markup writes one. */
+const styleAttribute = /\sstyle\s*=\s*["'{]/i;
+/** A `class` attribute of a document, and its value. */
+const classAttribute = /\sclass\s*=\s*(["'])([^"']*)\1/g;
+/** The text rules that read every line of a document, not only a class. */
+const documentRules = new Set([
+  'inline-style',
+  'font-family',
+  'colour-literal',
+]);
+/** A comment of a document, which sets nothing. */
+const documentComment = /<!--[\s\S]*?-->/g;
 const uuid =
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 
@@ -236,6 +260,14 @@ const uuid =
  * @typedef {{ colourTokens?: Set<string> | undefined }} RuleContext
  */
 export const textRules = {
+  /** @param {string} text @returns {string | null} */
+  'inline-style'(text) {
+    if (styleElement.test(text))
+      return 'A style element sets presentation outside the one stylesheet.';
+    if (styleAttribute.test(text))
+      return 'A style attribute sets presentation outside Tailwind.';
+    return null;
+  },
   /** @param {string} text @param {string} path @returns {string | null} */
   'colour-literal'(text, path) {
     if (path.startsWith(themeDirectory)) return null;
@@ -604,6 +636,54 @@ export function scanSource(path, text, context) {
 }
 
 /**
+ * Reports every rule that one document breaks.
+ *
+ * A document is the shell of the application, the sandboxed diagram frame,
+ * or any other `.html` file of the scanned trees. A parser of TypeScript
+ * cannot read it, so the rules read its text. A comment sets nothing, so it
+ * is blanked first, with its length kept so a line number stays true.
+ *
+ * - The rules of one piece of text read the whole document, so a `<style>`
+ *   element, a `style` attribute, a family name and a colour value fail as
+ *   they fail in a module. The diagram frame held a style block of its own
+ *   with a family of its own, and nothing read it (record 0061).
+ * - The value of each `class` attribute is a class string, so every class
+ *   rule reads it as it reads a class string of a module.
+ *
+ * @param {string} path Repository relative path, with forward slashes.
+ * @param {string} text
+ * @param {RuleContext} [context] What a rule needs beyond the text.
+ * @returns {{ path: string; line: number; rule: string; message: string }[]}
+ */
+export function scanDocument(path, text, context) {
+  const source = text.replace(documentComment, (comment) =>
+    comment.replace(/[^\n]/g, ' '),
+  );
+  /** @type {{ path: string; line: number; rule: string; message: string }[]} */
+  const found = [];
+  /** @param {number} offset @returns {number} */
+  const lineOf = (offset) => source.slice(0, offset).split('\n').length;
+  /** @param {string} rule @param {string | null} message @param {number} offset */
+  const report = (rule, message, offset) => {
+    if (message !== null)
+      found.push({ path, line: lineOf(offset), rule, message });
+  };
+  const rules = Object.entries(textRules);
+  let offset = 0;
+  for (const line of source.split('\n')) {
+    for (const [rule, check] of rules)
+      if (documentRules.has(rule))
+        report(rule, check(line, path, context), offset);
+    offset += line.length + 1;
+  }
+  for (const match of source.matchAll(classAttribute))
+    for (const [rule, check] of rules)
+      if (!documentRules.has(rule))
+        report(rule, check(match[2] ?? '', path, context), match.index);
+  return found;
+}
+
+/**
  * Reads the accepted exceptions.
  *
  * @param {string} directory
@@ -662,13 +742,16 @@ export async function main(directory) {
   )
     .concat(named)
     .flat()
-    .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+    .filter(
+      (file) => /\.(?:tsx?|html)$/.test(file) && !/\.test\.tsx?$/.test(file),
+    );
   /** @type {{ path: string; line: number; rule: string; message: string }[]} */
   const failures = [];
   for (const file of files) {
     const path = relative(directory, file).split(sep).join('/');
     const text = await readFile(file, 'utf8');
-    for (const issue of scanSource(path, text, context)) {
+    const scan = path.endsWith('.html') ? scanDocument : scanSource;
+    for (const issue of scan(path, text, context)) {
       if (
         allowed.some(
           (entry) => entry.file === issue.path && entry.rule === issue.rule,

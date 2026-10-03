@@ -12,6 +12,7 @@ import {
   iconSizes,
   jsxTextRule,
   motionModule,
+  scanDocument,
   scanSource,
   stylesheet,
   textRules,
@@ -768,4 +769,95 @@ await test('a control hidden from assistive software fails', () => {
       '<button type="button" tabIndex={-1} aria-label="Actions"><span aria-hidden="true">x</span></button>',
     ).includes('hidden-control'),
   );
+});
+
+/** @param {string} source @returns {string[]} */
+const documentRulesOf = (source) =>
+  scanDocument('apps/web/src/frame.html', source, tokens).map(
+    (issue) => `${String(issue.line)} ${issue.rule}`,
+  );
+
+await test('a document that writes its own style or face fails', () => {
+  // The diagram frame held a style block with a family of its own, so a
+  // diagram was not set in the face of the page, and no check read a
+  // document at all (record 0061).
+  assert.deepEqual(
+    documentRulesOf(
+      [
+        '<html>',
+        '  <head><style>',
+        '    body { font-family: system-ui; }',
+        '  </style></head>',
+        '  <body style="margin: 0">',
+        '    <p class="text-xs bg-surface-hover">x</p>',
+        '  </body>',
+        '</html>',
+      ].join('\n'),
+    ),
+    [
+      '2 inline-style',
+      '3 font-family',
+      '5 inline-style',
+      '6 colour-token',
+      '6 banned-class',
+    ],
+  );
+});
+
+await test('a document with classes of the scale and a comment passes', () => {
+  assert.deepEqual(
+    documentRulesOf(
+      [
+        '<!-- A comment that names a <style> element and system-ui sets nothing. -->',
+        '<html class="scheme-light-dark">',
+        '  <body class="m-0 p-2 font-sans text-ink">',
+        '    <script>root.style.colorScheme = shown;</script>',
+        '  </body>',
+        '</html>',
+      ].join('\n'),
+    ),
+    [],
+  );
+});
+
+await test('a string that writes a style element or attribute fails', () => {
+  const rule = textRules['inline-style'];
+  assert.match(rule('<style>a{}</style>') ?? '', /style element/);
+  assert.match(rule('<p style="color: red">') ?? '', /style attribute/);
+  assert.equal(rule('style-src-attr'), null);
+  assert.equal(rule('the style of a page'), null);
+});
+
+await test('the documents of the application and the server pages are checked', () => {
+  const result = check({
+    'apps/web/index.html': '<body class="text-xs"></body>\n',
+    'apps/web/src/diagram/frame.html': '<style>a{}</style>\n',
+    'apps/server/src/routes/legal-document.ts':
+      'export const page = \'<body style="margin: 0">\';\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /apps\/web\/index\.html:1: banned-class/);
+  assert.match(
+    result.output,
+    /apps\/web\/src\/diagram\/frame\.html:1: inline-style/,
+  );
+  assert.match(
+    result.output,
+    /apps\/server\/src\/routes\/legal-document\.ts:1: inline-style/,
+  );
+});
+
+await test('every document of the application follows the rules', async () => {
+  const css = await readFile(resolve(root, stylesheet), 'utf8');
+  for (const file of [
+    'apps/web/index.html',
+    'apps/web/src/diagram/frame.html',
+  ]) {
+    const text = await readFile(resolve(root, file), 'utf8');
+    assert.deepEqual(
+      scanDocument(file, text, { colourTokens: colourTokens(css) }),
+      [],
+      file,
+    );
+  }
 });
