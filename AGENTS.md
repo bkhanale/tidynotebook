@@ -28,6 +28,8 @@ Edit files in `rules/` and run `rules/link.sh`.
 - Before a branch lands, `pnpm verify` must pass.
 - To land a branch, rebase it onto `main`, fast-forward merge it, then delete
   it. Pull requests are not required.
+- A pull request shows its screenshots through `tools/pr-screenshots.mjs`,
+  which adds them to the `pr-screenshots` branch. Never delete that branch.
 - Stay inside the active worktree. All edits, commits, and untracked files
   belong in that worktree.
 - Only the owner starts the `cleaning-up-after-a-task` skill. Never run it on

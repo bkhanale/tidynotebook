@@ -66,6 +66,13 @@ width. Before a branch lands, open each screen that the change touches, drive
 it with the keyboard, and take a screenshot of it in light and in dark. Read
 each screenshot against [the design guide](design.md).
 
+A pull request shows its screenshots from the `pr-screenshots` branch.
+`node tools/pr-screenshots.mjs <name> <file.png>...` adds one commit of the
+files on that branch, under the directory `<name>`, and prints the Markdown
+table for the body. The addresses name that commit, and the branch only
+grows, so the images of an old pull request stay. An address that names a
+deleted branch, or a commit that no branch holds, fails to load.
+
 ## What each area proves
 
 | Area                            | Evidence                                                                             |
