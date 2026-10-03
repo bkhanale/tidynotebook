@@ -73,6 +73,19 @@ export const markdownLimits = {
 } as const;
 
 /**
+ * The most marks of one part that the reading of the lines vouches for, for
+ * a parser that nests one level for each mark of a block, as the Lezer
+ * parser of the editor does.
+ *
+ * A part within it holds no block of more marks, whatever blocks the part
+ * holds and however a change elsewhere ends them, so such a parser reads
+ * every block of the part far below the depth that runs it out of stack. A
+ * part above it can hold such a block, which only a parse of the blocks of
+ * the whole note rules out.
+ */
+export const vouchedPartMarks = 4096;
+
+/**
  * Tree levels that every document has, whatever its author wrote.
  *
  * The shallowest document holds one leaf block and its text under the root.
@@ -401,6 +414,8 @@ type PartReader = {
   readonly partMarks: () => number;
   /** The parts so far that hold more marks than `maxBlockMarks`. */
   readonly fullParts: () => number;
+  /** The parts so far that hold more marks than `vouchedPartMarks`. */
+  readonly crowdedParts: () => number;
   /** The table cells so far. */
   readonly tableCells: () => number;
 };
@@ -414,6 +429,7 @@ function createPartReader(): PartReader {
   let marks = 0;
   let partMarks = 0;
   let fullParts = 0;
+  let crowdedParts = 0;
   let tableCells = 0;
   let inTable = false;
   // The counts of the line above, when it is in the same part.
@@ -435,6 +451,8 @@ function createPartReader(): PartReader {
         marks > markdownLimits.maxBlockMarks
       )
         fullParts += 1;
+      if (before <= vouchedPartMarks && marks > vouchedPartMarks)
+        crowdedParts += 1;
       if (
         !inTable &&
         delimiterLike(line) &&
@@ -448,6 +466,7 @@ function createPartReader(): PartReader {
     },
     partMarks: () => partMarks,
     fullParts: () => fullParts,
+    crowdedParts: () => crowdedParts,
     tableCells: () => tableCells,
   };
 }
@@ -468,6 +487,8 @@ export type PartsMeasure = {
   readonly tableCells: number;
   /** The parts that hold more marks than `maxBlockMarks`. */
   readonly fullParts: number;
+  /** The parts that hold more marks than `vouchedPartMarks`. */
+  readonly crowdedParts: number;
 };
 
 /** Whether the prefix of a line nests deeper than the limit. */
@@ -503,6 +524,7 @@ export function measureParts(lines: Iterable<string>): PartsMeasure {
     deepLines,
     tableCells: parts.tableCells(),
     fullParts: parts.fullParts(),
+    crowdedParts: parts.crowdedParts(),
   };
 }
 

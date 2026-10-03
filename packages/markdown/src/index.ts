@@ -38,6 +38,7 @@ export {
   markdownLimits,
   MarkdownLimitError,
   measureParts,
+  vouchedPartMarks,
 } from './limits.ts';
 export type { ContentUrl } from './policy.ts';
 export { allowsExternalImage, classifyUrl, isIdentifier } from './policy.ts';

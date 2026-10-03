@@ -109,6 +109,7 @@ export function measureAfter(
   let deepLines = measure.deepLines;
   let tableCells = measure.tableCells;
   let fullParts = measure.fullParts;
+  let crowdedParts = measure.crowdedParts;
   for (const pair of changedParts(before, changes, after)) {
     const gone = measureSpan(before, pair.before, read);
     const come = measureSpan(after, pair.after, read);
@@ -116,6 +117,7 @@ export function measureAfter(
     deepLines += come.deepLines - gone.deepLines;
     tableCells += come.tableCells - gone.tableCells;
     fullParts += come.fullParts - gone.fullParts;
+    crowdedParts += come.crowdedParts - gone.crowdedParts;
   }
-  return { bytes, deepLines, tableCells, fullParts };
+  return { bytes, deepLines, tableCells, fullParts, crowdedParts };
 }

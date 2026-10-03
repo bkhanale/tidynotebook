@@ -21,6 +21,7 @@ import {
   measureLines,
   measureParts,
   type PartsMeasure,
+  vouchedPartMarks,
 } from './limits.ts';
 import {
   limitsOfMeasure,
@@ -427,6 +428,7 @@ function added(left: PartsMeasure, right: PartsMeasure): PartsMeasure {
     deepLines: left.deepLines + right.deepLines,
     tableCells: left.tableCells + right.tableCells,
     fullParts: left.fullParts + right.fullParts,
+    crowdedParts: left.crowdedParts + right.crowdedParts,
   };
 }
 
@@ -449,6 +451,7 @@ await test('the counts of the parts of a note give the answer of the reading of 
     'a'.repeat(markdownLimits.maxInputBytes),
     `${'a'.repeat(markdownLimits.maxInputBytes)}\n`,
     `é${'a'.repeat(markdownLimits.maxInputBytes - 1)}`,
+    `a\n\n${'*'.repeat(vouchedPartMarks + 1)}\n\nb\n${'_'.repeat(vouchedPartMarks)}`,
   ];
   for (const note of notes) {
     const lines = note.split('\n');
@@ -463,4 +466,22 @@ await test('the counts of the parts of a note give the answer of the reading of 
       assert.deepEqual(split, whole, note.slice(0, 40));
     }
   }
+});
+
+await test('a part counts as crowded above the marks that the reading vouches for', () => {
+  // The editor keeps its language for a note whose reading is unsure only
+  // while no part is crowded, because a small change can join or end the
+  // blocks of such a part (`packages/editor/src/grammar-gate.ts`).
+  const at = measureParts([`${'*'.repeat(vouchedPartMarks)}`, '_']);
+  assert.equal(at.crowdedParts, 1);
+  assert.equal(measureParts(['*'.repeat(vouchedPartMarks)]).crowdedParts, 0);
+  assert.equal(
+    measureParts(['*'.repeat(vouchedPartMarks), '', '_']).crowdedParts,
+    0,
+  );
+  // A part is counted once, however far above the bound it goes.
+  assert.equal(
+    measureParts(['*'.repeat(vouchedPartMarks + 1), '_', '_']).crowdedParts,
+    1,
+  );
 });

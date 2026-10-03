@@ -5,11 +5,12 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import {
   markdownLimits,
   measureParts,
+  vouchedPartMarks,
   withinParseLimits,
 } from '@notesapp/markdown';
 import {
@@ -257,4 +258,82 @@ await test('a key that keeps the answer adds nothing to its change', () => {
   });
   assert.equal(over.effects.length, 2);
   assert.equal(markdownGrammarOn(over.state), false);
+});
+
+await test('pastes in pieces turn the language off before the parser runs out of stack', () => {
+  // The review of 2026-10-03. Each piece inserted less than one paste that
+  // the gate checks, so the answer of the first note stood, and after sixteen
+  // pieces the Lezer parser ran out of stack. Another device sends its work
+  // in such pieces, and so do a dozen pastes.
+  const checks = countingChecks();
+  let state = EditorState.create({
+    doc: 'x\n',
+    extensions: [gatedMarkdown(noteMarkdownExtensions(), true, checks)],
+  });
+  const piece = 650;
+  assert.ok(6 * piece < checkedInsertLength);
+  for (let index = 0; index < 16; index += 1) {
+    const at = state.doc.toString().indexOf('x');
+    state = state.update({
+      changes: [
+        { from: at, insert: '*a '.repeat(piece) },
+        { from: at + 1, insert: ' b*'.repeat(piece) },
+      ],
+    }).state;
+    assert.doesNotThrow(() => ensureSyntaxTree(state, state.doc.length, 1e9));
+  }
+  assert.equal(withinParseLimits(state.doc.toString()), false);
+  assert.equal(markdownGrammarOn(state), false);
+  // The gate checks the whole note once for each `checkedInsertLength` of
+  // text and never on each piece.
+  assert.ok(checks.wholes() <= Math.ceil((16 * 6 * piece) / checkedInsertLength));
+});
+
+await test('a part that holds more marks than the editor parser may read is checked whole', () => {
+  // A small change can end or join the blocks of a part, so a part with
+  // more marks than `vouchedPartMarks` can hold a block that runs the parser
+  // out of stack, and no count of inserted text sees it.
+  const block = `${'*a '.repeat(Math.floor(limit / 2))}x${' b*'.repeat(Math.floor(limit / 2))}`;
+  const blocks = Math.ceil(vouchedPartMarks / limit) + 1;
+  const doc = Array.from({ length: blocks }, () => block).join('\n\n');
+  const checks = countingChecks();
+  let state = EditorState.create({
+    doc,
+    extensions: [
+      gatedMarkdown(noteMarkdownExtensions(), withinParseLimits(doc), checks),
+    ],
+  });
+  assert.equal(markdownGrammarOn(state), true);
+  checks.reset();
+  // Each removed blank line joins two paragraphs into one, and inserts no
+  // text at all.
+  for (let joined = 1; joined < blocks; joined += 1) {
+    const blank = state.doc.toString().indexOf('\n\n');
+    state = state.update({ changes: { from: blank, to: blank + 1 } }).state;
+    assert.equal(
+      markdownGrammarOn(state),
+      withinParseLimits(state.doc.toString()) || checks.wholes() === 0,
+    );
+  }
+  assert.equal(markdownGrammarOn(state), false);
+  assert.equal(checks.wholes(), 1);
+  assert.doesNotThrow(() => ensureSyntaxTree(state, state.doc.length, 1e9));
+});
+
+await test('a change that ends a code block around a crowded part checks the note', () => {
+  // The marks of a fenced code block are no marks of any block, so the note
+  // is within the limits. Removing its opening fence makes a paragraph of
+  // them, with a change far from the part and with no text inserted.
+  const crowded = `${'*a '.repeat(vouchedPartMarks)}x${' b*'.repeat(vouchedPartMarks)}`;
+  const doc = `Intro\n\n\`\`\`\n${crowded}\n\`\`\`\n`;
+  assert.equal(withinParseLimits(doc), true);
+  const state = stateOf(doc);
+  assert.equal(markdownGrammarOn(state), true);
+  const fence = doc.indexOf('\`\`\`');
+  const opened = state.update({
+    changes: { from: fence, to: fence + 4 },
+  }).state;
+  assert.equal(withinParseLimits(opened.doc.toString()), false);
+  assert.equal(markdownGrammarOn(opened), false);
+  assert.doesNotThrow(() => ensureSyntaxTree(opened, opened.doc.length, 1e9));
 });
