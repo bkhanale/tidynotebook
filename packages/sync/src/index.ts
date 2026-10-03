@@ -50,7 +50,7 @@ export {
   LocalStorageError,
 } from './local-port.ts';
 export type { ObservedCovers, ObservedSave } from './parked.ts';
-export { supersededSaves, supersedes } from './parked.ts';
+export { observedOf, supersededSaves, supersedes } from './parked.ts';
 export type {
   RemoteChange,
   RemoteFileChange,

@@ -13,7 +13,7 @@
  * `tests/integration/sync.test.ts` drives these functions against a server.
  */
 import { generateUUID } from '@notesapp/core';
-import type { Draft, LocalStore } from '@notesapp/sync';
+import type { CheckpointSource, Draft, LocalStore } from '@notesapp/sync';
 import { storageNotePath } from '../../lib/note-name.ts';
 import { recoveredNoteName, type ParkedSave } from '../../lib/parked-saves.ts';
 
@@ -24,12 +24,18 @@ export type ParkedPlace = {
   readonly workspaceId: string;
 };
 
-/** Writes one text as a version on top of the accepted head it names. */
-async function queueText(
+/**
+ * Writes one version on top of the accepted head that the device knows.
+ *
+ * `text` writes the text as the work of the version. A `document` source
+ * saves the document of the note as it stands (record 0133).
+ */
+async function queueVersion(
   place: ParkedPlace,
   fileId: string,
   path: string,
   text: string,
+  source: CheckpointSource,
 ): Promise<void> {
   const { store, accountId, workspaceId } = place;
   const files = await store.listAcceptedFiles(accountId, workspaceId);
@@ -48,8 +54,7 @@ async function queueText(
     sequence: 1,
   };
   await store.saveDraft(draft);
-  // A kept text has no open document, so its text becomes the work.
-  await store.checkpoint(draft, null, 'text');
+  await store.checkpoint(draft, null, source);
   await store.dropDraft(accountId, workspaceId, draft.workingCopyId);
 }
 
@@ -68,13 +73,38 @@ async function removeKept(place: ParkedPlace, save: ParkedSave): Promise<void> {
   );
 }
 
-/** Retry: the kept text becomes a new version of its note. */
+/**
+ * Retry: the work of the parked save goes to the server again.
+ *
+ * The document of the note holds that work when it observed the save. The
+ * retry then saves the document as it stands, which carries the work of the
+ * parked save and of every later save of the note (record 0085). A kept text
+ * written over it would remove the words of each later parked save of the
+ * note, which an earlier release left as rows of their own, and the save
+ * that removed them would end those rows (record 0183). A document that
+ * lacks the work, such as one of a new generation, takes the kept text.
+ */
 export async function retryParked(
   place: ParkedPlace,
   save: ParkedSave,
 ): Promise<void> {
+  const epoch =
+    save.mutationId === null
+      ? null
+      : await place.store.parkedWorkHeld(
+          place.accountId,
+          place.workspaceId,
+          save.mutationId,
+          save.fileId,
+        );
   await dropParked(place, save);
-  await queueText(place, save.fileId, save.path, save.text);
+  await queueVersion(
+    place,
+    save.fileId,
+    save.path,
+    save.text,
+    epoch === null ? 'text' : { kind: 'document', epoch },
+  );
   await removeKept(place, save);
 }
 
@@ -97,7 +127,14 @@ export async function keepParkedAsNote(
     held.map((entry) => entry.path),
   );
   await dropParked(place, save);
-  await queueText(place, generateUUID(), storageNotePath(name), save.text);
+  // A new note has no document yet, so the kept text becomes its work.
+  await queueVersion(
+    place,
+    generateUUID(),
+    storageNotePath(name),
+    save.text,
+    'text',
+  );
   await removeKept(place, save);
   return name;
 }

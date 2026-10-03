@@ -1992,7 +1992,18 @@ for (const [action, slug, run] of [
       const engine = startEngine(store, ownerCookie, `engine-chain-${slug}`);
       try {
         await run({ store, accountId: ownerAccountId, workspaceId }, oldest);
-        // The person goes on with the note.
+        // The document of the note keeps every word of the parked saves. A
+        // Retry that wrote the oldest kept text over it removed the words of
+        // the later ones, and its save ended their rows. An open editor
+        // shows the document.
+        const document = await store.readNoteDocument(
+          ownerAccountId,
+          workspaceId,
+          file.fileId,
+        );
+        const shown = document === null ? '' : readDocumentText(document.bytes);
+        assert.equal(shown, 'a\nb\nc\nd\n');
+        // The person goes on with the note as the screen shows it.
         await checkpointText(
           store,
           draftOf(
@@ -2000,7 +2011,7 @@ for (const [action, slug, run] of [
             copy,
             file.fileId,
             file.revisionId,
-            'a\nb\nc\nd\ne\n',
+            `${shown}e\n`,
             path,
             4,
           ),

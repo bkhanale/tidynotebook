@@ -313,6 +313,10 @@ class FakeStore implements LocalStore {
     return Promise.resolve();
   }
 
+  parkedWorkHeld(): Promise<number | null> {
+    return Promise.resolve(null);
+  }
+
   reparentQueueEntry(
     _account: string,
     mutationId: string,

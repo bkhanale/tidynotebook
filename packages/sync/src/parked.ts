@@ -34,7 +34,7 @@ export type ObservedCovers = (
  * A deletion, an attachment and a write that names no observed state are not
  * work that a later save of the note can carry.
  */
-function observedOf(revision: RevisionInput): ObservedSave | null {
+export function observedOf(revision: RevisionInput): ObservedSave | null {
   if (revision.deleted || revision.content.kind !== 'markdown') return null;
   const save = revision.content.document;
   if (save.work.kind !== 'update' || save.observed === null) return null;

@@ -915,13 +915,32 @@ export type LocalStore = {
    * mutation, and the local head that they set are removed in one
    * transaction, so the file goes back to its accepted state. A deletion flag
    * that the discarded mutation set is cleared as well, because the accepted
-   * head that the server kept is not a tombstone. A draft that names a removed
-   * checkpoint moves to its first kept ancestor, so the next save of that
-   * working copy names a revision that the server holds (record 0183).
+   * head that the server kept is not a tombstone. Each checkpoint, unsent
+   * save and draft that names a removed checkpoint moves to its first kept
+   * ancestor, so the next save names a revision that the server holds
+   * (record 0183).
    *
    * Discarding an unknown mutation does nothing.
    */
   discardQueueEntry(accountId: string, mutationId: string): Promise<void>;
+
+  /**
+   * The generation of the document of one note when it holds the work of one
+   * parked save of that note, or `null` (record 0183).
+   *
+   * The document holds that work when it observed every insertion and
+   * deletion of each revision of the save for the note. A Retry then saves
+   * the document as it stands, which carries the work of the parked save and
+   * of every later one, so it never writes an older kept text over newer
+   * work. A document of another generation, or a save that is not parked,
+   * answers `null`, and a Retry writes the kept text.
+   */
+  parkedWorkHeld(
+    accountId: string,
+    workspaceId: string,
+    mutationId: string,
+    fileId: string,
+  ): Promise<number | null>;
 
   /**
    * Moves the preconditions of one queued mutation to the current heads.

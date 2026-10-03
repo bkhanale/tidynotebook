@@ -4862,6 +4862,54 @@ for (const [action, run] of [
     await store.close();
   });
 
+await test('the document of a note holds the work of its parked saves', async () => {
+  // A Retry saves the document when it holds the work, so it never writes
+  // an older kept text over the words of a later parked save (record 0183).
+  const backend = createBackend('parked-held');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const { note, saves } = await earlierParkedChain(store, account, workspace);
+  const { fileId } = note.draft;
+  const document = await store.readNoteDocument(account, workspace, fileId);
+  for (const save of saves)
+    assert.equal(
+      await store.parkedWorkHeld(
+        account,
+        workspace,
+        save.input.mutationId,
+        fileId,
+      ),
+      document?.epoch,
+    );
+  // A save that is not parked, and a note that the save does not name, ask
+  // for the kept text.
+  const waiting = await versionOf(store, {
+    ...note.draft,
+    text: 'a\nb\nc\nd\nwaiting\n',
+    sequence: 5,
+  });
+  assert.equal(
+    await store.parkedWorkHeld(
+      account,
+      workspace,
+      waiting.input.mutationId,
+      fileId,
+    ),
+    null,
+  );
+  assert.equal(
+    await store.parkedWorkHeld(
+      account,
+      workspace,
+      saves[0]?.input.mutationId ?? '',
+      randomUUID(),
+    ),
+    null,
+  );
+  await store.close();
+});
+
 await test('a discarded save moves its unsent child to its own parent', async () => {
   // The defect: the unsent child kept naming the removed checkpoint over the
   // precondition of the accepted head, so the server refused it with

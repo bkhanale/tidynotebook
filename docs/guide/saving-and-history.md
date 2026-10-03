@@ -61,8 +61,10 @@ A save that your server refuses for good is kept on your device and listed
 under **Needs attention** in the sidebar, which appears only while something is
 waiting there. Each row says why, says when the text was kept, shows the text,
 and offers four actions: **Retry**, **Save as new note**, **Copy text**, and
-**Discard**. When no save waits there any more, the line at the bottom of the
-sidebar states your other work again.
+**Discard**. **Retry** sends the text again. When the note already holds that
+text, Retry sends the note as it is now, so you keep your later changes. When
+no save waits there any more, the line at the bottom of the sidebar states your
+other work again.
 
 You can also change the note itself. For example, when the row says "Divide
 the paragraph.", divide the paragraph in the note. Your next save goes to your

@@ -10,11 +10,14 @@
  */
 import type { AcceptedChangeset } from '@notesapp/core';
 import {
+  observedOf,
   type LocalChange,
   type LocalConflict,
   type LocalStore,
+  type ObservedSave,
   type QueueEntry,
 } from '@notesapp/sync';
+import { observeDocument, observedCovers } from '@notesapp/note-document';
 import {
   accountRange,
   guard,
@@ -27,6 +30,7 @@ import {
   validateCheckpoint,
   validateQueueRow,
 } from '../migrations.ts';
+import { readDocumentRow } from './documents.ts';
 import { legacyWorkspaces } from './legacy.ts';
 import { dropSupersededSaves, moveChildrenOffParked } from './parked.ts';
 import { recordMergeReview } from './reviews.ts';
@@ -43,6 +47,7 @@ type QueueSlice = Pick<
   | 'markSending'
   | 'markConflict'
   | 'discardQueueEntry'
+  | 'parkedWorkHeld'
   | 'reparentQueueEntry'
   | 'acknowledge'
   | 'listLocalConflicts'
@@ -248,6 +253,49 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
         ),
       );
       for (const change of changes) publish(change);
+    },
+
+    parkedWorkHeld(
+      accountId: string,
+      workspaceId: string,
+      mutationId: string,
+      fileId: string,
+    ): Promise<number | null> {
+      return guard('reading the work of a parked save', () =>
+        db.transaction(
+          'r',
+          [tables.queue, tables.documents, tables.documentUpdates],
+          async () => {
+            const entry = await queueEntryOf(accountId, mutationId);
+            if (
+              entry === null ||
+              entry.workspaceId !== workspaceId ||
+              entry.state !== 'conflict'
+            )
+              return null;
+            const revisions = entry.input.revisions.filter(
+              (revision) => revision.fileId === fileId,
+            );
+            const row = await readDocumentRow(tables, {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+            });
+            if (row === null || revisions.length === 0) return null;
+            const held: ObservedSave = {
+              epoch: row.epoch,
+              state: observeDocument(row.bytes),
+            };
+            return revisions.every((revision) => {
+              const saved = observedOf(revision);
+              return saved !== null && observedCovers(held, saved);
+            })
+              ? row.epoch
+              : null;
+          },
+        ),
+      );
     },
 
     async reparentQueueEntry(

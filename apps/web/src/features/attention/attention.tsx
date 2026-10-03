@@ -6,8 +6,10 @@
  * sees the note name, one sentence for the cause, and how long ago it
  * happened, and takes one of four actions.
  *
- * Retry writes the text again on top of the current accepted head, so a save
- * that a stale head or a taken name refused can now succeed. Save as new note
+ * Retry sends the work again on top of the current accepted head, so a save
+ * that a stale head or a taken name refused can now succeed. It saves the
+ * document of the note when that holds the work, and the kept text when it
+ * does not (`parked-actions.ts`, record 0183). Save as new note
  * keeps the text in a separate note. Copy text puts it on the clipboard.
  * Discard needs a second click, because it is the only action that ends with
  * the text gone.

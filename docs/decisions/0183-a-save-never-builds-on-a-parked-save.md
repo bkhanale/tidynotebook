@@ -48,6 +48,13 @@ Option 4.
   `markConflict` removes each earlier parked save that the new one supersedes,
   so Needs attention shows the newest refused text of a note once.
 - Any other parked save stays for review with its sentence.
+- Retry saves the document of the note as it stands when that document
+  observed the parked save (`parkedWorkHeld`), and writes the kept text only
+  when it did not, for example after a new generation. A save carries the
+  work since the state that the server has, so the document holds the work
+  of the parked save and of each later one. A kept text written over it
+  removed the words of the later parked saves of an earlier release, and the
+  save that removed them ended their rows.
 - No row of the device names a checkpoint that the device no longer holds,
   so a revision with no checkpoint on the device is a revision of the
   server, and no save names a revision that only the device knew:
