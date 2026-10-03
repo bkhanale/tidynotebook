@@ -26,6 +26,8 @@
 import {
   Compartment,
   EditorState,
+  type ChangeSet,
+  type Text,
   Facet,
   StateEffect,
   StateField,
@@ -88,36 +90,60 @@ type GateValue = {
   readonly measure: PartsMeasure;
 };
 
-/** Sets what the gate knows after a change. */
-const setGate = StateEffect.define<GateValue>();
+/** Sets whether the note is within the limits, so the language reads it. */
+const setWithinLimits = StateEffect.define<boolean>();
+
+/**
+ * The reading after each change, kept for the one change it was made for.
+ *
+ * The extender of the gate reads the parts around a change to decide, and
+ * the field keeps the reading. A change is read once: whichever of the two
+ * meets it first leaves the reading here for the other. The key is the
+ * changes, and the document before them must match.
+ */
+const readings = new WeakMap<
+  ChangeSet,
+  { readonly before: Text; readonly measure: PartsMeasure }
+>();
+
+/** The reading of the note after `transaction`, from the one before it. */
+function measureOf(
+  transaction: Transaction,
+  measure: PartsMeasure,
+): PartsMeasure {
+  const before = transaction.startState.doc;
+  const known = readings.get(transaction.changes);
+  if (known !== undefined && known.before === before) return known.measure;
+  const after = measureAfter(
+    measure,
+    before,
+    transaction.changes,
+    transaction.newDoc,
+    transaction.startState.facet(gateConfig)?.checks.read,
+  );
+  readings.set(transaction.changes, { before, measure: after });
+  return after;
+}
 
 /** What the gate knows of the note of a state. */
 const gateField = StateField.define<GateValue>({
-  create: (state) => {
-    const source = state.doc.toString();
-    return {
-      within: withinParseLimits(source),
-      measure: measureNote(state.doc),
-    };
-  },
+  create: (state) => ({
+    within: withinParseLimits(state.doc.toString()),
+    measure: measureNote(state.doc),
+  }),
   update(value, transaction) {
+    let within = value.within;
     for (const effect of transaction.effects)
-      if (effect.is(setGate)) return effect.value;
-    if (!transaction.docChanged) return value;
-    // A change that the gate did not extend: a transaction filter reads the
-    // state of a change before the extenders run, as the list numbering
-    // does. That reading follows the parts around the change as well, and
-    // the language waits for the change that the gate extends.
-    return {
-      ...value,
-      measure: measureAfter(
-        value.measure,
-        transaction.startState.doc,
-        transaction.changes,
-        transaction.newDoc,
-        transaction.startState.facet(gateConfig)?.checks.read,
-      ),
-    };
+      if (effect.is(setWithinLimits)) within = effect.value;
+    // A transaction filter can read the state of a change before the gate
+    // extends it, as the list numbering does, so the field reads the parts
+    // around the change itself.
+    const measure = transaction.docChanged
+      ? measureOf(transaction, value.measure)
+      : value.measure;
+    return within === value.within && measure === value.measure
+      ? value
+      : { within, measure };
   },
 });
 
@@ -164,7 +190,7 @@ export function recheckPlainNote(state: EditorState): TransactionSpec | null {
   if (!config.checks.whole(state.doc.toString())) return null;
   return {
     effects: [
-      setGate.of({ within: true, measure: value.measure }),
+      setWithinLimits.of(true),
       grammarCompartment.reconfigure(config.markdown),
     ],
   };
@@ -226,22 +252,21 @@ export function gatedMarkdown(
     })),
     grammarCompartment.of(within ? markdown : []),
     plainRecheck,
+    // The extender adds an effect only when the answer changes. A
+    // transaction that it extends is a new one, whose state is computed
+    // again, the parse of the language with it.
     EditorState.transactionExtender.of((transaction) => {
       if (!transaction.docChanged) return null;
       const value = transaction.startState.field(gateField, false);
       if (value === undefined) return null;
-      const measure = measureAfter(
-        value.measure,
-        transaction.startState.doc,
-        transaction.changes,
-        transaction.newDoc,
-        checks.read,
-      );
+      const measure = measureOf(transaction, value.measure);
       const after = withinAfter(transaction, value.within, measure, checks);
-      const set = setGate.of({ within: after, measure });
-      if (after === value.within) return { effects: set };
+      if (after === value.within) return null;
       return {
-        effects: [set, grammarCompartment.reconfigure(after ? markdown : [])],
+        effects: [
+          setWithinLimits.of(after),
+          grammarCompartment.reconfigure(after ? markdown : []),
+        ],
       };
     }),
   ];

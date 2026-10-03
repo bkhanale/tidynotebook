@@ -235,6 +235,23 @@ await test('a filter that reads the state of a key reads no whole note either', 
   const typed = state.update({ changes: { from: at, insert: 'k' } }).state;
   assert.equal(markdownGrammarOn(typed), true);
   assert.equal(checks.wholes(), 0);
-  // The filter and the gate each read the paragraph around the key.
-  assert.equal(checks.lines(), 2 * 6);
+  // The filter and the gate read the paragraph around the key once.
+  assert.equal(checks.lines(), 6);
+});
+
+await test('a key that keeps the answer adds nothing to its change', () => {
+  // A transaction that an extender extends is a new transaction, so the
+  // editor computed the state of each key twice, the parse of the language
+  // with it, when the gate added an effect to every key.
+  const state = stateOf(longNote(50));
+  const key = state.update({ changes: { from: 3, insert: 'k' } });
+  assert.deepEqual(key.effects, []);
+  const over = state.update({
+    changes: {
+      from: 0,
+      insert: `${'> '.repeat(markdownLimits.maxNestingDepth + 1)}x\n`,
+    },
+  });
+  assert.equal(over.effects.length, 2);
+  assert.equal(markdownGrammarOn(over.state), false);
 });
