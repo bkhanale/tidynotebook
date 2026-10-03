@@ -46,6 +46,7 @@ import {
   validateDraft,
 } from '../migrations.ts';
 import {
+  anchorOfDraft,
   byteLength,
   draftRow,
   expectedHeadOfParent,
@@ -226,6 +227,18 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             );
 
           const lastCheckpointId = current?.lastCheckpointId ?? null;
+          // The revision this working copy builds on, which is never a
+          // checkpoint that left the device (record 0183).
+          const anchor = await anchorOfDraft(
+            ctx,
+            {
+              accountId,
+              workspaceId,
+              lastCheckpointId,
+              baseRevisionId: draft.baseRevisionId,
+            },
+            file,
+          );
           let previous: {
             digest: string;
             path: string;
@@ -247,8 +260,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             previous === null &&
             file !== null &&
             file.acceptedHeadDigest !== null &&
-            file.acceptedHeadRevisionId ===
-              (lastCheckpointId ?? draft.baseRevisionId)
+            file.acceptedHeadRevisionId === anchor
           )
             previous = {
               digest: file.acceptedHeadDigest,
@@ -300,7 +312,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             ctx,
             accountId,
             workspaceId,
-            lastCheckpointId ?? draft.baseRevisionId,
+            anchor,
           );
           const parents = parentId === null ? [] : [parentId];
           await tables.contents.put({

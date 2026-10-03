@@ -24,6 +24,7 @@ import {
 import { guard, type CheckpointRow, type FileRow } from '../database.ts';
 import { validateAcceptedFile, validateCheckpoint } from '../migrations.ts';
 import {
+  anchorOfDraft,
   byteLength,
   bodyOfDigest,
   draftLeads,
@@ -121,7 +122,8 @@ export function createFileActionsSlice(
         path: leading.path,
         text: leading.deleted ? '' : leading.text,
         deleted: leading.deleted,
-        parentId: leading.lastCheckpointId ?? leading.baseRevisionId,
+        // Never a checkpoint that left the device (record 0183).
+        parentId: await anchorOfDraft(ctx, leading, file),
         seenAcceptedHead: file?.acceptedHeadRevisionId ?? null,
         workingCopyId: leading.workingCopyId,
       };

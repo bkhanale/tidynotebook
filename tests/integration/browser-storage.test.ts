@@ -51,7 +51,13 @@ import {
   parkedSaveLines,
   parkedSaveReason,
   parkedSaves,
+  type ParkedSave,
 } from '../../apps/web/src/lib/parked-saves.ts';
+import {
+  discardParked,
+  keepParkedAsNote,
+  retryParked,
+} from '../../apps/web/src/features/attention/parked-actions.ts';
 import {
   startingSyncState,
   syncFooter,
@@ -4745,6 +4751,265 @@ await test('a discarded parked save leaves no working copy on its version', asyn
   assert.deepEqual(next.input.revisions[0]?.parents, [note.revisionId]);
   assert.equal(next.input.expectedHeads[note.draft.fileId], note.revisionId);
   await store.close();
+});
+
+/**
+ * A chain of three parked saves of one note, as an earlier release left it.
+ *
+ * That release named the last checkpoint as the parent of the next save, so
+ * each later save named a parked one and the server refused it with
+ * invalid_graph. Needs attention lists all three.
+ */
+async function earlierParkedChain(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+): Promise<{
+  readonly note: { readonly draft: Draft; readonly revisionId: string };
+  readonly saves: readonly QueueEntry[];
+}> {
+  const note = await acceptedNote(store, account, workspace, 'n.md', 'a\n');
+  const saves: QueueEntry[] = [];
+  for (const [index, text] of ['a\nb\n', 'a\nb\nc\n', 'a\nb\nc\nd\n'].entries())
+    saves.push(
+      await versionOf(store, { ...note.draft, text, sequence: index + 2 }),
+    );
+  // Each save was sent, so its body is frozen.
+  for (const save of saves)
+    await store.markSending(
+      account,
+      save.input.mutationId,
+      `digest-${save.input.mutationId}`,
+    );
+  // This release lets a later refused save stand for the earlier ones, and
+  // that release did not, so the saves park newest first and each row stays.
+  for (const [index, save] of [...saves.entries()].reverse())
+    await parkRefusedSave(
+      store,
+      account,
+      save,
+      index === 0 ? 'unrenderable_note' : 'invalid_graph',
+    );
+  const [first, second, third] = saves;
+  assert.deepEqual(second?.input.revisions[0]?.parents, [
+    first?.input.revisions[0]?.id,
+  ]);
+  assert.deepEqual(third?.input.revisions[0]?.parents, [
+    second?.input.revisions[0]?.id,
+  ]);
+  assert.equal((await store.recover(account, workspace)).length, 3);
+  return { note, saves };
+}
+
+/** The row of Needs attention that one parked save keeps. */
+async function rowOf(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+  save: QueueEntry | undefined,
+): Promise<ParkedSave> {
+  const row = parkedSaves(await store.recover(account, workspace)).find(
+    (candidate) => candidate.mutationId === save?.input.mutationId,
+  );
+  assert.ok(row !== undefined, 'the parked save must keep a row');
+  return row;
+}
+
+/** The parents of one checkpoint of a note, as the device stores them. */
+async function parentsOf(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+  fileId: string,
+  save: QueueEntry | undefined,
+): Promise<readonly string[] | undefined> {
+  const history = await store.listCheckpoints(account, workspace, fileId);
+  return history.find(
+    (checkpoint) => checkpoint.revisionId === save?.input.revisions[0]?.id,
+  )?.parents;
+}
+
+for (const [action, run] of [
+  ['Discard', discardParked],
+  ['Retry', retryParked],
+  ['Save as new note', keepParkedAsNote],
+] as const)
+  await test(`${action} of the oldest row of an earlier parked chain leaves the next save on the accepted head`, async () => {
+    // The defect: the action removed the checkpoint of the oldest save and
+    // left the next parked save naming it. The next save of the note passed
+    // the parked saves and named that removed checkpoint, a revision that
+    // only this device ever knew (record 0183).
+    const backend = createBackend(`parked-chain-${action}`);
+    const store = await openLocalStore(origin, backend.options());
+    const account = randomUUID();
+    const workspace = randomUUID();
+    const { note, saves } = await earlierParkedChain(store, account, workspace);
+    const { fileId } = note.draft;
+    const place = { store, accountId: account, workspaceId: workspace };
+    await run(place, await rowOf(store, account, workspace, saves[0]));
+
+    assert.deepEqual(
+      await parentsOf(store, account, workspace, fileId, saves[1]),
+      [note.revisionId],
+    );
+    const next = await versionOf(store, {
+      ...note.draft,
+      text: 'a\nb\nc\nd\ne\n',
+      sequence: 5,
+    });
+    assert.deepEqual(next.input.revisions[0]?.parents, [note.revisionId]);
+    assert.equal(next.input.expectedHeads[fileId], note.revisionId);
+    await store.close();
+  });
+
+await test('a discarded save moves its unsent child to its own parent', async () => {
+  // The defect: the unsent child kept naming the removed checkpoint over the
+  // precondition of the accepted head, so the server refused it with
+  // invalid_graph.
+  const backend = createBackend('discard-child');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const note = await acceptedNote(store, account, workspace, 'n.md', 'a\n');
+  const { fileId } = note.draft;
+  const sent = await versionOf(store, {
+    ...note.draft,
+    text: 'sent\n',
+    sequence: 2,
+  });
+  await store.markSending(account, sent.input.mutationId, 'digest-sent');
+  const child = await versionOf(store, {
+    ...note.draft,
+    text: 'child\n',
+    sequence: 3,
+  });
+  assert.deepEqual(child.input.revisions[0]?.parents, [
+    sent.input.revisions[0]?.id,
+  ]);
+  await store.discardQueueEntry(account, sent.input.mutationId);
+  const [waiting] = await store.pending(account, workspace);
+  assert.equal(waiting?.input.mutationId, child.input.mutationId);
+  assert.deepEqual(waiting?.input.revisions[0]?.parents, [note.revisionId]);
+  assert.equal(waiting?.input.expectedHeads[fileId], note.revisionId);
+  assert.deepEqual(await parentsOf(store, account, workspace, fileId, child), [
+    note.revisionId,
+  ]);
+  await store.close();
+});
+
+await test('the upgrade to version 11 moves a save off a checkpoint that an earlier release removed', async () => {
+  // An earlier release removed the checkpoint of a discarded save and left
+  // the later saves naming it. The step reads the precondition of each save,
+  // which names the revision of the server below it.
+  const backend = createBackend('removed-parent-upgrade');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const { note, saves } = await earlierParkedChain(store, account, workspace);
+  const { fileId } = note.draft;
+  const removedId = saves[0]?.input.revisions[0]?.id ?? '';
+  const removedMutation = saves[0]?.input.mutationId ?? '';
+  const unsent = await versionOf(store, {
+    ...note.draft,
+    workingCopyId: randomUUID(),
+    baseRevisionId: note.revisionId,
+    text: 'a\nunsent\n',
+    sequence: 1,
+  });
+  await store.close();
+  await withRawDatabase(backend, async (tables) => {
+    // The Discard of that release: the save and its checkpoint went, and
+    // nothing moved off the checkpoint.
+    await tables.queue.delete([origin, account, workspace, removedMutation]);
+    await tables.checkpoints.delete([origin, account, workspace, removedId]);
+    // An unsent save of that release named the removed checkpoint as well.
+    const stored = await tables.queue.get([
+      origin,
+      account,
+      workspace,
+      unsent.input.mutationId,
+    ]);
+    assert.ok(stored !== undefined);
+    await tables.queue.put({
+      ...stored,
+      input: {
+        ...stored.input,
+        revisions: stored.input.revisions.map((revision) => ({
+          ...revision,
+          parents: [removedId],
+        })),
+      },
+    });
+    const meta = await storedMeta(tables);
+    await tables.meta.put({ ...meta, schemaVersion: 10 });
+  });
+  const reopened = await openLocalStore(origin, backend.options());
+  assert.deepEqual(
+    await parentsOf(reopened, account, workspace, fileId, saves[1]),
+    [note.revisionId],
+  );
+  const moved = (await reopened.pending(account, workspace)).find(
+    (entry) => entry.input.mutationId === unsent.input.mutationId,
+  );
+  assert.deepEqual(moved?.input.revisions[0]?.parents, [note.revisionId]);
+  const next = await versionOf(reopened, {
+    ...note.draft,
+    text: 'a\nb\nc\nd\ne\n',
+    sequence: 5,
+  });
+  assert.deepEqual(next.input.revisions[0]?.parents, [note.revisionId]);
+  assert.equal(next.input.expectedHeads[fileId], note.revisionId);
+  await reopened.close();
+});
+
+await test('a draft whose last version left the device builds on the accepted head', async () => {
+  // An earlier release removed the version of a discarded save and left the
+  // draft naming it, so the next save and the next move of the note named a
+  // revision that only this device ever knew.
+  const backend = createBackend('draft-on-removed');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const edited = await acceptedNote(store, account, workspace, 'e.md', 'e\n');
+  const moved = await acceptedNote(store, account, workspace, 'm.md', 'm\n');
+  const refused = [
+    await versionOf(store, { ...edited.draft, text: 'e2\n', sequence: 2 }),
+    await versionOf(store, { ...moved.draft, text: 'm2\n', sequence: 2 }),
+  ];
+  await store.close();
+  await withRawDatabase(backend, async (tables) => {
+    for (const save of refused) {
+      await tables.queue.delete([
+        origin,
+        account,
+        workspace,
+        save.input.mutationId,
+      ]);
+      await tables.checkpoints.delete([
+        origin,
+        account,
+        workspace,
+        save.input.revisions[0]?.id ?? '',
+      ]);
+    }
+  });
+  const reopened = await openLocalStore(origin, backend.options());
+  const next = await versionOf(reopened, {
+    ...edited.draft,
+    text: 'e3\n',
+    sequence: 3,
+  });
+  assert.deepEqual(next.input.revisions[0]?.parents, [edited.revisionId]);
+  assert.equal(
+    next.input.expectedHeads[edited.draft.fileId],
+    edited.revisionId,
+  );
+  const [move] = await reopened.moveFiles(account, workspace, [
+    { fileId: moved.draft.fileId, toPath: 'm2.md' },
+  ]);
+  assert.deepEqual(move?.input.revisions[0]?.parents, [moved.revisionId]);
+  assert.equal(move?.input.expectedHeads[moved.draft.fileId], moved.revisionId);
+  await reopened.close();
 });
 
 await test('the held paths name the path the server keeps for a renamed note', async () => {

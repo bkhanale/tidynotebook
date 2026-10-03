@@ -64,6 +64,7 @@ import { createDatabase, openLocalStore } from '@notesapp/storage-browser';
 import {
   createNote,
   createSyncEngine,
+  parkRefusedSave,
   type Draft,
   type LocalStore,
   type SyncEngine,
@@ -73,6 +74,12 @@ import { createDisposableDatabase, openSession } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
 import { markdownLimits } from '@notesapp/markdown';
 import { freeNotePath } from '../../apps/web/src/lib/new-note-draft.ts';
+import { parkedSaves } from '../../apps/web/src/lib/parked-saves.ts';
+import {
+  discardParked,
+  keepParkedAsNote,
+  retryParked,
+} from '../../apps/web/src/features/attention/parked-actions.ts';
 import { markRelease04, storeRelease04Save } from './support/release-0-4.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
@@ -1923,6 +1930,111 @@ await test('an existing note that grows past a limit saves again once it fits', 
     await store.close();
   }
 });
+
+for (const [action, slug, run] of [
+  ['Discard', 'discard', discardParked],
+  ['Retry', 'retry', retryParked],
+  ['Save as new note', 'new-note', keepParkedAsNote],
+] as const)
+  await test(`${action} of the oldest row of an earlier parked chain leaves a note that saves`, async () => {
+    // The defect: the action removed the checkpoint of the oldest save and
+    // left the next parked save naming it, so the next save of the note
+    // named a revision that only this device ever knew (record 0183). The
+    // server took it as a save over another head and said so.
+    const path = `chain/${slug}.md`;
+    const file = await newFile(path, 'a\n');
+    const store = await openStore(`chain-${slug}`, `device-chain-${slug}`);
+    try {
+      await syncPull(store, ownerCookie, `engine-chain-${slug}-pull`);
+      const copy = `working-chain-${slug}`;
+      const texts = ['a\nb\n', 'a\nb\nc\n', 'a\nb\nc\nd\n'];
+      for (const [index, text] of texts.entries())
+        await checkpointText(
+          store,
+          draftOf(
+            ownerAccountId,
+            copy,
+            file.fileId,
+            file.revisionId,
+            text,
+            path,
+            index + 1,
+          ),
+        );
+      // An earlier release named each parked save as the parent of the next
+      // one, so the server refused each later save. Each was sent, and each
+      // row stays, so the saves park newest first: this release lets a later
+      // refused save stand for an earlier one.
+      const saves = await queuedOf(store);
+      assert.equal(saves.length, 3);
+      for (const save of saves)
+        await store.markSending(
+          ownerAccountId,
+          save.input.mutationId,
+          `digest-${save.input.mutationId}`,
+        );
+      for (const [index, save] of [...saves.entries()].reverse())
+        await parkRefusedSave(
+          store,
+          ownerAccountId,
+          save,
+          index === 0 ? 'unrenderable_note' : 'invalid_graph',
+        );
+      const rows = parkedSaves(
+        await store.recover(ownerAccountId, workspaceId),
+      );
+      assert.equal(rows.length, 3);
+      const oldest = rows.find(
+        (row) => row.mutationId === saves[0]?.input.mutationId,
+      );
+      assert.ok(oldest !== undefined);
+
+      const engine = startEngine(store, ownerCookie, `engine-chain-${slug}`);
+      try {
+        await run({ store, accountId: ownerAccountId, workspaceId }, oldest);
+        // The person goes on with the note.
+        await checkpointText(
+          store,
+          draftOf(
+            ownerAccountId,
+            copy,
+            file.fileId,
+            file.revisionId,
+            'a\nb\nc\nd\ne\n',
+            path,
+            4,
+          ),
+        );
+        await waitFor(
+          async () =>
+            (await queuedOf(store)).length === 0 &&
+            (await store.recover(ownerAccountId, workspaceId)).length === 0,
+          'the next save reaches the server and Needs attention is empty',
+        );
+      } finally {
+        await stopEngine(engine);
+      }
+      const live = await serverNote(file.fileId);
+      assert.equal(live?.head?.text, 'a\nb\nc\nd\ne\n');
+      assert.equal(live?.path, path);
+      // Only a Retry puts a save of its own on the note before the next one,
+      // so only then does the next save pass a head of the server.
+      if (action !== 'Retry')
+        assert.deepEqual(
+          engine.notices.filter((notice) => notice.kind === 'superseded'),
+          [],
+        );
+      if (action === 'Save as new note') {
+        const kept = (
+          await store.listAcceptedFiles(ownerAccountId, workspaceId)
+        ).find((entry) => entry.path === `chain/${slug} (recovered).md`);
+        assert.ok(kept !== undefined, 'the kept text is a note of its own');
+        assert.equal((await serverNote(kept.fileId))?.head?.text, 'a\nb\n');
+      }
+    } finally {
+      await store.close();
+    }
+  });
 
 // Teardown
 await server.close();

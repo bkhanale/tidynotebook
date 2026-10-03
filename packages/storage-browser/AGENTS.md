@@ -26,8 +26,8 @@ channel, and composes these area modules behind the one port, each a factory
 over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 
 - `channel.ts`: the message shape of the invalidation channel (0019, 0175).
-- `shared.ts`: the context, the row helpers, `expectedHeadOfParent` (0073)
-  and `parentOfNextSave`, which passes a parked save (0183).
+- `shared.ts`: the context, the row helpers, `expectedHeadOfParent` (0073),
+  `parentOfNextSave` and `moveOffRemoved` of a parked save (0183).
 - `drafts.ts`: save, read, rebase, drop a draft; read a cached note.
 - `versions.ts`: checkpoint a save and list local history.
 - `file-actions.ts`: move or trash a file, every working copy (0032).

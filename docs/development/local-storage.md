@@ -67,9 +67,9 @@ a newer draft or a newer queued save.
 
 A save that the server refuses for good is parked with its answer code and
 the limit that refused its note (record 0182). Needs attention offers a retry,
-a new note, a copy or a discard. No later save names a parked save as its
-parent, and a later save that carries all its work ends its row (record 0183).
-A free name avoids every path that the server may hold (record 0184).
+a new note, a copy or a discard. No save names a parked save or a removed
+checkpoint as its parent, and a later save that carries all its work ends its
+row (record 0183). A free name avoids every path the server may hold (0184).
 
 ## Review
 

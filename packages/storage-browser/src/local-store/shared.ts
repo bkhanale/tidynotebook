@@ -197,16 +197,59 @@ export const expectedHeadOfParent = async (
 };
 
 /**
+ * The revision that the next save of one working copy builds on.
+ *
+ * It is the last checkpoint of the working copy, or the revision that the
+ * working copy was opened from when it has none. A last checkpoint that the
+ * device no longer holds left with its save: Discard, Retry and Save as new
+ * note of an earlier release, and the placement of release 0.4, removed it
+ * and left the draft naming it. Neither the device nor the server holds that
+ * revision, so the draft builds on the accepted head of its file, as a
+ * rebased draft does (`rebaseDraft`), and keeps its text (record 0183).
+ *
+ * The caller runs inside a transaction that covers the checkpoints.
+ */
+export const anchorOfDraft = async (
+  ctx: LocalStoreContext,
+  draft: {
+    readonly accountId: string;
+    readonly workspaceId: string;
+    readonly lastCheckpointId: string | null;
+    readonly baseRevisionId: string | null;
+  },
+  file: FileRow | null,
+): Promise<string | null> => {
+  if (draft.lastCheckpointId === null) return draft.baseRevisionId;
+  const stored: unknown = await ctx.tables.checkpoints.get([
+    ctx.serverOrigin,
+    draft.accountId,
+    draft.workspaceId,
+    draft.lastCheckpointId,
+  ]);
+  if (stored !== undefined) return draft.lastCheckpointId;
+  return file?.acceptedHeadRevisionId ?? null;
+};
+
+/**
  * The parent that the next save of one chain names (record 0183).
  *
  * A save that the server refused for good is parked, and the server holds no
  * revision of it, so a save that named it as its parent would be refused as
- * well. The walk starts at the parent that the working copy states and passes
- * each unaccepted checkpoint of this device whose save is parked. It stops at
- * the first revision that is not parked: a revision this device did not
- * create, an accepted checkpoint, or an unsent one. The later save carries the
- * work of every parked save it passes, because a save is the work since the
- * state that the server has (record 0085).
+ * well. The walk starts at the revision that the working copy builds on
+ * (`anchorOfDraft`) and passes each unaccepted checkpoint of this device
+ * whose save is parked. It stops at the first revision that is not parked: a
+ * revision this device did not create, an accepted checkpoint, or an unsent
+ * one. The later save carries the work of every parked save it passes,
+ * because a save is the work since the state that the server has (record
+ * 0085).
+ *
+ * A revision that the device holds no checkpoint of is a revision of the
+ * server. No row of the device names a checkpoint that left it: a removal
+ * moves every checkpoint, unsent save and draft that named it
+ * (`moveOffRemoved`), the step to schema version 11 moved the saves that an
+ * earlier release left, and a draft that still names one builds on the
+ * accepted head. So the answer is never a revision that only this device
+ * knew.
  *
  * The caller runs inside a transaction that covers the checkpoints and the
  * queue.
@@ -244,22 +287,32 @@ export const parentOfNextSave = async (
 };
 
 /**
- * Moves each working copy of one file off checkpoints that leave the device.
+ * Moves every row of one file off checkpoints that leave the device.
  *
- * `removed` maps each removed revision to its parent. A draft whose last
- * checkpoint or whose base is removed takes the first ancestor that stays, so
- * its next save names a revision that the server holds or will hold, and its
- * text is compared with that revision (record 0183). The text stays.
+ * `removed` maps each removed revision to its parent. Each row that names a
+ * removed revision takes its first kept ancestor instead, so no row of the
+ * device names a checkpoint that the device no longer holds (record 0183):
  *
- * The caller runs inside a transaction that covers the drafts.
+ * - A kept checkpoint. A parked save of an earlier release named the parked
+ *   save before it as its parent, so a Discard of the older row left the
+ *   later one on a revision that neither the device nor the server held.
+ * - An unsent save whose body is not frozen. Its precondition follows from
+ *   its new parent (record 0073). A frozen body keeps the request it froze.
+ * - A draft, whose last checkpoint or base moves, when `drafts` is `follow`.
+ *   Its text stays, and it is compared with the revision it now names.
+ *
+ * The caller runs inside a transaction that covers the checkpoints, the
+ * queue and the drafts.
  */
-export const moveDraftsOffRemoved = async (
+export const moveOffRemoved = async (
   ctx: LocalStoreContext,
   accountId: string,
   workspaceId: string,
   fileId: string,
   removed: ReadonlyMap<string, string | null>,
+  drafts: 'follow' | 'stay',
 ): Promise<void> => {
+  const { serverOrigin, tables } = ctx;
   const kept = (revisionId: string | null): string | null => {
     const seen = new Set<string>();
     let current = revisionId;
@@ -269,6 +322,69 @@ export const moveDraftsOffRemoved = async (
     }
     return current;
   };
+  const keptParents = (parents: readonly string[]): string[] =>
+    parents.flatMap((parent) => {
+      const moved = kept(parent);
+      return moved === null ? [] : [moved];
+    });
+  const namesRemoved = (parents: readonly string[]): boolean =>
+    parents.some((parent) => removed.has(parent));
+
+  // The checkpoints move first, so the precondition of a save below reads
+  // the chain as it now stands.
+  const checkpoints: unknown[] = await tables.checkpoints
+    .where('[serverOrigin+accountId+workspaceId+fileId]')
+    .equals([serverOrigin, accountId, workspaceId, fileId])
+    .toArray();
+  for (const row of checkpoints) {
+    const checkpoint = validateCheckpoint(row);
+    if (!namesRemoved(checkpoint.parents)) continue;
+    await tables.checkpoints.put({
+      ...checkpoint,
+      parents: keptParents(checkpoint.parents),
+    });
+  }
+
+  const range = partitionRange(serverOrigin, accountId, workspaceId);
+  const queued: unknown[] = await tables.queue
+    .where('[serverOrigin+accountId+workspaceId+sequence]')
+    .between(range.lower, range.upper, true, true)
+    .toArray();
+  for (const value of queued) {
+    const row = validateQueueRow(value);
+    if (row.state !== 'pending' || row.digest !== null) continue;
+    if (
+      !row.input.revisions.some(
+        (revision) =>
+          revision.fileId === fileId && namesRemoved(revision.parents),
+      )
+    )
+      continue;
+    const revisions = row.input.revisions.map((revision) =>
+      revision.fileId === fileId
+        ? { ...revision, parents: keptParents(revision.parents) }
+        : revision,
+    );
+    const first = revisions.find((revision) => revision.fileId === fileId);
+    await tables.queue.put({
+      ...row,
+      input: {
+        ...row.input,
+        revisions,
+        expectedHeads: {
+          ...row.input.expectedHeads,
+          [fileId]: await expectedHeadOfParent(
+            ctx,
+            accountId,
+            workspaceId,
+            first?.parents[0] ?? null,
+          ),
+        },
+      },
+    });
+  }
+
+  if (drafts === 'stay') return;
   for (const draft of await draftsOfFile(ctx, accountId, workspaceId, fileId)) {
     const lastCheckpointId = kept(draft.lastCheckpointId);
     const baseRevisionId = kept(draft.baseRevisionId);
@@ -277,7 +393,7 @@ export const moveDraftsOffRemoved = async (
       baseRevisionId === draft.baseRevisionId
     )
       continue;
-    await ctx.tables.drafts.put({ ...draft, lastCheckpointId, baseRevisionId });
+    await tables.drafts.put({ ...draft, lastCheckpointId, baseRevisionId });
   }
 };
 
@@ -490,12 +606,15 @@ export const matchesPartition = (
  * its accepted state: a local head that the mutation set returns to the
  * accepted head, and a deletion flag that the mutation set is cleared,
  * because the accepted head that the server kept is not a tombstone. Each
- * draft that named a removed checkpoint moves to its first kept ancestor
- * when `drafts` is `follow` (record 0183). The placement of release 0.4
- * passes `stay`, because it reads each of its drafts at the checkpoint that
- * the draft names and places the draft itself right after (record 0088). The caller removes the mutation itself, from the queue or
- * from the moved saves, in the same transaction. The answer names the files
- * that changed.
+ * checkpoint and each unsent save that named a removed checkpoint moves to
+ * its first kept ancestor, and so does each draft when `drafts` is `follow`
+ * (record 0183, `moveOffRemoved`). The placement of release 0.4 passes
+ * `stay`, because it reads each of its drafts at the checkpoint that the
+ * draft names and places the draft itself right after (record 0088). The
+ * caller removes the mutation itself, from the queue or from the moved
+ * saves, in the same transaction, which covers the checkpoints, the queue,
+ * the accepted files and the drafts. The answer names the files that
+ * changed.
  */
 export const forgetMutationWork = async (
   ctx: LocalStoreContext,
@@ -529,6 +648,15 @@ export const forgetMutationWork = async (
     ofFile.set(checkpoint.revisionId, checkpoint.parents[0] ?? null);
     removed.set(checkpoint.fileId, ofFile);
   }
+  for (const [fileId, removedOfFile] of removed)
+    await moveOffRemoved(
+      ctx,
+      accountId,
+      workspaceId,
+      fileId,
+      removedOfFile,
+      drafts,
+    );
   // The tip of the discarded mutation decides what it had set on the
   // file row: a tombstone tip set the deletion flag, and every tip
   // set the local head.
@@ -559,14 +687,6 @@ export const forgetMutationWork = async (
         updatedAt: nowIso(),
       });
     }
-    if (drafts === 'follow')
-      await moveDraftsOffRemoved(
-        ctx,
-        accountId,
-        workspaceId,
-        fileId,
-        removedOfFile,
-      );
     // A refused deletion keeps the note live, because it was changed
     // on another device. The tombstone draft that recorded the
     // deletion is stale now, and a leftover would shadow the live

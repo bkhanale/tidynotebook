@@ -431,7 +431,9 @@ export function validateMeta(value: unknown): MetaRow {
  * release 0.5.0, whose feed could leave a note empty. Version 7 adds the
  * Review table, which starts empty, so its step only records the move.
  * Version 9 gives each earlier recovery record no cause of a refused note.
- * A gap
+ * Version 10 names the path that the server holds on each file row, and
+ * version 11 moves each save off a checkpoint that an earlier release
+ * removed. A gap
  * between two stored versions with no step is a refusal, never a silent
  * continuation.
  */
@@ -518,6 +520,13 @@ export const migrationSteps: readonly {
     to: 10,
     run: addAcceptedPaths,
   },
+  {
+    // No save names a checkpoint that an earlier release removed (record
+    // 0183).
+    from: 10,
+    to: 11,
+    run: moveOffRemovedParents,
+  },
 ];
 
 /** The text of one field of a stored record, or `null`. */
@@ -583,6 +592,82 @@ async function addAcceptedPaths(tables: Tables): Promise<void> {
   });
   for (const partition of unknown.values())
     await tables.cursors.delete([...partition]);
+}
+
+/**
+ * Moves each save off a checkpoint that an earlier release removed (record
+ * 0183).
+ *
+ * An earlier release named the parked save of a note as the parent of each
+ * later save. Discard, Retry and Save as new note then removed the parked
+ * save with its checkpoints and left each later save naming it, so the next
+ * save of the note named a revision that neither the device nor the server
+ * held. The release that moves a save off a removed checkpoint at once
+ * (`moveOffRemoved` of `local-store/shared.ts`) cannot know which revision
+ * that was, so this step reads it from the save itself.
+ *
+ * A save whose parent the device holds no checkpoint of names a revision of
+ * the server or a removed checkpoint. Its precondition tells the two apart:
+ * it names the accepted revision that the chain of the save descends from
+ * (record 0073). That is the parent itself for a revision of the server, and
+ * a revision below the removed checkpoint otherwise. So each such checkpoint
+ * that waits for the server, and each unsent save whose body is not frozen,
+ * takes its precondition as its parent. A frozen body keeps the request that
+ * it froze, and its checkpoint moves, so the next save reads the chain right.
+ */
+async function moveOffRemovedParents(tables: Tables): Promise<void> {
+  /** The key of one revision of one partition, as one text. */
+  const keyOf = (row: CheckpointRow | QueueRow, revisionId: string): string =>
+    JSON.stringify([
+      row.serverOrigin,
+      row.accountId,
+      row.workspaceId,
+      revisionId,
+    ]);
+  const checkpoints = (await tables.checkpoints.toArray()).map(
+    (value: unknown) => validateCheckpoint(value),
+  );
+  const held = new Set(
+    checkpoints.map((checkpoint) => keyOf(checkpoint, checkpoint.revisionId)),
+  );
+  const saves = new Map(
+    (await tables.queue.toArray())
+      .map((value: unknown) => validateQueueRow(value))
+      .map((row) => [keyOf(row, row.mutationId), row] as const),
+  );
+  /** The parents a revision of one save takes, or `null` to keep its own. */
+  const movedParents = (
+    save: QueueRow,
+    fileId: string,
+    parents: readonly string[],
+  ): string[] | null => {
+    const parent = parents[0];
+    if (parent === undefined || held.has(keyOf(save, parent))) return null;
+    if (!Object.hasOwn(save.input.expectedHeads, fileId)) return null;
+    const expected = save.input.expectedHeads[fileId] ?? null;
+    if (expected === parent) return null;
+    return expected === null ? [] : [expected];
+  };
+  for (const checkpoint of checkpoints) {
+    if (checkpoint.accepted) continue;
+    const save = saves.get(keyOf(checkpoint, checkpoint.mutationId));
+    if (save === undefined) continue;
+    const parents = movedParents(save, checkpoint.fileId, checkpoint.parents);
+    if (parents !== null)
+      await tables.checkpoints.put({ ...checkpoint, parents });
+  }
+  for (const save of saves.values()) {
+    if (save.state !== 'pending' || save.digest !== null) continue;
+    let moved = false;
+    const revisions = save.input.revisions.map((revision) => {
+      const parents = movedParents(save, revision.fileId, revision.parents);
+      if (parents === null) return revision;
+      moved = true;
+      return { ...revision, parents };
+    });
+    if (moved)
+      await tables.queue.put({ ...save, input: { ...save.input, revisions } });
+  }
 }
 
 /** The most records held for validation at one time. */

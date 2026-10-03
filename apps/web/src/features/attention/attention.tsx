@@ -12,13 +12,11 @@
  * Discard needs a second click, because it is the only action that ends with
  * the text gone.
  *
- * The screen calls no network operation. Everything runs through the local
- * store, and the sync engine sends the requeued save.
+ * The screen calls no network operation. The actions run through the local
+ * store (`parked-actions.ts`), and the sync engine sends the requeued save.
  */
 import { useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
-import { generateUUID } from '@notesapp/core';
-import { type Draft } from '@notesapp/sync';
 import {
   Button,
   CheckIcon,
@@ -38,12 +36,13 @@ import { deleteGlyph } from '../../lib/delete-label.ts';
 import { attentionTitle, useParkedSaves } from './attention-link.tsx';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { copyText } from '../../platform.ts';
-import { storageNotePath } from '../../lib/note-name.ts';
+import { parkedSaveLines, type ParkedSave } from '../../lib/parked-saves.ts';
 import {
-  parkedSaveLines,
-  recoveredNoteName,
-  type ParkedSave,
-} from '../../lib/parked-saves.ts';
+  discardParked,
+  keepParkedAsNote,
+  retryParked,
+  type ParkedPlace,
+} from './parked-actions.ts';
 import { useNow } from '../../shell/now.ts';
 
 /** One row of the list with its four actions. */
@@ -193,126 +192,46 @@ export function AttentionRoute(): ReactNode {
       </Page>
     );
 
-  const activeStore = store;
-  const activeAccount = accountId;
-  const activeWorkspace = workspaceId;
+  const place: ParkedPlace = { store, accountId, workspaceId };
 
   /** Reports one local write failure without losing the kept text. */
   const reportFailure = (action: string): void => {
     setFailure(`${action} did not work. Try again. The text stays here.`);
   };
 
-  /** Writes one text as a checkpoint on top of the accepted head it names. */
-  const queueText = async (
-    fileId: string,
-    path: string,
-    text: string,
-  ): Promise<void> => {
-    const files = await activeStore.listAcceptedFiles(
-      activeAccount,
-      activeWorkspace,
-    );
-    const accepted =
-      files.find((file) => file.fileId === fileId)?.acceptedHeadRevisionId ??
-      null;
-    const draft: Draft = {
-      accountId: activeAccount,
-      workspaceId: activeWorkspace,
-      workingCopyId: generateUUID(),
-      fileId,
-      baseRevisionId: accepted,
-      text,
-      path,
-      deleted: false,
-      sequence: 1,
-    };
-    await activeStore.saveDraft(draft);
-    // A kept text has no open document, so its text becomes the work.
-    await activeStore.checkpoint(draft, null, 'text');
-    await activeStore.dropDraft(
-      activeAccount,
-      activeWorkspace,
-      draft.workingCopyId,
-    );
-  };
-
-  /**
-   * Drops the parked queue entry of one kept text.
-   *
-   * The entry, its checkpoints, and the local head they set go together, so
-   * the note returns to its accepted state before anything is written on top
-   * of it. The kept copy stays until the action that follows succeeded, so a
-   * failure never leaves the person with neither.
-   */
-  const dropParked = async (save: ParkedSave): Promise<void> => {
-    if (save.mutationId === null) return;
-    await activeStore.discardQueueEntry(activeAccount, save.mutationId);
+  /** Runs one action of a row, then states what it did or why it failed. */
+  const act = (run: () => Promise<string>, action: string): void => {
+    void (async (): Promise<void> => {
+      try {
+        const done = await run();
+        setFailure(null);
+        setNotice(done);
+        reload();
+      } catch {
+        reportFailure(action);
+      }
+    })();
   };
 
   const onRetry = (save: ParkedSave): void => {
-    void (async (): Promise<void> => {
-      try {
-        await dropParked(save);
-        await queueText(save.fileId, save.path, save.text);
-        await activeStore.removeRecovery(
-          activeAccount,
-          activeWorkspace,
-          save.recoveryId,
-        );
-        setFailure(null);
-        setNotice(`The save of ${save.name} is queued again.`);
-        reload();
-      } catch {
-        reportFailure('The retry');
-      }
-    })();
+    act(async () => {
+      await retryParked(place, save);
+      return `The save of ${save.name} is queued again.`;
+    }, 'The retry');
   };
 
   const onSaveAsNew = (save: ParkedSave): void => {
-    void (async (): Promise<void> => {
-      try {
-        // The new name avoids every path that the server holds or may hold
-        // (record 0184).
-        const held = await activeStore.listHeldPaths(
-          activeAccount,
-          activeWorkspace,
-        );
-        const name = recoveredNoteName(
-          save.name,
-          held.map((entry) => entry.path),
-        );
-        await dropParked(save);
-        await queueText(generateUUID(), storageNotePath(name), save.text);
-        await activeStore.removeRecovery(
-          activeAccount,
-          activeWorkspace,
-          save.recoveryId,
-        );
-        setFailure(null);
-        setNotice(`The text is kept as the note ${name}.`);
-        reload();
-      } catch {
-        reportFailure('The new note');
-      }
-    })();
+    act(async () => {
+      const name = await keepParkedAsNote(place, save);
+      return `The text is kept as the note ${name}.`;
+    }, 'The new note');
   };
 
   const onDiscard = (save: ParkedSave): void => {
-    void (async (): Promise<void> => {
-      try {
-        await dropParked(save);
-        await activeStore.removeRecovery(
-          activeAccount,
-          activeWorkspace,
-          save.recoveryId,
-        );
-        setFailure(null);
-        setNotice(`The kept text of ${save.name} is discarded.`);
-        reload();
-      } catch {
-        reportFailure('The discard');
-      }
-    })();
+    act(async () => {
+      await discardParked(place, save);
+      return `The kept text of ${save.name} is discarded.`;
+    }, 'The discard');
   };
 
   return (

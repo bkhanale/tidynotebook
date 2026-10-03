@@ -652,6 +652,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
           'rw',
           [
             tables.legacySaves,
+            tables.queue,
             tables.checkpoints,
             tables.acceptedFiles,
             tables.drafts,

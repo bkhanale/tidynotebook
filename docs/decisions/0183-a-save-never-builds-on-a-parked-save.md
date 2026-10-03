@@ -48,8 +48,20 @@ Option 4.
   `markConflict` removes each earlier parked save that the new one supersedes,
   so Needs attention shows the newest refused text of a note once.
 - Any other parked save stays for review with its sentence.
-- A removed checkpoint moves each draft that names it to its first kept
-  ancestor.
+- No row of the device names a checkpoint that the device no longer holds,
+  so a revision with no checkpoint on the device is a revision of the
+  server, and no save names a revision that only the device knew:
+  - A removed checkpoint moves each kept checkpoint, each unsent save whose
+    body is not frozen, and each draft that names it to its first kept
+    ancestor (`moveOffRemoved`, `local-store/shared.ts`). An unsent save
+    takes the precondition of its new parent.
+  - An earlier release named the parked save as the parent of the next one,
+    and its Discard, Retry and Save as new note left the later saves naming
+    a removed checkpoint. The step to schema version 11 gives each such
+    checkpoint and unsent save its own precondition as its parent, which is
+    the revision of the server below the removed one (record 0073).
+  - A draft whose last checkpoint left the device builds on the accepted
+    head of its file, as a rebased draft does (`anchorOfDraft`).
 
 This refines records 0022, 0073, 0087 and 0181.
 
@@ -58,6 +70,9 @@ This refines records 0022, 0073, 0087 and 0181.
 - The edit that a refusal asks for saves and ends the row of the refusal. Every
   word stays: the accepted save holds it, or the kept text still waits.
 - `parked.test.ts` and `observed.test.ts` hold the rule.
-  `tests/integration/browser-storage.test.ts` holds the parent, the move and
-  the removal. `tests/integration/sync.test.ts` holds a refused new note and a
-  refused existing note that a later edit saves against a real server.
+  `tests/integration/browser-storage.test.ts` holds the parent, the move, the
+  removal, the moves off a removed checkpoint and the step to version 11.
+  `tests/integration/sync.test.ts` holds a refused new note, a refused
+  existing note that a later edit saves, and Discard, Retry and Save as new
+  note of the oldest row of a parked chain of an earlier release, against a
+  real server.

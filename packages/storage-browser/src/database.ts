@@ -349,6 +349,9 @@ export type Tables = {
  * the document of their note (record 0175). Version 9 keeps, with a parked
  * save, the limit of the grammar that refused its note (record 0182). It
  * changes no index, and its step gives each earlier record no cause.
+ * Version 10 names the path that the server holds on each file row (record
+ * 0184). Version 11 moves each save off a checkpoint that an earlier release
+ * removed (record 0183). Neither changes an index.
  */
 export const schemaVersions: readonly {
   readonly version: number;
@@ -487,6 +490,12 @@ export const schemaVersions: readonly {
     // A file row names the live path that the server holds for it (record
     // 0184). No index changes.
     version: 10,
+    stores: {},
+  },
+  {
+    // No save names a checkpoint that an earlier release removed (record
+    // 0183). No index changes.
+    version: 11,
     stores: {},
   },
 ];
