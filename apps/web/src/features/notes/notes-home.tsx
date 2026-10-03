@@ -25,7 +25,13 @@
  * The layout frame lives in `shell.tsx`; this file owns the note list screen
  * only.
  */
-import { useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Link, useParams } from 'react-router';
 import {
   Button,
@@ -53,6 +59,7 @@ import {
 import { noteRowMeta } from '../../lib/note-row.ts';
 import { showNewNoteInHeader } from '../../lib/notes-home-action.ts';
 import type { NoteSummary } from '../../lib/note-list.ts';
+import { pinnedIndex } from '../../lib/row-window.ts';
 import { scrollerOf, useRowWindow } from '../../shell/row-window.ts';
 
 /** The quiet heading of one time band of the list. */
@@ -99,6 +106,10 @@ function useKeptOffset(
  * The list item stays a list item and the router link fills it, the shape
  * that `ListRow` renders for a plain address. This row needs the router and
  * not the platform, so it reads the row recipe directly.
+ *
+ * The row with the focus stays in the document when a person scrolls it out
+ * of the window, as the row of the tree does, so the focus never falls to the
+ * page. The list keeps it by its note, because the list sorts again.
  */
 function NoteGroupList({
   notes,
@@ -109,17 +120,35 @@ function NoteGroupList({
   readonly workspaceId: string;
   readonly now: number;
 }): ReactNode {
-  const rows = useRowWindow(notes.length, 'note-list');
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const keys = useMemo(() => notes.map((note) => note.fileId), [notes]);
+  const rows = useRowWindow(
+    notes.length,
+    'note-list',
+    pinnedIndex(keys, focusedId),
+  );
   return (
     <ul className={pageListClassName()} ref={rows.listRef}>
-      {notes.slice(rows.start, rows.end).map((note, offset) => {
+      {rows.indexes.map((index) => {
+        const note = notes[index];
+        if (note === undefined) return null;
         const meta = noteRowMeta(note.path, note.updatedAt, now);
         return (
           <li
             className="flex"
             key={note.fileId}
-            aria-posinset={rows.start + offset + 1}
+            aria-posinset={index + 1}
             aria-setsize={notes.length}
+            onFocus={() => setFocusedId(note.fileId)}
+            // A row gives up its place when the focus moves to another
+            // element, and keeps it while the window of the browser is away.
+            onBlur={(event) => {
+              const next = event.relatedTarget;
+              if (next instanceof Node && !event.currentTarget.contains(next))
+                setFocusedId((current) =>
+                  current === note.fileId ? null : current,
+                );
+            }}
           >
             <Link
               className={rowClassName({

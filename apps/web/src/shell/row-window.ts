@@ -41,12 +41,13 @@ const measuredStrides = new Map<string, number>();
 /** The height a list takes for its first window, before it measures one. */
 const estimatedViewport = 1000;
 
-/** What a list reads from its window. */
+/**
+ * What a list reads from its window.
+ *
+ * A list renders the rows of `indexes` and no other range, so the row that it
+ * keeps for the focus is always among the rows it renders.
+ */
 export type RowWindowControl = {
-  /** The first rendered row. */
-  readonly start: number;
-  /** One past the last rendered row. */
-  readonly end: number;
   /**
    * The indexes of the rendered rows in document order: the window, and the
    * kept row next to it when that row is outside the window.
@@ -202,8 +203,6 @@ export function useRowWindow(
   }, []);
 
   return {
-    start: rows.start,
-    end: rows.end,
     indexes: kept.indexes,
     listRef: attach,
     reveal,

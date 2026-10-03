@@ -210,3 +210,22 @@ export function pinRow(
     };
   return { indexes: rendered, before: window.before, after: window.after };
 }
+
+/**
+ * The index of the row that a window keeps, from the key of the row that has
+ * the focus, or `null` when no row of the list has that key.
+ *
+ * A list keeps the focused row by its key and not by its place, because a
+ * list such as All notes sorts again while a person reads it, and the row
+ * with the focus moves with its note. The review of the merged branch found
+ * that All notes kept no row, so a row scrolled out of the window took the
+ * focus to the page.
+ */
+export function pinnedIndex(
+  keys: readonly string[],
+  key: string | null,
+): number | null {
+  if (key === null) return null;
+  const index = keys.indexOf(key);
+  return index === -1 ? null : index;
+}

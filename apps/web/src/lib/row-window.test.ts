@@ -4,6 +4,7 @@ import {
   emptyRowWindow,
   estimatedStride,
   firstStride,
+  pinnedIndex,
   pinRow,
   revealScrollTop,
   rowWindow,
@@ -162,4 +163,23 @@ await test('the row that has the focus stays in the document out of the window',
   const inside = pinRow(window, window.start + 2, 1010, 32);
   assert.equal(inside.indexes.length, window.end - window.start);
   assert.deepEqual(pinRow(window, null, 1010, 32).indexes, inside.indexes);
+});
+
+await test('a list keeps the row with the focus by its key when it scrolls away', () => {
+  // The second review: All notes kept no row, so the focused note left the
+  // document when a person scrolled it away, and the focus went to the page.
+  const keys = Array.from(
+    { length: 1010 },
+    (_unused, index) => `note-${String(index)}`,
+  );
+  const window = rowWindow({ ...base, listTop: -3200 });
+  const pinned = pinnedIndex(keys, 'note-3');
+  assert.equal(pinned, 3);
+  assert.ok(pinRow(window, pinned, keys.length, 32).indexes.includes(3));
+  // The list sorts again and the note moves: the kept row moves with it.
+  const sorted = ['note-3', ...keys.filter((key) => key !== 'note-3')];
+  assert.equal(pinnedIndex(sorted, 'note-3'), 0);
+  // No row has the focus, or the note left the list.
+  assert.equal(pinnedIndex(keys, null), null);
+  assert.equal(pinnedIndex(keys, 'note-gone'), null);
 });
