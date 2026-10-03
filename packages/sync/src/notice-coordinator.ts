@@ -19,8 +19,10 @@
  * engines read on their own interval, which is the fallback for an old
  * server, a closed stream, and notices that are off.
  *
- * A stream that closes wakes every engine, so each reads at once and then
- * rests on its poll interval until a set is accepted again.
+ * A stream that closes wakes every engine, so each reads soon and then rests
+ * on its poll interval until a set is accepted again. The wake waits a random
+ * part of `closeWakeSpreadMs`, because a server restart closes the stream of
+ * every device at one time.
  *
  * The transport reconnects on its own. `session_ended`, `malformed`, a frame
  * that the client cannot read, and a stream of another account stop the
@@ -31,6 +33,9 @@ import type { LeaseKeeper, Schedule } from './lease-keeper.ts';
 
 /** How often the coordinator asks again whether the server offers notices. */
 export const offerRetryMs = 5 * 60_000;
+
+/** The longest wait of the wake that a closed stream gives the engines. */
+export const closeWakeSpreadMs = 5_000;
 
 /** The most workspaces of one set, the bound of the contract. */
 export const maxSubscribedWorkspaces = 1000;
@@ -70,6 +75,8 @@ export type CoordinatorPorts = {
   /** The session ended, so the tab checks it through the HTTP operations. */
   readonly sessionEnded: () => void;
   readonly schedule: Schedule;
+  /** A number from 0 up to 1. Defaults to `Math.random`. */
+  readonly random?: () => number;
 };
 
 /** Why the stream stopped for good in this coordinator. */
@@ -103,6 +110,9 @@ export function createNoticeCoordinator(
   let accepted: number | null = null;
   let end: StreamEnd | null = null;
   let retry: (() => void) | null = null;
+  // The wake that a closed stream asked for and that waits, or `null`.
+  let closeWake: (() => void) | null = null;
+  const random = ports.random ?? Math.random;
   let checking = false;
   let stopLease: (() => void) | null = null;
 
@@ -225,9 +235,17 @@ export function createNoticeCoordinator(
         const wasHealthy = accepted !== null;
         setAccepted(null);
         // The engines rest on the long safety interval while a set is
-        // accepted. Without the stream they read now, and then on the poll
-        // interval until a set is accepted again (record 0176).
-        if (wasHealthy) ports.wakeAll();
+        // accepted. Without the stream they read soon, and then on the poll
+        // interval until a set is accepted again (record 0176). Every device
+        // loses its stream when the server restarts, so the wake waits a
+        // random time and the devices do not read at one moment.
+        if (wasHealthy && closeWake === null) {
+          const spread = Math.round(closeWakeSpreadMs * random());
+          closeWake = ports.schedule(spread, () => {
+            closeWake = null;
+            if (running) ports.wakeAll();
+          });
+        }
       },
     });
   };
@@ -244,6 +262,8 @@ export function createNoticeCoordinator(
     },
     stop: () => {
       running = false;
+      closeWake?.();
+      closeWake = null;
       stopLease?.();
       stopLease = null;
       retry?.();

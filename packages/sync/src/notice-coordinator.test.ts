@@ -7,6 +7,7 @@ import test from 'node:test';
 import type { SyncNoticesServerMessage } from '@notesapp/api-client';
 import type { LeaseKeeper, Schedule } from './lease-keeper.ts';
 import {
+  closeWakeSpreadMs,
   createNoticeCoordinator,
   engineInterval,
   offerRetryMs,
@@ -26,6 +27,7 @@ class Harness {
   now = 0;
   held = false;
   offered = true;
+  randomValue = 0.5;
   opens = 0;
   closes = 0;
   sessionEnds = 0;
@@ -90,6 +92,7 @@ class Harness {
       this.sessionEnds += 1;
     },
     schedule: this.schedule,
+    random: () => this.randomValue,
   });
 
   async lease(held: boolean): Promise<void> {
@@ -226,11 +229,34 @@ await test('a stream that closes wakes every engine for the poll', async () => {
   assert.deepEqual(harness.wakes, ['*']);
   harness.handlers?.onClose();
   assert.equal(harness.coordinator.healthy(), false);
+  await harness.advance(closeWakeSpreadMs);
   assert.deepEqual(harness.wakes, ['*', '*']);
   // A second close with no accepted set changes no rest.
   harness.handlers?.onClose();
+  await harness.advance(closeWakeSpreadMs);
   assert.deepEqual(harness.wakes, ['*', '*']);
   harness.coordinator.stop();
+});
+
+await test('the wake of a closed stream waits a random part of its spread', async () => {
+  // Record 0176. A server restart closes the stream of every device at one
+  // time, and a wake at once made every device read at that moment.
+  const harness = new Harness();
+  harness.randomValue = 0.5;
+  await harness.accepted([first]);
+  harness.handlers?.onClose();
+  assert.deepEqual(harness.wakes, ['*']);
+  await harness.advance(closeWakeSpreadMs / 2 - 1);
+  assert.deepEqual(harness.wakes, ['*']);
+  await harness.advance(1);
+  assert.deepEqual(harness.wakes, ['*', '*']);
+  // A coordinator that stops before the wake asks for no pass.
+  const stopped = new Harness();
+  await stopped.accepted([first]);
+  stopped.handlers?.onClose();
+  stopped.coordinator.stop();
+  await stopped.advance(closeWakeSpreadMs);
+  assert.deepEqual(stopped.wakes, ['*']);
 });
 
 await test('an ended session stops the stream for good', async () => {
