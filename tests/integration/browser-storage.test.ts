@@ -47,9 +47,16 @@ import {
   type MetaRow,
 } from '@notesapp/storage-browser';
 import {
+  parkedSaveLines,
   parkedSaveReason,
   parkedSaves,
 } from '../../apps/web/src/lib/parked-saves.ts';
+import {
+  startingSyncState,
+  syncFooter,
+  syncQueueOf,
+  syncStateOfQueue,
+} from '../../apps/web/src/lib/sync-state.ts';
 
 const origin = 'https://notes.example.test';
 
@@ -2727,6 +2734,59 @@ await test('a parked save keeps its text in the recovery area', async () => {
   // Discarding the parked entry leaves the queue empty and never sends it.
   await store.discardQueueEntry(account, entry.input.mutationId);
   assert.deepEqual(await store.pending(account, workspace), []);
+  await store.close();
+});
+
+await test('the footer reads a parked save of the store as no send', async () => {
+  // The defect this covers: the footer counted every queue entry as a send,
+  // so a parked save read "Sending your save to the server." for as long as
+  // it waited in Needs attention.
+  const backend = createBackend('parked-footer');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const footerNow = async (): Promise<string> =>
+    syncFooter({
+      state: syncStateOfQueue(
+        startingSyncState,
+        syncQueueOf(await store.pending(account, workspace)),
+      ),
+      online: true,
+      noteName: null,
+      openNoteWriteFailed: false,
+    }).line;
+
+  const refused = draftOf(account, workspace, randomUUID(), 'copy-a', 'a\n');
+  await store.saveDraft(refused);
+  const entry = await store.checkpoint(refused, null, 'text');
+  assert.ok(entry !== null);
+  await parkRefusedSave(
+    store,
+    account,
+    entry,
+    'unrenderable_note',
+    'note_too_many_marks',
+  );
+  assert.equal(await footerNow(), '1 save needs attention.');
+
+  // A save of another note waits behind it, and the parked save stays in view.
+  const other = draftOf(account, workspace, randomUUID(), 'copy-b', 'b\n');
+  await store.saveDraft(other);
+  assert.ok((await store.checkpoint(other, null, 'text')) !== null);
+  assert.equal(await footerNow(), '1 save needs attention.');
+
+  // The row states the cause and the time as separate sentences.
+  const row = parkedSaves(await store.recover(account, workspace))[0];
+  assert.ok(row !== undefined);
+  assert.deepEqual(parkedSaveLines(row, new Date(row.createdAt)), {
+    cause:
+      'A paragraph of this note has too many formatting marks. Divide the paragraph. The text stays on this device.',
+    kept: 'Kept less than a minute ago.',
+  });
+
+  // Discard ends the attention, and the other save is a send.
+  await store.discardQueueEntry(account, entry.input.mutationId);
+  assert.equal(await footerNow(), 'Sending your save to the server.');
   await store.close();
 });
 
