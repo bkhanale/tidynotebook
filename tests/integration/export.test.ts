@@ -69,6 +69,8 @@ import {
   commitChangeset,
   maxArchiveEntries,
   maxFilesPerChangeset,
+  maxPathBytes,
+  maxSegmentBytes,
   workspaceText,
 } from '@notesapp/core';
 import sharp from 'sharp';
@@ -1439,6 +1441,69 @@ await test('a name in another Unicode form of a live note is that note', async (
     ),
   );
   assert.deepEqual([...exported.keys()], [nfc]);
+});
+
+await test('an archive of macOS imports its long names in NFD', async () => {
+  // Review of the bound of a name. The reader compared the stored bytes of
+  // each name with the limit of a path, so a name within the limit in NFC
+  // that macOS stored in NFD, and the AppleDouble file of macOS beside a note
+  // near the limit, refused the whole archive.
+  // Four segments of the most bytes that one segment holds in NFC.
+  const nearLimit = (letter: string, bytes: number): string => {
+    const count = maxSegmentBytes / bytes;
+    const folder = letter.repeat(count);
+    return `${[folder, folder, folder].join('/')}/${letter.repeat(count - 3 / bytes)}.md`;
+  };
+  const korean = nearLimit('한', 3);
+  const ascii = nearLimit('a', 1);
+  assert.ok(Buffer.byteLength(ascii) <= maxPathBytes);
+  assert.ok(Buffer.byteLength(ascii) > maxPathBytes - 2);
+  const appleDouble = (path: string): string => {
+    const slash = path.lastIndexOf('/');
+    return `__MACOSX/${path.slice(0, slash)}/._${path.slice(slash + 1)}`;
+  };
+  const nfd = korean.normalize('NFD');
+  assert.ok(Buffer.byteLength(nfd) > 2 * maxPathBytes);
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Long names' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: targetId },
+    body: {
+      file: new File(
+        [
+          storedArchive([
+            [nfd, '# Korean\n'],
+            [appleDouble(nfd), 'resource fork'],
+            [ascii, '# Long\n'],
+            [appleDouble(ascii), 'resource fork'],
+          ]),
+        ],
+        'mac.zip',
+        { type: 'application/zip' },
+      ),
+    },
+  });
+  assert.equal(imported.error, undefined, JSON.stringify(imported.error));
+  assert.deepEqual(imported.data, {
+    notes: 2,
+    attachments: 0,
+    skipped: { files: 2, kinds: ['settings'] },
+  });
+  const back = readArchive(
+    await archiveBytes(
+      (
+        await exportWorkspace({
+          headers: browser(cookie),
+          path: { workspaceId: targetId },
+        })
+      ).data,
+    ),
+  );
+  assert.deepEqual([...back.keys()].sort(), [ascii, korean].sort());
 });
 
 await test('a note that a late batch refuses stops the import before any commit', async () => {

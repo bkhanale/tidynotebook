@@ -40,12 +40,22 @@ import {
 /** The folder that holds every picture of a workspace. */
 export const attachmentsFolder = 'attachments/';
 
+/**
+ * The folder and the name prefix of the AppleDouble files of macOS.
+ *
+ * An archive that macOS writes holds `__MACOSX/<folder>/._<name>` beside
+ * each file. The import skips them, and the reader of an archive reads their
+ * length to bound the name of an entry (`maxNameBytes` of `unzip.ts`).
+ */
+export const appleDoubleFolder = '__MACOSX';
+export const appleDoublePrefix = '._';
+
 /** The folders that hold the settings of a tool, and never a note. */
 const toolFolders: ReadonlySet<string> = new Set([
   '.obsidian',
   '.trash',
   '.git',
-  '__MACOSX',
+  appleDoubleFolder,
 ]);
 
 /** Whether an entry of an archive holds the settings of a tool. */
@@ -55,7 +65,7 @@ export function toolEntry(path: string): boolean {
   return (
     segments.slice(0, -1).some((segment) => toolFolders.has(segment)) ||
     name === '.DS_Store' ||
-    name.startsWith('._')
+    name.startsWith(appleDoublePrefix)
   );
 }
 

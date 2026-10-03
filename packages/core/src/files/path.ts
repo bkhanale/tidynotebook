@@ -46,8 +46,10 @@ export type PathKind = 'note' | 'attachment' | 'folder';
 /**
  * The most UTF-8 bytes of one workspace path.
  *
- * The import reads it too, and refuses a longer name of an archive before it
- * decodes the name, so a directory of long names never fills the memory.
+ * The reader of an archive derives its bound of a stored name from it
+ * (`maxNameBytes` of `apps/server/src/routes/unzip.ts`), and refuses a longer
+ * name before it decodes the name, so a directory of long names never fills
+ * the memory.
  */
 export const maxPathBytes = 1024;
 /** The most UTF-8 bytes of one segment of a workspace path. */

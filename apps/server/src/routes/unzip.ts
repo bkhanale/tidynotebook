@@ -18,10 +18,13 @@
  *   central directory, and no two entries share a byte;
  * - the stated sizes together stay under `maxArchiveBytes` and under
  *   `maxExpansionRatio` times the archive, with a floor for a small archive;
- * - no name is longer than `maxPathBytes`, which no workspace path passes.
- *   The check reads the stated length before it decodes the name, so the
- *   names that the reader keeps stay under that bound times the count. The
- *   extra field and the comment of an entry are read past and never kept.
+ * - no name is longer than `maxNameBytes`, which no name that the import
+ *   takes or skips passes. The check reads the stated length before it
+ *   decodes the name, so the names that the reader keeps stay under that
+ *   bound times the count. The extra field and the comment of an entry are
+ *   read past and never kept. The exact limit of a path stays with
+ *   `normalizePath` of `@notesapp/core`, on the form that the workspace
+ *   stores.
  *
  * `readArchiveEntry` expands one entry as a stream, from a bounded range of
  * the source, and stops as soon as the output passes its stated size, so the
@@ -40,6 +43,7 @@ import {
   maxPathBytes,
 } from '@notesapp/core';
 import { ArchiveRefusedError } from '../plugins/problem.ts';
+import { appleDoubleFolder, appleDoublePrefix } from './import-layout.ts';
 
 /** One read range of an archive. */
 export type ArchiveSource = {
@@ -80,6 +84,38 @@ const countInZip64 = 0xffff;
 
 /** The most bytes that the end of an archive takes: its record and comment. */
 const endSearchBytes = 65_557;
+
+/**
+ * How many times longer canonical decomposition makes a UTF-8 text, at most.
+ *
+ * The Unicode Standard keeps this bound stable. A Hangul syllable of three
+ * bytes decomposes to three jamo of three bytes each, and the Kelvin sign of
+ * three bytes becomes the letter K of one byte, so a name in any form is at
+ * most this many times as long as its NFC form.
+ */
+const maxDecompositionGrowth = 3;
+
+/**
+ * The longest name of an entry that the reader keeps.
+ *
+ * It bounds the memory of the names, and it is not the limit of a path. That
+ * limit is `maxPathBytes` on the NFC form of a path, which `normalizePath`
+ * holds for each file that becomes a note or a picture. The stated length of
+ * a name counts its bytes as the archive stores them, which can be longer
+ * for a name that the import takes:
+ *
+ * - macOS stores a name in NFD, which is at most `maxDecompositionGrowth`
+ *   times as long as the NFC form of the name.
+ * - macOS adds `__MACOSX/` before the path and `._` before the name of the
+ *   AppleDouble file of each file, and the import skips that file.
+ *
+ * So the bound is the growth times `maxPathBytes`, with the folder, its
+ * separator and the prefix of an AppleDouble file. No name that the import
+ * takes or skips beside a note passes it.
+ */
+export const maxNameBytes =
+  maxDecompositionGrowth * maxPathBytes +
+  Buffer.byteLength(`${appleDoubleFolder}/${appleDoublePrefix}`);
 
 /** How many bytes of the directory, or of one entry, one read takes. */
 const directoryChunkBytes = 1024 * 1024;
@@ -317,7 +353,7 @@ export async function readArchiveDirectory(
     const extraLength = header.readUInt16LE(30);
     const commentLength = header.readUInt16LE(32);
     const offset = header.readUInt32LE(42);
-    if (nameLength > maxPathBytes) throw unsafeName();
+    if (nameLength > maxNameBytes) throw unsafeName();
     const rest = await take(nameLength + extraLength + commentLength);
     const path = rest.toString('utf8', 0, nameLength);
     if (offset + 30 > source.size)

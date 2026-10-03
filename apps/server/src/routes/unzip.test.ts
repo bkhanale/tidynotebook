@@ -14,6 +14,7 @@ import {
   bufferSource,
   deflatedBound,
   maxExpansionRatio,
+  maxNameBytes,
   readArchiveDirectory,
   readArchiveEntry,
   unzipArchive,
@@ -141,14 +142,14 @@ await test('an archive path cannot leave the workspace tree', async () => {
   assert.equal(await refusalOf(archive), 'archive_invalid');
 });
 
-await test('a name longer than a workspace path is refused before it is kept', async () => {
+await test('a name past the bound of the reader is refused before it is kept', async () => {
   // Review of issue 243. The directory kept every name of up to 65535 bytes
   // before any length check, so 65534 long names held gigabytes of strings.
   const name = (bytes: number): string =>
     `notes/${'n'.repeat(bytes - 'notes/'.length - '.md'.length)}.md`;
   const archive = (path: string): Buffer =>
     deflatedArchive([{ path, content: Buffer.alloc(0), statedSize: 0 }]);
-  const longest = name(maxPathBytes);
+  const longest = name(maxNameBytes);
   assert.deepEqual(
     (await readArchiveDirectory(bufferSource(archive(longest)))).map(
       (entry) => entry.path,
@@ -156,10 +157,43 @@ await test('a name longer than a workspace path is refused before it is kept', a
     [longest],
   );
   await assert.rejects(
-    readArchiveDirectory(bufferSource(archive(name(maxPathBytes + 1)))),
+    readArchiveDirectory(bufferSource(archive(name(maxNameBytes + 1)))),
     (error) =>
       error instanceof ArchiveRefusedError &&
       error.refusal === 'archive_invalid',
+  );
+});
+
+await test('the reader keeps every name that the import takes or skips', async () => {
+  // Review of the bound of a name. It compared the stored bytes with the
+  // limit of a path, so a path within the limit in NFC that macOS stored in
+  // NFD, and the AppleDouble file beside a note near the limit, refused the
+  // whole archive. The exact limit belongs to `normalizePath`.
+  const segment = (count: number): string => '한'.repeat(count);
+  const nfc = `${[segment(85), segment(85), segment(85)].join('/')}/${segment(84)}.md`;
+  assert.ok(Buffer.byteLength(nfc) <= maxPathBytes);
+  const nfd = nfc.normalize('NFD');
+  const slash = nfd.lastIndexOf('/');
+  const appleDouble = `__MACOSX/${nfd.slice(0, slash)}/._${nfd.slice(slash + 1)}`;
+  assert.ok(Buffer.byteLength(appleDouble) > 2 * maxPathBytes);
+  assert.ok(Buffer.byteLength(appleDouble) <= maxNameBytes);
+  const ascii = `notes/${'a'.repeat(maxPathBytes - 'notes/'.length - '.md'.length)}.md`;
+  const beside = `__MACOSX/notes/._${ascii.slice('notes/'.length)}`;
+  const paths = [nfd, appleDouble, ascii, beside];
+  const read = await readArchiveDirectory(
+    bufferSource(
+      deflatedArchive(
+        paths.map((path) => ({
+          path,
+          content: Buffer.alloc(0),
+          statedSize: 0,
+        })),
+      ),
+    ),
+  );
+  assert.deepEqual(
+    read.map((entry) => entry.path),
+    paths,
   );
 });
 
