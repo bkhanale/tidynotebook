@@ -6,6 +6,7 @@ import {
   maxArchiveBytes,
   maxArchiveEntries,
   maxFilesPerChangeset,
+  maxPathBytes,
 } from '@notesapp/core';
 import { ArchiveRefusedError } from '../plugins/problem.ts';
 import { zipArchive } from './zip.ts';
@@ -138,6 +139,28 @@ await test('an archive path cannot leave the workspace tree', async () => {
   }
   const archive = await readStream(zipArchive(entries()));
   assert.equal(await refusalOf(archive), 'archive_invalid');
+});
+
+await test('a name longer than a workspace path is refused before it is kept', async () => {
+  // Review of issue 243. The directory kept every name of up to 65535 bytes
+  // before any length check, so 65534 long names held gigabytes of strings.
+  const name = (bytes: number): string =>
+    `notes/${'n'.repeat(bytes - 'notes/'.length - '.md'.length)}.md`;
+  const archive = (path: string): Buffer =>
+    deflatedArchive([{ path, content: Buffer.alloc(0), statedSize: 0 }]);
+  const longest = name(maxPathBytes);
+  assert.deepEqual(
+    (await readArchiveDirectory(bufferSource(archive(longest)))).map(
+      (entry) => entry.path,
+    ),
+    [longest],
+  );
+  await assert.rejects(
+    readArchiveDirectory(bufferSource(archive(name(maxPathBytes + 1)))),
+    (error) =>
+      error instanceof ArchiveRefusedError &&
+      error.refusal === 'archive_invalid',
+  );
 });
 
 await test('an export of more than 1000 files imports whole', async () => {

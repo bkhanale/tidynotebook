@@ -9,6 +9,8 @@ import test from 'node:test';
 import {
   cleanFolderPath,
   isStoredFolderPath,
+  maxPathBytes,
+  maxSegmentBytes,
   normalizePath,
   type PathKind,
 } from './path.ts';
@@ -146,6 +148,11 @@ await test('the byte limits count UTF-8 bytes', () => {
   assert.equal(fits.length, 1023);
   assert.equal(accepted(fits), fits);
   rejected(`${directory.repeat(4)}${'c'.repeat(252)}.md`);
+  // The exported bounds are the ones that the rule holds, for the import.
+  assert.equal(maxSegmentBytes, 255);
+  const folders = `${'b'.repeat(maxSegmentBytes - 1)}/`.repeat(4);
+  assert.equal(accepted(`${folders}c.md`).length, maxPathBytes);
+  rejected(`${folders}cc.md`);
 });
 
 await test('a typed folder takes its stored spelling', () => {

@@ -120,6 +120,8 @@ export type { PathKind } from './files/path.ts';
 export {
   cleanFolderPath,
   isStoredFolderPath,
+  maxPathBytes,
+  maxSegmentBytes,
   normalizePath,
 } from './files/path.ts';
 export { validateGraph } from './files/graph.ts';

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { maxPathBytes, maxSegmentBytes, normalizePath } from '@notesapp/core';
 import {
   baseNameOf,
   cleanNoteBaseName,
@@ -14,6 +15,23 @@ import {
   rewriteFolder,
   storageNotePath,
 } from './note-name.ts';
+
+await test('the field refuses the length that the domain refuses', () => {
+  // The field read its own copy of the bounds of `normalizePath`.
+  const segment = 'f'.repeat(maxSegmentBytes - '.md'.length);
+  let name = segment;
+  while (name.length < maxPathBytes) name = `${name}/${segment}`;
+  const longest = name.slice(0, maxPathBytes - '.md'.length);
+  assert.equal(storageNotePath(longest).length, maxPathBytes);
+  assert.equal(noteNameProblem(longest), null);
+  assert.equal(normalizePath(storageNotePath(longest)).ok, true);
+  const longer = `${longest}g`;
+  assert.match(
+    String(noteNameProblem(longer)),
+    new RegExp(String(maxPathBytes)),
+  );
+  assert.equal(normalizePath(storageNotePath(longer)).ok, false);
+});
 
 await test('the interface hides the Markdown storage suffix', () => {
   assert.equal(displayNoteName('projects/roadmap.md'), 'projects/roadmap');

@@ -5,18 +5,16 @@
  * it. Every refusal has its own sentence, so a person can act on it, and no
  * refusal prints a machine code. `cleanNoteName` removes the edge spaces
  * that the domain rule refuses, so a name that only needs trimming is saved
- * instead of refused.
+ * instead of refused. The byte bounds are the ones of `normalizePath` in
+ * `@notesapp/core`, so the field and the domain refuse one length.
  */
+import { maxPathBytes, maxSegmentBytes } from '@notesapp/core';
 
 /** The storage suffix that is hidden from note names in the interface. */
 const markdownSuffix = '.md';
 
 /** C0, delete, and C1 controls, format characters, and line separators. */
 const forbiddenCharacter = /[\p{Cc}\p{Cf}\u2028\u2029]/u;
-
-/** The domain limits, repeated here so the message can name them. */
-const maxPathBytes = 1024;
-const maxSegmentBytes = 255;
 
 /** Converts a stored Markdown path to the name that a person edits. */
 export function displayNoteName(path: string): string {

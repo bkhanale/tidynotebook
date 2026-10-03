@@ -43,8 +43,15 @@ import { fail, ok, type Result } from './model.ts';
  */
 export type PathKind = 'note' | 'attachment' | 'folder';
 
-const maxPathBytes = 1024;
-const maxSegmentBytes = 255;
+/**
+ * The most UTF-8 bytes of one workspace path.
+ *
+ * The import reads it too, and refuses a longer name of an archive before it
+ * decodes the name, so a directory of long names never fills the memory.
+ */
+export const maxPathBytes = 1024;
+/** The most UTF-8 bytes of one segment of a workspace path. */
+export const maxSegmentBytes = 255;
 const markdownSuffix = '.md';
 /** C0, delete, and C1 controls, format characters, and line separators. */
 const forbiddenCharacter = /[\p{Cc}\p{Cf}\u2028\u2029]/u;

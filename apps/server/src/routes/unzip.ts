@@ -17,7 +17,11 @@
  * - the data of each entry sits whole between its local header and the
  *   central directory, and no two entries share a byte;
  * - the stated sizes together stay under `maxArchiveBytes` and under
- *   `maxExpansionRatio` times the archive, with a floor for a small archive.
+ *   `maxExpansionRatio` times the archive, with a floor for a small archive;
+ * - no name is longer than `maxPathBytes`, which no workspace path passes.
+ *   The check reads the stated length before it decodes the name, so the
+ *   names that the reader keeps stay under that bound times the count. The
+ *   extra field and the comment of an entry are read past and never kept.
  *
  * `readArchiveEntry` expands one entry as a stream, from a bounded range of
  * the source, and stops as soon as the output passes its stated size, so the
@@ -33,6 +37,7 @@ import {
   archiveEntriesAllowed,
   maxArchiveBytes,
   maxArchiveEntries,
+  maxPathBytes,
 } from '@notesapp/core';
 import { ArchiveRefusedError } from '../plugins/problem.ts';
 
@@ -162,6 +167,13 @@ export function tooLarge(): ArchiveRefusedError {
   return new ArchiveRefusedError(
     'archive_too_large',
     `The files of one import hold ${String(Math.floor(maxArchiveBytes / (1024 * 1024)))} MiB at the most. Split the files into smaller zip archives and import each one.`,
+  );
+}
+
+/** The refusal of a name that no file of a workspace can take. */
+function unsafeName(): ArchiveRefusedError {
+  return unreadable(
+    'The zip archive holds a file name that cannot be a note or an image.',
   );
 }
 
@@ -305,15 +317,13 @@ export async function readArchiveDirectory(
     const extraLength = header.readUInt16LE(30);
     const commentLength = header.readUInt16LE(32);
     const offset = header.readUInt32LE(42);
+    if (nameLength > maxPathBytes) throw unsafeName();
     const rest = await take(nameLength + extraLength + commentLength);
     const path = rest.toString('utf8', 0, nameLength);
     if (offset + 30 > source.size)
       throw unreadable('The directory of the zip archive is not valid.');
     if (path.endsWith('/')) continue;
-    if (!safePath(path) || paths.has(path))
-      throw unreadable(
-        'The zip archive holds a file name that cannot be a note or an image.',
-      );
+    if (!safePath(path) || paths.has(path)) throw unsafeName();
     if ((flags & 1) !== 0 || (method !== 0 && method !== 8))
       throw unreadable(
         'The zip archive is encrypted or compressed in a way that this server does not read.',
