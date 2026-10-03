@@ -22,13 +22,13 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import {
   RouterProvider,
   createBrowserRouter,
-  matchRoutes,
   type RouteObject,
 } from 'react-router';
 import { LoadingState, Page } from '@notesapp/ui';
 import { RouteError } from './shell/route-error.tsx';
 import { LoginPage, RequireSession } from './features/accounts/accounts.tsx';
 import type { FrameHandle } from './lib/breadcrumb.ts';
+import { createEarlyStart } from './lib/early-start.ts';
 import {
   forgotPasswordRoute,
   invitationRoute,
@@ -50,8 +50,9 @@ const AccountSettingsPage = lazy(async () => ({
   default: (await import('./features/accounts/account-settings.tsx'))
     .AccountSettingsPage,
 }));
+const loadWorkspaceHome = () => import('./shell/workspaces.tsx');
 const WorkspaceHome = lazy(async () => ({
-  default: (await import('./shell/workspaces.tsx')).WorkspaceHome,
+  default: (await loadWorkspaceHome()).WorkspaceHome,
 }));
 const HistoryView = lazy(async () => ({
   default: (await import('./features/history/history.tsx')).HistoryView,
@@ -94,24 +95,9 @@ const NotFoundView = lazy(async () => ({
   default: (await import('./shell/not-found.tsx')).NotFoundView,
 }));
 
-/**
- * The modules of a route that the first address can start at once.
- *
- * A lazy screen starts its module only when it renders, and it renders after
- * the session check and after the screen above it. The first address starts
- * the modules of every route it matches while the session check runs, so a
- * note address loads the editor with the frame and its list (record 0177).
- */
-const routeModules = new WeakMap<RouteObject, () => Promise<unknown>>();
-
-/** A route whose module the first address starts at once. */
-function startsEarly(
-  route: RouteObject,
-  load: () => Promise<unknown>,
-): RouteObject {
-  routeModules.set(route, load);
-  return route;
-}
+/** The routes whose modules the first address starts at once (record 0177). */
+const early = createEarlyStart();
+const startsEarly = early.mark;
 
 /** Holds a route while its deferred module loads. */
 function deferred(element: ReactNode): ReactNode {
@@ -222,18 +208,24 @@ const routes: RouteObject[] = [
         loadShell,
       ),
       // The root address, `/settings` from before record 0091 and every unknown
-      // address name no workspace. Each one opens under the chosen workspace.
-      {
-        path: '*',
-        element: <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>,
-      },
+      // address name no workspace. Each one opens under the chosen workspace,
+      // so it starts the frame and the home of a workspace as well. The root
+      // is the start address of the installed application.
+      startsEarly(
+        {
+          path: '*',
+          element: (
+            <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>
+          ),
+        },
+        () => Promise.all([loadWorkspaceHome(), loadShell(), loadNotesHome()]),
+      ),
     ],
   },
 ];
 
 // The first address starts the modules of the routes that it matches.
-for (const match of matchRoutes(routes, window.location) ?? [])
-  void routeModules.get(match.route)?.();
+early.start(routes, window.location.pathname);
 
 const router = createBrowserRouter(routes);
 
