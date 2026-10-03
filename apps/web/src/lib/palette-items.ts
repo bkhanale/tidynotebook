@@ -18,6 +18,8 @@
  * the templates of Insert from template (record 0149).
  */
 import type { ExcerptPart } from '@notesapp/core';
+import type { FormatActionId } from '@notesapp/editor';
+import type { FormatPaletteRow } from './format-toolbar.ts';
 import { baseNameOf, displayNoteName, folderOf } from './note-name.ts';
 
 /** One note the palette can open. */
@@ -74,6 +76,36 @@ export function mergeHits(
   const byFile = new Map(remote.map((hit) => [hit.fileId, hit]));
   for (const hit of local) byFile.set(hit.fileId, hit);
   return [...byFile.values()];
+}
+
+/** The content matches of one query, and whether the server answered. */
+export type ContentSearch = {
+  readonly hits: readonly PaletteHit[];
+  /** True when the server was not asked or did not answer. */
+  readonly offline: boolean;
+};
+
+/**
+ * Searches the text of the notes on this device and on the server at once.
+ *
+ * Each source answers on its own. The search of this device loads its module
+ * when it runs, and a module that does not arrive dropped the hits of the
+ * server as well. `server` is `null` when the browser is offline.
+ */
+export async function searchContent(
+  device: () => Promise<readonly PaletteHit[]>,
+  server: (() => Promise<readonly PaletteHit[]>) | null,
+): Promise<ContentSearch> {
+  const [local, remote] = await Promise.allSettled([
+    Promise.resolve().then(device),
+    server === null ? Promise.resolve(null) : Promise.resolve().then(server),
+  ]);
+  const localHits = local.status === 'fulfilled' ? local.value : [];
+  const remoteHits = remote.status === 'fulfilled' ? (remote.value ?? []) : [];
+  return {
+    hits: mergeHits(remoteHits, localHits),
+    offline: server === null || remote.status === 'rejected',
+  };
 }
 
 /**
@@ -265,6 +297,29 @@ export type PaletteAction = PaletteActionBase &
     | { readonly run: () => void; readonly pick?: undefined }
     | { readonly run?: undefined; readonly pick: PalettePick }
   );
+
+/**
+ * The palette rows of the formatting tools of the caret (record 0094).
+ *
+ * The caller reads `rows` when the palette opens, because the tools change
+ * with the caret and a list that a render built kept the tools of an
+ * earlier caret.
+ */
+export function formatPaletteActions(
+  rows: readonly FormatPaletteRow[],
+  format: (action: FormatActionId) => void,
+): readonly PaletteAction[] {
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    keywords: row.keywords,
+    icon: row.icon,
+    keys: row.keys,
+    run: (): void => {
+      format(row.action);
+    },
+  }));
+}
 
 /** The actions whose words contain the query. */
 export function rankActions(

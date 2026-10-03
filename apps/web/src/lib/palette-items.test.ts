@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   actionIconNames,
+  formatPaletteActions,
   mergeHits,
   paletteNoteLabel,
   rankActions,
@@ -9,6 +10,7 @@ import {
   pickAnnouncement,
   rankChoices,
   rankNotes,
+  searchContent,
   type PaletteAction,
   type PaletteChoice,
   type PaletteHit,
@@ -277,4 +279,59 @@ await test('a note row names the note once and its folder once', () => {
     paletteNoteLabel('Work/Plan.md'),
     paletteNoteLabel('Home/Plan.md'),
   );
+});
+
+await test('the format rows become palette rows that run their own tool', () => {
+  // The shell read these rows when a render built its list, so the palette
+  // offered the tools of an earlier caret. The palette now reads them when
+  // it opens, through this mapping.
+  const ran: string[] = [];
+  const actions = formatPaletteActions(
+    [
+      {
+        id: 'format-bold',
+        action: 'bold',
+        label: 'Bold',
+        keywords: 'format markdown',
+        icon: 'bold',
+        keys: undefined,
+      },
+    ],
+    (action) => {
+      ran.push(action);
+    },
+  );
+  assert.deepEqual(
+    actions.map((action) => action.id),
+    ['format-bold'],
+  );
+  actions[0]?.run?.();
+  assert.deepEqual(ran, ['bold']);
+});
+
+await test('the hits of the server stay when the search of this device fails', async () => {
+  // The search of this device loads its module when it runs. A module that
+  // did not arrive failed the joined search, and the palette showed no hit
+  // of the server either.
+  const hit: PaletteHit = {
+    fileId: 'a',
+    path: 'plans/roadmap.md',
+    excerpt: [{ text: 'roadmap', marked: true }],
+  };
+  const found = await searchContent(
+    () => Promise.reject(new Error('Importing a module script failed.')),
+    () => Promise.resolve([hit]),
+  );
+  assert.deepEqual(found, { hits: [hit], offline: false });
+  // A server that does not answer keeps the hits of this device.
+  const local = await searchContent(
+    () => Promise.resolve([hit]),
+    () => Promise.reject(new Error('Failed to fetch')),
+  );
+  assert.deepEqual(local, { hits: [hit], offline: true });
+  // An offline browser asks only this device.
+  assert.deepEqual(await searchContent(() => Promise.resolve([]), null), {
+    hits: [],
+    offline: true,
+  });
 });

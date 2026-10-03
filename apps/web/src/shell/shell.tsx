@@ -42,8 +42,6 @@
  * there.
  */
 import {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -101,6 +99,13 @@ import {
   useAttentionCount,
 } from '../features/attention/attention-link.tsx';
 import { CommandPalette } from './command-palette.tsx';
+import type { ShortcutsDialog } from './shortcuts.tsx';
+import { createModuleLoad } from '../lib/module-load.ts';
+import {
+  formatPaletteActions,
+  type ActionIconName,
+  type PaletteAction,
+} from '../lib/palette-items.ts';
 import {
   FilesProvider,
   useFiles,
@@ -196,7 +201,6 @@ import {
   syncStatusClassNames,
 } from '../lib/sync-state.ts';
 import type { CalendarMonth } from '../lib/calendar-month.ts';
-import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   breadcrumbKey,
   breadcrumbParts,
@@ -228,11 +232,16 @@ import { sidebarViewLabels, type SidebarView } from '../lib/sidebar-view.ts';
 /**
  * The list of shortcuts comes from the editor package, which loads the
  * editor engine, so the dialog loads when it opens and the first screen reads
- * no editor code (record 0177).
+ * no editor code (record 0177). A dialog that does not arrive is stated in
+ * place, and the screen stays.
  */
-const ShortcutsDialog = lazy(async () => ({
-  default: (await import('./shortcuts.tsx')).ShortcutsDialog,
-}));
+const loadShortcutsDialog = createModuleLoad(
+  async () => (await import('./shortcuts.tsx')).ShortcutsDialog,
+);
+
+/** What the frame states when the dialog of the shortcuts did not load. */
+const shortcutsLoadFailure =
+  'The list of keyboard shortcuts did not load. Check the connection, then try again.';
 
 const allNotesTitle = 'All notes';
 
@@ -926,6 +935,21 @@ function ShellFrame({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [shortcutsDialog, setShortcutsDialog] = useState<{
+    readonly view: typeof ShortcutsDialog;
+  } | null>(null);
+  const [shortcutsFailed, setShortcutsFailed] = useState(false);
+  const openShortcuts = useCallback((): void => {
+    setShortcutsFailed(false);
+    void loadShortcutsDialog().then((loaded) => {
+      if (!loaded.ok) {
+        setShortcutsFailed(true);
+        return;
+      }
+      setShortcutsDialog({ view: loaded.value });
+      setShortcutsOpen(true);
+    });
+  }, []);
   // The parent of the folder the dialog will make, or `null` while it is
   // closed. It is a path and not a flag, so a folder row can name a parent
   // that is not the selected one.
@@ -1128,7 +1152,7 @@ function ShellFrame({
       id: 'shortcuts',
       label: 'Keyboard shortcuts',
       icon: actionIcon('keyboard'),
-      onSelect: () => setShortcutsOpen(true),
+      onSelect: openShortcuts,
     },
   ];
 
@@ -1187,8 +1211,11 @@ function ShellFrame({
   const accountLabel =
     accountName === '' ? 'Account' : `Account: ${accountName}`;
 
-  const paletteActions = useMemo(
-    () => [
+  // The palette reads its actions when it opens, so the rows of the
+  // formatting tools follow the caret of the note at that moment. A list
+  // that a render built kept the tools of an earlier caret.
+  const paletteActions = useCallback(
+    (): readonly PaletteAction[] => [
       {
         id: 'new-note',
         label: 'New note',
@@ -1230,7 +1257,7 @@ function ShellFrame({
         label: 'Show keyboard shortcuts',
         keywords: 'keys help',
         icon: 'keyboard' as const,
-        run: () => setShortcutsOpen(true),
+        run: openShortcuts,
       },
       ...(noteActions === null
         ? []
@@ -1342,16 +1369,10 @@ function ShellFrame({
             // editor takes the focus back.
             ...(noteActions.format === null
               ? []
-              : noteActions.formatRows().map((row) => ({
-                  id: row.id,
-                  label: row.label,
-                  keywords: row.keywords,
-                  icon: row.icon,
-                  keys: row.keys,
-                  run: (): void => {
-                    noteActions.format?.(row.action);
-                  },
-                }))),
+              : formatPaletteActions(
+                  noteActions.formatRows(),
+                  noteActions.format,
+                )),
             ...(noteActions.deleteAndLeave === null
               ? []
               : [
@@ -1435,6 +1456,8 @@ function ShellFrame({
       workspaceId,
     ],
   );
+
+  const ShortcutsView = shortcutsDialog?.view ?? null;
 
   return (
     <SyncProvider value={sync}>
@@ -1636,6 +1659,17 @@ function ShellFrame({
                 {theme.syncError === null ? null : (
                   <Notice tone="info" message={theme.syncError} />
                 )}
+                {shortcutsFailed ? (
+                  <Notice tone="problem" message={shortcutsLoadFailure}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShortcutsFailed(false)}
+                    >
+                      Close
+                    </Button>
+                  </Notice>
+                ) : null}
                 {persistence.notice.kind === 'quiet' ? (
                   <Notice tone="info" message={persistence.notice.message}>
                     <Button
@@ -1672,10 +1706,8 @@ function ShellFrame({
             accountId={accountId}
             actions={paletteActions}
           />
-          {shortcutsOpen ? (
-            <Suspense fallback={null}>
-              <ShortcutsDialog open onClose={() => setShortcutsOpen(false)} />
-            </Suspense>
+          {shortcutsOpen && ShortcutsView !== null ? (
+            <ShortcutsView open onClose={() => setShortcutsOpen(false)} />
           ) : null}
           {openWorkspace === null ? null : (
             <>

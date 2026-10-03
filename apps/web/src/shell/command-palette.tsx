@@ -51,7 +51,7 @@ import { actionIcon, emptyStateIcon } from './action-icons.tsx';
 import { KeyHint } from './key-hint.tsx';
 import {
   activeRowIndex,
-  mergeHits,
+  searchContent,
   paletteNoteLabel,
   pickAnnouncement,
   rankActions,
@@ -119,36 +119,29 @@ function useContentHits(
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void (async (): Promise<void> => {
-        const localPromise =
-          store === null || accountId === null
-            ? Promise.resolve([])
-            : Promise.all([
-                store.listSearchFiles(accountId, workspaceId),
-                loadDeviceSearch(),
-              ]).then(([files, searchLocal]) => searchLocal(needle, files));
-        const remotePromise = navigator.onLine
-          ? searchRemote({
-              path: { workspaceId },
-              query: { query: needle, limit: 50 },
-            })
-          : Promise.resolve(null);
-        try {
-          const [localHits, remoteResult] = await Promise.all([
-            localPromise,
-            remotePromise,
-          ]);
-          if (cancelled) return;
-          const remoteHits =
-            remoteResult === null ||
-            remoteResult.error !== undefined ||
-            remoteResult.data === undefined
+        const found = await searchContent(
+          async () =>
+            store === null || accountId === null
               ? []
-              : remoteResult.data.hits;
-          setOffline(remoteResult === null);
-          setHits(mergeHits(remoteHits, localHits));
-        } catch {
-          if (!cancelled) setHits([]);
-        }
+              : (await loadDeviceSearch())(
+                  needle,
+                  await store.listSearchFiles(accountId, workspaceId),
+                ),
+          navigator.onLine
+            ? async () => {
+                const result = await searchRemote({
+                  path: { workspaceId },
+                  query: { query: needle, limit: 50 },
+                });
+                return result.error !== undefined || result.data === undefined
+                  ? []
+                  : result.data.hits;
+              }
+            : null,
+        );
+        if (cancelled) return;
+        setOffline(found.offline);
+        setHits(found.hits);
       })();
     }, searchDelayMs);
     return () => {
@@ -166,7 +159,11 @@ type PaletteProps = {
   readonly notes: readonly PaletteNote[];
   readonly store: LocalStore | null;
   readonly accountId: string | null;
-  readonly actions: readonly PaletteAction[];
+  /**
+   * Reads the actions. The open palette reads them once, so the rows of a
+   * note follow its state at the moment the palette opens.
+   */
+  readonly actions: () => readonly PaletteAction[];
 };
 
 /**
@@ -221,7 +218,7 @@ function PaletteDialog({
   notes,
   store,
   accountId,
-  actions,
+  actions: readActions,
   onClose,
   closeThen,
 }: PaletteProps & {
@@ -230,6 +227,7 @@ function PaletteDialog({
   readonly closeThen: (work: () => void) => void;
 }): ReactNode {
   const navigate = useNavigate();
+  const actions = useMemo(() => readActions(), [readActions]);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
   const [query, setQuery] = useState('');
