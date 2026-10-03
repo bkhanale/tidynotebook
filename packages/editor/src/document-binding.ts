@@ -32,6 +32,7 @@ import {
   readDocumentText,
   replaceDocumentText,
   startDocument,
+  stateVectorCovers,
   type DocumentResult,
   type DocumentSession,
 } from '@notesapp/note-document';
@@ -215,6 +216,19 @@ export function holdLocalWork(session: DocumentSession): HeldLocalWork {
       held = [];
     },
   };
+}
+
+/**
+ * Whether a stored document holds every change that a state vector names.
+ *
+ * The screen keeps the vector of the work that the store took. A stored
+ * document that lacks part of it lost work of the open note, for example to
+ * a snapshot that replaced the row, and the screen writes its whole document
+ * again (record 0183). A state vector does not count a deletion, so the
+ * answer speaks only of the insertions.
+ */
+export function documentHolds(stored: Uint8Array, vector: Uint8Array): boolean {
+  return stateVectorCovers(documentStateVector(stored), vector);
 }
 
 /** One open note, joined to one view, as a screen uses it. */

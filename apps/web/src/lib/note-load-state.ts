@@ -1,3 +1,5 @@
+import type { NoteDocument } from '@notesapp/sync';
+
 /** The identity of the note that one loader result describes. */
 export type NoteLoadIdentity = {
   readonly accountId: string;
@@ -20,10 +22,12 @@ export type NoteLoadStatus =
       readonly workingCopyId?: string | undefined;
       readonly sequence: number;
       /**
-       * The document of the note on this device, or `null` when this device
-       * holds none yet (record 0081). The editor binds to it.
+       * The document of the note on this device with its generation, or
+       * `null` when this device holds none yet (record 0081). The editor
+       * binds to it, and each of its writes names the generation (record
+       * 0183).
        */
-      readonly document?: Uint8Array | null | undefined;
+      readonly document?: NoteDocument | null | undefined;
     };
 
 /** A loader result and the note that owns it. */

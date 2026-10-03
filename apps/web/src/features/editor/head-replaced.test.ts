@@ -10,6 +10,7 @@ import test from 'node:test';
 import type { FileSaveSnapshot } from '@notesapp/sync';
 import {
   headToAdopt,
+  openedGeneration,
   remoteChangeWritesDraft,
   storedDocumentStep,
   type OpenNote,
@@ -100,10 +101,26 @@ await test('a document of the same generation joins the one editor', () => {
     storedDocumentStep({ openedEpoch: 1, storedEpoch: 1, typed: false }),
     'join',
   );
+});
+
+await test('the editor holds the generation that the loader read', () => {
+  // Record 0183. The editor took its generation from its first read of the
+  // store, and not from the read that the loader opened it from. A new
+  // generation that arrived between the two joined the bytes of one
+  // generation into another, and the text showed twice.
+  const loaded = { bytes: new Uint8Array([1]), epoch: 1 };
+  assert.equal(openedGeneration(loaded), 1);
   assert.equal(
-    storedDocumentStep({ openedEpoch: null, storedEpoch: 3, typed: true }),
-    'join',
+    storedDocumentStep({
+      openedEpoch: openedGeneration(loaded),
+      storedEpoch: 2,
+      typed: false,
+    }),
+    'reopen',
   );
+  assert.equal(openedGeneration({ ...loaded, epoch: 4 }), 4);
+  // A note that this device starts is generation 1, as the store writes it.
+  assert.equal(openedGeneration(null), 1);
 });
 
 await test('a new generation reads the note again, unless keys wait in it', () => {

@@ -72,22 +72,59 @@ export function pendingUpdatesPassBound(
   return bytes >= pendingUpdateBound.bytes;
 }
 
-/** Applies the updates of one generation to a document, once each. */
+/** The updates as one, or `null` when one of them is not an update. */
+function mergedUpdate(
+  updates: readonly DocumentUpdateRow[],
+): Uint8Array | null {
+  try {
+    return mergeDocumentUpdates(updates.map((update) => update.bytes));
+  } catch {
+    // Yjs throws on bytes that do not decode. The fold then applies the
+    // updates one by one, and the door of the document refuses those bytes.
+    return null;
+  }
+}
+
+/**
+ * Applies the updates of one generation to a document, once each.
+ *
+ * The updates of one note are one merged update in the common case. An
+ * update that the document cannot take, for example work that builds on an
+ * append that failed, makes the merged update fail as a whole, so the fold
+ * then applies one update at a time and repeats while one more applies. The
+ * order of the rows is not the order of the writes, and a later pass takes
+ * an update whose dependency an earlier pass applied. An update that never
+ * applies is left out: it cannot become text, and a fold that refused the
+ * whole row made the note unreadable and stopped the sync (record 0183). The
+ * editor that wrote it holds the work and writes its whole document, and its
+ * draft states no vector meanwhile, so the draft text is the recovery copy.
+ */
 function foldUpdates(
   bytes: Uint8Array,
   updates: readonly DocumentUpdateRow[],
 ): Uint8Array {
   if (updates.length === 0) return bytes;
-  const applied = applyDocumentUpdate(
-    bytes,
-    mergeDocumentUpdates(updates.map((update) => update.bytes)),
-  );
-  if (!applied.ok)
-    throw new LocalStorageError(
-      'corrupt',
-      `the document of this note refused its pending work: ${applied.refusal}`,
-    );
-  return applied.value.document;
+  const merged = mergedUpdate(updates);
+  if (merged !== null) {
+    const applied = applyDocumentUpdate(bytes, merged);
+    if (applied.ok) return applied.value.document;
+  }
+  let document = bytes;
+  let waiting = [...updates];
+  let progressed = true;
+  while (progressed && waiting.length > 0) {
+    progressed = false;
+    const refused: DocumentUpdateRow[] = [];
+    for (const update of waiting) {
+      const applied = applyDocumentUpdate(document, update.bytes);
+      if (applied.ok) {
+        document = applied.value.document;
+        progressed = true;
+      } else refused.push(update);
+    }
+    waiting = refused;
+  }
+  return document;
 }
 
 /** The stored row alone, without its pending updates. */
@@ -109,14 +146,16 @@ export async function readStoredDocumentRow(
  * `null` when the device holds neither.
  *
  * A note that this device started and whose first write is still pending
- * reads as an empty document with those updates (record 0175).
+ * reads as an empty document with those updates (record 0175). An update
+ * that the document cannot take is left out, so the read never fails on it
+ * (record 0183).
  */
 export async function readDocumentRow(
   tables: Tables,
   key: DocumentKey,
 ): Promise<DocumentRow | null> {
   const row = await readStoredDocumentRow(tables, key);
-  const epoch = row?.epoch ?? 1;
+  const epoch = generationOf(row);
   const pending = (await pendingDocumentUpdates(tables, key)).filter(
     (update) => update.epoch === epoch,
   );
@@ -137,7 +176,8 @@ export async function readDocumentRow(
  * An update of the generation of the row joins it, so no key of an open
  * editor is lost when the row is written: a snapshot, a feed page, a
  * checkpoint and a merge all keep the work that waits. An update of another
- * generation cannot join and goes (record 0084). Every update of the note is
+ * generation cannot join and goes (record 0084), and so does an update that
+ * the document cannot take (record 0183). Every update of the note is
  * removed, so the next read decodes nothing twice.
  */
 export async function writeDocumentRow(
@@ -175,6 +215,31 @@ function refuseWithoutDocument(): never {
     'stale',
     'this device does not hold the document of this note yet',
   );
+}
+
+/** The generation of a stored document. A note that starts here is 1. */
+export function generationOf(row: DocumentRow | null): number {
+  return row?.epoch ?? 1;
+}
+
+/**
+ * Refuses work of an open editor that builds on another generation than the
+ * stored document (record 0183).
+ *
+ * The identities of one generation say nothing about another (record 0084),
+ * so the work would name items that the stored document lacks, or hold the
+ * text twice. Nothing is written, and the editor keeps the work: its draft
+ * holds the text, and the next open of the note takes it.
+ */
+export function refuseOtherGeneration(
+  row: DocumentRow | null,
+  epoch: number,
+): void {
+  if (generationOf(row) !== epoch)
+    throw new LocalStorageError(
+      'stale',
+      'the document of this note has a new generation',
+    );
 }
 
 /** The document that a note holds now, or a started one for a new note. */
@@ -271,18 +336,24 @@ export async function frozenText(
  * it, and a diff of that text would write a revert or a second copy of the
  * remote work as work of this device (record 0133). `text` is the text that
  * the caller read with `frozenText`. When the document no longer holds it,
- * the answer is `null` and the caller reads the text again.
+ * the answer is `null` and the caller reads the text again. `epoch` is the
+ * generation of the document of the editor.
  */
 export async function freezeDocument(
   tables: Tables,
   key: DocumentKey,
   text: string,
   noteExists: boolean,
+  epoch: number,
 ): Promise<{
   readonly row: DocumentRow | null;
   readonly save: DocumentSave;
 } | null> {
   const current = await readDocumentRow(tables, key);
+  // The editor wrote its work into its own generation. A document of another
+  // generation holds none of it, so a version of it would claim the text of
+  // that generation as the work of this editor (record 0183).
+  refuseOtherGeneration(current, epoch);
   // A new note that holds no document yet starts an empty one, as the first
   // write of its editor does. A note that the server holds is refused.
   const row = current ?? { ...documentOrStart(null, '', noteExists), ...key };

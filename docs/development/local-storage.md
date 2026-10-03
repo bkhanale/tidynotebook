@@ -126,9 +126,11 @@ every such partition of the origin. `draftHoldsWork` in
 
 Every local method reports a failure kind: the transaction did not commit, the
 browser has no space, IndexedDB is closed or absent, or stored data does not
-match its schema. The editor keeps its in-memory text after every one of them.
-It does not reload the page and it does not replace the buffer with server
-content.
+match its schema. The editor keeps its text after each one, and it never
+reloads the page or takes server text into the buffer. Its writes name the
+generation of their document, its appends stop after a failure until the whole
+document is written, and a fold leaves out an update that cannot apply. See
+[decision 0183](../decisions/0183-the-work-of-an-open-editor-names-its-generation.md).
 
 ## Compatibility data
 

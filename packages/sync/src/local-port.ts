@@ -454,12 +454,15 @@ export type NoteDocument = {
  * note already. The checkpoint freezes that document and takes its text, and
  * it never writes the text of the draft into it. That text can lag the
  * document, and a diff of it would write a revert or a second copy of remote
- * work as work of this device.
+ * work as work of this device. `epoch` is the generation of the document
+ * that the editor holds. A stored document of another generation holds none
+ * of its work, so the checkpoint is refused as `stale` (record 0183).
  *
  * `text`: a writer with no open document, such as a new note or a text that
  * a person places, so the checkpoint writes the text into the document.
  */
-export type CheckpointSource = 'document' | 'text';
+export type CheckpointSource =
+  { readonly kind: 'document'; readonly epoch: number } | 'text';
 
 /**
  * One note that a screen read from the server, ready to cache.
@@ -1083,12 +1086,16 @@ export type LocalStore = {
    * write of the document. The write announces a `document` change marked
    * with `writer`, the working copy that wrote it. Work for a note that the
    * server holds and whose document this device lacks is refused as `stale`
-   * (record 0084).
+   * (record 0084). `epoch` is the generation of the document that the work
+   * builds on, and work for a stored document of another generation is
+   * refused as `stale` too, so it never names items that the stored document
+   * lacks (record 0183). A note that this device starts is generation 1.
    */
   appendNoteWork(
     accountId: string,
     workspaceId: string,
     fileId: string,
+    epoch: number,
     update: Uint8Array,
     writer: string,
   ): Promise<void>;
@@ -1100,12 +1107,15 @@ export type LocalStore = {
    * merges into it, so two tabs that write before either reads the other
    * cannot lose work (record 0085). The answer is the document after the
    * merge. The open of a note writes its start work here, and an editor whose
-   * append failed writes its whole document here before a checkpoint.
+   * append failed writes its whole document here before a checkpoint. Work
+   * of another generation than the stored document is refused as `stale`,
+   * as `appendNoteWork` refuses it (record 0183).
    */
   mergeNoteWork(
     accountId: string,
     workspaceId: string,
     fileId: string,
+    epoch: number,
     update: Uint8Array,
   ): Promise<NoteDocument>;
 

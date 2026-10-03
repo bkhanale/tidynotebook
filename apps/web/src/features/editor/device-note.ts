@@ -67,7 +67,7 @@ export async function readDeviceNote(
       headRevisionId: cached.baseRevisionId,
       workingCopyId: cached.workingCopyId,
       sequence: cached.sequence,
-      document: document?.bytes ?? null,
+      document,
     };
   } catch {
     // A server read can still show content. A later local write failure

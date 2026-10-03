@@ -1,20 +1,27 @@
 /**
- * The writes of one open editor to this device (records 0022, 0133, 0175).
+ * The writes of one open editor to this device (records 0022, 0133, 0175,
+ * 0183).
  *
  * A key reaches the disk one frame after it reaches the editor: each frame
  * appends the work of its keys to the document of the note, with no decode
  * of the document. A hidden tab and the end of the screen append at once,
  * because a hidden tab runs no frame.
  *
+ * The appends run one at a time, in order, because each one builds on the
+ * one before it. After a failed append no later append runs: the work waits
+ * in the editor, and the next version writes the whole document first, which
+ * holds every change. A read of the stored document that lacks a change the
+ * store took, as after a snapshot that replaced the row, has the same result.
+ *
  * The draft is recovery data and follows after a pause. It states the state
  * vector of the document only after the store took every change that the
  * vector names, because a state vector does not count a deletion.
  *
  * A version freezes the stored document, so it writes the work first and
- * claims only the changes whose work it wrote. A key that arrives while a
- * version runs gets a version of its own. A version that writes no draft,
- * because it failed or wrote nothing, asks for the draft at once: the draft
- * write that waited was cancelled for it.
+ * claims only the changes whose work it wrote. A key that arrives while it
+ * runs gets a version of its own. A version that writes no draft, because it
+ * failed or wrote nothing, asks for the draft at once: the draft write that
+ * waited was cancelled for it.
  *
  * The ports are injected, so a unit test drives the store and the frames.
  */
@@ -28,6 +35,8 @@ export type NoteWorkPorts = {
   readonly wholeWork: () => Uint8Array;
   /** The state vector of the open document, or `null` when it is closed. */
   readonly stateVector: () => Uint8Array | null;
+  /** Whether a stored document holds every change that a vector names. */
+  readonly holds: (stored: Uint8Array, vector: Uint8Array) => boolean;
   /** How many changes the person made, which counts names as well. */
   readonly sequence: () => number;
   /** The draft that the store would write now, with no vector. */
@@ -67,39 +76,78 @@ export type NoteWork = {
   readonly versionedSequence: () => number | null;
   /** Whether a write of the work failed and no whole write repaired it. */
   readonly lost: () => boolean;
+  /**
+   * The state vector of the changes that the store took, or `null` before
+   * the first. A read of the stored document takes it before it starts.
+   */
+  readonly takenMark: () => Uint8Array | null;
+  /**
+   * States the stored document that a read found, which started after
+   * `mark` was taken. A document that lacks a change of the mark lost work
+   * of this editor, so the next version writes the whole document.
+   */
+  readonly readStored: (stored: Uint8Array, mark: Uint8Array | null) => void;
+  /** States that the store holds none of this work: a new generation. */
+  readonly storeLacksWork: () => void;
   /** Cancels the frame that waits. The work stays for a later flush. */
   readonly stop: () => void;
 };
 
 /** Builds the writes of one open editor. */
 export function createNoteWork(ports: NoteWorkPorts): NoteWork {
-  let appends: Promise<void> = Promise.resolve();
+  // Every write of the work runs in this one chain, in order, so an append
+  // never runs before the one that it builds on.
+  let writes: Promise<void> = Promise.resolve();
   let lost = false;
+  let taken: Uint8Array | null = null;
   let cancelFrame: (() => void) | null = null;
   let versioned: number | null = null;
+
+  /** Runs `write` after every write before it. Settles with it. */
+  const inOrder = <T>(write: () => Promise<T>): Promise<T> => {
+    const run = writes.then(write);
+    writes = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
 
   /** Takes the work that waits and appends it. Settles with every append. */
   const flush = (): Promise<void> => {
     cancelFrame?.();
     cancelFrame = null;
     const work = ports.takeWork();
-    if (work !== null) {
-      const written = ports
-        .started()
-        .then(() => ports.append(work))
-        .then(
-          () => undefined,
-          () => {
-            // The later appends build on this one, and a version would
-            // freeze a document without it. The next version writes the
-            // whole document first, which merges in every missing change.
-            lost = true;
-          },
-        );
-      appends = Promise.all([appends, written]).then(() => undefined);
-    }
-    return appends;
+    if (work === null) return writes;
+    // The vector names this work and every change before it.
+    const vector = ports.stateVector();
+    return inOrder(async (): Promise<void> => {
+      // The work builds on the work that failed, so the store cannot take
+      // it alone. The whole document of the next version holds it.
+      if (lost) return;
+      try {
+        await ports.started();
+        await ports.append(work);
+        if (vector !== null) taken = vector;
+      } catch {
+        // A version would freeze a document without this work. The next
+        // version writes the whole document first, which merges in every
+        // missing change.
+        lost = true;
+      }
+    });
   };
+
+  /** Writes the whole document after lost work. Throws a store failure. */
+  const repair = (): Promise<void> =>
+    inOrder(async (): Promise<void> => {
+      if (!lost) return;
+      await ports.started();
+      const vector = ports.stateVector();
+      await ports.merge(ports.wholeWork());
+      lost = false;
+      if (vector !== null) taken = vector;
+    });
 
   return {
     changed: () => {
@@ -133,8 +181,7 @@ export function createNoteWork(ports: NoteWorkPorts): NoteWork {
         // version claims every change up to now.
         claimed = ports.sequence();
         try {
-          await ports.merge(ports.wholeWork());
-          lost = false;
+          await repair();
         } catch (failure: unknown) {
           ports.draftOwed();
           return { kind: 'failed', failure };
@@ -160,6 +207,13 @@ export function createNoteWork(ports: NoteWorkPorts): NoteWork {
     },
     versionedSequence: () => versioned,
     lost: () => lost,
+    takenMark: () => taken,
+    readStored: (stored, mark) => {
+      if (mark !== null && !ports.holds(stored, mark)) lost = true;
+    },
+    storeLacksWork: () => {
+      lost = true;
+    },
     stop: () => {
       cancelFrame?.();
       cancelFrame = null;

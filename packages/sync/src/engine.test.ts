@@ -117,6 +117,7 @@ class FakeStore implements LocalStore {
     _account: string,
     _workspace: string,
     fileId: string,
+    _epoch: number,
     update: Uint8Array,
   ): Promise<void> {
     this.noteDocuments.set(fileId, update);
@@ -127,6 +128,7 @@ class FakeStore implements LocalStore {
     _account: string,
     _workspace: string,
     fileId: string,
+    _epoch: number,
     update: Uint8Array,
   ): Promise<NoteDocument> {
     this.noteDocuments.set(fileId, update);

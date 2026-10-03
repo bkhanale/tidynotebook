@@ -38,6 +38,8 @@ class Editor {
   stored: string[] = [];
   appendGate: Promise<void> | null = null;
   appendFails = false;
+  mergeGate: Promise<void> | null = null;
+  mergeFails = false;
   checkpointFails = false;
   readonly appended: string[][] = [];
   readonly drafts: Draft[] = [];
@@ -56,6 +58,10 @@ class Editor {
     wholeWork: () => new TextEncoder().encode(this.keys.join('')),
     stateVector: () =>
       this.closed ? null : new Uint8Array([this.keys.length]),
+    // The fake document holds the first keys in order, so it holds a vector
+    // when it holds as many keys as the vector counts.
+    holds: (stored, vector) =>
+      new TextDecoder().decode(stored).length >= (vector[0] ?? 0),
     sequence: () => this.keys.length,
     draft: (deleted) => ({
       accountId: 'account-1',
@@ -76,9 +82,10 @@ class Editor {
       if (this.appendFails) throw new Error('quota');
       this.stored.push(...keys);
     },
-    merge: (work) => {
+    merge: async (work) => {
+      if (this.mergeGate !== null) await this.mergeGate;
+      if (this.mergeFails) throw new Error('stale');
       this.stored = new TextDecoder().decode(work).split('');
-      return Promise.resolve();
     },
     saveDraft: (draft) => {
       this.drafts.push(draft);
@@ -114,6 +121,11 @@ class Editor {
   runFrames(): void {
     const frames = this.frames.splice(0);
     for (const run of frames) run();
+  }
+
+  /** The stored document, as a read of the store gives it. */
+  storedDocument(): Uint8Array {
+    return new TextEncoder().encode(this.stored.join(''));
   }
 }
 
@@ -224,4 +236,105 @@ await test('only the editor that wrote a document change skips it', () => {
     'state',
   );
   assert.equal(readAfterChange({ ...change, kind: 'file' }, 'copy-1'), 'join');
+});
+
+await test('no append runs after an append that failed', async () => {
+  // Record 0183. The appends ran side by side, so the append of the next
+  // frame wrote work that built on the one that failed. The store could not
+  // apply it, and every read of the note failed.
+  const editor = new Editor();
+  const gate = deferred();
+  editor.appendGate = gate.promise;
+  editor.type('a');
+  editor.runFrames();
+  editor.type('b');
+  editor.runFrames();
+  await settle();
+  // The second append waits for the first.
+  assert.deepEqual(editor.appended, [['a']]);
+  editor.appendFails = true;
+  gate.resolve();
+  editor.appendGate = null;
+  await editor.work.flush();
+  assert.deepEqual(editor.appended, [['a']]);
+  assert.deepEqual(editor.stored, []);
+  assert.equal(editor.work.lost(), true);
+  // The keys of later frames wait in the editor too.
+  editor.type('c');
+  await editor.work.flush();
+  assert.deepEqual(editor.appended, [['a']]);
+  // The draft keeps the text and states no vector.
+  const draft = await editor.work.writeDraft(false);
+  assert.equal(draft.text, 'abc');
+  assert.equal(draft.documentVector, undefined);
+  // The version writes the whole document, so no key is lost.
+  editor.appendFails = false;
+  await editor.work.version();
+  assert.deepEqual(editor.versions, ['abc']);
+  assert.equal(editor.work.lost(), false);
+  editor.type('d');
+  await editor.work.flush();
+  assert.deepEqual(editor.stored, ['a', 'b', 'c', 'd']);
+});
+
+await test('a key typed while the whole document is written is appended after it', async () => {
+  const editor = new Editor();
+  editor.appendFails = true;
+  editor.type('a');
+  await editor.work.flush();
+  editor.appendFails = false;
+  const gate = deferred();
+  editor.mergeGate = gate.promise;
+  const version = editor.work.version();
+  await settle();
+  editor.type('b');
+  const flushed = editor.work.flush();
+  gate.resolve();
+  editor.mergeGate = null;
+  await version;
+  await flushed;
+  assert.deepEqual(editor.stored, ['a', 'b']);
+});
+
+await test('a stored document that lacks the work of the editor gets it again', async () => {
+  // Record 0183. A snapshot writes the whole document of the server over
+  // the row, which can lack work that this editor appended. The editor did
+  // not know, so later keys built on work that the store no longer held.
+  const editor = new Editor();
+  editor.type('a');
+  editor.type('b');
+  await editor.work.flush();
+  const mark = editor.work.takenMark();
+  assert.deepEqual(mark, new Uint8Array([2]));
+  // A read that holds the work changes nothing.
+  editor.work.readStored(editor.storedDocument(), mark);
+  assert.equal(editor.work.lost(), false);
+  // The row is replaced with a document that lacks the keys.
+  editor.stored = ['a'];
+  editor.work.readStored(editor.storedDocument(), mark);
+  assert.equal(editor.work.lost(), true);
+  await editor.work.version();
+  assert.deepEqual(editor.stored, ['a', 'b']);
+  assert.deepEqual(editor.versions, ['ab']);
+});
+
+await test('work of an old generation waits in the editor and the draft', async () => {
+  // Record 0183. A new generation holds none of the work of this editor.
+  // The store refuses each write of it, so the version fails and the draft
+  // keeps the text for the next open of the note.
+  const editor = new Editor();
+  editor.type('a');
+  await editor.work.flush();
+  editor.work.storeLacksWork();
+  editor.mergeFails = true;
+  editor.type('b');
+  await editor.work.flush();
+  assert.deepEqual(editor.appended, [['a']]);
+  const outcome = await editor.work.version();
+  assert.equal(outcome.kind, 'failed');
+  assert.deepEqual(editor.versions, []);
+  assert.equal(editor.draftsOwed, 1);
+  const draft = await editor.work.writeDraft(false);
+  assert.equal(draft.text, 'ab');
+  assert.equal(draft.documentVector, undefined);
 });

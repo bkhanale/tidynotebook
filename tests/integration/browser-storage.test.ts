@@ -1647,6 +1647,7 @@ async function startEditedNote(
     account,
     workspace,
     fileId,
+    1,
     encodeDocumentDelta(
       typed.value.document,
       documentStateVector(startDocument('')),
@@ -1694,7 +1695,14 @@ await test('document work announces its own kind with the working copy that wrot
   const stopOwn = store.subscribe((change) => own.push(change));
   const stopOther = otherStore.subscribe((change) => other.push(change));
   const key = typeInto(started, 'typed more\n');
-  await store.appendNoteWork(account, workspace, fileId, key.update, 'copy-1');
+  await store.appendNoteWork(
+    account,
+    workspace,
+    fileId,
+    1,
+    key.update,
+    'copy-1',
+  );
   const change = {
     accountId: account,
     workspaceId: workspace,
@@ -1728,7 +1736,14 @@ await test('an appended key is on the disk at once and a checkpoint freezes it',
     'first\n',
   );
   const key = typeInto(started, 'first\nsecond\n');
-  await store.appendNoteWork(account, workspace, fileId, key.update, 'copy-1');
+  await store.appendNoteWork(
+    account,
+    workspace,
+    fileId,
+    1,
+    key.update,
+    'copy-1',
+  );
   await withRawDatabase(backend, async (tables) => {
     // The append wrote one small row and left the document as it was.
     const updates = await tables.documentUpdates.toArray();
@@ -1751,7 +1766,10 @@ await test('an appended key is on the disk at once and a checkpoint freezes it',
   );
   // The version freezes the document with its pending work.
   const draft = draftOf(account, workspace, fileId, 'copy-1', 'stale\n');
-  const entry = await reopened.checkpoint(draft, null, 'document');
+  const entry = await reopened.checkpoint(draft, null, {
+    kind: 'document',
+    epoch: 1,
+  });
   assert.ok(entry !== null);
   const revisionId = entry.input.revisions[0]?.id;
   assert.ok(revisionId !== undefined);
@@ -1793,6 +1811,7 @@ await test('the pending updates of a note fold into its document past a bound', 
       account,
       workspace,
       fileId,
+      1,
       typed.update,
       'copy-1',
     );
@@ -1825,10 +1844,17 @@ await test('remote work keeps the keys that wait to be folded', async () => {
     'start\n',
   );
   const local = typeInto(started, 'start\nlocal\n');
-  await store.appendNoteWork(account, workspace, fileId, local.update, 'c-1');
+  await store.appendNoteWork(
+    account,
+    workspace,
+    fileId,
+    1,
+    local.update,
+    'c-1',
+  );
   // Another write of the whole row, as a merge of other work does.
   const other = typeInto(started, 'other\nstart\n');
-  await store.mergeNoteWork(account, workspace, fileId, other.update);
+  await store.mergeNoteWork(account, workspace, fileId, 1, other.update);
   const read = await store.readNoteDocument(account, workspace, fileId);
   assert.equal(
     read === null ? null : readDocumentText(read.bytes),
@@ -1858,14 +1884,21 @@ await test('a draft that lags its document opens with the text of the document',
     'one\n',
   );
   const seen = typeInto(started, 'one\ntwo\n');
-  await store.appendNoteWork(account, workspace, fileId, seen.update, 'c-1');
+  await store.appendNoteWork(account, workspace, fileId, 1, seen.update, 'c-1');
   await store.saveDraft(
     draftOf(account, workspace, fileId, 'c-1', 'one\ntwo\n', {
       documentVector: documentStateVector(seen.document),
     }),
   );
   const later = typeInto(seen.document, 'one\ntwo\nthree\n');
-  await store.appendNoteWork(account, workspace, fileId, later.update, 'c-1');
+  await store.appendNoteWork(
+    account,
+    workspace,
+    fileId,
+    1,
+    later.update,
+    'c-1',
+  );
   const cached = await store.readCachedNote(account, workspace, fileId);
   assert.equal(cached?.text, 'one\ntwo\nthree\n');
   // A draft that saw a change the document lacks keeps its own text: its
@@ -1887,6 +1920,250 @@ await test('a draft that lags its document opens with the text of the document',
     (await store.readCachedNote(account, workspace, fileId))?.text,
     'plain\n',
   );
+  await store.close();
+});
+
+/** A note that the server holds, cached on this device with its document. */
+async function cacheHeldNote(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+  fileId: string,
+  text: string,
+): Promise<Uint8Array> {
+  const head = startDocument(text);
+  await store.cacheServerNote(account, workspace, {
+    fileId,
+    path: 'notes/one.md',
+    kind: 'note',
+    revisionId: 'rev-1',
+    digest: await contentDigest(text),
+    text,
+    document: head,
+    epoch: 1,
+  });
+  return head;
+}
+
+/** One feed page that brings the work of another writer for one note. */
+async function feedPage(
+  store: LocalStore,
+  account: string,
+  workspace: string,
+  fileId: string,
+  text: string,
+  document:
+    | { readonly kind: 'document'; readonly bytes: Uint8Array }
+    | { readonly kind: 'update'; readonly bytes: Uint8Array },
+  epoch: number,
+  cursor: string,
+): Promise<void> {
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId,
+          revisionId: `rev-${cursor}`,
+          path: 'notes/one.md',
+          fileKind: 'note',
+          document: { ...document, epoch },
+          deleted: false,
+          digest: await contentDigest(text),
+          text,
+        },
+        purgedFileId: null,
+      },
+    ],
+    cursor,
+  );
+}
+
+await test('work of an old generation is refused and the note stays readable', async () => {
+  // Record 0183. An editor that kept typing after a new generation of its
+  // document arrived appended work that named the old one, and the store
+  // labelled it with the new one. Every read and write of the note then
+  // failed as corrupt: the note did not open, and each feed page that named
+  // it failed, so the sync of the workspace stopped.
+  const backend = createBackend('document-generation');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const head = await cacheHeldNote(store, account, workspace, fileId, 'one\n');
+  const first = typeInto(head, 'one\ntwo\n');
+  await store.appendNoteWork(account, workspace, fileId, 1, first.update, 'c');
+  // A new generation arrives while the editor holds the old one.
+  const reset = startDocument('reset\n');
+  await feedPage(
+    store,
+    account,
+    workspace,
+    fileId,
+    'reset\n',
+    { kind: 'document', bytes: reset },
+    2,
+    '2',
+  );
+  const later = typeInto(first.document, 'one\ntwo\nthree\n');
+  await assert.rejects(
+    store.appendNoteWork(account, workspace, fileId, 1, later.update, 'c'),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  await assert.rejects(
+    store.mergeNoteWork(account, workspace, fileId, 1, later.document),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  // A version of the editor would claim the text of the new generation as
+  // its own work, so it is refused and writes nothing.
+  await assert.rejects(
+    store.checkpoint(
+      draftOf(account, workspace, fileId, 'c', 'one\ntwo\nthree\n', {
+        baseRevisionId: 'rev-1',
+      }),
+      null,
+      { kind: 'document', epoch: 1 },
+    ),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  assert.deepEqual(await store.pending(account, workspace), []);
+  // The note opens, and the next feed page applies.
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, 'reset\n');
+  assert.equal(cached?.document?.epoch, 2);
+  const more = typeInto(reset, 'reset\nmore\n');
+  await feedPage(
+    store,
+    account,
+    workspace,
+    fileId,
+    'reset\nmore\n',
+    { kind: 'update', bytes: more.update },
+    2,
+    '3',
+  );
+  const read = await store.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    read === null ? null : readDocumentText(read.bytes),
+    'reset\nmore\n',
+  );
+  // Work of the new generation appends as before.
+  const typed = typeInto(more.document, 'reset\nmore\nnew\n');
+  await store.appendNoteWork(account, workspace, fileId, 2, typed.update, 'd');
+  assert.equal(
+    (await store.readCachedNote(account, workspace, fileId))?.text,
+    'reset\nmore\nnew\n',
+  );
+  await store.close();
+});
+
+await test('an update that the document cannot take never makes the note unreadable', async () => {
+  // Record 0183. An append that failed left the appends after it with work
+  // that names what it wrote, and an earlier release stored them. The fold
+  // refused the whole row, so the note did not open and every feed page that
+  // named it failed. The fold now leaves such an update out, and the next
+  // write of the row removes it.
+  const backend = createBackend('document-orphan');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const head = await cacheHeldNote(store, account, workspace, fileId, 'one\n');
+  const good = typeInto(head, 'one\ntwo\n');
+  await store.appendNoteWork(account, workspace, fileId, 1, good.update, 'c');
+  // The append of this work failed, so the store never held it.
+  const failed = typeInto(good.document, 'one\ntwo\nthree\n');
+  const orphan = typeInto(failed.document, 'one\ntwo\nthree\nfour\n');
+  await withRawDatabase(backend, async (tables) => {
+    for (const [updateId, bytes] of [
+      ['orphan', orphan.update],
+      ['malformed', new Uint8Array([255, 1, 2])],
+    ] as const)
+      await tables.documentUpdates.put({
+        serverOrigin: origin,
+        accountId: account,
+        workspaceId: workspace,
+        fileId,
+        updateId,
+        epoch: 1,
+        bytes,
+      });
+  });
+  const reopened = await openLocalStore(origin, backend.options());
+  const read = await reopened.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    read === null ? null : readDocumentText(read.bytes),
+    'one\ntwo\n',
+  );
+  assert.equal(
+    (await reopened.readCachedNote(account, workspace, fileId))?.text,
+    'one\ntwo\n',
+  );
+  // A feed page that names the note applies, keeps the good work, and
+  // removes the updates that never apply.
+  const other = typeInto(head, 'zero\none\n');
+  await feedPage(
+    reopened,
+    account,
+    workspace,
+    fileId,
+    'zero\none\n',
+    { kind: 'update', bytes: other.update },
+    1,
+    '2',
+  );
+  const after = await reopened.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    after === null ? null : readDocumentText(after.bytes),
+    'zero\none\ntwo\n',
+  );
+  await withRawDatabase(backend, async (tables) => {
+    assert.deepEqual(await tables.documentUpdates.toArray(), []);
+  });
+  await reopened.close();
+  await store.close();
+});
+
+await test('a whole document of the server applies over keys that build on local work', async () => {
+  // Record 0183. A snapshot writes the whole document of the server over
+  // the row. A key of the open editor that built on unsent local work then
+  // named items that the row no longer held, and the snapshot failed as
+  // corrupt each time, so the sync stopped. The editor writes its whole
+  // document again when it reads the row (note-work.test.ts).
+  const backend = createBackend('document-snapshot-under-keys');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const head = await cacheHeldNote(store, account, workspace, fileId, 'one\n');
+  const local = typeInto(head, 'one\nlocal\n');
+  await store.mergeNoteWork(account, workspace, fileId, 1, local.update);
+  const key = typeInto(local.document, 'one\nlocal\nkey\n');
+  await store.appendNoteWork(account, workspace, fileId, 1, key.update, 'c');
+  const served = typeInto(head, 'one\nserver\n');
+  await feedPage(
+    store,
+    account,
+    workspace,
+    fileId,
+    'one\nserver\n',
+    { kind: 'document', bytes: served.document },
+    1,
+    '2',
+  );
+  const read = await store.readNoteDocument(account, workspace, fileId);
+  assert.equal(
+    read === null ? null : readDocumentText(read.bytes),
+    'one\nserver\n',
+  );
+  // The whole document of the editor brings the local work back.
+  await store.mergeNoteWork(account, workspace, fileId, 1, key.document);
+  const repaired = await store.readNoteDocument(account, workspace, fileId);
+  const text = repaired === null ? '' : readDocumentText(repaired.bytes);
+  // The two writers inserted at one place, so either may come first.
+  assert.ok(text.includes('server\n'), text);
+  assert.ok(text.includes('local\nkey\n'), text);
   await store.close();
 });
 
@@ -1914,7 +2191,7 @@ await test('keys that no draft holds open with the text of the document', async 
   const read = await store.readNoteDocument(account, workspace, fileId);
   assert.ok(read !== null);
   const key = typeInto(read.bytes, 'one\ntwo\n');
-  await store.appendNoteWork(account, workspace, fileId, key.update, 'c-1');
+  await store.appendNoteWork(account, workspace, fileId, 1, key.update, 'c-1');
   const reopened = await openLocalStore(origin, backend.options());
   const cached = await reopened.readCachedNote(account, workspace, fileId);
   assert.equal(cached?.text, 'one\ntwo\n');
@@ -3676,6 +3953,7 @@ await test('a store of release 0.5.0 keeps its drafts and reads a snapshot again
     account,
     workspace,
     fileId,
+    1,
     encodeDocumentDelta(ahead.value.document, documentStateVector(held.bytes)),
   );
   await store.close();
@@ -4032,6 +4310,7 @@ async function writeIntoDocument(
     key.account,
     key.workspace,
     key.fileId,
+    1,
     encodeDocumentDelta(
       written.value.document,
       documentStateVector(held.bytes),
@@ -4066,7 +4345,10 @@ await test('a checkpoint of an open note freezes its document and writes no text
     // The editor still shows the box unchecked and saves.
     const lagging = { ...made, sequence: 2 };
     await store.saveDraft(lagging);
-    const entry = await store.checkpoint(lagging, 'Saved', 'document');
+    const entry = await store.checkpoint(lagging, 'Saved', {
+      kind: 'document',
+      epoch: 1,
+    });
     assert.ok(entry !== null, 'the checkpoint must queue a mutation');
 
     const held = await store.readNoteDocument(
@@ -4107,7 +4389,7 @@ await test('a checkpoint of an open note refuses a note whose document is not he
     });
     await store.saveDraft(draft);
     await assert.rejects(
-      store.checkpoint(draft, null, 'document'),
+      store.checkpoint(draft, null, { kind: 'document', epoch: 1 }),
       (failure: unknown) =>
         isLocalStorageError(failure) && failure.kind === 'stale',
     );

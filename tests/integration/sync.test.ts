@@ -1025,6 +1025,7 @@ async function editorWrites(
     ownerAccountId,
     workspaceId,
     fileId,
+    1,
     encodeDocumentDelta(
       written.value.document,
       documentStateVector(held.bytes),
@@ -1071,7 +1072,10 @@ await test('a device whose open text lags its document never adds a task box', a
     );
     await storeA.saveDraft(checked);
     assert.ok(
-      (await storeA.checkpoint(checked, null, 'document')) !== null,
+      (await storeA.checkpoint(checked, null, {
+        kind: 'document',
+        epoch: 1,
+      })) !== null,
       'device A queues its toggle',
     );
     await drain(storeA, 'engine-tasks-a-send');
@@ -1102,14 +1106,17 @@ await test('a device whose open text lags its document never adds a task box', a
       0,
     );
     await storeB.saveDraft(lagging);
-    await storeB.checkpoint(lagging, null, 'document');
+    await storeB.checkpoint(lagging, null, { kind: 'document', epoch: 1 });
 
     // Device A unchecks the box before it sees any save of device B.
     await editorWrites(storeA, file.fileId, '- [ ] task\n');
     const unchecked = { ...checked, text: '- [ ] task\n', sequence: 2 };
     await storeA.saveDraft(unchecked);
     assert.ok(
-      (await storeA.checkpoint(unchecked, null, 'document')) !== null,
+      (await storeA.checkpoint(unchecked, null, {
+        kind: 'document',
+        epoch: 1,
+      })) !== null,
       'device A queues its second toggle',
     );
 
@@ -1154,7 +1161,8 @@ await test('two toggles of one box that cross keep one state, the last one', asy
     );
     await store.saveDraft(draft);
     assert.ok(
-      (await store.checkpoint(draft, null, 'document')) !== null,
+      (await store.checkpoint(draft, null, { kind: 'document', epoch: 1 })) !==
+        null,
       `${workingCopyId} queues its toggle`,
     );
   };
@@ -1309,6 +1317,7 @@ await test('an open note keeps the work that arrives while it is edited', async 
       ownerAccountId,
       workspaceId,
       file.fileId,
+      1,
       encodeDocumentDelta(
         typed.value.document,
         documentStateVector(held.bytes),

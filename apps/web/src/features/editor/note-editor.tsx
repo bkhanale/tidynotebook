@@ -31,10 +31,12 @@ import {
   saveCheckpointMessage,
   type Draft,
   type LocalStore,
+  type NoteDocument,
   type QueueEntry,
 } from '@notesapp/sync';
 import {
   createEditor,
+  documentHolds,
   openBoundNote,
   plainTextContext,
   runFormatAction,
@@ -102,6 +104,7 @@ import { createCoalescedRead } from '../../lib/coalesced-read.ts';
 import { formatPaletteRows } from '../../lib/format-toolbar.ts';
 import {
   headToAdopt,
+  openedGeneration,
   remoteChangeWritesDraft,
   storedDocumentStep,
 } from './head-replaced.ts';
@@ -148,15 +151,16 @@ export type NoteEditorProps = {
   readonly baseRevisionId: string | null;
   readonly initialText: string;
   /**
-   * The document of the note as this device holds it, or `null` for a note it
-   * has not received yet (record 0081).
+   * The document of the note as this device holds it, with its generation,
+   * or `null` for a note it has not received yet (record 0081).
    *
    * The editor binds to this document, so the text a person edits and the
    * text of the note are one value. Work from another device joins the open
    * editor instead of waiting for a reload, and a save carries only the work
-   * of this device.
+   * of this device. Every write of the editor names the generation, so its
+   * work never enters a document of another one (record 0183).
    */
-  readonly initialDocument?: Uint8Array | null | undefined;
+  readonly initialDocument?: NoteDocument | null | undefined;
   readonly initialPath: string;
   readonly initialWorkingCopyId?: string | undefined;
   readonly initialSequence?: number | undefined;
@@ -279,8 +283,8 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // the screen reads the note again, and this editor writes nothing more
   // (record 0179).
   const reopeningRef = useRef(false);
-  // The generation of the document that this editor joined first.
-  const openedEpochRef = useRef<number | null>(null);
+  // The generation of the document that this editor holds (record 0183).
+  const openedEpochRef = useRef(openedGeneration(initialDocument));
   const { resolved } = useTheme();
   const spellCheck = useSpellCheck();
   const spellCheckRef = useRef(spellCheck);
@@ -332,7 +336,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // not hold yet becomes local work of this device, so nothing is lost while
   // a device moves from a text draft to a document.
   const liveDocument = useMemo(
-    () => openBoundNote(initialDocument, initialText),
+    () => openBoundNote(initialDocument?.bytes ?? null, initialText),
     [initialDocument, initialText],
   );
   const sessionRef = useRef(liveDocument);
@@ -518,6 +522,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
         wholeWork: () => sessionRef.current.work(),
         stateVector: () =>
           releasedRef.current ? null : sessionRef.current.stateVector(),
+        holds: documentHolds,
         sequence: () => sequenceRef.current,
         draft: (deleted) => buildDraftRef.current(deleted),
         started: () => startWrittenRef.current,
@@ -527,6 +532,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
             current.accountId,
             current.workspaceId,
             current.fileId,
+            openedEpochRef.current,
             work,
             current.workingCopyId,
           );
@@ -537,16 +543,16 @@ const NoteEditorBody = memo(function NoteEditorBody({
             current.accountId,
             current.workspaceId,
             current.fileId,
+            openedEpochRef.current,
             work,
           );
         },
         saveDraft: (draft) => live.current.store.saveDraft(draft),
         checkpoint: (draft) =>
-          live.current.store.checkpoint(
-            draft,
-            saveCheckpointMessage,
-            'document',
-          ),
+          live.current.store.checkpoint(draft, saveCheckpointMessage, {
+            kind: 'document',
+            epoch: openedEpochRef.current,
+          }),
         draftOwed: () => {
           void saveDraftNow.current();
         },
@@ -583,6 +589,9 @@ const NoteEditorBody = memo(function NoteEditorBody({
   joinStoredWork.current = async (): Promise<void> => {
     const current = live.current;
     const bound = sessionRef.current;
+    // The changes that the store took before this read, which the stored
+    // document must hold (record 0183).
+    const mark = noteWork.takenMark();
     try {
       const stored = await current.store.readNoteDocument(
         current.accountId,
@@ -595,13 +604,18 @@ const NoteEditorBody = memo(function NoteEditorBody({
         storedEpoch: stored.epoch,
         typed: sequenceRef.current !== initialSequence,
       });
-      openedEpochRef.current ??= stored.epoch;
       if (step === 'join') {
+        // A snapshot can replace the row under work of this editor. The
+        // next version then writes the whole document again.
+        noteWork.readStored(stored.bytes, mark);
         // Another device, a restore or a snapshot moved the note: the one
         // editor takes the work and keeps its caret and scroll (record 0179).
         bound.join(stored.bytes);
         return;
       }
+      // A new generation holds none of the work of this editor. The store
+      // refuses each write of it, and the draft keeps its text (record 0183).
+      if (step === 'keep') noteWork.storeLacksWork();
       if (step === 'reopen' && !reopeningRef.current) {
         reopeningRef.current = true;
         callbacks.current.onHeadReplaced?.();
@@ -1039,6 +1053,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
           current.accountId,
           current.workspaceId,
           current.fileId,
+          openedEpochRef.current,
           start,
         )
         .then(

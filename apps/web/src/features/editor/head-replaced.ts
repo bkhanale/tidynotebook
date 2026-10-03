@@ -15,7 +15,7 @@
  * The rules are here and not in the screen, because a rule the screen writes
  * is a rule no test can read.
  */
-import type { FileSaveSnapshot } from '@notesapp/sync';
+import type { FileSaveSnapshot, NoteDocument } from '@notesapp/sync';
 
 /** What one open editor knows about the note it holds. */
 export type OpenNote = {
@@ -57,22 +57,40 @@ export function headToAdopt(open: OpenNote): string | null {
 }
 
 /**
+ * The generation of the document that an editor opens from (record 0183).
+ *
+ * It is the generation that the loader read with the text, never the one of
+ * a later read: a new generation that arrives between the two would join the
+ * bytes of one generation into another, and the text would show twice. A
+ * note with no document yet is one that this device starts, which the store
+ * writes as generation 1.
+ */
+export function openedGeneration(
+  document: NoteDocument | null | undefined,
+): number {
+  return document?.epoch ?? 1;
+}
+
+/**
  * What the editor does with the stored document of its note.
  *
  * `join` takes the work it lacks, which is every change of the same
  * generation. `reopen` reads the note again with a new editor, for a new
  * generation and an editor with no key of this session. `keep` leaves the
- * editor as it is: a new generation under typed work, which the save then
- * meets as a refusal that record 0084 recovers.
+ * editor as it is: a new generation under typed work. The store refuses each
+ * write of that work, and the draft keeps its text for the next open of the
+ * note (record 0183).
  */
 export function storedDocumentStep(input: {
-  /** The generation the editor joined first, or `null` before any read. */
-  readonly openedEpoch: number | null;
+  /**
+   * The generation of the document that the editor holds: the one that the
+   * loader read, so a generation that arrived before the first join is new.
+   */
+  readonly openedEpoch: number;
   readonly storedEpoch: number;
   readonly typed: boolean;
 }): 'join' | 'reopen' | 'keep' {
-  if (input.openedEpoch === null || input.openedEpoch === input.storedEpoch)
-    return 'join';
+  if (input.openedEpoch === input.storedEpoch) return 'join';
   return input.typed ? 'keep' : 'reopen';
 }
 

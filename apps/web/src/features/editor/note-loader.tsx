@@ -238,6 +238,8 @@ export function NoteEditorLoader({
       const servedDocument = head?.document ?? null;
       const paired =
         kept !== null && !kept.deleted && kept.document !== null ? kept : null;
+      // The generation goes with the document, so the editor names the one
+      // that it opened from in each write (record 0183).
       setStatus({
         kind: 'ready',
         path: result.data.path,
@@ -245,8 +247,13 @@ export function NoteEditorLoader({
         headRevisionId: result.data.headRevisionId,
         sequence: 0,
         document:
-          paired?.document?.bytes ??
-          (servedDocument === null ? null : bytesOfBase64(servedDocument)),
+          paired?.document ??
+          (servedDocument === null
+            ? null
+            : {
+                bytes: bytesOfBase64(servedDocument),
+                epoch: head?.epoch ?? 1,
+              }),
       });
     }
     void load();

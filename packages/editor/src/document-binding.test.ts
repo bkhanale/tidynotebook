@@ -15,6 +15,7 @@ import { editorBinding } from '@notesapp/note-document/editor-bridge';
 import { ySyncAnnotation, ySyncFacet } from 'y-codemirror.next';
 import {
   bindDocument,
+  documentHolds,
   holdLocalWork,
   isRemoteTransaction,
   openBoundNote,
@@ -323,5 +324,24 @@ await test('a document of a new generation cannot join, which is why it reopens'
   const note = openBoundNote(startDocument('# Note\n'), '# Note\n');
   note.join(startDocument('# Note\n'));
   assert.notEqual(note.text(), '# Note\n');
+  note.release();
+});
+
+await test('a stored document holds the work of a vector only with every insertion', () => {
+  // Record 0183. A snapshot can replace the stored row with a document that
+  // lacks keys the editor appended, and the editor then writes its whole
+  // document again.
+  const note = openBoundNote(startDocument('one\n'), 'one\n');
+  const before = note.work();
+  const typed = replaceDocumentText(before, 'one\ntwo\n');
+  assert.ok(typed.ok);
+  note.join(typed.value.document);
+  const vector = note.stateVector();
+  assert.equal(documentHolds(note.work(), vector), true);
+  assert.equal(documentHolds(before, vector), false);
+  // A document with more work than the vector names holds it too.
+  const other = replaceDocumentText(note.work(), 'zero\none\ntwo\n');
+  assert.ok(other.ok);
+  assert.equal(documentHolds(other.value.document, vector), true);
   note.release();
 });

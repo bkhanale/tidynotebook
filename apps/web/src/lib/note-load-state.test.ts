@@ -87,7 +87,7 @@ await test('a note that this device holds opens with its content', () => {
     text: 'next text',
     headRevisionId: 'next-revision',
     sequence: 0,
-    document: new Uint8Array([1]),
+    document: { bytes: new Uint8Array([1]), epoch: 1 },
   };
 
   assert.equal(noteLoadStatusFor(previous, current, held), held);

@@ -12,10 +12,12 @@ import {
   foldTextIntoDocument,
   freezeDocument,
   frozenText,
+  generationOf,
   pendingDocumentUpdates,
   pendingUpdatesPassBound,
   readDocumentRow,
   readStoredDocumentRow,
+  refuseOtherGeneration,
   writeDocumentRow,
   type DocumentKey,
 } from './documents.ts';
@@ -87,15 +89,17 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
   });
 
   /**
-   * Merges one piece of work into the stored document of a note, inside the
-   * transaction of the caller. The pending updates of the note join the
-   * written row.
+   * Merges one piece of work of generation `epoch` into the stored document
+   * of a note, inside the transaction of the caller. The pending updates of
+   * the note join the written row.
    */
   const mergeWork = async (
     key: DocumentKey,
+    epoch: number,
     update: Uint8Array,
   ): Promise<NoteDocument> => {
     const row = await readStoredDocumentRow(tables, key);
+    refuseOtherGeneration(row, epoch);
     if (row === null) {
       // Work of an editor that started its own document for a note that the
       // server holds would start that note from Markdown on this device
@@ -125,7 +129,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
     const written = await writeDocumentRow(tables, {
       ...key,
       bytes: applied.value.document,
-      epoch: row?.epoch ?? 1,
+      epoch: generationOf(row),
       // The work of this device is not accepted work, so the state the
       // server holds does not move (record 0085).
       appliedVector: row?.appliedVector ?? documentStateVector(before),
@@ -148,7 +152,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
     // which can lag the document (record 0133).
     const revisionText = draft.deleted
       ? ''
-      : source === 'document'
+      : source !== 'text'
         ? await guard('creating a checkpoint', () =>
             db.transaction(
               'r',
@@ -271,8 +275,14 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
           // second tab that wrote first keeps its work (records 0081, 0085).
           const folded = draft.deleted
             ? { row: null, save: await deletionSave(tables, key, noteExists) }
-            : source === 'document'
-              ? await freezeDocument(tables, key, revisionText, noteExists)
+            : source !== 'text'
+              ? await freezeDocument(
+                  tables,
+                  key,
+                  revisionText,
+                  noteExists,
+                  source.epoch,
+                )
               : await foldTextIntoDocument(
                   tables,
                   key,
@@ -463,6 +473,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
       accountId: string,
       workspaceId: string,
       fileId: string,
+      epoch: number,
       update: Uint8Array,
       writer: string,
     ): Promise<void> {
@@ -477,13 +488,17 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             // whole document, which also checks that the server does not
             // hold the note (record 0084).
             if (row === null) {
-              await mergeWork(key, update);
+              await mergeWork(key, epoch, update);
               return;
             }
+            // Work that builds on another generation would name items that
+            // the stored document lacks, and every read of the note would
+            // meet it (record 0183).
+            refuseOtherGeneration(row, epoch);
             await tables.documentUpdates.put({
               ...key,
               updateId: newId(),
-              epoch: row.epoch,
+              epoch,
               bytes: update,
             });
             const pending = await pendingDocumentUpdates(tables, key);
@@ -502,6 +517,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
       accountId: string,
       workspaceId: string,
       fileId: string,
+      epoch: number,
       update: Uint8Array,
     ): Promise<NoteDocument> {
       const key = { serverOrigin, accountId, workspaceId, fileId };
@@ -509,7 +525,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
         db.transaction(
           'rw',
           [tables.documents, tables.documentUpdates, tables.acceptedFiles],
-          () => mergeWork(key, update),
+          () => mergeWork(key, epoch, update),
         ),
       );
       publish({ accountId, workspaceId, fileId, kind: 'document' });

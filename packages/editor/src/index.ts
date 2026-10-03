@@ -123,6 +123,7 @@ export {
 } from './widgets.ts';
 export {
   bindDocument,
+  documentHolds,
   openBoundNote,
   type BoundNote,
   isRemoteChange,
