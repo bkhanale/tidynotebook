@@ -210,6 +210,7 @@ and needs no record.
 | [0176](0176-a-save-waits-for-no-read.md)                                              | A save waits for no read                                                        |
 | [0177](0177-the-first-screen-loads-no-editor.md)                                      | The first screen loads no editor                                                |
 | [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
+| [0179](0179-an-open-note-follows-a-new-head-in-its-one-editor.md)                     | An open note follows a new head in its one editor                               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -733,6 +734,11 @@ screen (issue 266).
 Record 0178 follows record 0170. The code generator writes a typed address
 for an operation that a browser reads itself, and the export of a workspace
 downloads through it in every browser, with no blob.
+
+Record 0179 keeps the one editor of an open note when another device, a
+restore or a snapshot moves its head: the bound document joins the new text,
+and only a new generation of the document reads the note again. It refines
+record 0073.
 
 Records 0171 to 0174 follow
 [design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens
