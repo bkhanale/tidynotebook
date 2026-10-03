@@ -212,6 +212,7 @@ and needs no record.
 | [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
 | [0179](0179-an-open-note-follows-a-new-head-in-its-one-editor.md)                     | An open note follows a new head in its one editor                               |
 | [0180](0180-a-start-that-fails-shows-the-application-error-screen.md)                 | A start that fails shows the application error screen                           |
+| [0183](0183-the-work-of-an-open-editor-names-its-generation.md)                       | The work of an open editor names its generation                                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -745,6 +746,12 @@ Record 0180 removes the white page of a start that fails. A load that the
 worker controls starts the entry with no preload links, and a failure before
 the first render shows the application error screen of record 0161 with
 Reload. It refines records 0044 and 0161.
+
+Record 0183 makes each write of open editor work name the generation of its
+document, so the store refuses work of another generation. The appends of an
+editor run in order and stop after a failure until the whole document is
+written, and a fold leaves out an update that cannot apply instead of making
+the note unreadable. It refines records 0175 and 0179.
 
 Records 0171 to 0174 follow
 [design 022](../design/022-markdown-of-other-tools.md). Record 0171 opens
