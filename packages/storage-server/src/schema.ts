@@ -1266,6 +1266,9 @@ export const streamReservations = pgTable(
  * An archive job holds one row while it runs and renews its expiry, so a
  * process that stops leaves a row that expires. The functions of migration
  * 0028 count the rows of an account and of the installation under one lock.
+ * `disk_bytes` is the most that the job may write to the storage volume, so
+ * the next import counts the room that the running ones may still take
+ * (migration 0029).
  */
 export const archiveJobs = pgTable(
   'archive_jobs',
@@ -1275,10 +1278,14 @@ export const archiveJobs = pgTable(
       .notNull()
       .references(() => accounts.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    diskBytes: bigint('disk_bytes', { mode: 'bigint' })
+      .notNull()
+      .default(sql`0`),
   },
   (table) => [
     index('archive_jobs_account_idx').on(table.accountId),
     index('archive_jobs_expiry_idx').on(table.expiresAt),
+    check('archive_jobs_disk_bytes_check', sql`${table.diskBytes} >= 0`),
   ],
 );
 

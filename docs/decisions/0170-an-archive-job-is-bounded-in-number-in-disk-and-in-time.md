@@ -27,9 +27,13 @@ committed. Record 0121 puts every limit of the server in PostgreSQL.
   streams the planned revisions, which never change, with no file on the disk.
   `HEAD` plans and sends no body.
 - An import refuses a body longer than its bound from `Content-Length` before
-  it reads it, and a body that the free space of the storage volume, less
-  `archiveDiskReserveBytes`, cannot hold with 507 `storage_full`. A body that
-  stops ends the import and closes its file.
+  it reads it. It then reserves its job with the length of its body, or the
+  bound when the body states none, and refuses with 507 `storage_full` a body
+  that the free space of the storage volume, less `archiveDiskReserveBytes`
+  and less the bodies that the other running jobs stated, cannot hold. The
+  reservation reads those bodies under its lock, so of two imports that start
+  together the later one counts the earlier one. A body that stops ends the
+  import and closes its file.
 - An import checks every entry before its first commit: the paths in NFC and
   free, each note under the limits of the grammar, each image, and the room of
   the owner. Only a failure of the service stops it after its first commit,
@@ -45,5 +49,6 @@ needs no state beyond the reservation.
 - One account runs one archive job, and an installation a few, so the disk and
   the memory of the jobs stay bounded.
 - A large export starts its download at once and needs no disk of the server.
-- `tests/integration/export.test.ts` proves the plan, the refusals, the stop of
-  a body and the checks before the first commit.
+- `tests/integration/export.test.ts` proves the plan, the refusals, the room
+  beside a running import, the stop of a body and the checks before the first
+  commit.

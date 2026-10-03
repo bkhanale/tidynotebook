@@ -12,9 +12,11 @@
  * Record 0170 bounds the rest:
  *
  * - One import of an account and a few of the installation run at once.
- * - A body longer than the bound is refused from `Content-Length`, and a body
- *   that the free space less `archiveDiskReserveBytes` cannot hold is refused
- *   with 507, before a byte of it is read.
+ * - A body longer than the bound is refused from `Content-Length`. Then the
+ *   import reserves its job with the length of its body, and a body that the
+ *   free space, less `archiveDiskReserveBytes` and less the bodies of the
+ *   other running imports, cannot hold is refused with 507, before a byte of
+ *   it is read.
  * - A body that stops ends the import, and its file closes.
  * - Every entry is checked before the first commit: the paths in NFC, each
  *   free and each once, each note under the limits of the grammar, each
@@ -141,35 +143,52 @@ function busboyHeaders(request: FastifyRequest): { 'content-type': string } {
  * Why a body is refused before it is read, or `null` (record 0170).
  *
  * A body longer than the bound is too large. A body that the storage volume,
- * less `archiveDiskReserveBytes`, cannot hold has no room. A body with no
- * length could be as long as the bound, so the volume must hold the bound for
- * it.
+ * less `archiveDiskReserveBytes` and less `otherJobBytes`, cannot hold has no
+ * room. A body with no length could be as long as the bound, so the volume
+ * must hold the bound for it.
+ *
+ * `otherJobBytes` is what the other running archive jobs stated when they
+ * reserved, with the part that they already wrote and that the free space
+ * already lacks. So the rule can refuse a body that fits, but two imports
+ * never fill the volume together.
  */
 export function bodyRoomRefusal(
   statedBytes: number | null,
   bodyBytes: number,
   freeBytes: number,
+  otherJobBytes: number,
 ): 'too_large' | 'no_room' | null {
   if (statedBytes !== null && statedBytes > bodyBytes) return 'too_large';
-  const wanted = (statedBytes ?? bodyBytes) + archiveDiskReserveBytes;
+  const wanted =
+    (statedBytes ?? bodyBytes) + archiveDiskReserveBytes + otherJobBytes;
   return freeBytes < wanted ? 'no_room' : null;
 }
 
-/** Refuses a body before it is read, by the rule of `bodyRoomRefusal`. */
-async function checkBodyRoom(
-  request: FastifyRequest,
-  folder: string,
-  bodyBytes: number,
-): Promise<void> {
+/** The length that a request states for its body, or `null`. */
+function statedLength(request: FastifyRequest): number | null {
   const stated = Number(request.headers['content-length']);
-  const known = Number.isSafeInteger(stated) && stated >= 0 ? stated : null;
-  if (known !== null && known > bodyBytes) throw archiveTooLarge();
+  return Number.isSafeInteger(stated) && stated >= 0 ? stated : null;
+}
+
+/**
+ * Refuses a body before it is read, by the rule of `bodyRoomRefusal`.
+ *
+ * It runs after the job is reserved, so the bodies of the other running
+ * imports are in `otherJobBytes`.
+ */
+async function checkBodyRoom(
+  folder: string,
+  statedBytes: number | null,
+  bodyBytes: number,
+  otherJobBytes: number,
+): Promise<void> {
   await mkdir(folder, { recursive: true });
   const volume = await statfs(folder);
   const refusal = bodyRoomRefusal(
-    known,
+    statedBytes,
     bodyBytes,
     volume.bavail * volume.bsize,
+    otherJobBytes,
   );
   if (refusal === 'too_large') throw archiveTooLarge();
   if (refusal === 'no_room')
@@ -707,13 +726,22 @@ export function createImportHandlers(
       );
       if (grant === undefined || !grant.actions.includes('write'))
         throw new ForbiddenError();
-      await checkBodyRoom(
-        request,
-        dirname(attachments.temporaryPath('import')),
-        limits.importBodyBytes,
+      const stated = statedLength(request);
+      if (stated !== null && stated > limits.importBodyBytes)
+        throw archiveTooLarge();
+      const lease = await reserveArchiveJob(
+        jobs,
+        reply,
+        actor.accountId,
+        stated ?? limits.importBodyBytes,
       );
-      const lease = await reserveArchiveJob(jobs, reply, actor.accountId);
       try {
+        await checkBodyRoom(
+          dirname(attachments.temporaryPath('import')),
+          stated,
+          limits.importBodyBytes,
+          lease.otherDiskBytes,
+        );
         const handle = await openArchiveFile(attachments, 'import');
         try {
           const size = await receiveArchive(

@@ -53,12 +53,17 @@ export type CoordinationHandle = {
   /**
    * Reserves one archive job of an account, and answers `reserved`, or the
    * limit that refused it: `account` or `installation` (record 0170).
+   *
+   * @param diskBytes the most bytes that the job may write to the storage
+   *   volume. A reserved job answers the sum of this value over every other
+   *   live job, read under the lock of the reservation (migration 0029).
    */
   reserveArchiveJob(
     id: string,
     accountId: string,
     ttlMs: number,
     limits: { readonly account: number; readonly installation: number },
+    diskBytes: number,
   ): Promise<ArchiveJobReservation>;
   /** Moves the expiry of a job, and answers false when it expired. */
   renewArchiveJob(id: string, ttlMs: number): Promise<boolean>;
@@ -68,13 +73,31 @@ export type CoordinationHandle = {
   close(): Promise<void>;
 };
 
-/** The answer of one reservation of an archive job. */
-export type ArchiveJobReservation = 'reserved' | 'account' | 'installation';
+/**
+ * The answer of one reservation of an archive job.
+ *
+ * A reserved job carries `otherDiskBytes`, the disk that every other live job
+ * may still write, so an import counts it before it takes a body.
+ */
+export type ArchiveJobReservation =
+  | { readonly state: 'reserved'; readonly otherDiskBytes: number }
+  | { readonly state: 'account' | 'installation' };
 
-/** Reads the answer of `notesapp_reserve_archive_job`. */
-function archiveReservation(value: unknown): ArchiveJobReservation {
-  if (value === 'reserved' || value === 'account' || value === 'installation')
-    return value;
+/** Reads one row of `notesapp_reserve_archive_job`. */
+export function archiveReservation(row: {
+  readonly state?: unknown;
+  readonly other_disk_bytes?: unknown;
+}): ArchiveJobReservation {
+  const { state } = row;
+  if (state === 'account' || state === 'installation') return { state };
+  // PostgreSQL sends a bigint as a decimal string.
+  const bytes =
+    typeof row.other_disk_bytes === 'string' &&
+    /^\d+$/.test(row.other_disk_bytes)
+      ? Number(row.other_disk_bytes)
+      : Number.NaN;
+  if (state === 'reserved' && Number.isSafeInteger(bytes))
+    return { state, otherDiskBytes: bytes };
   throw new OperationalError(
     'unexpected',
     'notesapp: the archive job reservation answered an unknown state.',
@@ -206,18 +229,27 @@ export function openCoordination(
       return result.rows[0]?.removed ?? 0;
     },
 
-    async reserveArchiveJob(id, accountId, ttlMs, limits) {
-      const result = await pool.query<{ state: unknown }>(
-        'select notesapp_reserve_archive_job($1, $2, $3, $4, $5) as state',
+    async reserveArchiveJob(id, accountId, ttlMs, limits, diskBytes) {
+      if (!Number.isSafeInteger(diskBytes) || diskBytes < 0)
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the disk of an archive job is not a byte count.',
+        );
+      const result = await pool.query<{
+        state: unknown;
+        other_disk_bytes: unknown;
+      }>(
+        'select state, other_disk_bytes from notesapp_reserve_archive_job($1, $2, $3, $4, $5, $6)',
         [
           id,
           accountId,
           Math.max(1, Math.round(ttlMs)),
           limits.account,
           limits.installation,
+          diskBytes,
         ],
       );
-      return archiveReservation(result.rows[0]?.state);
+      return archiveReservation(result.rows[0] ?? {});
     },
 
     async renewArchiveJob(id, ttlMs) {

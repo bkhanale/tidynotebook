@@ -150,9 +150,12 @@ export function createExportHandlers(
   attachments: AttachmentStore,
   jobs: ArchiveJobs,
 ): HandlerMap {
-  /** Reserves the archive job of one account, or refuses it. */
+  /**
+   * Reserves the archive job of one account, or refuses it. An export
+   * streams from the database and writes nothing to the storage volume.
+   */
   const reserveJob = (reply: FastifyReply, accountId: string) =>
-    reserveArchiveJob(jobs, reply, accountId);
+    reserveArchiveJob(jobs, reply, accountId, 0);
 
   /** Every live file of the workspace with the size of its head. */
   async function planArchive(

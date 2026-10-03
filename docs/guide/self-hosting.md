@@ -463,7 +463,8 @@ An import takes a zip file of up to 4 GiB, and the whole file must arrive within
 raise the value for the time of the import. An import keeps its zip file on the
 storage volume while it runs, and the file goes when the request ends, also
 when the sender stops. The server refuses an import that the free space of the
-volume, less 512 MiB, cannot hold. An export writes no file on the server: it
+volume, less 512 MiB and less the zip files of the other imports that run now,
+cannot hold. An export writes no file on the server: it
 streams the zip file as it reads the notes.
 
 One account runs one import or export at a time, and the server runs two at a

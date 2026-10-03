@@ -8,6 +8,11 @@
  * holds across every process of the installation (record 0121). A job renews
  * its reservation while it runs, and a process that stops leaves a
  * reservation that expires.
+ *
+ * A reservation also states the most bytes that its job may write to the
+ * storage volume, and answers the bytes of the other running jobs. An import
+ * reserves before it checks the free space, so two imports that start
+ * together never both count the same room.
  */
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply } from 'fastify';
@@ -31,12 +36,25 @@ const renewalMs = 20_000;
 
 /** One running job. Its release is safe to call more than once. */
 export type ArchiveJobLease = {
+  /**
+   * The most bytes that the other running jobs may write to the storage
+   * volume, at the time of the reservation.
+   */
+  readonly otherDiskBytes: number;
   readonly release: () => Promise<void>;
 };
 
-/** Reserves the job of one account, or refuses it. */
+/**
+ * Reserves the job of one account, or refuses it.
+ *
+ * `diskBytes` is the most that the job may write to the storage volume: the
+ * body of an import, and nothing for an export.
+ */
 export type ArchiveJobs = {
-  readonly reserve: (accountId: string) => Promise<ArchiveJobLease>;
+  readonly reserve: (
+    accountId: string,
+    diskBytes: number,
+  ) => Promise<ArchiveJobLease>;
 };
 
 /** The archive jobs of one installation, held in PostgreSQL. */
@@ -47,9 +65,9 @@ export function coordinatedArchiveJobs(
   >,
 ): ArchiveJobs {
   return {
-    reserve: async (accountId) => {
+    reserve: async (accountId, diskBytes) => {
       const id = randomUUID();
-      const state = await coordination.reserveArchiveJob(
+      const reservation = await coordination.reserveArchiveJob(
         id,
         accountId,
         reservationTtlMs,
@@ -57,13 +75,14 @@ export function coordinatedArchiveJobs(
           account: archiveJobsPerAccount,
           installation: archiveJobsPerInstallation,
         },
+        diskBytes,
       );
-      if (state === 'account')
+      if (reservation.state === 'account')
         throw new ArchiveJobRefusedError(
           'archive_job_running',
           'An import or an export of this account runs now. Wait until it ends, then try again.',
         );
-      if (state === 'installation')
+      if (reservation.state !== 'reserved')
         throw new ArchiveJobRefusedError(
           'archive_jobs_busy',
           'The server runs as many imports and exports as it can now. Try again in a minute.',
@@ -76,6 +95,7 @@ export function coordinatedArchiveJobs(
       renewal.unref();
       let released = false;
       return {
+        otherDiskBytes: reservation.otherDiskBytes,
         release: async () => {
           if (released) return;
           released = true;
@@ -95,9 +115,10 @@ export async function reserveArchiveJob(
   jobs: ArchiveJobs,
   reply: FastifyReply,
   accountId: string,
+  diskBytes: number,
 ): Promise<ArchiveJobLease> {
   try {
-    return await jobs.reserve(accountId);
+    return await jobs.reserve(accountId, diskBytes);
   } catch (error) {
     if (error instanceof ArchiveJobRefusedError)
       reply.header('retry-after', String(archiveJobRetryAfterSeconds));

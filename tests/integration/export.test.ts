@@ -21,7 +21,7 @@ import {
 } from './support/documents.ts';
 import { Buffer } from 'node:buffer';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtemp, readdir, readlink, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readlink, rm, statfs } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -1130,10 +1130,15 @@ await test('an account runs one archive job, and the installation a few', async 
   // release, and a job that never ends fails here.
   await until(
     async () =>
-      (await coordination.reserveArchiveJob(held, ownerId, 60_000, {
-        account: 1,
-        installation: archiveJobsPerInstallation,
-      })) === 'reserved',
+      (
+        await coordination.reserveArchiveJob(
+          held,
+          ownerId,
+          60_000,
+          { account: 1, installation: archiveJobsPerInstallation },
+          0,
+        )
+      ).state === 'reserved',
     'every earlier archive job of the owner ends',
   );
   try {
@@ -1153,10 +1158,13 @@ await test('an account runs one archive job, and the installation a few', async 
   await provisionAccounts(database.migrationUrl, others);
   const jobs = others.map(() => randomUUID());
   for (const [index, job] of jobs.entries())
-    await coordination.reserveArchiveJob(job, others[index] ?? '', 60_000, {
-      account: 1,
-      installation: archiveJobsPerInstallation,
-    });
+    await coordination.reserveArchiveJob(
+      job,
+      others[index] ?? '',
+      60_000,
+      { account: 1, installation: archiveJobsPerInstallation },
+      0,
+    );
   try {
     const busy = await exportWorkspace({
       headers: browser(cookie),
@@ -1174,6 +1182,68 @@ await test('an account runs one archive job, and the installation a few', async 
     path: { workspaceId },
   });
   assert.equal(responseOf(free.response).status, 200);
+});
+
+await test('an import counts the room that the other running imports may take', async () => {
+  // Review of record 0170. An import checked the free space before it
+  // reserved its job, so two imports that started together both saw the
+  // whole free space and could fill the volume together.
+  const target = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Room target' },
+  });
+  const targetId = target.data?.workspaceId ?? '';
+  const send = () =>
+    importWorkspace({
+      headers: browser(cookie),
+      path: { workspaceId: targetId },
+      body: {
+        file: new File(
+          [storedArchive([['room/note.md', '# Room\n']])],
+          'notes.zip',
+          { type: 'application/zip' },
+        ),
+      },
+    });
+  const other = randomUUID();
+  await provisionAccounts(database.migrationUrl, [other]);
+  const held = randomUUID();
+  const volume = await statfs(storageRoot);
+  // The other job is an import of another process that may still write as
+  // many bytes as the volume has free now.
+  const reserved = await coordination.reserveArchiveJob(
+    held,
+    other,
+    60_000,
+    { account: 1, installation: archiveJobsPerInstallation },
+    volume.bavail * volume.bsize,
+  );
+  assert.equal(reserved.state, 'reserved');
+  try {
+    // A later reservation reads the disk of the earlier one under its lock.
+    const probe = randomUUID();
+    const later = await coordination.reserveArchiveJob(
+      probe,
+      account.data?.accountId ?? '',
+      60_000,
+      { account: 1, installation: archiveJobsPerInstallation },
+      0,
+    );
+    await coordination.releaseArchiveJob(probe);
+    assert.deepEqual(later, {
+      state: 'reserved',
+      otherDiskBytes: volume.bavail * volume.bsize,
+    });
+    const refused = await send();
+    assert.equal(responseOf(refused.response).status, 507);
+    assert.equal(readProperty(refused.error, 'code'), 'storage_full');
+  } finally {
+    await coordination.releaseArchiveJob(held);
+  }
+  // The refused import released its own job, and the room is free again.
+  const imported = await send();
+  assert.equal(responseOf(imported.response).status, 200);
+  assert.equal(imported.data?.notes, 1);
 });
 
 await test('the check of an export plans it, runs no job and sends no body', async () => {
@@ -1205,10 +1275,15 @@ await test('the check of an export plans it, runs no job and sends no body', asy
   const ownerId = account.data?.accountId ?? '';
   await until(
     async () =>
-      (await coordination.reserveArchiveJob(held, ownerId, 60_000, {
-        account: 1,
-        installation: archiveJobsPerInstallation,
-      })) === 'reserved',
+      (
+        await coordination.reserveArchiveJob(
+          held,
+          ownerId,
+          60_000,
+          { account: 1, installation: archiveJobsPerInstallation },
+          0,
+        )
+      ).state === 'reserved',
     'every earlier archive job of the owner ends',
   );
   try {

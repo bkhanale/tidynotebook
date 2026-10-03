@@ -11,7 +11,7 @@ const gib = 1024 * 1024 * 1024;
 
 await test('a body longer than its bound is refused from its length', () => {
   assert.equal(
-    bodyRoomRefusal(maxArchiveBytes + 1, maxArchiveBytes, 100 * gib),
+    bodyRoomRefusal(maxArchiveBytes + 1, maxArchiveBytes, 100 * gib, 0),
     'too_large',
   );
 });
@@ -20,22 +20,54 @@ await test('a body that the volume cannot hold with the reserve is refused', () 
   // Review of issue 243. Nothing bounded the disk that an import used.
   const body = 2 * gib;
   assert.equal(
-    bodyRoomRefusal(body, maxArchiveBytes, body + archiveDiskReserveBytes - 1),
+    bodyRoomRefusal(
+      body,
+      maxArchiveBytes,
+      body + archiveDiskReserveBytes - 1,
+      0,
+    ),
     'no_room',
   );
   assert.equal(
-    bodyRoomRefusal(body, maxArchiveBytes, body + archiveDiskReserveBytes),
+    bodyRoomRefusal(body, maxArchiveBytes, body + archiveDiskReserveBytes, 0),
     null,
   );
   // A body with no length could be as long as the bound.
-  assert.equal(bodyRoomRefusal(null, maxArchiveBytes, 3 * gib), 'no_room');
+  assert.equal(bodyRoomRefusal(null, maxArchiveBytes, 3 * gib, 0), 'no_room');
   assert.equal(
     bodyRoomRefusal(
       null,
       maxArchiveBytes,
       maxArchiveBytes + archiveDiskReserveBytes,
+      0,
     ),
     null,
+  );
+});
+
+await test('a body that the room of the other running imports leaves is refused', () => {
+  // Review of record 0170. Two imports that started together both saw the
+  // whole free space, so together they could fill the volume.
+  const body = 2 * gib;
+  const free = 2 * body + archiveDiskReserveBytes;
+  // Alone, the body fits with room for one more of its size.
+  assert.equal(bodyRoomRefusal(body, maxArchiveBytes, free, 0), null);
+  // Another import that may still write a body of the same size fits too.
+  assert.equal(bodyRoomRefusal(body, maxArchiveBytes, free, body), null);
+  // One byte more for the other import leaves no room for this one.
+  assert.equal(
+    bodyRoomRefusal(body, maxArchiveBytes, free, body + 1),
+    'no_room',
+  );
+  // A body with no length counts the bound beside the other import.
+  assert.equal(
+    bodyRoomRefusal(
+      null,
+      maxArchiveBytes,
+      maxArchiveBytes + archiveDiskReserveBytes + body - 1,
+      body,
+    ),
+    'no_room',
   );
 });
 
