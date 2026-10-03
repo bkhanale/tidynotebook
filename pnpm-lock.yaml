@@ -173,6 +173,16 @@ catalogs:
       specifier: 7.0.2
       version: 7.0.2
 
+patchedDependencies:
+  '@lezer/markdown@1.7.2': 763a4270d6e568bbf93e257bfa38d04828fb7dd35c03923b1fe320c608c4ff49
+  mdast-util-from-markdown@2.0.3: 60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea
+  mdast-util-to-hast@13.2.1: 305044ba40ea5db9cfc6d9a5d28a5f1de2fe82b411a899534b4757f418d21b15
+  micromark-core-commonmark@2.0.3: e6df24c6a49dd78cb02e5594da923591946fcf87978fc9d10238a85eccb25222
+  micromark@4.0.2: 0927acf9d77925cee49f3208288dce013fe3560225da3f05fe8d6993ba29ba20
+  parse5@7.3.0: 6502534519b354e57c9caab0f58709b09db1342bd2299a3514b4899a60148733
+  unist-util-visit-parents@6.0.2: 5c359fe1f954d81e9a53b60f4681edc8783ededcd95b6edcbc63289d191a5d16
+  unist-util-visit@5.1.0: 1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a
+
 importers:
 
   .:
@@ -496,7 +506,7 @@ importers:
         version: 1.2.5
       '@lezer/markdown':
         specifier: 1.7.2
-        version: 1.7.2
+        version: 1.7.2(patch_hash=763a4270d6e568bbf93e257bfa38d04828fb7dd35c03923b1fe320c608c4ff49)
       '@notesapp/markdown':
         specifier: workspace:*
         version: link:../markdown
@@ -600,12 +610,18 @@ importers:
       katex:
         specifier: 'catalog:'
         version: 0.18.9
+      mdast-util-gfm-autolink-literal:
+        specifier: 2.0.1
+        version: 2.0.1
       mdast-util-to-string:
         specifier: 4.0.0
         version: 4.0.0
       micromark-extension-math:
         specifier: 3.1.0
         version: 3.1.0
+      micromark-util-character:
+        specifier: 2.1.1
+        version: 2.1.1
       micromark-util-types:
         specifier: 2.0.3
         version: 2.0.3
@@ -635,7 +651,7 @@ importers:
         version: 11.0.5
       unist-util-visit:
         specifier: 5.1.0
-        version: 5.1.0
+        version: 5.1.0(patch_hash=1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -4285,7 +4301,7 @@ snapshots:
       '@codemirror/state': 6.7.6
       '@codemirror/view': 6.43.13
       '@lezer/common': 1.5.3
-      '@lezer/markdown': 1.7.2
+      '@lezer/markdown': 1.7.2(patch_hash=763a4270d6e568bbf93e257bfa38d04828fb7dd35c03923b1fe320c608c4ff49)
 
   '@codemirror/lang-php@6.0.2':
     dependencies:
@@ -4895,7 +4911,7 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.3
 
-  '@lezer/markdown@1.7.2':
+  '@lezer/markdown@1.7.2(patch_hash=763a4270d6e568bbf93e257bfa38d04828fb7dd35c03923b1fe320c608c4ff49)':
     dependencies:
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5
@@ -6062,10 +6078,10 @@ snapshots:
       hast-util-from-parse5: 8.0.3
       hast-util-to-parse5: 8.0.1
       html-void-elements: 3.0.0
-      mdast-util-to-hast: 13.2.1
-      parse5: 7.3.0
+      mdast-util-to-hast: 13.2.1(patch_hash=305044ba40ea5db9cfc6d9a5d28a5f1de2fe82b411a899534b4757f418d21b15)
+      parse5: 7.3.0(patch_hash=6502534519b354e57c9caab0f58709b09db1342bd2299a3514b4899a60148733)
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a)
       vfile: 6.0.3
       web-namespaces: 2.0.1
       zwitch: 2.0.4
@@ -6084,7 +6100,7 @@ snapshots:
       comma-separated-tokens: 2.0.3
       hast-util-whitespace: 3.0.0
       html-void-elements: 3.0.0
-      mdast-util-to-hast: 13.2.1
+      mdast-util-to-hast: 13.2.1(patch_hash=305044ba40ea5db9cfc6d9a5d28a5f1de2fe82b411a899534b4757f418d21b15)
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
       stringify-entities: 4.0.4
@@ -6305,16 +6321,16 @@ snapshots:
       '@types/mdast': 4.0.4
       escape-string-regexp: 5.0.0
       unist-util-is: 6.0.1
-      unist-util-visit-parents: 6.0.2
+      unist-util-visit-parents: 6.0.2(patch_hash=5c359fe1f954d81e9a53b60f4681edc8783ededcd95b6edcbc63289d191a5d16)
 
-  mdast-util-from-markdown@2.0.3:
+  mdast-util-from-markdown@2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea):
     dependencies:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
       mdast-util-to-string: 4.0.0
-      micromark: 4.0.2
+      micromark: 4.0.2(patch_hash=0927acf9d77925cee49f3208288dce013fe3560225da3f05fe8d6993ba29ba20)
       micromark-util-decode-numeric-character-reference: 2.0.2
       micromark-util-decode-string: 2.0.1
       micromark-util-normalize-identifier: 2.0.1
@@ -6329,7 +6345,7 @@ snapshots:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       escape-string-regexp: 5.0.0
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-to-markdown: 2.1.2
       micromark-extension-frontmatter: 2.0.0
     transitivePeerDependencies:
@@ -6347,7 +6363,7 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-to-markdown: 2.1.2
       micromark-util-normalize-identifier: 2.0.1
     transitivePeerDependencies:
@@ -6356,7 +6372,7 @@ snapshots:
   mdast-util-gfm-strikethrough@2.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
@@ -6366,7 +6382,7 @@ snapshots:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       markdown-table: 3.0.4
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
@@ -6375,14 +6391,14 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-to-markdown: 2.1.2
     transitivePeerDependencies:
       - supports-color
 
   mdast-util-gfm@3.1.0:
     dependencies:
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-gfm-autolink-literal: 2.0.1
       mdast-util-gfm-footnote: 2.1.0
       mdast-util-gfm-strikethrough: 2.0.0
@@ -6398,7 +6414,7 @@ snapshots:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       longest-streak: 3.1.0
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       mdast-util-to-markdown: 2.1.2
       unist-util-remove-position: 5.0.0
     transitivePeerDependencies:
@@ -6409,7 +6425,7 @@ snapshots:
       '@types/mdast': 4.0.4
       unist-util-is: 6.0.1
 
-  mdast-util-to-hast@13.2.1:
+  mdast-util-to-hast@13.2.1(patch_hash=305044ba40ea5db9cfc6d9a5d28a5f1de2fe82b411a899534b4757f418d21b15):
     dependencies:
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
@@ -6418,7 +6434,7 @@ snapshots:
       micromark-util-sanitize-uri: 2.0.1
       trim-lines: 3.0.1
       unist-util-position: 5.0.0
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a)
       vfile: 6.0.3
 
   mdast-util-to-markdown@2.1.2:
@@ -6430,7 +6446,7 @@ snapshots:
       mdast-util-to-string: 4.0.0
       micromark-util-classify-character: 2.0.1
       micromark-util-decode-string: 2.0.1
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a)
       zwitch: 2.0.4
 
   mdast-util-to-string@4.0.0:
@@ -6463,7 +6479,7 @@ snapshots:
       ts-dedent: 2.3.0
       uuid: 14.0.2
 
-  micromark-core-commonmark@2.0.3:
+  micromark-core-commonmark@2.0.3(patch_hash=e6df24c6a49dd78cb02e5594da923591946fcf87978fc9d10238a85eccb25222):
     dependencies:
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
@@ -6499,7 +6515,7 @@ snapshots:
   micromark-extension-gfm-footnote@2.1.0:
     dependencies:
       devlop: 1.1.0
-      micromark-core-commonmark: 2.0.3
+      micromark-core-commonmark: 2.0.3(patch_hash=e6df24c6a49dd78cb02e5594da923591946fcf87978fc9d10238a85eccb25222)
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
       micromark-util-normalize-identifier: 2.0.1
@@ -6649,13 +6665,13 @@ snapshots:
 
   micromark-util-types@2.0.3: {}
 
-  micromark@4.0.2:
+  micromark@4.0.2(patch_hash=0927acf9d77925cee49f3208288dce013fe3560225da3f05fe8d6993ba29ba20):
     dependencies:
       '@types/debug': 4.1.13
       debug: 4.4.3
       decode-named-character-reference: 1.3.0
       devlop: 1.1.0
-      micromark-core-commonmark: 2.0.3
+      micromark-core-commonmark: 2.0.3(patch_hash=e6df24c6a49dd78cb02e5594da923591946fcf87978fc9d10238a85eccb25222)
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
       micromark-util-chunked: 2.0.1
@@ -6764,7 +6780,7 @@ snapshots:
       '@pagefind/windows-arm64': 1.5.2
       '@pagefind/windows-x64': 1.5.2
 
-  parse5@7.3.0:
+  parse5@7.3.0(patch_hash=6502534519b354e57c9caab0f58709b09db1342bd2299a3514b4899a60148733):
     dependencies:
       entities: 6.0.1
 
@@ -6966,7 +6982,7 @@ snapshots:
   remark-parse@11.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-from-markdown: 2.0.3
+      mdast-util-from-markdown: 2.0.3(patch_hash=60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea)
       micromark-util-types: 2.0.3
       unified: 11.0.5
     transitivePeerDependencies:
@@ -6976,7 +6992,7 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
-      mdast-util-to-hast: 13.2.1
+      mdast-util-to-hast: 13.2.1(patch_hash=305044ba40ea5db9cfc6d9a5d28a5f1de2fe82b411a899534b4757f418d21b15)
       unified: 11.0.5
       vfile: 6.0.3
 
@@ -7222,22 +7238,22 @@ snapshots:
   unist-util-remove-position@5.0.0:
     dependencies:
       '@types/unist': 3.0.3
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.1.0(patch_hash=1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a)
 
   unist-util-stringify-position@4.0.0:
     dependencies:
       '@types/unist': 3.0.3
 
-  unist-util-visit-parents@6.0.2:
+  unist-util-visit-parents@6.0.2(patch_hash=5c359fe1f954d81e9a53b60f4681edc8783ededcd95b6edcbc63289d191a5d16):
     dependencies:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
 
-  unist-util-visit@5.1.0:
+  unist-util-visit@5.1.0(patch_hash=1f86d5eb7661dc86403737ec74e95635994da3a1bcc3427f5a7028e6ae64044a):
     dependencies:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
-      unist-util-visit-parents: 6.0.2
+      unist-util-visit-parents: 6.0.2(patch_hash=5c359fe1f954d81e9a53b60f4681edc8783ededcd95b6edcbc63289d191a5d16)
 
   util-deprecate@1.0.2: {}
 

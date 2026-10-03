@@ -1,0 +1,87 @@
+diff --git a/dev/lib/code-text.js b/dev/lib/code-text.js
+index 0f4096f7ba7d24f5e6e82cb31b55aaf7df80acd4..353e6766e4c38c5c02cac8ce568fa5aba05f0e5f 100644
+--- a/dev/lib/code-text.js
++++ b/dev/lib/code-text.js
+@@ -55,8 +55,10 @@ function resolveCodeText(events) {
+   }
+ 
+   // Merge adjacent spaces and data.
++  // Events are moved down in one pass instead of splicing out each run.
+   index = headEnterIndex - 1
+   tailExitIndex++
++  let length = headEnterIndex
+ 
+   while (++index <= tailExitIndex) {
+     if (enter === undefined) {
+@@ -65,6 +67,8 @@ function resolveCodeText(events) {
+         events[index][1].type !== types.lineEnding
+       ) {
+         enter = index
++      } else if (index !== tailExitIndex) {
++        events[length++] = events[index]
+       }
+     } else if (
+       index === tailExitIndex ||
+@@ -74,15 +78,20 @@ function resolveCodeText(events) {
+ 
+       if (index !== enter + 2) {
+         events[enter][1].end = events[index - 1][1].end
+-        events.splice(enter + 2, index - enter - 2)
+-        tailExitIndex -= index - enter - 2
+-        index = enter + 2
+       }
+ 
++      events[length++] = events[enter]
++      events[length++] = events[enter + 1]
+       enter = undefined
++
++      if (index !== tailExitIndex) {
++        events[length++] = events[index]
++      }
+     }
+   }
+ 
++  events.splice(length, tailExitIndex - length)
++
+   return events
+ }
+ 
+diff --git a/lib/code-text.js b/lib/code-text.js
+index c31568e892015ff204b81f0693506bd1a20069c6..8ffc7ac0040b7d65d06836d25ba11b6478d41b79 100644
+--- a/lib/code-text.js
++++ b/lib/code-text.js
+@@ -47,24 +47,31 @@ function resolveCodeText(events) {
+   }
+ 
+   // Merge adjacent spaces and data.
++  // Events are moved down in one pass instead of splicing out each run.
+   index = headEnterIndex - 1;
+   tailExitIndex++;
++  let length = headEnterIndex;
+   while (++index <= tailExitIndex) {
+     if (enter === undefined) {
+       if (index !== tailExitIndex && events[index][1].type !== "lineEnding") {
+         enter = index;
++      } else if (index !== tailExitIndex) {
++        events[length++] = events[index];
+       }
+     } else if (index === tailExitIndex || events[index][1].type === "lineEnding") {
+       events[enter][1].type = "codeTextData";
+       if (index !== enter + 2) {
+         events[enter][1].end = events[index - 1][1].end;
+-        events.splice(enter + 2, index - enter - 2);
+-        tailExitIndex -= index - enter - 2;
+-        index = enter + 2;
+       }
++      events[length++] = events[enter];
++      events[length++] = events[enter + 1];
+       enter = undefined;
++      if (index !== tailExitIndex) {
++        events[length++] = events[index];
++      }
+     }
+   }
++  events.splice(length, tailExitIndex - length);
+   return events;
+ }
+ 

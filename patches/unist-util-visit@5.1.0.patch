@@ -1,0 +1,20 @@
+diff --git a/lib/index.js b/lib/index.js
+index 697b299b0bf9028e44eb9fd68b689dce3a949343..e7564c813a662fe898e0ba2babc3c50a0f8b23c6 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -303,10 +303,12 @@ export function visit(tree, testOrVisitor, visitorOrReverse, maybeReverse) {
+   /**
+    * @param {UnistNode} node
+    * @param {Array<UnistParent>} parents
++   * @param {number | undefined} index
+    */
+-  function overload(node, parents) {
++  function overload(node, parents, index) {
+     const parent = parents[parents.length - 1]
+-    const index = parent ? parent.children.indexOf(node) : undefined
+-    return visitor(node, index, parent)
++    // `visitParents` gives the place of the node among its siblings, so no
++    // search of the siblings, which costs the square of a long list.
++    return visitor(node, parent ? index : undefined, parent)
+   }
+ }

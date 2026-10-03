@@ -41,3 +41,12 @@ catalogs:
     typescript: 7.0.2
   codegen:
     typescript: 6.0.3
+patchedDependencies:
+  '@lezer/markdown@1.7.2': patches/@lezer__markdown@1.7.2.patch
+  mdast-util-from-markdown@2.0.3: patches/mdast-util-from-markdown@2.0.3.patch
+  mdast-util-to-hast@13.2.1: patches/mdast-util-to-hast@13.2.1.patch
+  micromark-core-commonmark@2.0.3: patches/micromark-core-commonmark@2.0.3.patch
+  micromark@4.0.2: patches/micromark@4.0.2.patch
+  parse5@7.3.0: patches/parse5@7.3.0.patch
+  unist-util-visit-parents@6.0.2: patches/unist-util-visit-parents@6.0.2.patch
+  unist-util-visit@5.1.0: patches/unist-util-visit@5.1.0.patch

@@ -277,3 +277,30 @@ await test('a note whose HTML nests too deep is found by its source and fails no
     ['deep', 'plain'],
   );
 });
+
+await test('a note of a hundred thousand web addresses fails no search', () => {
+  // The review of 2026-10-03. The step of GFM that finds web addresses put
+  // every address of one text into one call and ran out of stack, so the
+  // plain text of the note threw an error that is no limit, and the search
+  // of the whole device failed with it.
+  const files: readonly LocalSearchFile[] = [
+    {
+      fileId: 'addresses',
+      path: 'Addresses.md',
+      revisionId: 'r1',
+      text: `Lighthouse links\n\n${' :www.a.b'.repeat(100_000)}\n`,
+    },
+    {
+      fileId: 'plain',
+      path: 'Plain.md',
+      revisionId: 'r2',
+      text: 'The lighthouse keeper.\n',
+    },
+  ];
+  assert.deepEqual(
+    searchLocal('lighthouse', files)
+      .map((hit) => hit.fileId)
+      .toSorted(),
+    ['addresses', 'plain'],
+  );
+});

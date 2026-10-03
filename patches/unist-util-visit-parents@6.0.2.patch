@@ -1,0 +1,17 @@
+diff --git a/lib/index.js b/lib/index.js
+index 713595d4bd8c45f10f87c428c84c49c312b9c9b3..0e34a1e35e7c262efb40cf5b50c494231fd30664 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -343,8 +343,11 @@ export function visitParents(tree, test, visitor, reverse) {
+       let grandparents
+ 
+       if (!test || is(node, index, parents[parents.length - 1] || undefined)) {
++        // The place of the node among its siblings goes along, so a caller
++        // that needs it does not search the list of siblings for it, which
++        // costs the square of a long list.
+         // @ts-expect-error: `visitor` is now a visitor.
+-        result = toResult(visitor(node, parents))
++        result = toResult(visitor(node, parents, index))
+ 
+         if (result[0] === EXIT) {
+           return result

@@ -1,0 +1,114 @@
+diff --git a/lib/handlers/footnote-reference.js b/lib/handlers/footnote-reference.js
+index 8f39e79ede3391ccd22988bff7fb4f3799522d97..de48aa7fe5d819ef8316568a1fec489f6460bcf3 100644
+--- a/lib/handlers/footnote-reference.js
++++ b/lib/handlers/footnote-reference.js
+@@ -6,6 +6,15 @@
+ 
+ import {normalizeUri} from 'micromark-util-sanitize-uri'
+ 
++/**
++ * The place of each footnote in `state.footnoteOrder`, kept for each state,
++ * so no reference searches that list, which costs the square of many
++ * footnotes.
++ *
++ * @type {WeakMap<State, Map<string, number>>}
++ */
++const orderIndexes = new WeakMap()
++
+ /**
+  * Turn an mdast `footnoteReference` node into hast.
+  *
+@@ -23,7 +32,11 @@ export function footnoteReference(state, node) {
+       : 'user-content-'
+   const id = String(node.identifier).toUpperCase()
+   const safeId = normalizeUri(id.toLowerCase())
+-  const index = state.footnoteOrder.indexOf(id)
++  let indexes = orderIndexes.get(state)
++  if (indexes === undefined) {
++    indexes = new Map()
++    orderIndexes.set(state, indexes)
++  }
+   /** @type {number} */
+   let counter
+ 
+@@ -33,8 +46,10 @@ export function footnoteReference(state, node) {
+     reuseCounter = 0
+     state.footnoteOrder.push(id)
+     counter = state.footnoteOrder.length
++    indexes.set(id, counter - 1)
+   } else {
+-    counter = index + 1
++    const index = indexes.get(id)
++    counter = (index === undefined ? state.footnoteOrder.indexOf(id) : index) + 1
+   }
+ 
+   reuseCounter += 1
+diff --git a/lib/handlers/list-item.js b/lib/handlers/list-item.js
+index eca0db3ce774dd87a388efecb428731bffc1ac9e..a02c73c6509f3b6d4e58cc9140dc94f66e90f252 100644
+--- a/lib/handlers/list-item.js
++++ b/lib/handlers/list-item.js
+@@ -18,7 +18,7 @@
+  */
+ export function listItem(state, node, parent) {
+   const results = state.all(node)
+-  const loose = parent ? listLoose(parent) : listItemLoose(node)
++  const loose = parent ? listLoose(state, parent) : listItemLoose(node)
+   /** @type {Properties} */
+   const properties = {}
+   /** @type {Array<ElementContent>} */
+@@ -87,11 +87,38 @@ export function listItem(state, node, parent) {
+   return state.applyData(node, result)
+ }
+ 
++/**
++ * Whether each list is loose, kept for each state and list: every item of a
++ * list asks, and a reading of all items for each item costs the square of a
++ * long list.
++ *
++ * @type {WeakMap<State, WeakMap<Parents, boolean>>}
++ */
++const looseLists = new WeakMap()
++
++/**
++ * @param {State} state
++ * @param {Parents} node
++ * @return {Boolean}
++ */
++function listLoose(state, node) {
++  let lists = looseLists.get(state)
++  if (lists === undefined) {
++    lists = new WeakMap()
++    looseLists.set(state, lists)
++  }
++  const known = lists.get(node)
++  if (known !== undefined) return known
++  const loose = listLooseOnce(node)
++  lists.set(node, loose)
++  return loose
++}
++
+ /**
+  * @param {Parents} node
+  * @return {Boolean}
+  */
+-function listLoose(node) {
++function listLooseOnce(node) {
+   let loose = false
+   if (node.type === 'list') {
+     loose = node.spread || false
+diff --git a/lib/handlers/table-row.js b/lib/handlers/table-row.js
+index 718561a5fa85408a95ec92e0a5d64733dd83f6dd..38b4c657650f56b385fc7f1e0150adf1e021be1c 100644
+--- a/lib/handlers/table-row.js
++++ b/lib/handlers/table-row.js
+@@ -19,8 +19,9 @@
+ export function tableRow(state, node, parent) {
+   const siblings = parent ? parent.children : undefined
+   // Generate a body row when without parent.
+-  const rowIndex = siblings ? siblings.indexOf(node) : 1
+-  const tagName = rowIndex === 0 ? 'th' : 'td'
++  // Only the first row is a head row, so no search of the rows for this one,
++  // which costs the square of a long table.
++  const tagName = siblings && siblings[0] === node ? 'th' : 'td'
+   // To do: option to use `style`?
+   const align = parent && parent.type === 'table' ? parent.align : undefined
+   const length = align ? align.length : node.children.length

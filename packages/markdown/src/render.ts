@@ -54,7 +54,7 @@ import type {
 } from 'hast';
 import { highlightCode } from '@lezer/highlight';
 import { raw } from 'hast-util-raw';
-import type { Code, Nodes, PhrasingContent, Root as MdastRoot } from 'mdast';
+import type { Code, Nodes, Root as MdastRoot } from 'mdast';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import remarkRehype from 'remark-rehype';
@@ -429,20 +429,38 @@ const lineEnding = /[ \t]*(?:\r?\n|\r)[ \t]*/;
  * splits that node, so the break reaches the HTML as the same `br` element a
  * backslash break gives. It runs on the tree of this renderer only, so the
  * parse that the editor, the links, and the index read stays CommonMark.
+ *
+ * Each list of children is written again once, with every split text in it.
+ * A paragraph of many lines then costs its size: a splice for each text
+ * moved the rest of the paragraph each time, and a text of a hundred
+ * thousand lines ran the call out of stack.
  */
 function showLineBreaks() {
   return (tree: MdastRoot): undefined => {
-    visit(tree, 'text', (node, index, parent) => {
-      if (parent === undefined || index === undefined) return;
-      const lines = node.value.split(lineEnding);
-      if (lines.length === 1) return;
-      const parts: PhrasingContent[] = [];
-      lines.forEach((value, at) => {
-        if (at > 0) parts.push({ type: 'break' });
-        if (value !== '') parts.push({ type: 'text', value });
-      });
-      parent.children.splice(index, 1, ...parts);
-      return index + parts.length;
+    visit(tree, (node) => {
+      if (!('children' in node)) return;
+      const children: Nodes[] = node.children;
+      if (
+        !children.some(
+          (child) => child.type === 'text' && lineEnding.test(child.value),
+        )
+      )
+        return;
+      const result: Nodes[] = [];
+      for (const child of children) {
+        const lines =
+          child.type === 'text' ? child.value.split(lineEnding) : [];
+        if (lines.length <= 1) {
+          result.push(child);
+          continue;
+        }
+        for (const [at, value] of lines.entries()) {
+          if (at > 0) result.push({ type: 'break' });
+          if (value !== '') result.push({ type: 'text', value });
+        }
+      }
+      children.length = 0;
+      for (const kept of result) children.push(kept);
     });
   };
 }

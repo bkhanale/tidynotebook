@@ -1,0 +1,218 @@
+diff --git a/dev/lib/initialize/text.js b/dev/lib/initialize/text.js
+index 7192e70a0972e808d779999e57153bf3ed7bfc3a..97f22e7b04471d21174593a5c3c270a5c492193c 100644
+--- a/dev/lib/initialize/text.js
++++ b/dev/lib/initialize/text.js
+@@ -5,6 +5,7 @@
+  *   Initializer,
+  *   Resolver,
+  *   State,
++ *   Token,
+  *   TokenizeContext
+  * } from 'micromark-util-types'
+  */
+@@ -113,30 +114,36 @@ function createResolver(extraResolver) {
+ 
+   /** @type {Resolver} */
+   function resolveAllText(events, context) {
+-    let index = -1
+-    /** @type {number | undefined} */
+-    let enter
++    let index = 0
++    let length = 0
+ 
+     // A rather boring computation (to merge adjacent `data` events) which
+     // improves mm performance by 29%.
+-    while (++index <= events.length) {
+-      if (enter === undefined) {
+-        if (events[index] && events[index][1].type === types.data) {
+-          enter = index
++    // Events are moved down in one pass instead of splicing out each run.
++    while (index < events.length) {
++      const enter = index
++
++      if (events[index][1].type === types.data) {
++        index += 2
++
++        while (index < events.length && events[index][1].type === types.data) {
+           index++
+         }
+-      } else if (!events[index] || events[index][1].type !== types.data) {
++
+         // Don’t do anything if there is one data token.
+         if (index !== enter + 2) {
+           events[enter][1].end = events[index - 1][1].end
+-          events.splice(enter + 2, index - enter - 2)
+-          index = enter + 2
+         }
+ 
+-        enter = undefined
++        events[length++] = events[enter]
++        events[length++] = events[enter + 1]
++      } else {
++        events[length++] = events[index++]
+       }
+     }
+ 
++    events.length = length
++
+     return extraResolver ? extraResolver(events, context) : events
+   }
+ }
+@@ -154,6 +161,13 @@ function createResolver(extraResolver) {
+  */
+ function resolveAllLineSuffixes(events, context) {
+   let eventIndex = 0 // Skip first.
++  /**
++   * Suffix tokens to insert before the event at `at`, in walk order.
++   * Merged in after the walk, as inserting while walking would shift the
++   * rest of the events once per line.
++   * @type {Array<{at: number, token: Token}>}
++   */
++  const insertions = []
+ 
+   while (++eventIndex <= events.length) {
+     if (
+@@ -226,13 +240,7 @@ function resolveAllLineSuffixes(events, context) {
+         if (data.start.offset === data.end.offset) {
+           Object.assign(data, token)
+         } else {
+-          events.splice(
+-            eventIndex,
+-            0,
+-            ['enter', token, context],
+-            ['exit', token, context]
+-          )
+-          eventIndex += 2
++          insertions.push({at: eventIndex, token})
+         }
+       }
+ 
+@@ -240,5 +248,23 @@ function resolveAllLineSuffixes(events, context) {
+     }
+   }
+ 
++  // Grow the list once and move each event up past the suffixes before it,
++  // from the end, so every event moves once.
++  let insertion = insertions.length
++  let read = events.length - 1
++  let write = read + insertion * 2
++  events.length = write + 1
++
++  while (insertion--) {
++    const {at, token} = insertions[insertion]
++
++    while (read >= at) {
++      events[write--] = events[read--]
++    }
++
++    events[write--] = ['exit', token, context]
++    events[write--] = ['enter', token, context]
++  }
++
+   return events
+ }
+diff --git a/lib/initialize/text.js b/lib/initialize/text.js
+index b9383cb721b95c68bd0e684da6cbf441ed82b8eb..5fcc4356f46c24272af2cf72f62ef68e65f313a0 100644
+--- a/lib/initialize/text.js
++++ b/lib/initialize/text.js
+@@ -5,6 +5,7 @@
+  *   Initializer,
+  *   Resolver,
+  *   State,
++ *   Token,
+  *   TokenizeContext
+  * } from 'micromark-util-types'
+  */
+@@ -104,28 +105,31 @@ function createResolver(extraResolver) {
+ 
+   /** @type {Resolver} */
+   function resolveAllText(events, context) {
+-    let index = -1;
+-    /** @type {number | undefined} */
+-    let enter;
++    let index = 0;
++    let length = 0;
+ 
+     // A rather boring computation (to merge adjacent `data` events) which
+     // improves mm performance by 29%.
+-    while (++index <= events.length) {
+-      if (enter === undefined) {
+-        if (events[index] && events[index][1].type === "data") {
+-          enter = index;
++    // Events are moved down in one pass instead of splicing out each run.
++    while (index < events.length) {
++      const enter = index;
++      if (events[index][1].type === "data") {
++        index += 2;
++        while (index < events.length && events[index][1].type === "data") {
+           index++;
+         }
+-      } else if (!events[index] || events[index][1].type !== "data") {
++
+         // Don’t do anything if there is one data token.
+         if (index !== enter + 2) {
+           events[enter][1].end = events[index - 1][1].end;
+-          events.splice(enter + 2, index - enter - 2);
+-          index = enter + 2;
+         }
+-        enter = undefined;
++        events[length++] = events[enter];
++        events[length++] = events[enter + 1];
++      } else {
++        events[length++] = events[index++];
+       }
+     }
++    events.length = length;
+     return extraResolver ? extraResolver(events, context) : events;
+   }
+ }
+@@ -143,7 +147,13 @@ function createResolver(extraResolver) {
+  */
+ function resolveAllLineSuffixes(events, context) {
+   let eventIndex = 0; // Skip first.
+-
++  /**
++   * Suffix tokens to insert before the event at `at`, in walk order.
++   * Merged in after the walk, as inserting while walking would shift the
++   * rest of the events once per line.
++   * @type {Array<{at: number, token: Token}>}
++   */
++  const insertions = [];
+   while (++eventIndex <= events.length) {
+     if ((eventIndex === events.length || events[eventIndex][1].type === "lineEnding") && events[eventIndex - 1][1].type === "data") {
+       const data = events[eventIndex - 1][1];
+@@ -201,12 +211,32 @@ function resolveAllLineSuffixes(events, context) {
+         if (data.start.offset === data.end.offset) {
+           Object.assign(data, token);
+         } else {
+-          events.splice(eventIndex, 0, ['enter', token, context], ['exit', token, context]);
+-          eventIndex += 2;
++          insertions.push({
++            at: eventIndex,
++            token
++          });
+         }
+       }
+       eventIndex++;
+     }
+   }
++
++  // Grow the list once and move each event up past the suffixes before it,
++  // from the end, so every event moves once.
++  let insertion = insertions.length;
++  let read = events.length - 1;
++  let write = read + insertion * 2;
++  events.length = write + 1;
++  while (insertion--) {
++    const {
++      at,
++      token
++    } = insertions[insertion];
++    while (read >= at) {
++      events[write--] = events[read--];
++    }
++    events[write--] = ['exit', token, context];
++    events[write--] = ['enter', token, context];
++  }
+   return events;
+ }

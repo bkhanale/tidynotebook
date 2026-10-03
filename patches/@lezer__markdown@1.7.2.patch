@@ -1,0 +1,108 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index a7f1502ce9663cff433857f3e353acff9b381a98..44d3f20d47d2072ca7650ccc73dd2426d4223226 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1656,6 +1656,16 @@ class InlineContext {
+         @internal
+         */
+         this.parts = [];
++        /**
++        No link or image start is below this index of `parts`, as
++        `hasOpenLink` last found. @internal
++        */
++        this.linkFreeBelow = 0;
++        /**
++        The index of `parts` where `hasOpenLink` last found a link or image
++        start, or -1. @internal
++        */
++        this.openLinkAt = -1;
+     }
+     /**
+     Get the character code at the given (document-relative)
+@@ -1692,11 +1702,20 @@ class InlineContext {
+     token before the current position.
+     */
+     get hasOpenLink() {
+-        for (let i = this.parts.length - 1; i >= 0; i--) {
+-            let part = this.parts[i];
+-            if (part instanceof InlineDelimiter && (part.type == LinkStart || part.type == ImageStart))
++        // Each autolink asks, so a scan of every part for each one costs the
++        // square of a long paragraph. A start found before is still a start
++        // while it stands at its index, and no part below `linkFreeBelow`
++        // can become a start: a start is only ever appended at the end.
++        let isStart = (part) => part instanceof InlineDelimiter && (part.type == LinkStart || part.type == ImageStart);
++        if (this.openLinkAt >= 0 && this.openLinkAt < this.parts.length && isStart(this.parts[this.openLinkAt]))
++            return true;
++        for (let i = this.parts.length - 1; i >= this.linkFreeBelow; i--) {
++            if (isStart(this.parts[i])) {
++                this.openLinkAt = i;
+                 return true;
++            }
+         }
++        this.linkFreeBelow = this.parts.length;
+         return false;
+     }
+     /**
+@@ -1793,6 +1812,8 @@ class InlineContext {
+     takeContent(startIndex) {
+         let content = this.resolveMarkers(startIndex);
+         this.parts.length = startIndex;
++        if (this.linkFreeBelow > startIndex)
++            this.linkFreeBelow = startIndex;
+         return content;
+     }
+     /**
+diff --git a/dist/index.js b/dist/index.js
+index e5725e7b76c21832da1a3d2ed188ae042c06224c..9d5783fb5e6ec24ab1e8a916c5baeef2f1171a46 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1654,6 +1654,16 @@ class InlineContext {
+         @internal
+         */
+         this.parts = [];
++        /**
++        No link or image start is below this index of `parts`, as
++        `hasOpenLink` last found. @internal
++        */
++        this.linkFreeBelow = 0;
++        /**
++        The index of `parts` where `hasOpenLink` last found a link or image
++        start, or -1. @internal
++        */
++        this.openLinkAt = -1;
+     }
+     /**
+     Get the character code at the given (document-relative)
+@@ -1690,11 +1700,20 @@ class InlineContext {
+     token before the current position.
+     */
+     get hasOpenLink() {
+-        for (let i = this.parts.length - 1; i >= 0; i--) {
+-            let part = this.parts[i];
+-            if (part instanceof InlineDelimiter && (part.type == LinkStart || part.type == ImageStart))
++        // Each autolink asks, so a scan of every part for each one costs the
++        // square of a long paragraph. A start found before is still a start
++        // while it stands at its index, and no part below `linkFreeBelow`
++        // can become a start: a start is only ever appended at the end.
++        let isStart = (part) => part instanceof InlineDelimiter && (part.type == LinkStart || part.type == ImageStart);
++        if (this.openLinkAt >= 0 && this.openLinkAt < this.parts.length && isStart(this.parts[this.openLinkAt]))
++            return true;
++        for (let i = this.parts.length - 1; i >= this.linkFreeBelow; i--) {
++            if (isStart(this.parts[i])) {
++                this.openLinkAt = i;
+                 return true;
++            }
+         }
++        this.linkFreeBelow = this.parts.length;
+         return false;
+     }
+     /**
+@@ -1791,6 +1810,8 @@ class InlineContext {
+     takeContent(startIndex) {
+         let content = this.resolveMarkers(startIndex);
+         this.parts.length = startIndex;
++        if (this.linkFreeBelow > startIndex)
++            this.linkFreeBelow = startIndex;
+         return content;
+     }
+     /**

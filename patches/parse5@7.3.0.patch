@@ -1,0 +1,74 @@
+diff --git a/dist/cjs/parser/index.js b/dist/cjs/parser/index.js
+index 5297fa2bc7d9cefccbc93085e453ef2bc4560ab4..4c5931bc15ac0c35ea42ed720c9cfcbcd12a485a 100644
+--- a/dist/cjs/parser/index.js
++++ b/dist/cjs/parser/index.js
+@@ -364,8 +364,15 @@ class Parser {
+     }
+     /** @protected */
+     _adoptNodes(donor, recipient) {
+-        for (let child = this.treeAdapter.getFirstChild(donor); child; child = this.treeAdapter.getFirstChild(donor)) {
+-            this.treeAdapter.detachNode(child);
++        // Detach the children from the last one, so each detach removes the
++        // end of the list rather than shifting the rest of it, then append
++        // them in order: the result is the same, and a long list costs its
++        // length rather than its square.
++        const children = [...this.treeAdapter.getChildNodes(donor)];
++        for (let index = children.length - 1; index >= 0; index--) {
++            this.treeAdapter.detachNode(children[index]);
++        }
++        for (const child of children) {
+             this.treeAdapter.appendChild(recipient, child);
+         }
+     }
+diff --git a/dist/cjs/tree-adapters/default.js b/dist/cjs/tree-adapters/default.js
+index dc848143d1ffb48ef10a0670fcfaaabab3fafc8b..8045d4406c213ad66d074c5c4ba81068fe3bca31 100644
+--- a/dist/cjs/tree-adapters/default.js
++++ b/dist/cjs/tree-adapters/default.js
+@@ -83,7 +83,9 @@ exports.defaultTreeAdapter = {
+     },
+     detachNode(node) {
+         if (node.parentNode) {
+-            const idx = node.parentNode.childNodes.indexOf(node);
++            // A node is in the list once, and a node near its end is found
++            // at once, as `_adoptNodes` of the parser detaches them.
++            const idx = node.parentNode.childNodes.lastIndexOf(node);
+             node.parentNode.childNodes.splice(idx, 1);
+             node.parentNode = null;
+         }
+diff --git a/dist/parser/index.js b/dist/parser/index.js
+index fdd25628c47a7e83715b3635ccaa48d538b5be30..938b77ec902b6835c6f8bd22a8949b2b83cd1846 100644
+--- a/dist/parser/index.js
++++ b/dist/parser/index.js
+@@ -370,8 +370,15 @@ export class Parser {
+     }
+     /** @protected */
+     _adoptNodes(donor, recipient) {
+-        for (let child = this.treeAdapter.getFirstChild(donor); child; child = this.treeAdapter.getFirstChild(donor)) {
+-            this.treeAdapter.detachNode(child);
++        // Detach the children from the last one, so each detach removes the
++        // end of the list rather than shifting the rest of it, then append
++        // them in order: the result is the same, and a long list costs its
++        // length rather than its square.
++        const children = [...this.treeAdapter.getChildNodes(donor)];
++        for (let index = children.length - 1; index >= 0; index--) {
++            this.treeAdapter.detachNode(children[index]);
++        }
++        for (const child of children) {
+             this.treeAdapter.appendChild(recipient, child);
+         }
+     }
+diff --git a/dist/tree-adapters/default.js b/dist/tree-adapters/default.js
+index 567ad82e8b677efbaaa3d424a4fe708f74d4dc38..aeecce9bebf1d36820f228d89b37e39c948c6342 100644
+--- a/dist/tree-adapters/default.js
++++ b/dist/tree-adapters/default.js
+@@ -80,7 +80,9 @@ export const defaultTreeAdapter = {
+     },
+     detachNode(node) {
+         if (node.parentNode) {
+-            const idx = node.parentNode.childNodes.indexOf(node);
++            // A node is in the list once, and a node near its end is found
++            // at once, as `_adoptNodes` of the parser detaches them.
++            const idx = node.parentNode.childNodes.lastIndexOf(node);
+             node.parentNode.childNodes.splice(idx, 1);
+             node.parentNode = null;
+         }

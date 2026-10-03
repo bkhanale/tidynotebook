@@ -41,6 +41,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified, type Processor } from 'unified';
+import { remarkLinearLiteralLinks } from './autolink-literals.ts';
 import {
   assertAuthorHtmlDepth,
   assertBlockMarks,
@@ -73,6 +74,9 @@ export function createMarkdownProcessor() {
       // in the note. The editor is the stricter of the two, so remark follows
       // it and one grammar answers both surfaces.
       .use(remarkGfm, { singleTilde: false })
+      // The literal links of GFM, found one text at a time, so a paragraph of
+      // many texts costs its size and not its square (record 0185).
+      .use(remarkLinearLiteralLinks)
       .use(remarkMath, { singleDollarTextMath })
       .use(remarkMathParens)
   );

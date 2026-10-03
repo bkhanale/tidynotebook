@@ -11,13 +11,21 @@
  * its blocks would refuse. Both facts are held here over the corpus and over
  * many notes made of every kind of block line, with a fixed seed, so a run
  * reads the same notes each time.
+ *
+ * The parse of every shape of note grows with its size, or a count before
+ * the parse refuses the note (records 0182 and 0185). That is held with a
+ * count of work, not of time: the elements that the array splices move and
+ * the array searches read, and the code units that the parse reads.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Nodes, Root } from 'mdast';
+import { indexNote } from './links.ts';
+import { renderMarkdown } from './render.ts';
 import { inlineMarks, linesOf, measureLines } from './limits.ts';
-import { parseBlocks, parseMarkdown } from './parse.ts';
+import { parseBlocks, parseMarkdown, withinParseLimits } from './parse.ts';
 import { blockSyntaxMarkdown, corpusMarkdown } from '../test-data/content.ts';
+import { noteOfShape, noteShapes } from '../test-data/shapes.ts';
 
 /** The nodes of a tree whose content micromark reads as one inline block. */
 const inlineBlockTypes = new Set(['paragraph', 'heading', 'tableCell']);
@@ -212,4 +220,129 @@ await test('a note of only paragraphs needs no parse of its blocks', () => {
   // decides alone and the note is parsed once.
   for (const source of [corpusMarkdown, blockSyntaxMarkdown])
     assert.ok(measureLines(linesOf(source)).partMarks <= 128);
+});
+
+/** Counts the work of one call of a method, and makes the call. */
+type Counter = (
+  self: unknown,
+  args: readonly unknown[],
+  call: () => unknown,
+) => unknown;
+
+/**
+ * Puts a method that counts with `counter` in the place of the method
+ * `name` of `target`, until the returned function puts it back.
+ */
+function replaceMethod(
+  target: object,
+  name: string,
+  counter: Counter,
+): () => void {
+  const original = Object.getOwnPropertyDescriptor(target, name);
+  assert.ok(original !== undefined);
+  const method: unknown = original.value;
+  assert.ok(typeof method === 'function');
+  Object.defineProperty(target, name, {
+    ...original,
+    value: function counted(this: unknown, ...args: unknown[]): unknown {
+      return counter(this, args, () => Reflect.apply(method, this, args));
+    },
+  });
+  return () => {
+    Object.defineProperty(target, name, original);
+  };
+}
+
+/** The length of an array, or 0 for another value. */
+function lengthOf(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+/** The index that a search found, or `null` for none. */
+function foundAt(found: unknown): number | null {
+  return typeof found === 'number' && found >= 0 ? found : null;
+}
+
+/**
+ * The work of `run`: the elements that each array splice moves, the elements
+ * that each array search reads, and each code unit that is read. A step whose
+ * work grows with the square of the note moves or reads a list for each item
+ * of it, so this count grows with that square as well.
+ */
+async function workOf(run: () => unknown): Promise<number> {
+  let work = 0;
+  const restores = [
+    replaceMethod(Array.prototype, 'splice', (self, args, call) => {
+      const length = lengthOf(self);
+      const start = typeof args[0] === 'number' ? args[0] : 0;
+      work +=
+        length -
+        (start < 0 ? Math.max(0, length + start) : Math.min(start, length));
+      return call();
+    }),
+    replaceMethod(Array.prototype, 'indexOf', (self, args, call) => {
+      const found = call();
+      const from = typeof args[1] === 'number' ? args[1] : 0;
+      work += (foundAt(found) ?? lengthOf(self) - 1) + 1 - from;
+      return found;
+    }),
+    replaceMethod(Array.prototype, 'lastIndexOf', (self, _args, call) => {
+      const found = call();
+      work += lengthOf(self) - (foundAt(found) ?? 0);
+      return found;
+    }),
+    replaceMethod(String.prototype, 'charCodeAt', (_self, _args, call) => {
+      work += 1;
+      return call();
+    }),
+  ];
+  try {
+    await run();
+    return work;
+  } finally {
+    for (const restore of restores) restore();
+  }
+}
+
+await test('the parse and the render of every shape of note grow with its size, or a count refuses it', async () => {
+  // The review of 2026-10-03. One paragraph of lines that end in white space,
+  // a note of many paragraphs or one long list, and a paragraph of many code
+  // spans or literal links each took the square of its size to parse or to
+  // render, and a paragraph of many lines ran the render out of stack.
+  const size = 6000;
+  const stages: Readonly<Record<string, (source: string) => unknown>> = {
+    index: (source) => indexNote(source),
+    render: (source) => renderMarkdown(source),
+  };
+  for (const [name, unit] of Object.entries(noteShapes)) {
+    const once = noteOfShape(unit, size);
+    const twice = noteOfShape(unit, 2 * size);
+    if (!withinParseLimits(once)) {
+      assert.equal(withinParseLimits(twice), false, name);
+      continue;
+    }
+    for (const [stage, run] of Object.entries(stages)) {
+      const first = await workOf(() => run(once));
+      const second = await workOf(() => run(twice));
+      assert.ok(
+        second <= 2.5 * first,
+        `${name}, ${stage}: ${String(first)} then ${String(second)}`,
+      );
+    }
+  }
+});
+
+await test('a code span of many lines grows with its size', async () => {
+  const span = (lines: number) => `\`${'a b\n'.repeat(lines)}\``;
+  const first = await workOf(() => parseMarkdown(span(1500)));
+  const second = await workOf(() => parseMarkdown(span(3000)));
+  assert.ok(second <= 2.5 * first, `${String(first)} then ${String(second)}`);
+});
+
+await test('a text of many literal links or many lines parses and renders', async () => {
+  // A hundred thousand literal links in one text ran the step of GFM out of
+  // stack, so every reader of the note threw an error that is no limit, and
+  // a paragraph of a hundred thousand lines did the same to the render.
+  assert.doesNotThrow(() => parseMarkdown(' :www.a.b'.repeat(100_000)));
+  await assert.doesNotReject(renderMarkdown('a b\n'.repeat(100_000)));
 });

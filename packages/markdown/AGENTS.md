@@ -16,10 +16,10 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
   sanitized HTML. `links.ts` extracts note links and attachment references.
   `plain-text.ts` is the one plain text rule, `readableText`, which search
   indexes and quotes (0162, 0167); `indexNote` gives links and text at once.
-- `policy.ts` classifies a URL. `limits.ts` holds the limits (0182) and
-  `MarkdownLimitError`, `math*.ts` the math rules (0171),
-  `alerts.ts` the alert marker and `ordered-markers.ts` the style and label of
-  an ordered item (0089), which the live preview reads as well.
+- `policy.ts` classifies a URL. `limits.ts` holds the limits (0182),
+  `autolink-literals.ts` the literal links of GFM (0185), `math*.ts` the math
+  rules (0171), `alerts.ts` the alert marker and `ordered-markers.ts` the
+  style and label of an ordered item (0089), which the live preview reads.
 - `html-elements.ts` is the one list of author HTML (0157), which
   `render.ts` applies after the parse of `hast-util-raw`. `code-languages.ts`
   and `code-tokens.ts` are the one list of fence languages and the one map of
@@ -35,8 +35,8 @@ parse limits, and `renderMarkdown`. Every reader of a note reads it here.
 
 ## Allowed imports
 
-`@notesapp/core`, plus the remark, rehype, micromark, unified, `hast-util-raw`
-and `katex` packages, `@lezer/common` and `@lezer/highlight`. Only
+`@notesapp/core`, the remark, rehype, mdast, micromark and unified packages,
+`hast-util-raw`, `katex`, `@lezer/common` and `@lezer/highlight`. Only
 `code-languages.ts` loads a CodeMirror language package, lazily (0173).
 
 This package is browser code. It cannot import a Node built in module, a Node
@@ -74,24 +74,25 @@ through the editor path, so both surfaces must agree on structure.
 - No wiki link in the grammar: `wiki-links.ts` converts one at the border (0172).
 - No unsanitized HTML path, no second HTML parser and no second highlighter.
   Every render goes through `rehype-sanitize` with `policy.ts`.
-- No unbounded parse. Every entry point refuses a document over the limits
-  with `MarkdownLimitError`.
+- No unbounded parse: each entry point refuses a note over the limits, and a
+  step that reads a list again for each item gets a patch in `patches/` (0185).
 - No second copy of a delimiter or a limit in `packages/editor`.
 
 ## Key files
 
-| File                     | Purpose                                  |
-| ------------------------ | ---------------------------------------- |
-| `src/index.ts`           | The one public entry point               |
-| `src/parse.ts`           | The parser and its extension set         |
-| `src/render.ts`          | `renderMarkdown`                         |
-| `src/wiki-links.ts`      | The one converter of wiki links (0172)   |
-| `src/policy.ts`          | The sanitizer schema and the URL policy  |
-| `src/html-elements.ts`   | The HTML that an author may write (0157) |
-| `src/code-languages.ts`  | The one list of fence languages (0173)   |
-| `src/code-tokens.ts`     | The one map of code tokens (0159)        |
-| `src/alerts.ts`          | The alert marker and the five tones      |
-| `src/footnote-syntax.ts` | The footnote label rule (0156)           |
-| `src/ordered-markers.ts` | The label and style of an ordered item   |
-| `src/limits.ts`          | The four limits, `MarkdownLimitError`    |
-| `test-data/content.ts`   | The equivalence corpus                   |
+| File                       | Purpose                                     |
+| -------------------------- | ------------------------------------------- |
+| `src/index.ts`             | The one public entry point                  |
+| `src/parse.ts`             | The parser and its extension set            |
+| `src/render.ts`            | `renderMarkdown`                            |
+| `src/wiki-links.ts`        | The one converter of wiki links (0172)      |
+| `src/policy.ts`            | The sanitizer schema and the URL policy     |
+| `src/html-elements.ts`     | The HTML that an author may write (0157)    |
+| `src/code-languages.ts`    | The one list of fence languages (0173)      |
+| `src/code-tokens.ts`       | The one map of code tokens (0159)           |
+| `src/alerts.ts`            | The alert marker and the five tones         |
+| `src/footnote-syntax.ts`   | The footnote label rule (0156)              |
+| `src/ordered-markers.ts`   | The label and style of an ordered item      |
+| `src/limits.ts`            | The four limits, `MarkdownLimitError`       |
+| `src/autolink-literals.ts` | The literal links of GFM in one pass (0185) |
+| `test-data/content.ts`     | The equivalence corpus                      |
