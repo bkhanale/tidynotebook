@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildNoteTree, type NoteSummary } from './note-list.ts';
 import {
+  blurLeavesRow,
   isFieldKey,
   placeAfterChange,
   rowKeyOf,
@@ -195,6 +196,18 @@ await test('a row that stays keeps the place, and takes back a focus that fell',
     }),
     { key: null, focus: false },
   );
+});
+
+await test('a row gives the focus away to the page, and keeps it over a window switch', () => {
+  // The defect: a click on space of the page gave the focus to no element,
+  // the tree kept the row, and a removal of that row by another device moved
+  // the focus and the scroll back into the tree.
+  assert.equal(blurLeavesRow({ to: 'none', documentFocused: true }), true);
+  assert.equal(blurLeavesRow({ to: 'element', documentFocused: true }), true);
+  assert.equal(blurLeavesRow({ to: 'row', documentFocused: true }), false);
+  // A switch to another window takes the focus from the document, and it
+  // comes back to the row.
+  assert.equal(blurLeavesRow({ to: 'none', documentFocused: false }), false);
 });
 
 await test('a place the tree did not show yet stays, such as a renamed folder', () => {

@@ -89,6 +89,7 @@ import {
   treeRowNameClassName,
 } from '../lib/tree-row.ts';
 import {
+  blurLeavesRow,
   isFieldKey,
   placeAfterChange,
   rowKeyOf,
@@ -1084,7 +1085,13 @@ function TreeRow({
       onFocus={(event) => onFocus(event.currentTarget)}
       onBlur={(event) => {
         const next = event.relatedTarget;
-        if (next instanceof Node && !event.currentTarget.contains(next))
+        const to =
+          next instanceof Node
+            ? event.currentTarget.contains(next)
+              ? 'row'
+              : 'element'
+            : 'none';
+        if (blurLeavesRow({ to, documentFocused: document.hasFocus() }))
           onLeave(event.currentTarget);
       }}
       onClick={(event) => {

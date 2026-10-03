@@ -164,6 +164,35 @@ export function placeAfterChange(input: {
 }
 
 /**
+ * Whether one blur of the row with the focus gives the focus away.
+ *
+ * The tree remembers the row with the focus, so that the next row takes the
+ * focus when that row leaves the tree (`placeAfterChange`). The row gives
+ * the focus away when the focus goes to another element of the page, and
+ * when it goes to no element while the document keeps the focus: a click on
+ * space of the page that takes no focus. The review of the merged branch
+ * found that only the first case counted, so after such a click a change
+ * from another device that removed the row moved the focus and the scroll
+ * back into the tree. A blur while the document loses the focus, a switch to
+ * another window, keeps the row, because the focus comes back to it.
+ */
+export function blurLeavesRow(blur: {
+  /** Where the focus goes: into the row, to another element, or to none. */
+  readonly to: 'row' | 'element' | 'none';
+  /** The document still has the focus, so the window did not change. */
+  readonly documentFocused: boolean;
+}): boolean {
+  switch (blur.to) {
+    case 'row':
+      return false;
+    case 'element':
+      return true;
+    case 'none':
+      return blur.documentFocused;
+  }
+}
+
+/**
  * Whether a key press belongs to a field inside a row, such as the name field
  * of a rename, and not to the tree.
  *
