@@ -15,8 +15,10 @@ The versions go to your server when this device has a connection. The line at
 the bottom of the sidebar tells you where your work is:
 
 - **Sending your save to the server.** Your work is on its way.
-- **No connection. Saves wait on this device.** Your work goes to your server
+- **No connection. Notes stay on this device.** Your work goes to your server
   when the connection returns.
+- **1 save needs attention.** Your server refused a save. The save waits under
+  **Needs attention**, below this line, and nothing sends it until you act.
 - **Everything is saved to the server.** Your work is on your server.
 
 ## History
@@ -57,8 +59,10 @@ device only. A later change from another device can show it again.
 
 A save that your server refuses for good is kept on your device and listed
 under **Needs attention** in the sidebar, which appears only while something is
-waiting there. Each row says why, shows the text, and offers four actions:
-**Retry**, **Save as new note**, **Copy text**, and **Discard**.
+waiting there. Each row says why, says when the text was kept, shows the text,
+and offers four actions: **Retry**, **Save as new note**, **Copy text**, and
+**Discard**. When no save waits there any more, the line at the bottom of the
+sidebar states your other work again.
 
 After an update of Notesapp, earlier work on this device that could not go into
 its note waits there too. That note shows a notice, and its Review compares the

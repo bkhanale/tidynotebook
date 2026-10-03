@@ -23,9 +23,10 @@ of these reads from or writes to your server.
 ## What you see
 
 The bottom of the sidebar carries one sentence about your saves. Offline it
-reads "No connection. Saves wait on this device." When the connection returns
+reads "No connection. Notes stay on this device." When the connection returns
 it changes to "Sending your save to the server." and then "Everything is saved
-to the server."
+to the server." A save that waits in **Needs attention** does not go when the
+connection returns, so the sentence then reads "1 save needs attention."
 
 There is no separate queue list and no retry button: the queue sends itself in
 order as soon as it can. If another device changed the same note meanwhile, the

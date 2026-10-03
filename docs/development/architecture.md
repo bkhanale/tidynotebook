@@ -59,8 +59,8 @@ The permanent delete also releases the attachment bytes that no live revision
 references. See [decision 0006](../decisions/0006-trash-replaces-purge.md).
 
 The note saves itself and makes a version on a natural boundary, and the
-sidebar footer states where the work of the device stands. A save the server
-refuses for good is parked and listed on the "Needs attention" screen. See
+sidebar footer states the queue (`apps/web/src/lib/sync-state.ts`). A save
+refused for good is parked, is not sent again, and waits in "Needs attention". See
 [decision 0022](../decisions/0022-autosave-and-automatic-versions.md). A save
 that joined work the device had not seen keeps its checkpoint for Review. See
 [decision 0087](../decisions/0087-review-keeps-the-checkpoint-that-caused-it.md).
