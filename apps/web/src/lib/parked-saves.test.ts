@@ -138,7 +138,7 @@ await test('an over the limit rename names its own cause', () => {
 });
 
 await test('a save of a note over a limit of the grammar names the cause and the action', () => {
-  // Record 0186. A note over a limit of the grammar is refused with its own
+  // Record 0182. A note over a limit of the grammar is refused with its own
   // problem code, and the list read the general sentence, so the person did
   // not learn what to change.
   const sentence = parkedSaveReason('save_refused', 'unrenderable_note');

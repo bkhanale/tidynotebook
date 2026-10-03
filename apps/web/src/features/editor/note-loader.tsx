@@ -239,7 +239,7 @@ export function NoteEditorLoader({
       const paired =
         kept !== null && !kept.deleted && kept.document !== null ? kept : null;
       // The generation goes with the document, so the editor names the one
-      // that it opened from in each write (record 0183).
+      // that it opened from in each write (record 0181).
       setStatus({
         kind: 'ready',
         path: result.data.path,

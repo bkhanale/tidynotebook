@@ -1,4 +1,4 @@
-# 0183. The work of an open editor names its generation
+# 0181. The work of an open editor names its generation
 
 - Status: Accepted
 - Date: 2026-10-03

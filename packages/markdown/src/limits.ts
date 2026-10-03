@@ -1,5 +1,5 @@
 /**
- * The resource limits of Markdown work (record 0186).
+ * The resource limits of Markdown work (record 0182).
  *
  * A workspace has members, sign-up can be open, and a note can be published,
  * so the person who writes a note is not always the person whose server or

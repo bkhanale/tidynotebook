@@ -1,6 +1,6 @@
 /**
  * The writes of one open editor to this device (records 0022, 0133, 0175,
- * 0183).
+ * 0181).
  *
  * A key reaches the disk one frame after it reaches the editor: each frame
  * appends the work of its keys to the document of the note, with no decode

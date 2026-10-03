@@ -147,7 +147,7 @@ const spellCheckCompartment = new Compartment();
  * completion, paste) is added next to this call, never inside it.
  *
  * The language reads only a note within the limits of the one grammar
- * (`./grammar-gate.ts`, record 0186). `within` is the answer for the first
+ * (`./grammar-gate.ts`, record 0182). `within` is the answer for the first
  * document, and every later layer reads the syntax tree, so a note over a
  * limit shows as plain text.
  */

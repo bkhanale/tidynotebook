@@ -95,7 +95,7 @@ function mergedUpdate(
  * order of the rows is not the order of the writes, and a later pass takes
  * an update whose dependency an earlier pass applied. An update that never
  * applies is left out: it cannot become text, and a fold that refused the
- * whole row made the note unreadable and stopped the sync (record 0183). The
+ * whole row made the note unreadable and stopped the sync (record 0181). The
  * editor that wrote it holds the work and writes its whole document, and its
  * draft states no vector meanwhile, so the draft text is the recovery copy.
  */
@@ -148,7 +148,7 @@ export async function readStoredDocumentRow(
  * A note that this device started and whose first write is still pending
  * reads as an empty document with those updates (record 0175). An update
  * that the document cannot take is left out, so the read never fails on it
- * (record 0183).
+ * (record 0181).
  */
 export async function readDocumentRow(
   tables: Tables,
@@ -177,7 +177,7 @@ export async function readDocumentRow(
  * editor is lost when the row is written: a snapshot, a feed page, a
  * checkpoint and a merge all keep the work that waits. An update of another
  * generation cannot join and goes (record 0084), and so does an update that
- * the document cannot take (record 0183). Every update of the note is
+ * the document cannot take (record 0181). Every update of the note is
  * removed, so the next read decodes nothing twice.
  */
 export async function writeDocumentRow(
@@ -224,7 +224,7 @@ export function generationOf(row: DocumentRow | null): number {
 
 /**
  * Refuses work of an open editor that builds on another generation than the
- * stored document (record 0183).
+ * stored document (record 0181).
  *
  * The identities of one generation say nothing about another (record 0084),
  * so the work would name items that the stored document lacks, or hold the
@@ -352,7 +352,7 @@ export async function freezeDocument(
   const current = await readDocumentRow(tables, key);
   // The editor wrote its work into its own generation. A document of another
   // generation holds none of it, so a version of it would claim the text of
-  // that generation as the work of this editor (record 0183).
+  // that generation as the work of this editor (record 0181).
   refuseOtherGeneration(current, epoch);
   // A new note that holds no document yet starts an empty one, as the first
   // write of its editor does. A note that the server holds is refused.

@@ -1,6 +1,6 @@
 /**
  * The Markdown language of the editor, kept only for a note that the one
- * grammar reads (record 0186).
+ * grammar reads (record 0182).
  *
  * A note over a limit of `@notesapp/markdown` is a note that the renderer
  * refuses and that a reader sees as its source. The Lezer parser of the

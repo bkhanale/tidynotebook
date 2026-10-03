@@ -267,7 +267,7 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  *
  * `note_too_large`, `note_too_deep`, `note_too_many_marks` and
  * `note_too_many_cells` mean that the Markdown of a note is above a fixed
- * limit of the Markdown package (record 0186), so the note cannot be read as
+ * limit of the Markdown package (record 0182), so the note cannot be read as
  * Markdown. Storage reports them when it indexes an accepted revision.
  *
  * `too_many_files` means that one changeset would rewrite more files than

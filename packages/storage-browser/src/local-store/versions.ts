@@ -493,7 +493,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             }
             // Work that builds on another generation would name items that
             // the stored document lacks, and every read of the note would
-            // meet it (record 0183).
+            // meet it (record 0181).
             refuseOtherGeneration(row, epoch);
             await tables.documentUpdates.put({
               ...key,

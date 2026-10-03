@@ -1,5 +1,5 @@
 /**
- * The resource limits of this package (record 0186).
+ * The resource limits of this package (record 0182).
  *
  * A note can be written by a member of a workspace or by anybody who signs
  * up, and the server and every device parse it, so these limits keep the

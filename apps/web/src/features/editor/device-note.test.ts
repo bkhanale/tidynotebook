@@ -67,7 +67,7 @@ function storeOf(
 }
 
 await test('a note with its document opens from the device', async () => {
-  // Record 0183. The open gave the editor the bytes alone, so the editor
+  // Record 0181. The open gave the editor the bytes alone, so the editor
   // took its generation from a later read, which could be a new one.
   const bytes = new Uint8Array([1, 2, 3]);
   const status = await readDeviceNote(

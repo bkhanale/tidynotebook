@@ -328,7 +328,7 @@ await test('a document of a new generation cannot join, which is why it reopens'
 });
 
 await test('a stored document holds the work of a vector only with every insertion', () => {
-  // Record 0183. A snapshot can replace the stored row with a document that
+  // Record 0181. A snapshot can replace the stored row with a document that
   // lacks keys the editor appended, and the editor then writes its whole
   // document again.
   const note = openBoundNote(startDocument('one\n'), 'one\n');

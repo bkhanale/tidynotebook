@@ -25,7 +25,7 @@ export type NoteLoadStatus =
        * The document of the note on this device with its generation, or
        * `null` when this device holds none yet (record 0081). The editor
        * binds to it, and each of its writes names the generation (record
-       * 0183).
+       * 0181).
        */
       readonly document?: NoteDocument | null | undefined;
     };

@@ -158,7 +158,7 @@ export type NoteEditorProps = {
    * text of the note are one value. Work from another device joins the open
    * editor instead of waiting for a reload, and a save carries only the work
    * of this device. Every write of the editor names the generation, so its
-   * work never enters a document of another one (record 0183).
+   * work never enters a document of another one (record 0181).
    */
   readonly initialDocument?: NoteDocument | null | undefined;
   readonly initialPath: string;
@@ -283,7 +283,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
   // the screen reads the note again, and this editor writes nothing more
   // (record 0179).
   const reopeningRef = useRef(false);
-  // The generation of the document that this editor holds (record 0183).
+  // The generation of the document that this editor holds (record 0181).
   const openedEpochRef = useRef(openedGeneration(initialDocument));
   const { resolved } = useTheme();
   const spellCheck = useSpellCheck();
@@ -584,7 +584,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
     const current = live.current;
     const bound = sessionRef.current;
     // The changes that the store took before this read, which the stored
-    // document must hold (record 0183).
+    // document must hold (record 0181).
     const mark = noteWork.takenMark();
     try {
       const stored = await current.store.readNoteDocument(
@@ -608,7 +608,7 @@ const NoteEditorBody = memo(function NoteEditorBody({
         return;
       }
       // A new generation holds none of the work of this editor. The store
-      // refuses each write of it, and the draft keeps its text (record 0183).
+      // refuses each write of it, and the draft keeps its text (record 0181).
       if (step === 'keep') noteWork.storeLacksWork();
       if (step === 'reopen' && !reopeningRef.current) {
         reopeningRef.current = true;

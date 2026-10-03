@@ -241,7 +241,7 @@ await test('only the editor that wrote a document change skips it', () => {
 });
 
 await test('no append runs once an append failed', async () => {
-  // Record 0183. Every frame appended its work after an append had failed,
+  // Record 0181. Every frame appended its work after an append had failed,
   // and that work built on the work that the store lacked. The store could
   // not apply it, and every read of the note failed.
   const editor = new Editor();
@@ -312,7 +312,7 @@ await test('a loss that begins while the whole document is written stays', async
 });
 
 await test('a stored document that lacks the work of the editor gets it again', async () => {
-  // Record 0183. A snapshot writes the whole document of the server over
+  // Record 0181. A snapshot writes the whole document of the server over
   // the row, which can lack work that this editor appended. The editor did
   // not know, so later keys built on work that the store no longer held.
   const editor = new Editor();
@@ -334,7 +334,7 @@ await test('a stored document that lacks the work of the editor gets it again', 
 });
 
 await test('work of an old generation waits in the editor and the draft', async () => {
-  // Record 0183. A new generation holds none of the work of this editor.
+  // Record 0181. A new generation holds none of the work of this editor.
   // The store refuses each write of it, so the version fails and the draft
   // keeps the text for the next open of the note.
   const editor = new Editor();

@@ -57,7 +57,7 @@ export function headToAdopt(open: OpenNote): string | null {
 }
 
 /**
- * The generation of the document that an editor opens from (record 0183).
+ * The generation of the document that an editor opens from (record 0181).
  *
  * It is the generation that the loader read with the text, never the one of
  * a later read: a new generation that arrives between the two would join the
@@ -79,7 +79,7 @@ export function openedGeneration(
  * generation and an editor with no key of this session. `keep` leaves the
  * editor as it is: a new generation under typed work. The store refuses each
  * write of that work, and the draft keeps its text for the next open of the
- * note (record 0183).
+ * note (record 0181).
  */
 export function storedDocumentStep(input: {
   /**

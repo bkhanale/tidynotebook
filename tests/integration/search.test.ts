@@ -563,7 +563,7 @@ for (const [kind, refusedText, words] of [
     // RangeError. The migration runs before the server serves, so that one
     // note stopped the server from starting. The grammar now refuses the note
     // as the renderer does, and the run drops its row and reads the next note.
-    // A note over the mark limit of record 0186 can be stored by an earlier
+    // A note over the mark limit of record 0182 can be stored by an earlier
     // release in the same way, and the run treats it the same way.
     const [deepId, laterId] = [randomUUID(), randomUUID()].toSorted();
     assert.ok(deepId !== undefined && laterId !== undefined);

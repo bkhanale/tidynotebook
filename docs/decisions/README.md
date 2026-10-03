@@ -212,8 +212,8 @@ and needs no record.
 | [0178](0178-the-generator-writes-the-address-of-a-browser-download.md)                | The generator writes the address of a browser download                          |
 | [0179](0179-an-open-note-follows-a-new-head-in-its-one-editor.md)                     | An open note follows a new head in its one editor                               |
 | [0180](0180-a-start-that-fails-shows-the-application-error-screen.md)                 | A start that fails shows the application error screen                           |
-| [0183](0183-the-work-of-an-open-editor-names-its-generation.md)                       | The work of an open editor names its generation                                 |
-| [0186](0186-the-parse-of-a-note-grows-with-its-size.md)                               | The parse of a note grows with its size                                         |
+| [0181](0181-the-work-of-an-open-editor-names-its-generation.md)                       | The work of an open editor names its generation                                 |
+| [0182](0182-the-parse-of-a-note-grows-with-its-size.md)                               | The parse of a note grows with its size                                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -748,7 +748,7 @@ worker controls starts the entry with no preload links, and a failure before
 the first render shows the application error screen of record 0161 with
 Reload. It refines records 0044 and 0161.
 
-Record 0183 makes each write of open editor work name the generation of its
+Record 0181 makes each write of open editor work name the generation of its
 document, so the store refuses work of another generation. The appends of an
 editor stop after a failure until the whole document is written, and a fold
 leaves out an update that cannot apply instead of making the note unreadable.

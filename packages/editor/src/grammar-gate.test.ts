@@ -1,6 +1,6 @@
 /**
  * The Markdown language of the editor follows the limits of the one grammar
- * (record 0186). Each test builds a state with no view, as the editor builds
+ * (record 0182). Each test builds a state with no view, as the editor builds
  * it, and reads whether the language parses the note.
  */
 import assert from 'node:assert/strict';

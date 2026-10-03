@@ -104,7 +104,7 @@ await test('a document of the same generation joins the one editor', () => {
 });
 
 await test('the editor holds the generation that the loader read', () => {
-  // Record 0183. The editor took its generation from its first read of the
+  // Record 0181. The editor took its generation from its first read of the
   // store, and not from the read that the loader opened it from. A new
   // generation that arrived between the two joined the bytes of one
   // generation into another, and the text showed twice.

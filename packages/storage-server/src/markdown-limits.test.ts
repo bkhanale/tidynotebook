@@ -15,7 +15,7 @@ await test('a note above the nesting limit is too deep', () => {
 });
 
 await test('a note above the mark or the cell limit has a code of its own', () => {
-  // Record 0186. Each limit of the grammar names its own cause, so the
+  // Record 0182. Each limit of the grammar names its own cause, so the
   // author reads what to change.
   assert.equal(
     markdownLimitCode(new MarkdownLimitError('block-marks', 128, 129)),

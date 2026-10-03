@@ -970,7 +970,7 @@ await test('the room of an import counts the notes as their links convert', asyn
   // check let the import start, the first batch went in, and the store
   // refused a later one, so half of the vault came in.
   // Each link is a paragraph of its own, so no block holds more marks than
-  // the grammar reads (record 0186).
+  // the grammar reads (record 0182).
   const unit = '[[a b c d]]\n\n';
   const links = 30_000;
   const small: [string, string][] = Array.from(

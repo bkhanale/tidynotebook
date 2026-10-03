@@ -456,7 +456,7 @@ export type NoteDocument = {
  * document, and a diff of it would write a revert or a second copy of remote
  * work as work of this device. `epoch` is the generation of the document
  * that the editor holds. A stored document of another generation holds none
- * of its work, so the checkpoint is refused as `stale` (record 0183).
+ * of its work, so the checkpoint is refused as `stale` (record 0181).
  *
  * `text`: a writer with no open document, such as a new note or a text that
  * a person places, so the checkpoint writes the text into the document.
@@ -1089,7 +1089,7 @@ export type LocalStore = {
    * (record 0084). `epoch` is the generation of the document that the work
    * builds on, and work for a stored document of another generation is
    * refused as `stale` too, so it never names items that the stored document
-   * lacks (record 0183). A note that this device starts is generation 1.
+   * lacks (record 0181). A note that this device starts is generation 1.
    */
   appendNoteWork(
     accountId: string,
@@ -1109,7 +1109,7 @@ export type LocalStore = {
    * merge. The open of a note writes its start work here, and an editor whose
    * append failed writes its whole document here before a checkpoint. Work
    * of another generation than the stored document is refused as `stale`,
-   * as `appendNoteWork` refuses it (record 0183).
+   * as `appendNoteWork` refuses it (record 0181).
    */
   mergeNoteWork(
     accountId: string,

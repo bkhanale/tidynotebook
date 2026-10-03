@@ -98,7 +98,7 @@ await test('an inherited member cannot pass as a problem', () => {
 });
 
 await test('a note over a limit of the grammar reads as its cause and the action', () => {
-  // Record 0186. The sentence said that the note could not be rendered, and
+  // Record 0182. The sentence said that the note could not be rendered, and
   // not what the person can change.
   assert.equal(
     problemSentence('unrenderable_note', 422),

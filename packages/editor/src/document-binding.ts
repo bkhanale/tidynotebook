@@ -224,7 +224,7 @@ export function holdLocalWork(session: DocumentSession): HeldLocalWork {
  * The screen keeps the vector of the work that the store took. A stored
  * document that lacks part of it lost work of the open note, for example to
  * a snapshot that replaced the row, and the screen writes its whole document
- * again (record 0183). A state vector does not count a deletion, so the
+ * again (record 0181). A state vector does not count a deletion, so the
  * answer speaks only of the insertions.
  */
 export function documentHolds(stored: Uint8Array, vector: Uint8Array): boolean {

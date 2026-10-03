@@ -25,7 +25,7 @@
  * - Every entry point is bounded. The size, nesting, mark and table checks in
  *   `./limits.ts` run before the parser sees the text, and the depth of the
  *   tree and of the HTML that the author wrote is checked after (record
- *   0186).
+ *   0182).
  *
  * Parsing does not change the source. A JavaScript string is immutable, and
  * this module keeps only offsets into it, so `source.slice(from, to)` of any
@@ -151,7 +151,7 @@ export function parseBlocks(source: string): Root {
 }
 
 /**
- * Checks every limit that holds before the parse of a note (record 0186).
+ * Checks every limit that holds before the parse of a note (record 0182).
  *
  * The reading of the lines decides the size, the nesting of a line prefix,
  * the table cells, and, for most notes, the marks of each block. When a part

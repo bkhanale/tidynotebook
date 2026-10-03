@@ -1981,7 +1981,7 @@ async function feedPage(
 }
 
 await test('work of an old generation is refused and the note stays readable', async () => {
-  // Record 0183. An editor that kept typing after a new generation of its
+  // Record 0181. An editor that kept typing after a new generation of its
   // document arrived appended work that named the old one, and the store
   // labelled it with the new one. Every read and write of the note then
   // failed as corrupt: the note did not open, and each feed page that named
@@ -2059,7 +2059,7 @@ await test('work of an old generation is refused and the note stays readable', a
 });
 
 await test('an update that the document cannot take never makes the note unreadable', async () => {
-  // Record 0183. An append that failed left the appends after it with work
+  // Record 0181. An append that failed left the appends after it with work
   // that names what it wrote, and an earlier release stored them. The fold
   // refused the whole row, so the note did not open and every feed page that
   // named it failed. The fold now leaves such an update out, and the next
@@ -2126,7 +2126,7 @@ await test('an update that the document cannot take never makes the note unreada
 });
 
 await test('a whole document of the server applies over keys that build on local work', async () => {
-  // Record 0183. A snapshot writes the whole document of the server over
+  // Record 0181. A snapshot writes the whole document of the server over
   // the row. A key of the open editor that built on unsent local work then
   // named items that the row no longer held, and the snapshot failed as
   // corrupt each time, so the sync stopped. The editor writes its whole

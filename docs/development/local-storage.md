@@ -130,7 +130,7 @@ match its schema. The editor keeps its text after each one, and it never
 reloads the page or takes server text into the buffer. Its writes name the
 generation of their document, its appends stop after a failure until the whole
 document is written, and a fold leaves out an update that cannot apply. See
-[decision 0183](../decisions/0183-the-work-of-an-open-editor-names-its-generation.md).
+[decision 0181](../decisions/0181-the-work-of-an-open-editor-names-its-generation.md).
 
 ## Compatibility data
 

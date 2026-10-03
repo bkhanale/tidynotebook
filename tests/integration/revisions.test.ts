@@ -1534,7 +1534,7 @@ await test('a note whose HTML nests too deeply is refused with a message', async
 });
 
 await test('a note of too many marks or table cells is refused with its own message', async () => {
-  // Record 0186. The parse of a short note of nested images held a worker
+  // Record 0182. The parse of a short note of nested images held a worker
   // for seconds, and a note of many table cells held it longer with each
   // cell. Each is now the typed refusal of its own limit, before the parse.
   const cases = [

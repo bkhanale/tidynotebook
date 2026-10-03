@@ -228,7 +228,7 @@ await test('the data migration starts the document of every note that has none',
 /**
  * The text after a link that the grammar refuses, by each limit that a
  * release added: HTML deeper than the nesting limit, and a paragraph of more
- * marks than one block may hold (record 0186).
+ * marks than one block may hold (record 0182).
  */
 const refusedTails = [
   ['deep HTML', `${'<div>'.repeat(5000)}x\n`],

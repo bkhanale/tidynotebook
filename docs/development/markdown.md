@@ -130,7 +130,7 @@ both rules, and its test walks the whole registry.
 A member of a workspace, or anybody who signs up, can write a note that the
 server and every device parse, so the work of a parse stays in proportion to
 the size of the note
-([decision 0186](../decisions/0186-the-parse-of-a-note-grows-with-its-size.md)).
+([decision 0182](../decisions/0182-the-parse-of-a-note-grows-with-its-size.md)).
 `packages/markdown/src/limits.ts` states four counts: the size of a note, the
 nesting depth, the marks of one inline block, and the table cells of a note.
 
