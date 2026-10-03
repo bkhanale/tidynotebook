@@ -54,6 +54,9 @@ statements are written and reviewed by hand.
   note from Markdown (record 0084). The third makes each search row of an
   earlier text rule again (record 0167). Each one writes only what is missing
   or old, so a second run changes nothing.
+- A limit of the grammar can be newer than a stored note. Each data migration
+  and the link rewrite of a move keep such a note as it is and go on, so one
+  note never stops the server from starting or refuses the move of another.
 
 ## Search
 

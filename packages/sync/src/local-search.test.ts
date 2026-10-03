@@ -249,3 +249,31 @@ await test('a changed draft is read again and a hit keeps its entry', () => {
   // A draft keeps its revision and changes its text, so it is read again.
   assert.equal(cache.cached({ ...first, text: 'alpha two' }), null);
 });
+
+await test('a note whose HTML nests too deep is found by its source and fails no search', () => {
+  // Review of the audit of 2026-10-02. The plain text read the HTML of a
+  // note with no bound, so 5000 nested elements threw a RangeError, which
+  // this search threw again, and the search of the whole device failed. The
+  // grammar now refuses the note with its limit error, as the renderer
+  // does, and the note is searched as it is written.
+  const files: readonly LocalSearchFile[] = [
+    {
+      fileId: 'deep',
+      path: 'Deep.md',
+      revisionId: 'r1',
+      text: `Lighthouse log\n\n${'<div>'.repeat(5000)}x\n`,
+    },
+    {
+      fileId: 'plain',
+      path: 'Plain.md',
+      revisionId: 'r2',
+      text: 'The lighthouse keeper.\n',
+    },
+  ];
+  assert.deepEqual(
+    searchLocal('lighthouse', files)
+      .map((hit) => hit.fileId)
+      .toSorted(),
+    ['deep', 'plain'],
+  );
+});

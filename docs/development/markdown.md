@@ -135,7 +135,8 @@ both stated in `packages/markdown/src/limits.ts`.
 Nesting is checked twice. A prefix scan runs before the parse, because nesting
 is the one shape that can stop the parser rather than slow it down. The tree is
 measured again after the parse, because an inline construct nests without a
-line prefix. Both counts are in levels an author wrote.
+line prefix. Both counts are in levels an author wrote. `parseMarkdown` also
+counts the tags of the HTML of a note, so every reader refuses the same notes.
 
 There is no wall-clock timeout and no cost score. A timeout would bound one
 render on one machine and make the outcome depend on the load of that machine,
