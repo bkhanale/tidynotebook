@@ -5,9 +5,9 @@
 
 ## Context
 
-A cold start loaded 28 script files, about 517 KB compressed, before All
-notes stated the note count (issue 266, `pnpm perf:start`). About 212 KB of
-it was the editor engine: the frame imported the shortcut list and the
+A cold start loaded more script than the first screen needs before All notes
+stated the note count (issue 266, `pnpm perf:start`). The largest part of it
+was the editor engine: the frame imported the shortcut list and the
 formatting rows of the palette from `@notesapp/editor`, and that entry
 loads CodeMirror. The device search of the palette imports the plain text
 rule of `@notesapp/markdown`, which brought the Markdown parser and the HTML
@@ -28,7 +28,7 @@ record 0136. Each module of a screen also waited for the one above it.
   of the frame and All notes, and every chunk that they import, as
   `firstScreenScripts` of `tools/performance/first-route.ts` reads them from
   the build. `tools/performance/bundle-budget.mjs` holds that set to the size
-  that this record left with a margin of about one twentieth. The figure of
+  that this record left with a small margin. The figure of
   record 0136 stays the ceiling of every budget.
 - `tests/integration/web-build.test.ts` fails when CodeMirror, KaTeX or
   the HTML reader of the renderer is in the first screen.

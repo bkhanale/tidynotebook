@@ -18,8 +18,10 @@ See
   Tailwind compiler of the web build.
 - A unit test does not live here. It lives next to its module in a package
   `src` tree and runs under `pnpm test:unit`.
-- A test that drives a browser does not live here, and nothing in this
-  repository starts one.
+- A test that drives a browser does not live here, and no gate starts one.
+  Only the measurements `pnpm perf:typing`, `perf:save` and `perf:start` of
+  `tools/performance/` drive the Chromium of the skill, and
+  `support/dev-app.ts` starts their server.
 
 ## Allowed imports
 
