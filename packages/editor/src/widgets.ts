@@ -897,11 +897,38 @@ export type RegionIndex = {
   readonly definitions: ReadonlyMap<string, string>;
   /** Where the link definitions stand, so an edit of one scans again. */
   readonly definitionRanges: readonly SourceRange[];
-  /** How far the tree reached when the index was last scanned. */
-  readonly parsedTo: number;
+  /**
+   * Whether the regions wait for a tree of the whole note. A parse that stops
+   * before the end of the note gives a tree that can hold none of its blocks,
+   * and the next parse can draw even the blocks before the edit anew, so the
+   * regions move with the edits until a whole tree comes, and that tree is
+   * scanned whole.
+   */
+  readonly pending: boolean;
   /** How many tree nodes the update that made this index entered. */
   readonly visited: number;
 };
+
+/**
+ * Whether the tree of a state holds the blocks of its whole note.
+ *
+ * The note language parses the Markdown body as a document mounted in its
+ * own. A parse that stops early can leave a tree as long as the note whose
+ * body is still one unparsed `Body` node, or a body that ends before the
+ * note, so the test reads the body and not the length alone.
+ */
+function treeCovers(state: EditorState): boolean {
+  const tree = syntaxTree(state);
+  if (tree.length < state.doc.length) return false;
+  for (
+    let child = tree.topNode.firstChild;
+    child !== null;
+    child = child.nextSibling
+  )
+    if (child.name === 'Body') return false;
+  // A body parsed in part ends before the note does.
+  return documentNode(tree).to >= state.doc.length;
+}
 
 /** The index of one state, from a scan of the whole tree. */
 export function regionIndexOf(state: EditorState): RegionIndex {
@@ -915,7 +942,7 @@ export function regionIndexOf(state: EditorState): RegionIndex {
     regions: scan.regions,
     definitions,
     definitionRanges: ranges,
-    parsedTo: syntaxTree(state).length,
+    pending: !treeCovers(state),
     visited: scan.visited,
   };
 }
@@ -932,16 +959,18 @@ function topBlockOf(node: SyntaxNode): SyntaxNode | null {
   return null;
 }
 
-/** The innermost `Document` node of a tree, whose children are blocks. */
+/**
+ * The Markdown document of a tree, whose children are its blocks.
+ *
+ * The note language puts the front matter and the Markdown document side
+ * by side under a document of its own. A tree with no front matter grammar
+ * is the Markdown document itself.
+ */
 function documentNode(tree: Tree): SyntaxNode {
-  let node = tree.topNode;
-  for (
-    let inner = node.firstChild;
-    inner !== null && inner.name === 'Document';
-    inner = node.firstChild
-  )
-    node = inner;
-  return node;
+  const top = tree.topNode;
+  for (let child = top.firstChild; child !== null; child = child.nextSibling)
+    if (child.name === 'Document') return child;
+  return top;
 }
 
 /** The top-level blocks of a tree that touch one position, as one range. */
@@ -1059,7 +1088,7 @@ function rescan(
   state: EditorState,
   kept: readonly Region[],
   range: SourceRange,
-  index: Omit<RegionIndex, 'regions' | 'parsedTo' | 'visited'>,
+  index: Omit<RegionIndex, 'regions' | 'pending' | 'visited'>,
 ): RegionIndex | null {
   const scan = scanRegions(state, range, index.definitions);
   if (scan.definitions) return null;
@@ -1068,9 +1097,10 @@ function rescan(
     ...scan.regions.filter((region) => meets(region, range)),
   ].sort((left, right) => left.from - right.from || left.to - right.to);
   return {
-    ...index,
+    definitions: index.definitions,
+    definitionRanges: index.definitionRanges,
     regions,
-    parsedTo: syntaxTree(state).length,
+    pending: false,
     visited: scan.visited,
   };
 }
@@ -1078,41 +1108,50 @@ function rescan(
 /**
  * The index after one transaction.
  *
- * An edit scans the blocks that it changed. A parse that reached further
- * scans the blocks that it added. A transaction that changes neither keeps
- * the index. A change of a link definition scans the whole note, because an
- * image anywhere can name it.
+ * An edit scans the blocks that it changed. A change of a link definition
+ * scans the whole note, because an image anywhere can name it. An edit whose
+ * parse stops before the end of the note moves the regions with it, and the
+ * transaction that brings a tree of the whole note scans it whole. A
+ * transaction that changes neither keeps the index.
  */
 export function nextRegionIndex(
   index: RegionIndex,
   transaction: Transaction,
 ): RegionIndex {
   const state = transaction.state;
+  const covered = treeCovers(state);
   if (transaction.docChanged) {
-    const range = changedBlocks(transaction, index);
-    if (range === null) return regionIndexOf(state);
+    const regions = index.regions.map((region) =>
+      mapRegion(region, transaction),
+    );
     const definitionRanges = index.definitionRanges.map((range) => ({
       from: transaction.changes.mapPos(range.from),
       to: transaction.changes.mapPos(range.to),
     }));
+    if (!covered || index.pending) {
+      // A tree that stops before the end of the note holds none of its
+      // blocks, so the regions move with the edit until a whole tree comes.
+      if (covered) return regionIndexOf(state);
+      return {
+        definitions: index.definitions,
+        definitionRanges,
+        regions,
+        pending: true,
+        visited: 0,
+      };
+    }
+    const range = changedBlocks(transaction, index);
+    if (range === null) return regionIndexOf(state);
     return (
-      rescan(
-        state,
-        index.regions.map((region) => mapRegion(region, transaction)),
-        range,
-        { definitions: index.definitions, definitionRanges },
-      ) ?? regionIndexOf(state)
+      rescan(state, regions, range, {
+        definitions: index.definitions,
+        definitionRanges,
+      }) ?? regionIndexOf(state)
     );
   }
-  const tree = syntaxTree(state);
-  if (tree.length <= index.parsedTo) return index;
-  // The parser reached text that the index has not seen. The block where the
-  // last parse stopped can have grown, so the scan starts there.
-  const range = {
-    from: blocksAt(tree, index.parsedTo).from,
-    to: tree.length,
-  };
-  return rescan(state, index.regions, range, index) ?? regionIndexOf(state);
+  if (!index.pending || !covered) return index;
+  // A tree of the whole note arrived after a parse that stopped early.
+  return regionIndexOf(state);
 }
 
 /**

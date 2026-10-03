@@ -8,6 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { syntaxTree } from '@codemirror/language';
 import { EditorState, type TransactionSpec } from '@codemirror/state';
 import { noteMarkdown, parsedWhole } from './language.ts';
 import { regionIndex, regionIndexOf, richWidgets } from './widgets.ts';
@@ -54,7 +55,37 @@ function opened(doc: string): {
 
 /** Applies one edit and lets the parser finish the note. */
 function edit(state: EditorState, spec: TransactionSpec): EditorState {
-  return parsedWhole(state.update(spec).state);
+  return settled(state.update(spec).state);
+}
+
+/** Whether the Markdown body of a tree reaches the end of its note. */
+function bodyWhole(state: EditorState): boolean {
+  const top = syntaxTree(state).topNode;
+  for (let child = top.firstChild; child !== null; child = child.nextSibling)
+    if (child.name === 'Document') return child.to >= state.doc.length;
+  return true;
+}
+
+/**
+ * The state after its parse ends.
+ *
+ * Under load the parse of the body can stop part way while the tree already
+ * spans the note, and CodeMirror then parses no more until the next edit. A
+ * key and its removal at the end stand for that next edit, as the next key
+ * of a person does.
+ */
+function settled(state: EditorState): EditorState {
+  let current = parsedWhole(state);
+  for (let attempt = 0; attempt < 5 && !bodyWhole(current); attempt += 1) {
+    const end = current.doc.length;
+    current = parsedWhole(
+      current.update({ changes: { from: end, insert: ' ' } }).state,
+    );
+    current = parsedWhole(
+      current.update({ changes: { from: end, to: end + 1 } }).state,
+    );
+  }
+  return current;
 }
 
 /** The regions of the field, as plain data. */
@@ -152,12 +183,48 @@ await test('a parse that reaches further adds the regions of the new blocks', ()
 });
 
 await test('random edits keep the index equal to a scan of the whole note', () => {
-  for (const start of [7, 11, 23, 101, 977]) randomEdits(start);
+  for (const start of [7, 11, 23, 101, 977]) randomEdits(start, null, 300);
+  // A note with front matter puts its Markdown body beside the front matter.
+  randomEdits(31, null, 300, '---\ntitle: Plan\n---\n');
 });
 
-/** Three hundred edits from one seed, each checked against a whole scan. */
-function randomEdits(start: number): void {
-  const { state, extension } = opened(longNote(30));
+await test('an edit whose parse stops before the end keeps the index right', () => {
+  // A slow device stops the parse of an edit before the end of the note,
+  // and the tree it gives then holds none of the blocks of the note. The
+  // field lost the regions of those blocks until the next edit near them.
+  // The clock here runs fast inside each update, so the parse stops at a
+  // place that depends on the step of the clock, as it does under load.
+  for (const step of [0.13, 0.3, 1.3])
+    for (const start of [7, 977]) randomEdits(start, step, 60);
+});
+
+/** Runs one update with a clock that moves `step` ms at each reading. */
+function slowly<T>(step: number, run: () => T): T {
+  const now = Date.now;
+  let time = now();
+  Date.now = () => {
+    time += step;
+    return time;
+  };
+  try {
+    return run();
+  } finally {
+    Date.now = now;
+  }
+}
+
+/**
+ * Edits from one seed, each checked against a whole scan. With a clock step,
+ * each edit runs on the slow clock, and some edits follow the last one
+ * before its parse ends.
+ */
+function randomEdits(
+  start: number,
+  clock: number | null,
+  steps: number,
+  frontMatter = '',
+): void {
+  const { state, extension } = opened(`${frontMatter}${longNote(30)}`);
   // A fixed sequence, so a failure repeats.
   let seed = start;
   const next = (bound: number): number => {
@@ -184,17 +251,24 @@ function randomEdits(start: number): void {
     '<div>\n',
   ];
   let current = state;
-  for (let step = 0; step < 300; step += 1) {
+  for (let step = 0; step < steps; step += 1) {
     const length = current.doc.length;
     const from = next(length + 1);
     const remove = next(4) === 0 ? Math.min(length - from, next(80)) : 0;
     const insert =
       remove > 0 && next(2) === 0 ? '' : (pieces[next(pieces.length)] ?? 'a');
-    current = edit(current, { changes: { from, to: from + remove, insert } });
+    const spec = { changes: { from, to: from + remove, insert } };
+    if (clock === null) current = edit(current, spec);
+    else {
+      const before = current;
+      current = slowly(clock, () => before.update(spec).state);
+      if (next(3) === 0) continue;
+      current = settled(current);
+    }
     assert.deepEqual(
       regionsOf(current, extension),
       regionIndexOf(current).regions,
-      `seed ${String(start)} step ${String(step)}: ${JSON.stringify(insert)} at ${String(from)}, ${String(remove)} removed`,
+      `seed ${String(start)} clock ${String(clock)} step ${String(step)}: ${JSON.stringify(insert)} at ${String(from)}, ${String(remove)} removed`,
     );
   }
 }
