@@ -286,7 +286,9 @@ await test('pastes in pieces turn the language off before the parser runs out of
   assert.equal(markdownGrammarOn(state), false);
   // The gate checks the whole note once for each `checkedInsertLength` of
   // text and never on each piece.
-  assert.ok(checks.wholes() <= Math.ceil((16 * 6 * piece) / checkedInsertLength));
+  assert.ok(
+    checks.wholes() <= Math.ceil((16 * 6 * piece) / checkedInsertLength),
+  );
 });
 
 await test('a part that holds more marks than the editor parser may read is checked whole', () => {
@@ -329,7 +331,7 @@ await test('a change that ends a code block around a crowded part checks the not
   assert.equal(withinParseLimits(doc), true);
   const state = stateOf(doc);
   assert.equal(markdownGrammarOn(state), true);
-  const fence = doc.indexOf('\`\`\`');
+  const fence = doc.indexOf('```');
   const opened = state.update({
     changes: { from: fence, to: fence + 4 },
   }).state;
