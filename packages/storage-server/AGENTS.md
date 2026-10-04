@@ -17,7 +17,8 @@ identity store, the object store of the attachment bytes, and provisioning.
   `publication-transaction.ts` the read-only one of the reader path and `publication-unlock.ts`
   its one write (0031), one repository per context holds the SQL, `index.ts` is the composition
   root, and `admin.ts`, `identity-store.ts`, `profiles.ts`, `snapshots.ts`, `attachments.ts`,
-  `attachment-row.ts` (0019) and `installation-settings-row.ts` (0148) own the rest. `coordination.ts` holds what every process shares (0121, 0129), and
+  `attachment-row.ts` (0019), `installation-settings-row.ts` (0148) and
+  `account-controls-row.ts` (0189) own the rest. `coordination.ts` holds what every process shares (0121, 0129), and
   `sync-listener.ts` and `sync-hints.ts` the hints (0125, 0144).
 - `src/object-store/` holds the port of each byte that outlives a request, its
   two adapters, the keys of `keys.ts` and the cleanup of `staging/` (0192).
@@ -28,10 +29,10 @@ identity store, the object store of the attachment bytes, and provisioning.
 
 ## The one lock order
 
-Locks go installation, then workspaces by identifier, then accounts by
-identifier (0112). A write and a new workspace take the account lock after the
-workspace lock, in `notesapp_account_usage` and `notesapp_create_workspace`.
-An installation transaction starts with the installation lock.
+Locks go installation, workspaces by identifier, accounts by identifier
+(0112), then the account events (0190). A write and a new workspace take the
+account lock after the workspace lock, in `notesapp_account_usage` and
+`notesapp_create_workspace`.
 
 ## Allowed imports
 
@@ -68,15 +69,15 @@ well: `row-access.test.ts` is the pattern, and `object-store.test.ts` holds both
   adopts the owner of the link that the token digest opened, and the SQL binds
   the scope (0030, 0031). Its one write is `publication-unlock.ts`, which
   answers no password digest to a route.
-- No raw token and no raw ticket at rest. A digest column takes a SHA-256 in
+- No raw token, ticket or handoff at rest. A digest column takes a SHA-256 in
   lower case hexadecimal and a check constraint refuses another shape.
 - No SQL function that reaches workspace data without a membership check, or
   the digest of a secret on the reader path.
-- No schema change without a migration file and a raised
-  `requiredSchemaVersion`, and no edit of an applied migration.
+- No schema change without a migration and a raised `requiredSchemaVersion`.
+  No edit of an applied migration.
 - No superuser and no `BYPASSRLS` on the migration role, and no browser import.
-- No `new pg.Pool` outside `src/pool.ts`. `openPool` keeps the error listener
-  of an idle client and waits for every socket on `end()` (0090).
+- No `new pg.Pool` outside `src/pool.ts`, which keeps the idle error listener
+  and waits for every socket on `end()` (0090).
 
 ## Key files
 
