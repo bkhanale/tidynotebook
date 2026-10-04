@@ -150,7 +150,11 @@ import { createNoticeGateway } from './notices/gateway.ts';
 import { registerWebSocket } from './plugins/websocket.ts';
 import { coordinatedArchiveJobs } from './routes/archive-jobs.ts';
 import { checkUsageGate, countAnswer } from './usage/boundary.ts';
-import { startUsageWrites, usageWriteIntervalMs } from './usage/writes.ts';
+import {
+  closeWithLastWrite,
+  startUsageWrites,
+  usageWriteIntervalMs,
+} from './usage/writes.ts';
 
 /**
  * How many messages one address takes in an hour from a person with no
@@ -1064,19 +1068,27 @@ async function composeApp(
   // it listens, so no stream can miss a commit that follows its admission.
   gateway.start();
   app.addHook('onClose', async () => {
-    // The streams stop first, while the stores that they release still run.
-    await gateway.close();
-    clearInterval(cleanupTimer);
-    await auth.close();
-    await authPool.end();
-    await attachments.close();
-    objects.close();
-    await content.close();
-    // The last sums of this process, after every answer and every call to
-    // the object store that it counts.
-    await usageWrites.stop();
-    await coordination.close();
-    await identity.close();
+    // The last sums of this process are written after every answer and
+    // every call to the object store that it counts, and before the store
+    // of the counts closes, even when an earlier step fails.
+    await closeWithLastWrite(
+      async () => {
+        // The streams stop first, while the stores that they release still
+        // run.
+        await gateway.close();
+        clearInterval(cleanupTimer);
+        await auth.close();
+        await authPool.end();
+        await attachments.close();
+        objects.close();
+        await content.close();
+      },
+      usageWrites,
+      async () => {
+        await coordination.close();
+        await identity.close();
+      },
+    );
   });
   return app;
 }

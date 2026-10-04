@@ -45,6 +45,30 @@ export function startUsageWrites(
 }
 
 /**
+ * Closes a process so that its last sums are written whatever fails.
+ *
+ * `close` runs first, so the sums hold every answer and every call that it
+ * counts. The last write runs next, even when `close` fails, and `after`
+ * closes the store of the counts behind it. A failure of `close` still
+ * reaches the caller.
+ */
+export async function closeWithLastWrite(
+  close: () => Promise<void>,
+  writes: UsageWrites,
+  after: () => Promise<void>,
+): Promise<void> {
+  try {
+    await close();
+  } finally {
+    try {
+      await writes.stop();
+    } finally {
+      await after();
+    }
+  }
+}
+
+/**
  * A store that keeps nothing, for a server that a test builds with no
  * database. Every month reads zero, and no account has a limit.
  */
