@@ -109,13 +109,13 @@ See [Verification](verification.md) for what each one proves.
 ## h. Landing the change
 
 ```sh
-git worktree add ../notesapp-wt/my-change -b my-change main
-cd ../notesapp-wt/my-change
+git worktree add ../tidynotebook-wt/my-change -b my-change main
+cd ../tidynotebook-wt/my-change
 pnpm install --frozen-lockfile --prefer-offline
 pnpm verify
 git rebase main
-git -C ../../notesapp merge --ff-only my-change
-git worktree remove ../notesapp-wt/my-change
+git -C ../../tidynotebook merge --ff-only my-change
+git worktree remove ../tidynotebook-wt/my-change
 git branch -d my-change
 ```
 

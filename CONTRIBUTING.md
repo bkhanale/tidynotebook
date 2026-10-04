@@ -111,8 +111,8 @@ There are no pull requests. Work lands directly on `main`.
 1. Create a worktree on a short-lived branch:
 
    ```bash
-   git worktree add ../notesapp-wt/my-change -b my-change main
-   cd ../notesapp-wt/my-change
+   git worktree add ../tidynotebook-wt/my-change -b my-change main
+   cd ../tidynotebook-wt/my-change
    pnpm install --frozen-lockfile --prefer-offline
    ```
 
@@ -124,8 +124,8 @@ There are no pull requests. Work lands directly on `main`.
 
    ```bash
    git rebase main
-   git -C ../../notesapp merge --ff-only my-change
-   git worktree remove ../notesapp-wt/my-change
+   git -C ../../tidynotebook merge --ff-only my-change
+   git worktree remove ../tidynotebook-wt/my-change
    git branch -d my-change
    ```
 
