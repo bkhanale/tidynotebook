@@ -58,6 +58,9 @@ const framePath = 'src/diagram/frame.html';
 /** The placeholder that the theme data replaces inside the shell document. */
 const themePlaceholder = '__NOTESAPP_THEMES__';
 
+/** The placeholder of the product name in the title and the description. */
+const productNamePlaceholder = '__NOTESAPP_PRODUCT_NAME__';
+
 /** The placeholder of the first browser interface colour of the shell. */
 const themeColourPlaceholder = '__NOTESAPP_THEME_COLOUR__';
 
@@ -227,6 +230,7 @@ function themeAssets(directory: string): Plugin {
       order: 'pre',
       handler(html: string): string {
         return html
+          .replaceAll(productNamePlaceholder, productName)
           .replace(themePlaceholder, () => themeRegistryData())
           .replace(
             themeColourPlaceholder,

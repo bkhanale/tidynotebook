@@ -255,6 +255,8 @@ export function beforeChecks(state) {
  *   latestTag: string;
  *   milestoneState: string;
  *   milestoneOpenIssues: number;
+ *   imageOwner: string;
+ *   imageOwnerType: string;
  *   imageTags: string[] | null;
  * }} AfterState
  */
@@ -392,7 +394,14 @@ export function afterChecks(state) {
           ? ok('the milestone', `${version} is closed`)
           : failed('the milestone', `${version} is still open. Close it.`),
   );
-  if (state.imageTags === null)
+  if (state.imageOwnerType === '')
+    checks.push(
+      failed(
+        'the image tags',
+        `GitHub names no account "${state.imageOwner}". Check IMAGE in .github/workflows/release.yml.`,
+      ),
+    );
+  else if (state.imageTags === null)
     checks.push(
       skipped(
         'the image tags',
@@ -448,10 +457,9 @@ export function isoDate(when) {
 export function imagePackage(workflow) {
   const image = /^\s*IMAGE:\s*(\S+)\s*$/m.exec(workflow)?.[1] ?? '';
   const parts = image.split('/');
-  return {
-    owner: parts.length >= 3 ? (parts.at(-2) ?? '') : '',
-    name: parts.length >= 3 ? (parts.at(-1) ?? '') : '',
-  };
+  if (parts.length < 3) return { owner: '', name: '' };
+  const [owner = '', name = ''] = parts.slice(-2);
+  return { owner, name };
 }
 
 /**
@@ -635,6 +643,8 @@ async function readAfter(version, directory) {
     ).out,
     milestoneState,
     milestoneOpenIssues: Number(openIssues),
+    imageOwner: imageName.owner,
+    imageOwnerType: imageName.owner === '' ? '' : ownerType,
     imageTags:
       image.status === 0 ? image.out.split('\n').filter(Boolean) : null,
   };

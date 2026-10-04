@@ -13,9 +13,11 @@ import { productName as docsProductName } from '../apps/docs/src/site.ts';
 
 /**
  * A spelling of the old name, or of the new name in another case. No word
- * boundary leads, so a name after an escape such as `\n` is found too.
+ * boundary leads, so a name after an escape such as `\n` is found too. The
+ * lowercase `notesapp` and `tidynotebook` stay out: they are the package
+ * scope, the settings and the addresses, which a person never reads.
  */
-const spellings = /Notes ?[Aa]pp\b|Tidy ?[Nn]otebook\b/g;
+const spellings = /Notes ?[Aa]pp\b|[Tt]idy [Nn]otebook\b|Tidy[Nn]otebook\b/g;
 
 /** History: these documents state what was true when somebody wrote them. */
 const history = [
@@ -28,12 +30,6 @@ const history = [
 
 await test('the documentation site names the product of the core', () => {
   assert.equal(docsProductName, productName);
-});
-
-await test('the web document names the product of the core', async () => {
-  const html = await readFile(resolve(root, 'apps/web/index.html'), 'utf8');
-  assert.ok(html.includes(`<title>${productName}</title>`), 'no title');
-  assert.ok(html.includes(`content="${productName}: `), 'no description');
 });
 
 await test('no surface spells the product another way', async () => {

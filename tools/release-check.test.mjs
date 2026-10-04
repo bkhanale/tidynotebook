@@ -66,6 +66,8 @@ const after = {
   latestTag: 'v0.4.0',
   milestoneState: 'closed',
   milestoneOpenIssues: 0,
+  imageOwner: 'tidynotebook',
+  imageOwnerType: 'Organization',
   imageTags: ['0.4.0', 'latest'],
 };
 
@@ -209,6 +211,15 @@ await test('a release with no milestone and no package scope skips those checks'
       .filter((check) => check.status === 'skipped')
       .map((check) => check.name),
     ['the milestone', 'the image tags'],
+  );
+});
+
+await test('an image owner that GitHub does not know fails the image check', () => {
+  // A failed lookup of the owner read the address of the user, found no
+  // package, and reported a skip, so a release with no image looked complete.
+  assert.deepEqual(
+    failures(afterChecks({ ...after, imageOwnerType: '', imageTags: null })),
+    ['the image tags'],
   );
 });
 
