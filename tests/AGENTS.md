@@ -15,8 +15,9 @@ See
 ## What lives here and what does not
 
 - `integration/` holds one file per area. `integration/support/` holds the
-  disposable database, the identity provider, the listening server, and the
-  Tailwind compiler of the web build.
+  disposable database, the bucket of the test MinIO service (0192), the
+  identity provider, the listening server, and the Tailwind compiler of the
+  web build.
 - `image/` holds the tests of the built image (record 0202). They drive the
   Docker command line and a PostgreSQL of their own, import no workspace
   package, and run in the image job of CI after the build, through
