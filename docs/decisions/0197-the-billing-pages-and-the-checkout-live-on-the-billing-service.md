@@ -23,11 +23,14 @@ user from the customer of each event. See
 - **The checkout.** On the first checkout of an account, the service creates
   its Paddle customer with the address of the account and stores the customer
   identifier. Paddle.js opens the checkout with the price, the seat count, the
-  customer identifier, and the account in the custom data.
+  customer identifier, the account in the custom data, and `allowLogout`
+  set to `false`, so the buyer cannot change the customer of the checkout.
 - `subscription.created` names the customer. The service finds the account
-  from its stored customer, never from the custom data that a browser sent. A
-  custom data that names another account raises a mail to the owner and
-  covers nothing.
+  from its stored customer, never from the custom data that a browser sent.
+- A completed payment whose customer the service does not hold covers no
+  account. The service keeps the subscription unattached and mails the owner.
+  The owner checks the buyer by mail, then attaches it to the account with a
+  command of the service, or refunds it in the Paddle dashboard.
 - The default payment link of Paddle is `/checkout` of the billing service, so
   Paddle.js runs on the billing origin only.
 - After a payment, the page says that the payment is being confirmed until
@@ -40,5 +43,7 @@ user from the customer of each event. See
 
 - No third-party script runs on the application origin, and the content
   policy of the core does not change.
-- A test of the billing service proves that a forged custom data cannot cover
-  another account.
+- Tests of the billing service prove that a forged custom data cannot cover
+  another account, that every checkout opens with `allowLogout` set to
+  `false`, and that a payment with an unknown customer covers nothing and
+  reaches the owner.

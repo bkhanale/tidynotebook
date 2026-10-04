@@ -20,10 +20,12 @@ session of a person. See
   server compares the token in constant time, and the attempt counters of
   record 0121 bound the failures.
 - The operations: find an account by identifier or address, read its controls
-  and its usage, set its controls, remove it through record 0111, redeem a
-  handoff, and list account events after a cursor.
+  with their revision and its usage, set its controls with the revision that
+  it read (record 0189), remove it through record 0111, redeem a handoff, and
+  list account events after a cursor.
 - **The handoff.** The operation `openAccountPortal` takes the session of a
-  person and a path on the portal. It makes a single-use token that expires
+  person and a path on the portal, also of a `locked` account (record 0201).
+  It makes a single-use token that expires
   after `60 s`, stores only its hash, and answers that path of
   `NOTESAPP_ACCOUNT_PORTAL_URL` with the token in the query. The service redeems it through the operator API and
   learns the account and its address. A token works once.
@@ -40,5 +42,6 @@ session of a person. See
 
 - A service can manage accounts with no database role and no shared code.
 - Integration tests prove that a wrong or missing token changes nothing, that
-  a handoff works once and expires, that the event cursor misses no event,
+  a control write with an old revision answers `controls_changed`, that a
+  handoff works once and expires, that the event cursor misses no event,
   and that no operator operation reaches a note.

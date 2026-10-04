@@ -180,20 +180,30 @@ so each is a general control of an account that a self-hosted operator can use
 too.
 
 The account row carries the storage limit that exists, a text limit, a
-published transfer limit, a standing that is `active` or `locked`, a removal
-time while it is `locked`, and a switch for each feature that a later design
-makes switchable. Teams and collaboration are the first two switches, and each
-is on by default. The configuration gives the controls of a new account, and
-with no setting a new account is `active` with every feature, as today.
+published transfer limit, a download limit, a standing that is `active` or
+`locked`, a removal time while it is `locked`, and a switch for each feature
+that a later design makes switchable. Teams and collaboration are the first two
+switches, and each is on by default. The configuration gives the controls of a
+new account, and with no setting a new account is `active` with every feature,
+as today.
+
+**A revision guards each write.** The controls carry a revision that the core
+raises on each change, and a write names the revision that it read. A write
+that was computed from an old state therefore cannot replace a newer one, for
+example a retried activation that arrives after a cancellation.
 
 **The text limit** sits inside the storage limit. Text and history live in
 PostgreSQL, where a byte costs more than in object storage, and only a script
 comes near the limit. `workspace_usage` counts text apart from attachments,
 and `notesapp_add_usage` checks both sums.
 
-**A locked account** signs in to one screen. It exports every workspace and
-removes the account, and nothing else. When the operator names an account
-portal, the screen links it as the one action that unlocks the account. The
+**A locked account** signs in to one screen. When the operator names an account
+portal, the screen links it as the one action that unlocks the account. One
+list names the operations that a locked account keeps: the identity and
+session operations, the consent to new legal documents, the read of its own
+account and workspaces, the export, the portal handoff, the sync notice
+stream, and the removal of the account. Every new account of the cloud starts
+locked, so the handoff must be on the list, or nobody could pay. The
 database refuses every write of a locked account with `account_locked`, the
 reader path closes its published links, and the client keeps a refused save in
 its queue until the account is active again. The owner chose this over a read
@@ -276,10 +286,10 @@ and it keeps every account on the cloud a paying one.
 **Monthly and yearly.** The yearly price is ten times the monthly price. The
 prices are in US dollars and exclude tax.
 
-| Plan     | Monthly, each seat | Yearly, each seat | Seats        | Storage | Text and history | Published transfer, each month | Teams and collaboration |
-| -------- | ------------------ | ----------------- | ------------ | ------- | ---------------- | ------------------------------ | ----------------------- |
-| Standard | `$5`               | `$50`             | `1`          | `10 GB` | `2 GB`           | `10 GB`                        | Off                     |
-| Pro      | `$10`              | `$100`            | `1` to `100` | `50 GB` | `2 GB`           | `50 GB`                        | On                      |
+| Plan     | Monthly, each seat | Yearly, each seat | Seats        | Storage | Text and history | Published transfer, each month | Downloads, each month | Teams and collaboration |
+| -------- | ------------------ | ----------------- | ------------ | ------- | ---------------- | ------------------------------ | --------------------- | ----------------------- |
+| Standard | `$5`               | `$50`             | `1`          | `10 GB` | `2 GB`           | `10 GB`                        | `20 GB`               | Off                     |
+| Pro      | `$10`              | `$100`            | `1` to `100` | `50 GB` | `2 GB`           | `50 GB`                        | `60 GB`               | On                      |
 
 A GB here is `1000000000` bytes. The catalog of the billing service holds the
 numbers, and its pages and the landing site read it.
@@ -323,9 +333,12 @@ service follows it.
 - **The newest event wins.** Paddle does not promise the order of delivery, so
   the service applies a subscription event only when its `occurred_at` is
   newer than the stored one.
-- **One function applies a snapshot**, then sets the controls of every seat
-  through the operator API. A control write sets the whole set, so a retry is
-  safe.
+- **One function applies a snapshot**, and in the same transaction marks each
+  account whose controls must change in an outbox. A worker computes the
+  controls of each marked account from the newest billing state and writes
+  them with the revision of the fourth question. The outbox names accounts,
+  not payloads, so a restart loses no work and a retry never sends an old
+  state.
 - **A daily reconcile job** reads each live subscription again and repairs a
   difference. Paddle retries a failed delivery for days, so the job is the
   bound when the service was down for longer.
@@ -350,6 +363,11 @@ identifier. Paddle.js opens the checkout with that customer and with the
 account in the custom data. The service finds the account from the customer of
 each event, never from data that a browser sent.
 
+Paddle lets a buyer change the customer of a checkout by default. The checkout
+therefore sets `allowLogout` to `false`. A payment whose customer the service
+does not hold still covers nothing: the service keeps it unattached and mails
+the owner, who attaches it after a check or refunds it.
+
 Option C is the choice. Paddle.js runs only on the billing origin, which holds
 no session of the core. The billing service keeps its own session, made from
 the handoff of the fifth question.
@@ -366,13 +384,20 @@ the privacy notice by address through record 0140.
 
 ## The thirteenth question: where the bytes live
 
-The cloud runs several replicas, and an attachment written by one must be
-readable by all. A shared file system is slow and costs more than object
-storage. Object storage with the S3 API is cheap and every store speaks it.
-The core gains a second adapter of the attachment store, and the cloud uses
-Cloudflare R2, which charges no egress. Temporary files stay on the local
-disk, because each lives for one request. The object key equals the path of
+The cloud runs several replicas, and a byte written by one must be readable
+by all. A shared file system is slow and costs more than object storage.
+Object storage with the S3 API is cheap and every store speaks it. The core
+gains a second adapter of the store, and the cloud uses Cloudflare R2, which
+charges no egress. The object key of a finished attachment equals the path of
 the file store, so an installation moves between the two by copying files.
+
+Two flows span more than one request, and the next request can reach another
+replica. An image upload writes a temporary file that a second request
+finalizes, so the upload writes the checked bytes to a staging key of the
+store before it answers. An import sends one archive of up to the archive
+limit, and the Cloudflare proxy refuses a request body above `100 MB`, so an
+import goes up in parts through a multipart upload. A daily job removes a
+staging key or an unfinished upload that nobody completed.
 
 ## The fourteenth question: where the cloud runs
 
@@ -400,11 +425,19 @@ superuser that makes the roles of the core, and it keeps point-in-time
 recovery for weeks. A hard usage limit stops the services at a fixed amount.
 
 Option E is the choice, in the EU West region. Cloudflare on its free plan
-holds DNS, the proxy, TLS, the rules against abuse, R2, the static sites and
-the forwarding of the support address. Resend sends the mail on its free plan.
+holds DNS, the proxy, TLS, the rate rule, R2, the static sites and the
+forwarding of the support address. Resend sends the mail on its free plan.
 The database has no standby, and that is the cost of the budget: a failure of
 it stops the service until Railway restarts it or the owner restores it. A
-weekly dump to R2 keeps a copy off the platform.
+weekly dump to a separate R2 bucket keeps a copy off the platform, and a
+lifecycle rule deletes each dump after `35 days`.
+
+Three facts of the platforms shape the setup. Railway requires the Cloudflare
+SSL mode `Full` for a proxied custom domain, so Cloudflare encrypts the traffic
+to Railway without a check of its certificate. The image always migrates
+before it serves today, so it gains a `migrate` and a `serve` command, and a
+serving replica holds no migration credential. Railway checks a replica with
+its own host name, so the probes skip the Host allowlist.
 
 ## The fifteenth question: one domain for published pages
 
@@ -431,12 +464,25 @@ owner.
 - **The database volume** is bounded by the text limit of each plan. The Hobby
   plan caps a volume, and the owner moves to the Pro plan of Railway before it.
 - **Object storage** is bounded by the storage limit of each plan.
+- **Object operations** cost money on a bill of their own, and an account can
+  write and delete again and again below its storage limit. The core makes
+  every call to the store, so it counts them, and a monthly cap on writes and
+  on reads holds the R2 bill.
 - **Transfer to readers** is bounded by the limit of each plan and by a cap
-  of `100 GB` a month for the whole service. Each process keeps a sum in
-  memory and writes it to PostgreSQL every `10 s`, so several processes can
-  pass a limit by the traffic of one interval.
-- **A flood** costs nothing, because Cloudflare absorbs it before Railway. A
-  rate rule for each address and the attempt counters stay behind it.
+  of `100 GB` a month for the whole service.
+- **Transfer to devices** is not bounded by storage times devices, because one
+  session can download the same export again and again. The core counts the
+  bytes of each authenticated response, and a monthly download limit of each
+  plan and a cap of the whole service hold it. Past the limit, an export, an
+  attachment and a snapshot wait for the next month, and the rest of the
+  application keeps working.
+- Each process keeps the counts in memory and writes them to PostgreSQL every
+  `10 s`, so several processes can pass a limit by the traffic of one
+  interval.
+- **A flood** costs nothing, because Cloudflare absorbs it before Railway. The
+  free plan gives one rate rule for the zone, which matches on the path and
+  counts by address. It covers the paths of the API, and the webhook of Paddle
+  sits on another path, so a burst of deliveries is never blocked.
 - **Mail** is bounded by the free plan of Resend, the mail budget of each
   address, and a daily limit of seat invitations.
 
@@ -458,7 +504,9 @@ In this repository:
 
 - The database refuses a write of a locked account with `account_locked`,
   with the use case bypassed, and a locked account still exports and removes
-  itself.
+  itself. A new locked account opens the portal and is unlocked by a control
+  write.
+- A control write with an old revision changes nothing.
 - The database refuses a text write past the text limit, and an image write
   past the storage limit.
 - A save refused with `account_locked` stays in the queue, and it goes through
@@ -469,9 +517,13 @@ In this repository:
   expires, and the event cursor misses no event.
 - The published reader answers the closed page past the transfer of the month
   of an account and of the whole installation, with two server instances, and
-  for a locked account.
+  for a locked account. A download past the download limit or a cap answers
+  `download_limit`, and the object operation caps hold.
 - The S3 adapter passes the same contract test as the file store, against a
-  real S3 API in the test stack.
+  real S3 API in the test stack. An upload through one server instance
+  finalizes through another, and an import in parts crosses two instances.
+- `serve` starts with no migration credential, and `migrate` exits after the
+  migrations.
 - A probe answers the host of Railway, and a normal route with that host does
   not.
 
@@ -482,7 +534,11 @@ In the private repository:
 - A dropped cancellation still ends the coverage through the reconcile job.
 - Two acceptances of the last seat make one member, and a lost seat count
   removes the newest seats first and never the billing owner.
-- A forged custom data cannot cover another account.
+- A forged custom data cannot cover another account, every checkout sets
+  `allowLogout` to `false`, and a payment with an unknown customer covers
+  nothing.
+- A failed activation write, then a cancellation and a restart, end with the
+  account locked.
 - The site and the check command fail when a price differs from the catalog.
 
 ## Decisions
@@ -493,8 +549,8 @@ In the private repository:
 - [0189. An account carries limits, a standing and feature switches](../decisions/0189-an-account-carries-limits-a-standing-and-feature-switches.md)
 - [0190. An operator API reaches the account controls](../decisions/0190-an-operator-api-reaches-the-account-controls.md)
 - [0191. A published page of the cloud lives on the application origin](../decisions/0191-a-published-page-of-the-cloud-lives-on-the-application-origin.md)
-- [0192. An attachment can live in an S3 compatible store](../decisions/0192-an-attachment-can-live-in-an-s3-compatible-store.md)
-- [0193. Published transfer has a limit for each account and for the installation](../decisions/0193-published-transfer-has-a-limit-for-each-account-and-for-the-installation.md)
+- [0192. Uploads and attachments can live in an S3 compatible store](../decisions/0192-uploads-and-attachments-can-live-in-an-s3-compatible-store.md)
+- [0193. Transfer and object operations have a limit](../decisions/0193-transfer-and-object-operations-have-a-limit.md)
 - [0194. Paddle is the merchant of record](../decisions/0194-paddle-is-the-merchant-of-record.md)
 - [0195. Two plans: Standard for one person and Pro for a team](../decisions/0195-two-plans-standard-for-one-person-and-pro-for-a-team.md)
 - [0196. The billing service mirrors Paddle into the account controls](../decisions/0196-the-billing-service-mirrors-paddle-into-the-account-controls.md)
@@ -502,5 +558,7 @@ In the private repository:
 - [0198. The landing site is a static site of the private repository](../decisions/0198-the-landing-site-is-a-static-site-of-the-private-repository.md)
 - [0199. The cloud runs on Railway behind Cloudflare](../decisions/0199-the-cloud-runs-on-railway-behind-cloudflare.md)
 - [0200. Every cost of the cloud has a limit](../decisions/0200-every-cost-of-the-cloud-has-a-limit.md)
+- [0201. A locked account keeps a fixed list of operations](../decisions/0201-a-locked-account-keeps-a-fixed-list-of-operations.md)
+- [0202. The image takes a migrate and a serve command](../decisions/0202-the-image-takes-a-migrate-and-a-serve-command.md)
 
 [Plan 019](../plans/019-tidy-notebook-cloud.md) orders the work.

@@ -15,10 +15,10 @@ The controls of record 0189 carry the limits and the feature switches. See
 - One catalog in the billing service holds the plans. The service, its pages
   and the landing site read it. A GB is `1000000000` bytes.
 
-| Plan     | Month, each seat | Year, each seat | Seats        | Storage | Text and history | Published transfer, each month | Teams and collaboration |
-| -------- | ---------------- | --------------- | ------------ | ------- | ---------------- | ------------------------------ | ----------------------- |
-| Standard | `$5`             | `$50`           | `1`          | `10 GB` | `2 GB`           | `10 GB`                        | Off                     |
-| Pro      | `$10`            | `$100`          | `1` to `100` | `50 GB` | `2 GB`           | `50 GB`                        | On                      |
+| Plan     | Month, each seat | Year, each seat | Seats        | Storage | Text and history | Published transfer, each month | Downloads, each month | Teams and collaboration |
+| -------- | ---------------- | --------------- | ------------ | ------- | ---------------- | ------------------------------ | --------------------- | ----------------------- |
+| Standard | `$5`             | `$50`           | `1`          | `10 GB` | `2 GB`           | `10 GB`                        | `20 GB`               | Off                     |
+| Pro      | `$10`            | `$100`          | `1` to `100` | `50 GB` | `2 GB`           | `50 GB`                        | `60 GB`               | On                      |
 
 - No trial and no free plan. The refund of record 0194 does the work of a
   trial.
