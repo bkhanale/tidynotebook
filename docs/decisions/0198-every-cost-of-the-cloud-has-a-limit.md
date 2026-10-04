@@ -26,13 +26,19 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 - **Requests.** AWS WAF runs the managed common rule set, and these rate
   rules, each over five minutes:
   - `3000` requests from one address, on every host.
-  - `100000` requests from all addresses together on `tidynotebook.page`,
-    and `300000` on `app.tidynotebook.com`. During a flood the service refuses
-    requests instead of growing the bill.
-  - The webhook path of record 0193 admits only the published webhook
-    addresses of Paddle, from an IP set of `infra/` for each environment, and
-    has its own rule of `1000` requests from one address. No request skips a
-    rate rule.
+  - From all addresses together: `100000` on `tidynotebook.page`, `300000`
+    on `app.tidynotebook.com`, and `200000` on each of the CloudFront hosts
+    `tidynotebook.com` and `docs.tidynotebook.com`. During a flood the service
+    refuses requests instead of growing the bill.
+  - The webhook path of record 0193 has its own rule of `1000` requests from
+    one address. No request skips a rate rule.
+- **No list of Paddle addresses.** Paddle changes the addresses that send its
+  webhooks, so a fixed list would refuse valid events in silence. The
+  signature check of record 0193 is the gate, its rate rule bounds the cost,
+  and the reconcile jobs repair a delivery that failed.
+- **Deleted objects.** The lifecycle rule of record 0197 removes a deleted
+  attachment from both buckets after its recovery time, so a deletion ends
+  its charge.
 - The attempt counters of record 0121 stay behind WAF.
 - **Compute.** At most six tasks (record 0197).
 - **Database volume.** The RDS volume grows by itself up to `1000 GB` and no

@@ -29,8 +29,12 @@ sellers from many countries. See
   (each with a `_FILE` form), and `NOTESAPP_PADDLE_PRICE_STANDARD_MONTH`,
   `NOTESAPP_PADDLE_PRICE_STANDARD_YEAR`, `NOTESAPP_PADDLE_PRICE_PRO_MONTH` and
   `NOTESAPP_PADDLE_PRICE_PRO_YEAR`.
-- The API key holds only the permissions that the server uses: customers,
-  transactions, subscriptions, customer portal sessions, and read of prices.
+- The API key holds only the permissions that the server uses: write of
+  customers, transactions, subscriptions, customer portal sessions and
+  adjustments (`adjustment.write`, for the refund of record 0193), and read of
+  prices and of events (`notification.read`, for the hourly job of record
+  0193). `pnpm billing:check` calls each of these with a request that changes
+  nothing, and fails on a refusal.
 - The refund policy is a full refund of any payment that the buyer asks for
   within `14 days` of the charge, with no condition. The owner grants it in
   the Paddle dashboard.

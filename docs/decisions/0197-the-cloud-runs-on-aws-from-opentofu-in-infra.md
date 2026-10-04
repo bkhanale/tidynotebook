@@ -13,7 +13,8 @@ scale, and Kubernetes is a second product to run. See
 
 ## Decision
 
-- AWS in `eu-central-1`, with backup copies in `eu-west-1`. One organization
+- AWS in `eu-central-1`, with backup copies in `eu-west-1`. The WAF of the
+  CloudFront distributions lives in `us-east-1`, as AWS requires. One organization
   holds a management account, a staging account and a production account.
 - `infra/` holds OpenTofu code: modules in `infra/modules/`, and one root for
   each environment in `infra/environments/staging` and
@@ -36,7 +37,13 @@ scale, and Kubernetes is a second product to run. See
   single `db.t4g.small` in staging, with backups for `35 days`, deletion
   protection and a daily copy to `eu-west-1`.
 - One S3 bucket for attachments (record 0196), with versioning and a replica
-  in `eu-west-1`. S3 and CloudFront serve the site and the guide.
+  in `eu-west-1` that also replicates delete markers. A delete of the object
+  store removes the current version. A lifecycle rule on both buckets removes
+  each noncurrent version `30 days` after it became noncurrent, and each
+  expired delete marker. So a deleted attachment can be recovered for that
+  time, and then no copy remains and no charge.
+- S3 and CloudFront serve the site and the guide. WAF on each distribution
+  holds the rules of record 0198.
 - SES sends mail from `mail.tidynotebook.com` with DKIM, through the SMTP
   settings of record 0150. Fastmail receives `support@tidynotebook.com`.
 - Route 53 holds both zones, ACM the certificates, Secrets Manager every

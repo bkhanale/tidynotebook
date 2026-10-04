@@ -518,10 +518,12 @@ a person in another continent. The shape:
   `35 days`, deletion protection, and a daily copy of the backups to
   `eu-west-1`.
 - **Objects.** One S3 bucket for attachments, with versioning, and a replica
-  in `eu-west-1`.
+  in `eu-west-1`. A lifecycle rule on both removes a deleted version after a
+  short recovery time, so a deletion ends its charge.
 - **Mail.** SES in the region, with DKIM and a custom sending domain. The
   server speaks SMTP to it through record 0150, with no new mail code.
-- **Static sites.** The site and the guide are S3 buckets behind CloudFront.
+- **Static sites.** The site and the guide are S3 buckets behind CloudFront,
+  with WAF on each distribution.
 - **Names.** Route 53 holds both zones. ACM holds the certificates.
 - **Secrets.** Secrets Manager holds each secret, and ECS gives it to the task.
   The migration runs as a separate task with the migration role, so the
@@ -538,21 +540,21 @@ a person in another continent. The shape:
 Each line of the AWS bill and each outside service has a limit that holds it,
 and an alarm that tells the owner before it matters.
 
-| What costs money                      | The limit that holds it                                                                                                                                                                                                     |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Object storage                        | The storage limit of the plan, checked by the database for each write.                                                                                                                                                      |
-| Database storage                      | The text and history limit of the plan, and a maximum size of the RDS volume.                                                                                                                                               |
-| Transfer to readers of a page         | The published transfer of the plan, counted for each answer of the reader path.                                                                                                                                             |
-| Transfer to the devices of the person | The storage limit, times the devices that hold a session. The sessions of an account are already bounded, and WAF bounds the rate of one address.                                                                           |
-| Compute                               | The maximum task count of the service.                                                                                                                                                                                      |
-| Requests from strangers               | WAF: the managed common rules, a rate limit for each address, and a rate limit of all addresses together on each host. The webhook admits only the addresses of Paddle. The attempt counters of record 0121 stay behind it. |
-| Accounts that never pay               | They cannot write, and they are removed after `30 days`. The proof of work and the address check of design 016 stay.                                                                                                        |
-| Mail                                  | The mail budget of each address that exists, a daily limit of seat invitations for each subscription, and the SES sending quota.                                                                                            |
-| WebSocket connections                 | The bounds of record 0129, for each account and each process.                                                                                                                                                               |
-| Imports and exports                   | The job bounds of record 0170.                                                                                                                                                                                              |
-| Logs                                  | A retention of `30 days` in CloudWatch.                                                                                                                                                                                     |
-| Transfer of the whole service         | A monthly cap on the published transfer of all accounts together.                                                                                                                                                           |
-| The whole bill                        | An AWS budget for each account with alerts at three levels, and AWS cost anomaly detection, both by mail to the owner. These are alarms, not limits.                                                                        |
+| What costs money                      | The limit that holds it                                                                                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Object storage                        | The storage limit of the plan, checked by the database for each write.                                                                                                                                             |
+| Database storage                      | The text and history limit of the plan, and a maximum size of the RDS volume.                                                                                                                                      |
+| Transfer to readers of a page         | The published transfer of the plan, counted for each answer of the reader path.                                                                                                                                    |
+| Transfer to the devices of the person | The storage limit, times the devices that hold a session. The sessions of an account are already bounded, and WAF bounds the rate of one address.                                                                  |
+| Compute                               | The maximum task count of the service.                                                                                                                                                                             |
+| Requests from strangers               | WAF: the managed common rules, a rate limit for each address, and a rate limit of all addresses together on each host. The webhook has a rate rule of its own. The attempt counters of record 0121 stay behind it. |
+| Accounts that never pay               | They cannot write, and they are removed after `30 days`. The proof of work and the address check of design 016 stay.                                                                                               |
+| Mail                                  | The mail budget of each address that exists, a daily limit of seat invitations for each subscription, and the SES sending quota.                                                                                   |
+| WebSocket connections                 | The bounds of record 0129, for each account and each process.                                                                                                                                                      |
+| Imports and exports                   | The job bounds of record 0170.                                                                                                                                                                                     |
+| Logs                                  | A retention of `30 days` in CloudWatch.                                                                                                                                                                            |
+| Transfer of the whole service         | A monthly cap on the published transfer of all accounts together.                                                                                                                                                  |
+| The whole bill                        | An AWS budget for each account with alerts at three levels, and AWS cost anomaly detection, both by mail to the owner. These are alarms, not limits.                                                               |
 
 **The published transfer holds across processes with a short delay.** A write
 to PostgreSQL for each answer of the reader path would make each published
