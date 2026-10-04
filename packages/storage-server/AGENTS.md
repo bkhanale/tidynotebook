@@ -18,9 +18,9 @@ identity store, the object store of the attachment bytes, and provisioning.
   its one write (0031), one repository per context holds the SQL, `index.ts` is the composition
   root, and `admin.ts`, `identity-store.ts`, `profiles.ts`, `snapshots.ts`, `attachments.ts`,
   `attachment-row.ts` (0019), `installation-settings-row.ts` (0148) and `account-controls-row.ts`
-  (0189) own the rest. `coordination.ts` holds what every process shares (0121, 0129), and `sync-listener.ts` and `sync-hints.ts` the hints (0125, 0144).
+  (0189) own the rest. `coordination.ts` holds what every process shares (0121, 0129) with the counts of a month and `usage-rows.ts` (0193), and `sync-listener.ts` and `sync-hints.ts` the hints (0125, 0144).
 - `src/object-store/` holds the port of each byte that outlives a request, its
-  two adapters, the keys of `keys.ts` and the cleanup of `staging/` (0192).
+  two adapters, the keys of `keys.ts`, the cleanup of `staging/` (0192), and `calls.ts`, the kind of each S3 call that 0193 counts.
 - `src/migrate.ts` runs the migrations and exports `requiredSchemaVersion`.
   `src/search-text.ts` writes the text of a search row and `searchTextRule`;
   a raised rule makes `src/search-index-migration.ts` redo each row (0167).

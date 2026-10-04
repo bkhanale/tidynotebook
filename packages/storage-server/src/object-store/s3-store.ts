@@ -18,6 +18,10 @@
  * multipart uploads is not needed: MinIO answers it for one exact key only,
  * and a listing costs more than a read. The marker goes when the upload
  * completes or aborts.
+ *
+ * Each call that the client sends passes one step of its middleware, which
+ * tells the counter of record 0193 whether the call is a write or a read
+ * (`calls.ts`), so no call of this file can go uncounted.
  */
 import { Buffer } from 'node:buffer';
 import { Readable } from 'node:stream';
@@ -39,6 +43,7 @@ import {
   UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
+import { s3CallKind, type ObjectCallCounter } from './calls.ts';
 import { exactLength } from './exact-length.ts';
 import { isObjectKey, isObjectPrefix, probeKey } from './keys.ts';
 import { createWriteProbe } from './write-probe.ts';
@@ -150,10 +155,16 @@ function checkedPrefix(prefix: string): string {
   return prefix;
 }
 
-/** Opens the object store on one bucket of an S3 compatible service. */
+/**
+ * Opens the object store on one bucket of an S3 compatible service.
+ *
+ * @param count told the kind of each call that the store makes (record
+ *   0193). A call that is free tells nothing.
+ */
 export function openS3ObjectStore(
   settings: S3StoreSettings,
   timeouts: S3Timeouts = defaultS3Timeouts,
+  count: ObjectCallCounter = () => undefined,
 ): ObjectStore {
   const client = new S3Client({
     region: settings.region,
@@ -178,6 +189,14 @@ export function openS3ObjectStore(
       httpsAgent: { keepAlive: true, maxSockets: maxConnections },
     },
   });
+  client.middlewareStack.add(
+    (next, context) => (args) => {
+      const kind = s3CallKind(context.commandName);
+      if (kind !== null) count(kind);
+      return next(args);
+    },
+    { step: 'initialize', name: 'notesappCountCalls' },
+  );
   const Bucket = settings.bucket;
   // One probe key for each process, so a probe object that a stop left
   // behind is one small object at most.

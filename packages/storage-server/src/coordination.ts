@@ -2,7 +2,8 @@
  * What every server process of one installation shares besides the data
  * (record 0121): the attempt counters of the limited routes, the right to
  * run one maintenance job, the reservations of the open notice streams
- * (record 0129), and the archive jobs that run (record 0170).
+ * (record 0129), the archive jobs that run (record 0170), and the counts of
+ * each month (record 0193).
  *
  * PostgreSQL already holds every other shared fact of the product, so it
  * holds these too. The counters live in `attempt_counters` and change through
@@ -10,9 +11,14 @@
  * job runs under a session advisory lock that one process takes and the other
  * cannot, so one run happens once.
  */
-import { OperationalError } from '@notesapp/core';
+import {
+  monthFirstDay,
+  OperationalError,
+  type MonthlyUsageStore,
+} from '@notesapp/core';
 import pg from 'pg';
 import { openPool, poolSizes } from './pool.ts';
+import { storedUsageOf, usageArrays, usageSubjectOf } from './usage-rows.ts';
 import { defaultConnectionTimeoutMs } from './workspace-store/index.ts';
 
 /** The count of one key and the milliseconds left in its window. */
@@ -21,8 +27,14 @@ export type AttemptCount = {
   readonly ttl: number;
 };
 
-/** The shared state of the server processes of one installation. */
-export type CoordinationHandle = {
+/**
+ * The shared state of the server processes of one installation.
+ *
+ * It is the store of the monthly counts as well: each process adds the sums
+ * of its memory to the one monthly table, and a check reads the totals that
+ * every process wrote (record 0193).
+ */
+export type CoordinationHandle = MonthlyUsageStore & {
   /** Counts one attempt against `key` and answers the state after it. */
   countAttempt(key: string, windowMs: number): Promise<AttemptCount>;
   /** Answers the state of `key` without counting an attempt against it. */
@@ -338,6 +350,44 @@ export function openCoordination(
 
     async releaseArchiveJob(id) {
       await pool.query('select notesapp_release_archive_job($1)', [id]);
+    },
+
+    async addUsage(entries) {
+      if (entries.length === 0) return;
+      await pool.query(
+        `select notesapp_add_monthly_usage($1::date[], $2::uuid[],
+          $3::bigint[], $4::bigint[], $5::bigint[], $6::bigint[])`,
+        [...usageArrays(entries)],
+      );
+    },
+
+    async usageSubject(key) {
+      const result = await pool.query<Record<string, unknown>>(
+        `select account_id, published_transfer_limit_bytes::text
+            as published_transfer_limit_bytes,
+          download_limit_bytes::text as download_limit_bytes
+          from notesapp_usage_subject($1, $2)`,
+        'accountId' in key ? [key.accountId, null] : [null, key.workspaceId],
+      );
+      return usageSubjectOf(result.rows[0]);
+    },
+
+    async storedUsage(month, accountId) {
+      const result = await pool.query<Record<string, unknown>>(
+        `select account_published_transfer_bytes::text
+            as account_published_transfer_bytes,
+          account_download_bytes::text as account_download_bytes,
+          account_object_writes::text as account_object_writes,
+          account_object_reads::text as account_object_reads,
+          installation_published_transfer_bytes::text
+            as installation_published_transfer_bytes,
+          installation_download_bytes::text as installation_download_bytes,
+          installation_object_writes::text as installation_object_writes,
+          installation_object_reads::text as installation_object_reads
+          from notesapp_stored_usage($1::date, $2)`,
+        [monthFirstDay(month), accountId],
+      );
+      return storedUsageOf(result.rows[0]);
     },
 
     async close() {

@@ -218,6 +218,13 @@
       "when": 1791122567862,
       "tag": "0030_account_controls",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791138344903,
+      "tag": "0031_monthly_usage_counts",
+      "breakpoints": true
     }
   ]
 }
