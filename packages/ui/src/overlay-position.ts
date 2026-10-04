@@ -88,15 +88,18 @@ export function placeOverlay(input: {
 
   const below = anchor.top + anchor.height + overlayGap;
   const roomBelow = Math.max(screen.bottom - below - overlayMargin, 0);
-  const roomAbove = Math.max(
-    anchor.top - overlayGap - overlayMargin - screen.top,
-    0,
+  // An overlay above its anchor ends at the anchor, or at the foot of the
+  // visible area when the anchor stands under it, as under a keyboard.
+  const aboveEnd = Math.min(
+    anchor.top - overlayGap,
+    screen.bottom - overlayMargin,
   );
+  const roomAbove = Math.max(aboveEnd - overlayMargin - screen.top, 0);
   const fitsBelow = overlay.height <= roomBelow;
   const above = !fitsBelow && roomAbove > roomBelow;
   const room = Math.min(above ? roomAbove : roomBelow, overlayMaxHeight);
   const height = Math.min(overlay.height, room);
-  const top = above ? anchor.top - overlayGap - height : below;
+  const top = above ? aboveEnd - height : below;
 
   const wanted =
     align === 'end' ? anchor.left + anchor.width - overlay.width : anchor.left;

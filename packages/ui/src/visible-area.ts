@@ -63,16 +63,22 @@ export function readVisibleArea(): ScreenArea {
  * Calls `follow` each time the visible area moves, and answers the stop.
  *
  * The keyboard of a phone changes the visual viewport alone, and the window
- * sends no `resize` for it, so a placed overlay listens to both.
+ * sends no `resize` for it. The visual viewport also moves with every resize
+ * of the window, so it is the one source, and a browser without it falls
+ * back to the window.
  */
 export function followVisibleArea(follow: () => void): () => void {
   const visual = window.visualViewport;
-  window.addEventListener('resize', follow);
-  visual?.addEventListener('resize', follow);
-  visual?.addEventListener('scroll', follow);
+  if (visual === null) {
+    window.addEventListener('resize', follow);
+    return () => {
+      window.removeEventListener('resize', follow);
+    };
+  }
+  visual.addEventListener('resize', follow);
+  visual.addEventListener('scroll', follow);
   return () => {
-    window.removeEventListener('resize', follow);
-    visual?.removeEventListener('resize', follow);
-    visual?.removeEventListener('scroll', follow);
+    visual.removeEventListener('resize', follow);
+    visual.removeEventListener('scroll', follow);
   };
 }

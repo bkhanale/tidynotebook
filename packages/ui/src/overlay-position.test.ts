@@ -139,3 +139,17 @@ await test('an overlay keeps the margin from a visible area that starts low', ()
   assert.equal(place.above, true);
   assert.ok(place.top >= 200 + overlayMargin);
 });
+
+await test('an anchor under the keyboard opens its overlay above the keyboard', () => {
+  // The visible area ends at 508 and the anchor stands at 600, under the
+  // keys. The overlay ended at the anchor, so 88 px of it stood under them.
+  const place = placeOverlay({
+    anchor: { top: 600, left: 40, width: 32, height: 32 },
+    overlay: { width: 224, height: 190 },
+    screen: { top: 0, left: 0, bottom: 508, right: 390 },
+    align: 'start',
+  });
+  assert.equal(place.above, true);
+  assert.ok(place.top >= overlayMargin);
+  assert.ok(place.top + Math.min(190, place.maxHeight) <= 508 - overlayMargin);
+});
