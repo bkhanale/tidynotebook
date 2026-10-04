@@ -23,11 +23,14 @@ subscription. See
   `POST /api/billing/paddle-events`, takes each webhook. The handler
   checks the `Paddle-Signature` header against the raw body through the SDK
   before it parses anything, stores the event identifier and ignores one it
-  has seen, and calls the function for each `subscription.*` event. It answers
-  200 for any other valid event and stores nothing for it.
-- An hourly job reads the Paddle events after a stored cursor, applies each
-  `subscription.*` event that it lacks, and moves the cursor past every event
-  that it read, in the transaction of the last one. The cursor never follows
+  has seen, calls the function for each `subscription.*` event, and settles
+  an owed refund on `transaction.completed`. It answers 200 for any other
+  valid event and stores nothing for it.
+- An hourly job reads the Paddle events after a stored cursor with
+  `order_by=id[ASC]`, follows each page in that order, handles each event of
+  the two kinds above that it lacks, and moves the cursor past every event
+  that it read, in the transaction of the last one. With no cursor it starts
+  at the oldest event that Paddle keeps. The cursor never follows
   the webhooks, so a lost event is never skipped. Paddle keeps events for a
   limited time, so the daily job is the bound when the hourly job stops for
   longer than that.
@@ -41,9 +44,13 @@ subscription. See
 - An API change of record 0191 applies the subscription that Paddle answers
   through the same function, so the person sees the change at once.
 - `pnpm billing:sync` runs both jobs by hand.
-- A completed payment for an account that already bills a live subscription
-  is a duplicate. The server cancels the new subscription at once, refunds its
-  payment in full through the API, and logs the event.
+- A new subscription for an account that already bills a live subscription
+  is a duplicate. The snapshot function grants it no seat, the server cancels
+  it at once, and it stores a refund that it owes for its first transaction.
+  Paddle accepts a refund only for a completed transaction, so the refund is
+  sent on `transaction.completed`, and the hourly job sends each refund that
+  is still owed. An alarm mails the owner when a refund stays owed for a
+  day.
 
 ## Consequences
 

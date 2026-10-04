@@ -54,7 +54,7 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 - **Alarms** by mail to the owner: errors and latency of the load balancer,
   a task that does not start, CPU, storage and connections of the database,
   a failed webhook, a difference that a reconciling job repaired, the bounce
-  rate of SES, a failed backup or backup copy, the request count of each WAF,
+  rate of SES, a failed backup or backup copy, a refund that stays owed, the request count of each WAF,
   and a Route 53 health check of `/ready` from outside.
 - **A flood.** WAF charges for each request that it inspects, also one that it
   blocks, and only Shield Advanced refunds that fee. Its monthly fee is larger
