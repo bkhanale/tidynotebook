@@ -95,6 +95,7 @@ import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createObjectCleanup } from './jobs/object-cleanup.ts';
 import { scratchFolder } from './routes/scratch.ts';
 import { createPublicationCleanup } from './jobs/publication-cleanup.ts';
+import { createAccountRemoval } from './jobs/account-removal.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 import { createServerLogger, errorName } from './logging.ts';
 import {
@@ -926,6 +927,15 @@ async function composeApp(
     scratchFolder(config.storageRoot),
   );
   const cleanupPublications = createPublicationCleanup(content);
+  // The removal of a locked account past its time, with its mails (record
+  // 0201). The mail is the transport of the installation, because the
+  // operator, and not a stranger, causes it.
+  const removeAccounts = createAccountRemoval({
+    store: identity,
+    mailer: mail,
+    origin: config.origin,
+    portal: config.accountPortal !== null,
+  });
   let cleanupRunning = false;
   // Each job runs under a lock that one process takes, so two processes of
   // one installation never run one job at once (record 0121). A process that
@@ -938,7 +948,8 @@ async function composeApp(
       | 'publications'
       | 'attempts'
       | 'pending'
-      | 'streams';
+      | 'streams'
+      | 'removals';
     readonly run: () => Promise<unknown>;
   }[] = [
     { name: 'sync', run: () => cleanupSync() },
@@ -967,6 +978,7 @@ async function composeApp(
     // A process that stopped without its drain leaves reservations that
     // expired (record 0129).
     { name: 'streams', run: () => coordination.pruneStreams() },
+    { name: 'removals', run: () => removeAccounts() },
   ];
   const runCleanup = async (): Promise<void> => {
     if (cleanupRunning) return;

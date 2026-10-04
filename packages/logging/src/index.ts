@@ -29,7 +29,8 @@ export type LogEventFields = {
       | 'publications'
       | 'attempts'
       | 'pending'
-      | 'streams';
+      | 'streams'
+      | 'removals';
   };
   /**
    * One sync notice stream opened or closed, or one upgrade was refused
