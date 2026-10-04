@@ -40,7 +40,7 @@ await test('each closure has one notice with its cause and the date it ends', ()
     assert.match(notice, /1 November 2026/);
     // No code, no identifier and no raw instant reaches the person.
     assert.doesNotMatch(notice, /_|2026-11-01|T00/);
-    assert.doesNotMatch(notice, /[–—]/);
+    assert.doesNotMatch(notice, /[\u2013\u2014]/);
   }
   assert.equal(new Set(notices).size, notices.length);
   assert.match(notices[0] ?? '', /download limit/);
