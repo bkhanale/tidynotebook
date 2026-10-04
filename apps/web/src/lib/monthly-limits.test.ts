@@ -6,7 +6,11 @@ import {
   openMonth,
   transferLines,
 } from './monthly-limits.ts';
-import { hasProblemSentence, problemSentence } from './problem-text.ts';
+import {
+  hasProblemSentence,
+  problemLimit,
+  problemSentence,
+} from './problem-text.ts';
 
 const october = openMonth(new Date('2026-10-04T10:00:00.000Z'));
 
@@ -100,4 +104,35 @@ await test('the refusals of a month have a sentence of their own', () => {
     assert.equal(hasProblemSentence(code), true, code);
     assert.doesNotMatch(problemSentence(code, 429), /_/);
   }
+});
+
+await test('an image past the read cap of the server does not blame the download limit', () => {
+  // Review of PR 290. An attachment answers download_limit past the read
+  // cap of the server too, and the message named the download limit of the
+  // person. The problem names the limit, and each limit has its sentence.
+  const reads = problemSentence('download_limit', 429, 'object_reads');
+  const downloads = problemSentence('download_limit', 429, 'downloads');
+  assert.notEqual(reads, downloads);
+  assert.doesNotMatch(reads, /download limit/);
+  assert.match(reads, /Images load again next month/);
+  assert.match(downloads, /download limit/);
+  assert.equal(
+    problemSentence('storage_busy', 503, 'object_writes'),
+    problemSentence('storage_busy', 503),
+  );
+  // A limit on another code, or a limit that is not known, changes nothing.
+  assert.equal(
+    problemSentence('not_found', 404, 'object_reads'),
+    problemSentence('not_found', 404),
+  );
+  assert.equal(
+    problemSentence('download_limit', 429, 'a_newer_limit'),
+    downloads,
+  );
+  assert.equal(
+    problemLimit({ code: 'download_limit', limit: 'object_reads' }),
+    'object_reads',
+  );
+  assert.equal(problemLimit({ code: 'download_limit' }), null);
+  assert.equal(problemLimit(null), null);
 });

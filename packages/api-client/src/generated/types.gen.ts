@@ -1812,6 +1812,10 @@ export type ProblemDetails = {
      * The limit of the Markdown grammar that a refused note is over, on the code unrenderable_note only (record 0182). A client names the cause and the next step in words, and never shows this value.
      */
     readonly noteRefusal?: 'note_too_large' | 'note_too_deep' | 'note_too_many_marks' | 'note_too_many_cells';
+    /**
+     * The limit of the month that refused the request, on the codes download_limit and storage_busy only (record 0193).
+     */
+    readonly limit?: UsageLimit;
     [key: string]: unknown;
 };
 
@@ -2803,6 +2807,11 @@ export type UploadAttachmentInput = {
      */
     file: Blob | File;
 };
+
+/**
+ * The limit of the month that refused a request (record 0193), on the codes download_limit and storage_busy only. downloads is the download limit of the account or the download cap of the installation, object_reads the object read cap and object_writes the object write cap of the installation. A client names the cause from it, and never shows the value.
+ */
+export type UsageLimit = 'downloads' | 'object_reads' | 'object_writes';
 
 /**
  * One calendar month in UTC, as the year and the month.

@@ -6,6 +6,7 @@ import {
   completionRetryDelaysMs,
   downloadName,
   downloadRefusalMessage,
+  exportCheckCause,
   exportCheckMessage,
   importRefusalMessage,
   transferFailureMessage,
@@ -267,4 +268,16 @@ await test('a limit of the month names its own cause and when it ends', () => {
     importRefusalMessage({ code: 'storage_busy' }),
     'The file storage of this server is busy this month. Imports start again next month. You can still write and save notes.',
   );
+});
+
+await test('the check of an export reads the limit that the server names', () => {
+  // Review of PR 290. The cause of a 429 came from a read of the account,
+  // which another process may not see yet, or which may fail. The server
+  // names the limit in a header of the answer.
+  assert.equal(exportCheckCause(429, 'downloads'), 'downloads');
+  // No header is a job that runs, unless the account says otherwise.
+  assert.equal(exportCheckCause(429, null), 'ask');
+  assert.equal(exportCheckCause(429, 'object_reads'), 'status');
+  assert.equal(exportCheckCause(503, 'downloads'), 'status');
+  assert.equal(exportCheckCause(404, null), 'status');
 });

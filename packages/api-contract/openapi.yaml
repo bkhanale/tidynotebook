@@ -910,6 +910,8 @@ components:
       $ref: './components/schemas/AccountUsage.yaml'
     AccountMonth:
       $ref: './components/schemas/AccountMonth.yaml'
+    UsageLimit:
+      $ref: './components/schemas/UsageLimit.yaml'
     OperatorAccount:
       $ref: './components/schemas/OperatorAccount.yaml'
     OperatorTotals:

@@ -6,13 +6,12 @@ import {
   classifyError,
   createProblem,
   DomainProblemError,
-  DownloadLimitError,
   ImportNoteRefusedError,
   PublishedLinkUnavailableError,
   RequestContractError,
   RequestMediaTypeError,
   ResponseContractError,
-  StorageBusyError,
+  UsageRefusedError,
 } from './problem.ts';
 
 await test('a request contract failure becomes a 400 with its issues', () => {
@@ -263,10 +262,35 @@ await test('a write that the database refuses for a locked owner answers account
 });
 
 await test('a closure of the month answers its own code and status (record 0193)', () => {
-  const downloads = classifyError(new DownloadLimitError());
+  const downloads = classifyError(
+    new UsageRefusedError({ code: 'download_limit', limit: 'downloads' }),
+  );
   assert.equal(downloads.status, 429);
   assert.equal(downloads.code, 'download_limit');
-  const uploads = classifyError(new StorageBusyError());
+  assert.equal(downloads.limit, 'downloads');
+  // The read cap answers the same code and names its own limit, so a client
+  // does not blame the download limit of the person.
+  const reads = classifyError(
+    new UsageRefusedError({ code: 'download_limit', limit: 'object_reads' }),
+  );
+  assert.equal(reads.status, 429);
+  assert.equal(reads.limit, 'object_reads');
+  assert.notEqual(reads.detail, downloads.detail);
+  const uploads = classifyError(
+    new UsageRefusedError({ code: 'storage_busy', limit: 'object_writes' }),
+  );
   assert.equal(uploads.status, 503);
   assert.equal(uploads.code, 'storage_busy');
+  assert.equal(uploads.limit, 'object_writes');
+  assert.equal(
+    createProblem({
+      code: 'download_limit',
+      status: 429,
+      detail: reads.detail,
+      instance: '/api/x',
+      requestId: 'r',
+      limit: 'object_reads',
+    }).limit,
+    'object_reads',
+  );
 });

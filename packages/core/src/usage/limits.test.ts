@@ -115,12 +115,21 @@ await test('each gate refuses only past its own closure', () => {
   const downloads = { ...openUsage, downloadsPaused: true };
   const images = { ...openUsage, imagesPaused: true };
   const uploads = { ...openUsage, uploadsPaused: true };
-  assert.equal(gateRefusal('download', downloads), 'download_limit');
-  assert.equal(gateRefusal('attachment', downloads), 'download_limit');
+  const byDownloads = { code: 'download_limit', limit: 'downloads' };
+  assert.deepEqual(gateRefusal('download', downloads), byDownloads);
+  assert.deepEqual(gateRefusal('attachment', downloads), byDownloads);
   assert.equal(gateRefusal('upload', downloads), null);
   assert.equal(gateRefusal('download', images), null);
-  assert.equal(gateRefusal('attachment', images), 'download_limit');
-  assert.equal(gateRefusal('upload', uploads), 'storage_busy');
+  // The read cap answers the same code with its own limit, so a client can
+  // name the cap of the server and not the download limit of the person.
+  assert.deepEqual(gateRefusal('attachment', images), {
+    code: 'download_limit',
+    limit: 'object_reads',
+  });
+  assert.deepEqual(gateRefusal('upload', uploads), {
+    code: 'storage_busy',
+    limit: 'object_writes',
+  });
   assert.equal(gateRefusal('download', uploads), null);
   assert.equal(
     gateRefusal('download', { ...openUsage, publishedPagesClosed: true }),

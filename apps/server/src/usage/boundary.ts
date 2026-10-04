@@ -29,7 +29,10 @@ import {
 } from '@notesapp/core';
 import { requestActor } from '../auth/actor.ts';
 import { publishedOriginOperations } from '../plugins/published-origin.ts';
-import { DownloadLimitError, StorageBusyError } from '../plugins/problem.ts';
+import { UsageRefusedError } from '../plugins/problem.ts';
+
+/** The header that names the limit of the month of a refusal. */
+export const usageLimitHeader = 'notesapp-limit';
 
 /** The owner of the workspace of each reader path answer that opened a link. */
 const readerOwners = new WeakMap<FastifyRequest, string>();
@@ -155,8 +158,8 @@ export async function checkUsageGate(
       : await meter.accountState(resolved.actor.accountId);
   const refusal = gateRefusal(gate, state);
   if (refusal === null) return;
+  // A HEAD answer has no body, so the header names the limit too.
   reply.header('retry-after', String(secondsToNextMonth(clock())));
-  throw refusal === 'download_limit'
-    ? new DownloadLimitError()
-    : new StorageBusyError();
+  reply.header(usageLimitHeader, refusal.limit);
+  throw new UsageRefusedError(refusal);
 }

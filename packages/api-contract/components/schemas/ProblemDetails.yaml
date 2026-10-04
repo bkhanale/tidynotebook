@@ -84,3 +84,10 @@ properties:
       - note_too_deep
       - note_too_many_marks
       - note_too_many_cells
+  limit:
+    allOf:
+      - $ref: './UsageLimit.yaml'
+    readOnly: true
+    description: >-
+      The limit of the month that refused the request, on the codes
+      download_limit and storage_busy only (record 0193).

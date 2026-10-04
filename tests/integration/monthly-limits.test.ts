@@ -60,6 +60,12 @@ function codeOf(error: unknown): unknown {
   return Object.fromEntries(Object.entries(error))['code'];
 }
 
+/** The limit of the month that a failed generated call names. */
+function limitOf(error: unknown): unknown {
+  if (error === null || typeof error !== 'object') return undefined;
+  return Object.fromEntries(Object.entries(error))['limit'];
+}
+
 function cookieHeader(values: readonly string[]): string {
   return values
     .map((value) => (value.split(';')[0] ?? '').trim())
@@ -488,6 +494,11 @@ await test('past the download limit of an account an export, an attachment and a
     });
     assert.equal(responseOf(exported.response).status, 429);
     assert.equal(codeOf(exported.error), 'download_limit');
+    assert.equal(limitOf(exported.error), 'downloads');
+    assert.equal(
+      responseOf(exported.response).headers.get('notesapp-limit'),
+      'downloads',
+    );
     const retryAfter = Number(
       responseOf(exported.response).headers.get('retry-after'),
     );
@@ -510,6 +521,11 @@ await test('past the download limit of an account an export, an attachment and a
       path: { workspaceId: someone.workspaceId },
     });
     assert.equal(responseOf(check.response).status, 429);
+    // The answer of a HEAD has no body, so its header names the limit.
+    assert.equal(
+      responseOf(check.response).headers.get('notesapp-limit'),
+      'downloads',
+    );
     // A small answer of the API still answers, so the application works.
     const files = await listFiles({
       ...target,
@@ -635,6 +651,7 @@ await test('past the object write cap an upload and an import answer storage_bus
     });
     assert.equal(responseOf(refused.response).status, 503);
     assert.equal(codeOf(refused.error), 'storage_busy');
+    assert.equal(limitOf(refused.error), 'object_writes');
     assert.ok(
       Number(responseOf(refused.response).headers.get('retry-after')) >= 1,
     );
@@ -686,6 +703,12 @@ await test('past the object read cap an attachment waits and a page shows no ima
     });
     assert.equal(responseOf(refused.response).status, 429);
     assert.equal(codeOf(refused.error), 'download_limit');
+    // The read cap of the server names itself, not the download limit.
+    assert.equal(limitOf(refused.error), 'object_reads');
+    assert.equal(
+      responseOf(refused.response).headers.get('notesapp-limit'),
+      'object_reads',
+    );
     // The page still opens, with the words of its picture and no address.
     const closed = await page(two, note.token);
     assert.ok(!closed.includes(closedSentence));

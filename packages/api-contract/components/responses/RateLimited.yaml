@@ -10,6 +10,13 @@ headers:
     schema:
       type: string
       maxLength: 16
+  notesapp-limit:
+    description: >-
+      The limit of the month that refused the request, on the codes
+      download_limit and storage_busy only, so the answer of a HEAD request
+      names it too (record 0193).
+    schema:
+      $ref: '../schemas/UsageLimit.yaml'
 content:
   application/problem+json:
     schema:

@@ -250,10 +250,11 @@ export async function downloadAll(workspaceId: string): Promise<void> {
   const checked = await inspectWorkspaceExport({ path: { workspaceId } });
   const status = checked.response?.status ?? 0;
   if (checked.error !== undefined || status !== 200) {
-    // A 429 of the check is a job that runs or the download limit of the
-    // month (record 0193). The answer of a check has no body, so the
-    // account states which one holds.
-    if (status === 429 && (await downloadsPaused()))
+    const cause = exportCheckCause(
+      status,
+      checked.response?.headers.get(usageLimitHeader) ?? null,
+    );
+    if (cause === 'downloads' || (cause === 'ask' && (await downloadsPaused())))
       throw new Error(downloadRefusalMessage({ code: 'download_limit' }));
     throw new Error(exportCheckMessage(status));
   }
@@ -265,6 +266,28 @@ export async function downloadAll(workspaceId: string): Promise<void> {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
+}
+
+/** The header that names the limit of the month of a refusal (record 0193). */
+export const usageLimitHeader = 'notesapp-limit';
+
+/**
+ * What a refused check of an export says about its cause.
+ *
+ * A 429 is an archive job that runs or the download limit of the month
+ * (record 0193). The answer of a check is a HEAD with no body, so the server
+ * names the limit in a header: `downloads` is the download limit, and no
+ * header is a job that runs. A server that names no limit, for example
+ * behind a proxy that drops the header, answers `ask`, and the account then
+ * states whether its downloads wait.
+ */
+export function exportCheckCause(
+  status: number,
+  limit: string | null,
+): 'downloads' | 'ask' | 'status' {
+  if (status !== 429) return 'status';
+  if (limit === 'downloads') return 'downloads';
+  return limit === null ? 'ask' : 'status';
 }
 
 /** Whether the account reads that its downloads wait for the next month. */

@@ -81,8 +81,31 @@ export function usageState(input: {
   };
 }
 
-/** What a refused operation answers. */
-export type UsageRefusal = 'download_limit' | 'storage_busy';
+/**
+ * The limit of the month that refused an operation.
+ *
+ * Two limits answer one code: an attachment answers `download_limit` past
+ * the download limit and past the object read cap (record 0193). A client
+ * names the cause from this value, so one cause has one message.
+ *
+ * - `downloads`: the download limit of the account or the download cap.
+ * - `object_reads`: the object read cap of the installation.
+ * - `object_writes`: the object write cap of the installation.
+ */
+export const usageLimits = [
+  'downloads',
+  'object_reads',
+  'object_writes',
+] as const;
+
+/** One limit of the month that refused an operation. */
+export type UsageLimit = (typeof usageLimits)[number];
+
+/** What a refused operation answers: its code and the limit that refused it. */
+export type UsageRefusal =
+  | { readonly code: 'download_limit'; readonly limit: 'downloads' }
+  | { readonly code: 'download_limit'; readonly limit: 'object_reads' }
+  | { readonly code: 'storage_busy'; readonly limit: 'object_writes' };
 
 /**
  * The operations that a closure refuses, by operation id of the contract.
@@ -123,8 +146,13 @@ export function gateRefusal(
   gate: UsageGate,
   state: UsageState,
 ): UsageRefusal | null {
-  if (gate === 'upload') return state.uploadsPaused ? 'storage_busy' : null;
-  if (state.downloadsPaused) return 'download_limit';
-  if (gate === 'attachment' && state.imagesPaused) return 'download_limit';
+  if (gate === 'upload')
+    return state.uploadsPaused
+      ? { code: 'storage_busy', limit: 'object_writes' }
+      : null;
+  if (state.downloadsPaused)
+    return { code: 'download_limit', limit: 'downloads' };
+  if (gate === 'attachment' && state.imagesPaused)
+    return { code: 'download_limit', limit: 'object_reads' };
   return null;
 }

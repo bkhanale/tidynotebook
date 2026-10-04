@@ -576,6 +576,9 @@ export async function createAppWithHandlers(
           status === classified.status
             ? { noteRefusal: classified.noteRefusal }
             : {}),
+          ...(classified.limit !== undefined && status === classified.status
+            ? { limit: classified.limit }
+            : {}),
         }),
       );
   });

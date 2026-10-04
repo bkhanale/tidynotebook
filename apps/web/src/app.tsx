@@ -79,6 +79,7 @@ import {
 } from './lib/workspace-choice.ts';
 import {
   problemCode,
+  problemLimit,
   problemSentence,
   problemStatus,
 } from './lib/problem-text.ts';
@@ -114,7 +115,7 @@ export function problemMessage(error: unknown): string {
   const knownStatus = problemStatus(error);
   if (knownCode !== null)
     webLogger.emit('web.problem', { problemCode: knownCode });
-  return problemSentence(knownCode, knownStatus);
+  return problemSentence(knownCode, knownStatus, problemLimit(error));
 }
 
 /** Where the session stands. */

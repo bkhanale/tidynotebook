@@ -577,7 +577,12 @@ export {
   nextMonthStart,
   secondsToNextMonth,
 } from './usage/month.ts';
-export type { UsageGate, UsageRefusal, UsageState } from './usage/limits.ts';
+export type {
+  UsageGate,
+  UsageLimit,
+  UsageRefusal,
+  UsageState,
+} from './usage/limits.ts';
 export {
   checksNothing,
   gateRefusal,
@@ -585,6 +590,7 @@ export {
   reached,
   usageGateOf,
   usageGates,
+  usageLimits,
   usageState,
 } from './usage/limits.ts';
 export type { UsageEntry, UsageTally } from './usage/tally.ts';

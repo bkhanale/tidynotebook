@@ -12,6 +12,8 @@ import {
   type DomainErrorCode,
   type NoteRefusal,
   type Result,
+  type UsageLimit,
+  type UsageRefusal,
 } from '@notesapp/core';
 import {
   isLockedRefusal,
@@ -112,6 +114,8 @@ export type Problem = {
   readonly reason?: string;
   /** The limit of the grammar that a refused note is over (record 0182). */
   readonly noteRefusal?: NoteRefusal;
+  /** The limit of the month that refused the request (record 0193). */
+  readonly limit?: UsageLimit;
 };
 
 const titles: Readonly<Record<ProblemCode, string>> = {
@@ -185,10 +189,8 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   account_locked: 'The account is locked.',
   controls_changed: 'The controls of the account changed.',
   operator_off: 'This installation serves no operator API.',
-  download_limit:
-    'The download limit of this month is reached. Downloads start again next month.',
-  storage_busy:
-    'The object store took the most writes of this month. Uploads and imports start again next month.',
+  download_limit: 'A limit of this month stops this download.',
+  storage_busy: 'The object store takes no more writes this month.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
   shutting_down: 'The service is stopping and accepts no new traffic.',
@@ -701,28 +703,31 @@ export class AccountLockedError extends Error {
   }
 }
 
-/**
- * An export, an attachment or a sync snapshot past a limit of the month
- * (record 0193): the download limit of the account, the download cap of the
- * installation, or for an attachment the object read cap. The answer is 429,
- * and `retry-after` names the start of the next month in UTC.
- */
-export class DownloadLimitError extends Error {
-  constructor() {
-    super(titles.download_limit);
-    this.name = 'DownloadLimitError';
-  }
-}
+/** The detail of each limit of the month that refuses a request. */
+const usageDetails: Readonly<Record<UsageLimit, string>> = {
+  downloads:
+    'The download limit of this month is reached. Downloads start again next month.',
+  object_reads:
+    'The object store took the most reads of this month. Attachments start again next month.',
+  object_writes:
+    'The object store took the most writes of this month. Uploads and imports start again next month.',
+};
 
 /**
- * An upload or an import past the object write cap of the month (record
- * 0193). The answer is 503, and `retry-after` names the start of the next
- * month in UTC.
+ * A request past a limit of the month (record 0193). An export, an
+ * attachment or a sync snapshot past the download limit, and an attachment
+ * past the object read cap, answer `download_limit` with 429. An upload or
+ * an import past the object write cap answers `storage_busy` with 503. The
+ * problem and the `notesapp-limit` header name the limit, so a client names
+ * the cause, and `retry-after` names the start of the next month in UTC.
  */
-export class StorageBusyError extends Error {
-  constructor() {
-    super(titles.storage_busy);
-    this.name = 'StorageBusyError';
+export class UsageRefusedError extends Error {
+  readonly refusal: UsageRefusal;
+
+  constructor(refusal: UsageRefusal) {
+    super(usageDetails[refusal.limit]);
+    this.name = 'UsageRefusedError';
+    this.refusal = refusal;
   }
 }
 
@@ -790,6 +795,7 @@ export function createProblem(input: {
   readonly blanks?: readonly string[];
   readonly reason?: string;
   readonly noteRefusal?: NoteRefusal;
+  readonly limit?: UsageLimit;
 }): Problem {
   const issues = input.issues ?? [];
   const fileIds = input.fileIds ?? [];
@@ -811,6 +817,7 @@ export function createProblem(input: {
     ...(input.noteRefusal === undefined
       ? {}
       : { noteRefusal: input.noteRefusal }),
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
   };
 }
 
@@ -825,6 +832,7 @@ export function classifyError(error: unknown): {
   blanks?: readonly string[];
   reason?: string;
   noteRefusal?: NoteRefusal;
+  limit?: UsageLimit;
 } {
   if (error instanceof LegalDocumentUnfinishedError)
     return {
@@ -925,19 +933,13 @@ export function classifyError(error: unknown): {
       detail: error.message,
       issues: [],
     };
-  if (error instanceof DownloadLimitError)
+  if (error instanceof UsageRefusedError)
     return {
-      status: 429,
-      code: 'download_limit',
+      status: error.refusal.code === 'download_limit' ? 429 : 503,
+      code: error.refusal.code,
       detail: error.message,
       issues: [],
-    };
-  if (error instanceof StorageBusyError)
-    return {
-      status: 503,
-      code: 'storage_busy',
-      detail: error.message,
-      issues: [],
+      limit: error.refusal.limit,
     };
   if (error instanceof OperatorOffError)
     return {
