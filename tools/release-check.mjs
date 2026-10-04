@@ -424,11 +424,16 @@ export function afterChecks(state) {
               `the run ended in ${state.runConclusion}. ${state.runUrl}`,
             ),
   );
+  // A tag with no image gets no release. Its next patch carries the release.
+  const noImage =
+    state.runStatus === 'completed' && state.runConclusion !== 'success';
   if (state.releaseTag === '')
     checks.push(
       failed(
         'the GitHub release',
-        `no release for ${tag}. A pushed tag does not publish one. Create it.`,
+        noImage
+          ? `no release for ${tag}, and it gets none: its image did not build. Release the next patch.`
+          : `no release for ${tag}. A pushed tag does not publish one. Create it.`,
       ),
     );
   else {

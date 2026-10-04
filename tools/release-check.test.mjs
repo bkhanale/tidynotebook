@@ -251,6 +251,25 @@ await test('the after gate names each missing step', () => {
   ]);
 });
 
+// The tag v0.14.0 has no image. The gate told the person to create its
+// release, against the recovery guide, which gives such a tag none.
+await test('a tag whose image did not build is not sent to get a release', () => {
+  const checks = afterChecks({
+    ...after,
+    runConclusion: 'failure',
+    releaseTag: '',
+    releaseName: '',
+  });
+  const release = checks.find((check) => check.name === 'the GitHub release');
+  assert.equal(release?.status, 'failed');
+  assert.match(release?.detail ?? '', /gets none: its image did not build/);
+  const missing = afterChecks({ ...after, releaseTag: '', releaseName: '' });
+  assert.match(
+    missing.find((check) => check.name === 'the GitHub release')?.detail ?? '',
+    /Create it\./,
+  );
+});
+
 await test('a release with no milestone and no package scope skips those checks', () => {
   const checks = afterChecks({ ...after, milestoneState: '', imageTags: null });
   assert.deepEqual(failures(checks), []);
