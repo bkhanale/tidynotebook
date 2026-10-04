@@ -1,6 +1,6 @@
 ---
 name: releasing-a-version
-description: Releases one version of NotesApp from end to end, and repairs a release that missed a step. It covers the changelog entry, the prepare commit, the signed tag, the tag push that builds the container image, the GitHub release, and the milestone, and it proves each one with tools/release-check.mjs. Use it for any request to release, to cut or bump a version, to tag a version, to publish release notes, or to check that a release is complete.
+description: Releases one version of Tidy Notebook from end to end, and repairs a release that missed a step. It covers the changelog entry, the prepare commit, the signed tag, the tag push that builds the container image, the GitHub release, and the milestone, and it proves each one with tools/release-check.mjs. Use it for any request to release, to cut or bump a version, to tag a version, to publish release notes, or to check that a release is complete.
 ---
 
 # Releasing a version
@@ -13,7 +13,7 @@ not the memory of what was done.
 
 - The one record of a release is the `CHANGELOG.md` entry.
 - The version string is `X.Y.Z`. The tag is `vX.Y.Z`. The release title is
-  `NotesApp X.Y.Z`. The prepare commit is `chore(release): prepare X.Y.Z`.
+  `Tidy Notebook X.Y.Z`. The prepare commit is `chore(release): prepare X.Y.Z`.
 - A pushed tag is final. It is never moved, never deleted, and never forced. A
   fault after the push becomes the next patch version.
 
@@ -97,7 +97,7 @@ sentence, and points at the changelog.
 
 ```sh
 git push origin main
-git tag -s vX.Y.Z -m "NotesApp X.Y.Z" -m "<one sentence about this release>" -m "See CHANGELOG.md for the whole entry."
+git tag -s vX.Y.Z -m "Tidy Notebook X.Y.Z" -m "<one sentence about this release>" -m "See CHANGELOG.md for the whole entry."
 git push origin vX.Y.Z
 ```
 
@@ -115,7 +115,7 @@ comes from the changelog, never from the keyboard.
 
 ```sh
 node tools/release-notes.mjs X.Y.Z \
-  | gh release create vX.Y.Z --verify-tag --latest --title "NotesApp X.Y.Z" --notes-file -
+  | gh release create vX.Y.Z --verify-tag --latest --title "Tidy Notebook X.Y.Z" --notes-file -
 ```
 
 ## 8. Close the milestone

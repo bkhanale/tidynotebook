@@ -1,6 +1,6 @@
 # Markdown
 
-NotesApp has one Markdown grammar and two readers of it. The editor and the
+Tidy Notebook has one Markdown grammar and two readers of it. The editor and the
 reader must never disagree about what a document means.
 
 - `packages/markdown` is the definition. It parses with remark, applies the URL

@@ -18,7 +18,7 @@ Include:
 - Your deployment shape, for example the reverse proxy in front of the app.
 
 The owner acknowledges a report and states whether it is accepted or refused.
-NotesApp is a one-person project, so there is no service level agreement.
+Tidy Notebook is a one-person project, so there is no service level agreement.
 Please give the owner reasonable time to release a fix before you publish.
 
 ## Supported versions

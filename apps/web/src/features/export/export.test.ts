@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applicationName } from '../../shell/document-title.ts';
 import {
   downloadName,
   downloadRefusalMessage,
@@ -44,11 +43,11 @@ await test('each refusal of an import names its cause and the next step', () => 
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_too_large' }),
-    `A file in the zip file is larger than ${applicationName} can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
+    `A file in the zip file is larger than Tidy Notebook can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_invalid' }),
-    `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
+    `This file is not a zip file that Tidy Notebook can read. Make the zip file again and import it.`,
   );
   const messages = [
     'path_conflict',
@@ -105,7 +104,7 @@ await test('a screen shows the sentence of a refused transfer', () => {
     transferFailureMessage(
       new Error(importRefusalMessage({ code: 'archive_invalid' })),
     ),
-    `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
+    `This file is not a zip file that Tidy Notebook can read. Make the zip file again and import it.`,
   );
   assert.equal(
     transferFailureMessage({ code: 'internal_error' }),

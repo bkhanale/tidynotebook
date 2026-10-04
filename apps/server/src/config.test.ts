@@ -113,7 +113,7 @@ const mailFields: Readonly<Record<string, string>> = {
   NOTESAPP_SMTP_SECURITY: 'starttls',
   NOTESAPP_SMTP_USERNAME: 'me@example.com',
   NOTESAPP_SMTP_PASSWORD: 'p@ss:w/rd?#%',
-  NOTESAPP_MAIL_FROM: 'NotesApp <me@example.com>',
+  NOTESAPP_MAIL_FROM: 'Tidy Notebook <me@example.com>',
 };
 
 /** The issues of an environment that must stop the start. */
@@ -138,7 +138,7 @@ await test('the mail server can be named as separate fields', () => {
       security: 'starttls',
       username: 'me@example.com',
       password: 'p@ss:w/rd?#%',
-      sender: 'NotesApp <me@example.com>',
+      sender: 'Tidy Notebook <me@example.com>',
     },
   });
 });

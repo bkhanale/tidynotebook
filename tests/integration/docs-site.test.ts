@@ -215,7 +215,7 @@ await test('the built documentation site', async (t) => {
     const index = await readFile(join(output, 'llms.txt'), 'utf8');
     const full = await readFile(join(output, 'llms-full.txt'), 'utf8');
     const map = await readFile(join(output, 'sitemap.xml'), 'utf8');
-    assert.ok(index.startsWith('# NotesApp docs\n\n> '));
+    assert.ok(index.startsWith('# Tidy Notebook docs\n\n> '));
     for (const { page, address } of pages) {
       if (page.slug !== '')
         assert.ok(

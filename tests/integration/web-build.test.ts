@@ -269,8 +269,8 @@ await test('the built shell holds the screen of a start that failed', async () =
   const stop = /<template id="start-failure-stop">([\s\S]*?)<\/template>/.exec(
     shell,
   )?.[1];
-  assert.ok(load?.includes('Notesapp did not load'), 'no load screen');
-  assert.ok(stop?.includes('Notesapp stopped'), 'no stop screen');
+  assert.ok(load?.includes('Tidy Notebook did not load'), 'no load screen');
+  assert.ok(stop?.includes('Tidy Notebook stopped'), 'no stop screen');
   for (const screen of [load, stop]) assert.match(screen ?? '', /Reload/);
   assert.match(shell, /addEventListener\(\s*'error'/);
   assert.match(shell, /'unhandledrejection'/);

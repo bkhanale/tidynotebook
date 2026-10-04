@@ -33,11 +33,14 @@ await test('every message names the product and the installation', () => {
   assert.equal(installationHost('http://127.0.0.1:3000'), '127.0.0.1:3000');
   for (const message of messages) {
     assert.equal(message.to, 'a@example.com');
-    assert.match(message.subject, /NotesApp at notes\.example\.com/);
-    assert.match(message.text, /NotesApp at notes\.example\.com/);
+    assert.match(message.subject, /Tidy Notebook at notes\.example\.com/);
+    assert.match(message.text, /Tidy Notebook at notes\.example\.com/);
     // The signature follows the delimiter of RFC 3676, so a mail program can
     // fold it away.
-    assert.match(message.text, /\n-- \nNotesApp at notes\.example\.com\n$/);
+    assert.match(
+      message.text,
+      /\n-- \nTidy Notebook at notes\.example\.com\n$/,
+    );
     // No secret of a link reaches a subject, which a mailbox list shows.
     assert.equal(message.subject.includes('secret-token'), false);
     assert.equal(/[–—]/.test(message.text), false);

@@ -13,6 +13,7 @@ import {
   type IconAddresses,
 } from './src/pwa/icons.ts';
 import { precacheWorker } from './src/pwa/precache.ts';
+import { productName, productShortName } from '@notesapp/core';
 import { defaultThemeFor } from '@notesapp/ui';
 import { devicePaletteCss, themeRegistryData } from './src/lib/first-paint.ts';
 import { startFailureMarkup } from './src/start-failure.ts';
@@ -112,8 +113,8 @@ export function webManifestDocument(
 ): WebManifestDocument {
   const theme = defaultThemeFor('dark');
   return {
-    name: 'Notesapp',
-    short_name: 'Notes',
+    name: productName,
+    short_name: productShortName,
     description: 'Offline notes with versioned history.',
     start_url: '/',
     scope: '/',

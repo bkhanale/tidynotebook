@@ -30,7 +30,8 @@ application (records 0152 and 0153).
 ## Allowed imports
 
 `@notesapp/markdown` and `@notesapp/ui`, plus `react`, `react-dom/server`,
-`pagefind` and Node modules in the build. `@notesapp/web` is a development
+`pagefind` and Node modules in the build. `productName` of `src/site.ts` is a
+copy, and `tools/product-name.test.mjs` holds it to the core (0187). `@notesapp/web` is a development
 dependency for the order of the build alone. `src/client/` imports nothing
 outside `src/client/`.
 

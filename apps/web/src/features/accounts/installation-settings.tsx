@@ -67,6 +67,7 @@ import {
   type LegalDocumentRowName,
   type MailForm,
 } from '../../lib/installation-settings.ts';
+import { productName } from '@notesapp/core';
 
 /** The outcome of the last action of a section, which it states in place. */
 type Outcome =
@@ -358,7 +359,7 @@ function MailSettingsForm({
         id="mail-sender"
         label="Sender"
         value={form.sender}
-        placeholder="NotesApp <no-reply@notes.example.com>"
+        placeholder={`${productName} <no-reply@notes.example.com>`}
         autoComplete="off"
         required
         hint="An address that the mail server lets you send from."
@@ -791,7 +792,7 @@ function LegalDocumentEditor({
             label="Text in Markdown"
             value={text}
             required
-            hint="The template states what NotesApp keeps and where it sends data. It is not legal advice. Ask a person who knows the law of your country to read the document."
+            hint={`The template states what ${productName} keeps and where it sends data. It is not legal advice. Ask a person who knows the law of your country to read the document.`}
             onChange={(next) => {
               // An edit of the text keeps what the fields filled, and the
               // blanks that remain stay fields.

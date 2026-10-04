@@ -18,6 +18,7 @@
  * engine word, and one cause has one message.
  */
 import type { ReviewRecord } from '@notesapp/sync';
+import { productName } from '@notesapp/core';
 
 /** The notice that the note shows while a Review waits. */
 export type ReviewNotice = {
@@ -80,8 +81,7 @@ export function reviewPage(review: ReviewRecord): ReviewPage {
     };
   return {
     title: 'Earlier work on this device',
-    description:
-      'This work did not go into the note when Notesapp was updated. The lines below compare it with the note now. Needs attention keeps the text until you act on it.',
+    description: `This work did not go into the note when ${productName} was updated. The lines below compare it with the note now. Needs attention keeps the text until you act on it.`,
     keptLabel: 'Earlier work',
     currentLabel: 'The note now',
     sameText: 'The note holds the same text as the earlier work.',

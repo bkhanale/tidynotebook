@@ -13,11 +13,11 @@ const hosted = { base: '/notesapp/', origin: 'https://docs.bhu.sh' };
 const local = { base: '/', origin: null };
 
 const readme = [
-  '# NotesApp guide',
+  '# Tidy Notebook guide',
   '',
-  'This page is for anyone who uses NotesApp.',
+  'This page is for anyone who uses Tidy Notebook.',
   '',
-  'NotesApp is a self-hosted Markdown notes application.',
+  'Tidy Notebook is a self-hosted Markdown notes application.',
   '',
   '## Writing notes',
   '',
@@ -50,9 +50,9 @@ await test('llms.txt names every page with its summary', () => {
   assert.equal(
     llmsIndex(hosted, groups, home),
     [
-      '# NotesApp docs',
+      '# Tidy Notebook docs',
       '',
-      '> NotesApp is a self-hosted Markdown notes application.',
+      '> Tidy Notebook is a self-hosted Markdown notes application.',
       '',
       'Each link opens the Markdown copy of one page. Every page in one file: https://docs.bhu.sh/notesapp/llms-full.txt. The pages for people start at https://docs.bhu.sh/notesapp/.',
       '',
@@ -88,9 +88,11 @@ await test('a Markdown copy links the other copies', () => {
 
 await test('llms-full.txt holds every page in reading order', () => {
   const full = llmsFull(hosted, files, pages);
-  const order = ['# NotesApp guide', '# Getting started', '# Quick start'].map(
-    (title) => full.indexOf(title),
-  );
+  const order = [
+    '# Tidy Notebook guide',
+    '# Getting started',
+    '# Quick start',
+  ].map((title) => full.indexOf(title));
   assert.ok(order.every((at) => at >= 0));
   assert.deepEqual(
     [...order].sort((a, b) => a - b),

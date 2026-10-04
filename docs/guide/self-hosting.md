@@ -8,7 +8,7 @@ For the shortest path from a clone to the setup screen, read
 [Backup and restore](backup-and-restore.md), [Upgrade](upgrade.md), and the
 [Security model](security-model.md).
 
-NotesApp runs as one application service and one PostgreSQL service. The
+Tidy Notebook runs as one application service and one PostgreSQL service. The
 application container applies the database migrations and then serves the web
 app, the REST API, and the authentication routes on one origin.
 
@@ -130,7 +130,7 @@ Use encrypted host storage before you create the data directories. The
 encryption boundary must include:
 
 1. PostgreSQL data and WAL.
-2. NotesApp attachment data.
+2. Tidy Notebook attachment data.
 3. Persistent temporary files.
 4. Swap.
 5. Core files and other crash output.
@@ -337,7 +337,7 @@ change.
      `587`.
    - `NOTESAPP_SMTP_USERNAME`: the user name that signs in.
    - `NOTESAPP_MAIL_FROM`: the sender, for example
-     `NotesApp <no-reply@notes.example.com>`.
+     `Tidy Notebook <no-reply@notes.example.com>`.
 2. Write the password to the file `smtp_password` in `NOTESAPP_SECRETS_DIR`,
    with mode `0600` and owner uid 10001.
 3. Add `docker/compose.mail.yaml` to `COMPOSE_FILE` in `.env`, as

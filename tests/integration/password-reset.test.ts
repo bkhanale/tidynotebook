@@ -210,7 +210,10 @@ await test('a reset link opens the application and replaces the password', async
   // The answer does not wait for the message, so the test waits for it.
   await until(() => mailsTo(person.email).length === before + 1);
   const [reset] = mailsTo(person.email).slice(before);
-  assert.equal(reset?.subject, 'Reset your password on NotesApp at 127.0.0.1');
+  assert.equal(
+    reset?.subject,
+    'Reset your password on Tidy Notebook at 127.0.0.1',
+  );
   const token = lastToken(person.email, '/reset-password');
 
   const changed = await resetPassword({
@@ -230,7 +233,7 @@ await test('a reset link opens the application and replaces the password', async
   const notice = mailsTo(person.email).at(-1);
   assert.equal(
     notice?.subject,
-    'Your password on NotesApp at 127.0.0.1 changed',
+    'Your password on Tidy Notebook at 127.0.0.1 changed',
   );
   assert.ok(
     notice?.text.split('\n').includes('http://127.0.0.1/forgot-password'),

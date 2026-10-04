@@ -262,6 +262,12 @@ await test('documents that the environment names win', async () => {
 
 await test('a template takes the host of the origin', () => {
   const { settings } = decider(emptyInstallationSettings);
-  assert.match(settings.template('terms'), /NotesApp at notes\.example\.com/);
-  assert.match(settings.template('privacy'), /NotesApp at notes\.example\.com/);
+  assert.match(
+    settings.template('terms'),
+    /Tidy Notebook at notes\.example\.com/,
+  );
+  assert.match(
+    settings.template('privacy'),
+    /Tidy Notebook at notes\.example\.com/,
+  );
 });

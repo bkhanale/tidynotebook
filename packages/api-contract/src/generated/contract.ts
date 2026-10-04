@@ -14362,7 +14362,7 @@ export const operations: readonly OperationEntry[] = [
           },
           "sender": {
             "type": "string",
-            "description": "The sender of every message, an address or a name and an address, for example NotesApp <no-reply@notes.example.com>.",
+            "description": "The sender of every message, an address or a name and an address, for example Tidy Notebook <no-reply@notes.example.com>.",
             "minLength": 3,
             "maxLength": 320
           }

@@ -13,6 +13,7 @@
  * record without its four checks, so the reader path of decision 0031 stays
  * closed.
  */
+export { productName, productShortName } from './product.ts';
 export type {
   Action,
   Actor,

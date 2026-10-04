@@ -17,10 +17,8 @@
  * No function here sends a message or reads a store. `mail.ts` sends, and the
  * caller decides whether a message goes at all.
  */
+import { productName } from '@notesapp/core';
 import type { MailMessage } from './mail.ts';
-
-/** The name of the product, in its own case. */
-export const productName = 'NotesApp';
 
 /** The host of the installation, as a person reads it in a message. */
 export function installationHost(origin: string): string {

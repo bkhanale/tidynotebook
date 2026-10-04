@@ -35,7 +35,7 @@
 import { Buffer } from 'node:buffer';
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { passwordBounds } from '@notesapp/core';
+import { passwordBounds, productName } from '@notesapp/core';
 import { checkBreach, type RangeQuery } from './breach-check.ts';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -185,7 +185,7 @@ export const pwnedRangeQuery: RangeQuery = async (prefix) => {
     const answer = await fetch(
       `https://api.pwnedpasswords.com/range/${prefix}`,
       {
-        headers: { 'add-padding': 'true', 'user-agent': 'NotesApp' },
+        headers: { 'add-padding': 'true', 'user-agent': productName },
         signal: AbortSignal.timeout(breachTimeoutMs),
       },
     );

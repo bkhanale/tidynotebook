@@ -1,6 +1,6 @@
-# NotesApp
+# Tidy Notebook
 
-NotesApp is a self-hosted Markdown notes application for you and the people
+Tidy Notebook is a self-hosted Markdown notes application for you and the people
 you invite. Each account has its own notes. The file is the document: a note is a Markdown file with one `.md` suffix, in a folder
 you choose. Typing writes a draft on your device. Save creates one immutable
 version on your server.
@@ -110,4 +110,4 @@ pnpm generated:check
 
 ## License
 
-NotesApp is available under the [MIT License](LICENSE).
+Tidy Notebook is available under the [MIT License](LICENSE).

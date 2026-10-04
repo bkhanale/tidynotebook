@@ -90,3 +90,4 @@ Every test must prove both the accepted path and the refusal, with the exact
 | `src/identity/actor.ts`        | Roles, actions, and `verifyActor`           |
 | `src/identity/installation.ts` | The installation role and action matrix     |
 | `src/publications/errors.ts`   | The one refusal of the reader path          |
+| `src/product.ts`               | The one name a person reads (0187)          |

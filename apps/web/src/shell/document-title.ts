@@ -5,15 +5,13 @@
  * window can be told apart. The application name always closes the title,
  * so a narrow tab still shows the part that changes.
  */
+import { productName } from '@notesapp/core';
 import { useEffect } from 'react';
-
-/** The name of the application, as it closes every title. */
-export const applicationName = 'Notesapp';
 
 /** Joins a screen name and the application name into one tab title. */
 export function documentTitle(screen: string | null): string {
   const trimmed = screen === null ? '' : screen.trim();
-  return trimmed === '' ? applicationName : `${trimmed} - ${applicationName}`;
+  return trimmed === '' ? productName : `${trimmed} - ${productName}`;
 }
 
 /** Sets the tab title for the screen that is open. */

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify one encrypted NotesApp backup without restoring it.
+# Verify one encrypted Tidy Notebook backup without restoring it.
 set -euo pipefail
 
 BACKUP_FILE=""

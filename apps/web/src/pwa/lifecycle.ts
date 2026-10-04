@@ -29,6 +29,7 @@ import {
   type RecoveryRecord,
 } from '@notesapp/sync';
 import type { PersistenceRequest } from './persistence.ts';
+import { productName } from '@notesapp/core';
 
 /** What offline launch of one workspace needs. */
 export type OfflineReadiness = {
@@ -110,7 +111,7 @@ export function describeStorageFailure(error: unknown): string {
   if (error.kind === 'quota')
     return 'Local storage is full. Free device space; drafts stay in memory.';
   if (error.kind === 'unavailable')
-    return 'This browser does not let Notesapp keep data on this device. Keep this tab open and copy important text.';
+    return `This browser does not let ${productName} keep data on this device. Keep this tab open and copy important text.`;
   if (error.kind === 'corrupt' && isBlockedUpgradeError(error))
     return blockedUpgradeInstructions;
   if (error.kind === 'corrupt')

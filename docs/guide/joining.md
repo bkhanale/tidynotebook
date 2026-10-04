@@ -1,6 +1,6 @@
 # Joining an installation
 
-This page is for a person who joins a NotesApp installation, with an invitation
+This page is for a person who joins a Tidy Notebook installation, with an invitation
 or with a sign-up.
 
 ## Accept the invitation
@@ -18,7 +18,7 @@ An administrator of the installation sends you a link, by mail or in a message.
 5. Select **Make account**.
 
 Your account opens at once, with its own workspace and one note, **Welcome to
-NotesApp**. Every later visit shows **Sign in**. Use the same address and
+Tidy Notebook**. Every later visit shows **Sign in**. Use the same address and
 password. See [Getting started](getting-started.md) for the first steps.
 
 If the page says that the invitation is not valid, the link expired, somebody

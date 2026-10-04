@@ -1,6 +1,6 @@
 # Architecture
 
-NotesApp is a self-hosted Markdown notes application for one person. A note is
+Tidy Notebook is a self-hosted Markdown notes application for one person. A note is
 a Markdown file with one `.md` suffix. Typing writes a draft on the device.
 Save creates one immutable version on the server. Nothing is stored that cannot
 be exported as plain Markdown files.

@@ -29,6 +29,7 @@ import {
   type LegalDocuments,
   type MailSettingsProblem,
   type StoredMailSettings,
+  productName,
 } from '@notesapp/core';
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
@@ -689,8 +690,7 @@ const mailFieldIssues: Readonly<Record<MailSettingsProblem, string>> = {
     'NOTESAPP_SMTP_USERNAME: the user name holds a character that a mail server cannot take.',
   password:
     'NOTESAPP_SMTP_PASSWORD: the password holds a character that a mail server cannot take.',
-  sender:
-    'NOTESAPP_MAIL_FROM: name one address, or a name and an address, for example NotesApp <no-reply@example.com>.',
+  sender: `NOTESAPP_MAIL_FROM: name one address, or a name and an address, for example ${productName} <no-reply@example.com>.`,
 };
 
 /**

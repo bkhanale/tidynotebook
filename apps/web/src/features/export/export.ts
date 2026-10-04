@@ -16,8 +16,11 @@ import {
   importWorkspace,
   inspectWorkspaceExport,
 } from '@notesapp/api-client';
-import { applicationName } from '../../shell/document-title.ts';
-import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';
+import {
+  maxArchiveBytes,
+  maxArchiveEntries,
+  productName,
+} from '@notesapp/core';
 
 /** The byte bound of one archive, in whole MiB, as a person reads it. */
 const archiveMiB = Math.floor(maxArchiveBytes / (1024 * 1024));
@@ -79,8 +82,8 @@ const importRefusals: Readonly<Record<string, string>> = {
   payload_too_large:
     'The zip file is too large. Put the files in smaller zip files and import each one.',
   archive_too_many_files: `The zip file has more than ${String(maxArchiveEntries)} files. Put the files in smaller zip files and import each one.`,
-  archive_too_large: `A file in the zip file is larger than ${applicationName} can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
-  archive_invalid: `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
+  archive_too_large: `A file in the zip file is larger than ${productName} can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
+  archive_invalid: `This file is not a zip file that ${productName} can read. Make the zip file again and import it.`,
   unsupported_media_type:
     'The zip file can hold only Markdown files and images. Remove the other files and import again.',
   storage_full:

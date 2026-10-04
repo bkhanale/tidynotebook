@@ -9,8 +9,12 @@
  * a laptop.
  */
 
-/** The name of the product, as every page names it. */
-export const productName = 'NotesApp';
+/**
+ * The name of the product, as every page names it. This package reads no
+ * `@notesapp/core`, so `tools/product-name.test.mjs` holds this copy to
+ * `productName` of `packages/core/src/product.ts` (record 0187).
+ */
+export const productName = 'Tidy Notebook';
 
 /** The name of the site, as a browser tab and a search engine read it. */
 export const siteName = `${productName} docs`;

@@ -55,6 +55,7 @@ import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { downloadAll, transferFailureMessage } from '../export/export.ts';
 
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import { productName } from '@notesapp/core';
 
 /** The title of the settings page, which is also its breadcrumb part. */
 export const settingsTitle = 'Settings';
@@ -357,7 +358,7 @@ export function LoginPage(): ReactNode {
   const documents = status.kind === 'ready' ? status.legalDocuments : null;
   return (
     <AuthFrame
-      title={status.kind === 'loading' ? 'Notesapp' : title}
+      title={status.kind === 'loading' ? productName : title}
       footer={
         documents === null ? null : (
           <LegalLinks className="justify-center" documents={documents} />
@@ -491,7 +492,7 @@ export function AuthFrame({
         >
           <AppMarkIcon />
         </span>
-        <span>Notesapp</span>
+        <span>{productName}</span>
       </div>
       <Card className="w-full max-w-sm sm:p-6">
         <h1 className="mb-2 mt-0 text-xl font-semibold tracking-heading text-strong">

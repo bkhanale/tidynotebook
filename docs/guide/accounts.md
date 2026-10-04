@@ -7,7 +7,7 @@ other people and manages their accounts.
 
 The first account of an installation is an administrator. An administrator can
 make another account an administrator too. An installation always keeps at
-least one enabled administrator, so NotesApp does not let the last one lose the
+least one enabled administrator, so Tidy Notebook does not let the last one lose the
 role, disable the account, or remove it.
 
 An administrator manages accounts and does not read notes. You see the address,
@@ -46,7 +46,7 @@ reset a password alone.
    change it. Leave the user name and the password empty for a server that
    takes mail with no sign-in.
 2. Enter the sender, an address that the mail server lets you send from, for
-   example `NotesApp <no-reply@notes.example.com>`.
+   example `Tidy Notebook <no-reply@notes.example.com>`.
 3. Select **Save**, then select **Send a test message**. The message goes to
    your own address. Check that it arrives in the inbox and not in spam.
 
@@ -75,7 +75,7 @@ both exist.
 2. Choose the source. **Text on this server** shows the document on a page of
    the installation. **Page on another site** links a page that you host
    elsewhere.
-3. A text starts from the template of NotesApp. The template states what the
+3. A text starts from the template of Tidy Notebook. The template states what the
    product keeps, for how long, and where it sends data. Each blank in double
    braces shows as a field under **Facts of your service**. Type the facts of
    your service, for example who runs it and the law that applies. Each fact

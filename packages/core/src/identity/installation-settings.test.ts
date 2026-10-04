@@ -44,8 +44,8 @@ await test('a sender is an address, or a name and an address', () => {
   );
   assert.equal(mailSender('<no-reply@example.com>'), 'no-reply@example.com');
   assert.equal(
-    mailSender('"NotesApp" <no-reply@example.com>'),
-    'NotesApp <no-reply@example.com>',
+    mailSender('"Tidy Notebook" <no-reply@example.com>'),
+    'Tidy Notebook <no-reply@example.com>',
   );
   for (const refused of [
     'nobody',
@@ -295,8 +295,8 @@ await test('a template fills the facts of the server and keeps the other blanks'
   const terms = legalTemplate('terms', facts);
   assert.match(privacy, /^# Privacy notice\n/);
   assert.match(terms, /^# Terms\n/);
-  assert.match(privacy, /NotesApp at notes\.example\.com/);
-  assert.match(terms, /NotesApp at notes\.example\.com/);
+  assert.match(privacy, /Tidy Notebook at notes\.example\.com/);
+  assert.match(terms, /Tidy Notebook at notes\.example\.com/);
   assert.match(privacy, /goes after 48 hours/);
   assert.match(privacy, /Have I Been Pwned/);
   assert.doesNotMatch(

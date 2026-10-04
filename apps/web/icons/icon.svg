@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <title>Notesapp install icon</title>
+  <title>Tidy Notebook install icon</title>
   <!-- Tile is Default light accentFill (#1a1917) and the mark is Default dark
     textStrong (#f5f4f2). The registry in packages/ui/src/themes owns both
     values. This file copies them because an install icon cannot read CSS. -->

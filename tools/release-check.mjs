@@ -22,6 +22,7 @@ import {
   entrySections,
   releaseNotes,
 } from './release-notes.mjs';
+import { productName } from '../packages/core/src/product.ts';
 import { root } from './workspace.mjs';
 
 /** One result of the gate. */
@@ -33,7 +34,7 @@ export const prepareSubject = (/** @type {string} */ version) =>
 
 /** The first line of the tag message, and the title of the release. */
 export const releaseTitle = (/** @type {string} */ version) =>
-  `NotesApp ${version}`;
+  `${productName} ${version}`;
 
 /** The line of `README.md` that names the current release. */
 export const statusLine = (/** @type {string} */ version) =>
@@ -464,8 +465,7 @@ export function imagePackage(workflow) {
  * @returns {string}
  */
 export function packageVersionsPath(image, ownerType) {
-  const scope =
-    ownerType === 'Organization' ? `orgs/${image.owner}` : 'user';
+  const scope = ownerType === 'Organization' ? `orgs/${image.owner}` : 'user';
   return `${scope}/packages/container/${image.name}/versions?per_page=100`;
 }
 

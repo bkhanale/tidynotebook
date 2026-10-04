@@ -18,10 +18,10 @@ session.
 - Commits `chore(release): prepare 0.3.4` with those two files only.
 - Runs `node tools/release-check.mjs before 0.3.4` and repairs every `FAIL`.
 - Pushes `main`, then the signed tag `v0.3.4` whose message opens with
-  `NotesApp 0.3.4`.
+  `Tidy Notebook 0.3.4`.
 - Watches the Release run to its end.
 - Publishes the release with `gh release create`, with the title
-  `NotesApp 0.3.4` and the body from `node tools/release-notes.mjs 0.3.4`.
+  `Tidy Notebook 0.3.4` and the body from `node tools/release-notes.mjs 0.3.4`.
 - Runs `node tools/release-check.mjs after 0.3.4` and shows the result.
 
 ## 2. A release that missed the GitHub release

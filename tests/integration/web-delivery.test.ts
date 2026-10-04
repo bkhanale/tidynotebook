@@ -24,7 +24,7 @@ const inlineScriptHash = `sha256-${createHash('sha256')
   .digest('base64')}`;
 
 const shellHtml =
-  '<!doctype html><html><head><title>Notesapp</title>' +
+  '<!doctype html><html><head><title>Tidy Notebook</title>' +
   `<script>${inlineScript}</script>` +
   '<script type="module" src="/assets/main-AbCdEfGh.js"></script>' +
   '</head><body></body></html>';

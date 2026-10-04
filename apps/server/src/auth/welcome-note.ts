@@ -19,13 +19,14 @@ import {
   requestDigest,
   verifyActor,
   type WorkspaceStore,
+  productName,
 } from '@notesapp/core';
 
 /** The stored path of the welcome note, with the one Markdown suffix. */
-export const welcomeNotePath = 'Welcome to Notesapp.md';
+export const welcomeNotePath = `Welcome to ${productName}.md`;
 
 /** The Markdown of the welcome note. */
-export const welcomeNoteText = `# Welcome to Notesapp
+export const welcomeNoteText = `# Welcome to ${productName}
 
 This is a Markdown note. Type in it and the text stays editable while it
 shows the result.

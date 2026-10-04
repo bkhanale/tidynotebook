@@ -12,6 +12,7 @@
  * operator answers for the words.
  */
 import type { LegalDocumentName } from './installation-settings.ts';
+import { productName } from '../product.ts';
 
 /** What the server knows of the service when it fills a template. */
 export type LegalTemplateFacts = {
@@ -32,7 +33,7 @@ function privacyTemplate(facts: LegalTemplateFacts): string {
 
 In effect from {{effective date}}.
 
-This notice tells you which personal data {{operator name}} keeps when you use NotesApp at ${facts.serviceAddress}, why, for how long, and what you can do about it.
+This notice tells you which personal data {{operator name}} keeps when you use ${productName} at ${facts.serviceAddress}, why, for how long, and what you can do about it.
 
 ## Who is responsible
 
@@ -77,11 +78,11 @@ ${breach}- A person who has the address of a link that you publish can read what
 - The record of a device goes when the device signs out. It stops working when its session ends.
 - An attempt count goes after its time window, which is one hour at most.
 - When you remove your account, your notes, your devices and your settings go at once. Only an identifier and the time of the removal stay, so that the history of a shared note stays correct. Backups keep a copy for {{backup retention}} at most.
-- The logs of NotesApp hold no note text, no password and no network address. We keep them for {{log retention}}.
+- The logs of ${productName} hold no note text, no password and no network address. We keep them for {{log retention}}.
 
 ## Cookies and storage on your device
 
-NotesApp sets one cookie, which keeps you signed in. It is necessary for the service, so we do not ask for your consent to it. Your browser also keeps a copy of your notes on the device, so that you can read and write them offline. That copy stays on the device and goes nowhere else.
+${productName} sets one cookie, which keeps you signed in. It is necessary for the service, so we do not ask for your consent to it. Your browser also keeps a copy of your notes on the device, so that you can read and write them offline. That copy stays on the device and goes nowhere else.
 
 ## Your rights
 
@@ -111,7 +112,7 @@ function termsTemplate(facts: LegalTemplateFacts): string {
 
 In effect from {{effective date}}.
 
-These terms are the agreement between you and {{operator name}}, {{postal address}}, for the use of NotesApp at ${facts.serviceAddress}. Read them with the privacy notice, which the foot of this page links. When you make an account, you accept both.
+These terms are the agreement between you and {{operator name}}, {{postal address}}, for the use of ${productName} at ${facts.serviceAddress}. Read them with the privacy notice, which the foot of this page links. When you make an account, you accept both.
 
 ## Your account
 

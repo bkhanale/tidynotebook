@@ -39,6 +39,7 @@
  */
 
 import type { ReportReason } from '@notesapp/core';
+import { productName } from '@notesapp/core';
 
 /** Text that a person reads, with every markup character removed. */
 export function escapeText(value: string): string {
@@ -418,7 +419,7 @@ function titleOf(view: PublishedPageView): string {
   if (view.kind === 'report') return reportHeading;
   // A link that opens nothing and a link that asks for a password both name
   // the product and never the note, so a browser tab discloses nothing.
-  return 'Notesapp';
+  return productName;
 }
 
 /** The classes of the main region of one state of the page. */

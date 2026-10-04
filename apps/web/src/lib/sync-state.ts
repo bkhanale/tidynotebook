@@ -17,6 +17,7 @@ import {
   type QueueState,
   type SyncNotice,
 } from '@notesapp/sync';
+import { productName } from '@notesapp/core';
 
 /** Where sync stands right now. */
 export type SyncState =
@@ -164,7 +165,7 @@ export function syncStateMessage(
   if (state.kind === 'other-account')
     return 'Another account signed in. Your work waits.';
   if (state.kind === 'update-required')
-    return 'Update Notesapp to save to the server.';
+    return `Update ${productName} to save to the server.`;
   if (state.kind === 'server-behind') return 'Saves wait for a server update.';
   return 'Saving stopped. Your work is on this device.';
 }
