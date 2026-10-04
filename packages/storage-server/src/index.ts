@@ -112,6 +112,7 @@ export {
   openIdentityStore,
   type IdentityStoreHandle,
   type IdentityStoreOptions,
+  type SessionStanding,
 } from './identity-store.ts';
 export {
   accountAuditEvents,
