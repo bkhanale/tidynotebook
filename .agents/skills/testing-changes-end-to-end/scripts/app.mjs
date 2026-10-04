@@ -3,7 +3,7 @@
  *
  * Usage, from anywhere inside the worktree:
  *
- *     node .agents/skills/testing-changes-end-to-end/scripts/app.mjs start [--port <port>] [--object-store s3]
+ *     node .agents/skills/testing-changes-end-to-end/scripts/app.mjs start [--port <port>] [--object-store s3] [--setting NAME=VALUE ...]
  *     node .agents/skills/testing-changes-end-to-end/scripts/app.mjs status
  *     node .agents/skills/testing-changes-end-to-end/scripts/app.mjs restart
  *     node .agents/skills/testing-changes-end-to-end/scripts/app.mjs stop
@@ -23,6 +23,11 @@
  * Every worktree keeps its own `.local-app/` and takes a free port, so two
  * worktrees run two applications that share nothing but the PostgreSQL
  * service, and each run there has a database of its own.
+ *
+ * `--setting NAME=VALUE` gives the server one more `NOTESAPP_` setting, for
+ * example the account portal of a check. The run passes no `NOTESAPP_`
+ * variable of the shell, so this is the one way in. A path in a value names a
+ * file of this worktree, for example a token file in `.local-app/`.
  *
  * `stop` sends the application SIGTERM and waits while it removes its
  * database and its file store. `restart` stops and starts on the same port,
@@ -159,9 +164,10 @@ function lineValue(text, label) {
 /**
  * @param {number | null} requestedPort
  * @param {'filesystem' | 's3'} objectStore
+ * @param {Readonly<Record<string, string>>} [settings]
  * @returns {Promise<AppState & { reused?: true }>}
  */
-async function start(requestedPort, objectStore) {
+async function start(requestedPort, objectStore, settings = {}) {
   const running = readState();
   if (running !== null && isAlive(running.pid))
     return { reused: true, ...running };
@@ -178,7 +184,13 @@ async function start(requestedPort, objectStore) {
       '--object-store',
       objectStore,
     ],
-    { cwd: root, detached: true, stdio: ['ignore', log, log] },
+    {
+      cwd: root,
+      detached: true,
+      stdio: ['ignore', log, log],
+      // `tests/integration/support/dev-app.ts` reads this one variable.
+      env: { ...process.env, DEV_APP_SETTINGS: JSON.stringify(settings) },
+    },
   );
   closeSync(log);
   let exited = false;
@@ -261,17 +273,43 @@ function portArgument(args) {
   return port;
 }
 
+/**
+ * The `--setting NAME=VALUE` arguments as one object.
+ *
+ * @param {readonly string[]} args
+ * @returns {Record<string, string>}
+ */
+function settingArguments(args) {
+  /** @type {Record<string, string>} */
+  const settings = {};
+  args.forEach((arg, at) => {
+    if (arg !== '--setting') return;
+    const pair = args[at + 1] ?? '';
+    const split = pair.indexOf('=');
+    if (split < 1)
+      throw new Error(
+        '--setting takes NAME=VALUE, for example --setting NOTESAPP_ACCOUNT_PORTAL_URL=https://billing.example.test.',
+      );
+    settings[pair.slice(0, split)] = pair.slice(split + 1);
+  });
+  return settings;
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'start')
-    return start(portArgument(args), storeArgument(args, 'filesystem'));
+    return start(
+      portArgument(args),
+      storeArgument(args, 'filesystem'),
+      settingArguments(args),
+    );
   if (command === 'stop') return stop();
   if (command === 'restart') {
     const running = readState();
     const port = portArgument(args) ?? running?.port ?? null;
     const store = storeArgument(args, running?.objectStore ?? 'filesystem');
     await stop();
-    return start(port, store);
+    return start(port, store, settingArguments(args));
   }
   if (command === 'status') {
     const running = readState();
@@ -280,7 +318,7 @@ async function main() {
       : { running: isAlive(running.pid), ...running, now: sourceState() };
   }
   throw new Error(
-    'Usage: app.mjs start [--port <port>] [--object-store s3] | status | restart | stop',
+    'Usage: app.mjs start [--port <port>] [--object-store s3] [--setting NAME=VALUE ...] | status | restart [--setting NAME=VALUE ...] | stop',
   );
 }
 
