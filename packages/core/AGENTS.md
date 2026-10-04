@@ -27,7 +27,7 @@ the role and action matrix, and the storage ports that a runtime implements.
   controls of an account (0189), `locked.ts` the list of a locked account (0201) and
   `operator.ts` the operator API (0190). `src/history/`, `src/search/`, `src/workspaces/`
   and `src/publications/` hold their own use cases and ports. The publication port
-  reads only, and no use case of it takes an `Actor`.
+  reads only, and no use case of it takes an `Actor`. `src/usage/` holds the counts, the limits, the gates and the meter of a month (0193).
 - `src/dates/` holds the calendar, the clock and the one format reader
   (0101, 0149). `src/daily-notes/` holds the path of a dated note and its
   settings (0099). `src/templates/` holds the one template engine and the

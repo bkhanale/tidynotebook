@@ -561,3 +561,45 @@ export {
   maxLegalVersionLength,
   readConsent,
 } from './identity/legal.ts';
+export type {
+  MonthlyCounts,
+  TransferLimits,
+  UsageCaps,
+} from './usage/model.ts';
+export {
+  noTransferLimits,
+  noUsageCaps,
+  sumCounts,
+  zeroCounts,
+} from './usage/model.ts';
+export {
+  monthFirstDay,
+  nextMonthStart,
+  secondsToNextMonth,
+} from './usage/month.ts';
+export type { UsageGate, UsageRefusal, UsageState } from './usage/limits.ts';
+export {
+  checksNothing,
+  gateRefusal,
+  openUsage,
+  reached,
+  usageGateOf,
+  usageGates,
+  usageState,
+} from './usage/limits.ts';
+export type { UsageEntry, UsageTally } from './usage/tally.ts';
+export { createUsageTally } from './usage/tally.ts';
+export type {
+  MonthlyUsageStore,
+  StoredUsage,
+  UsageSubject,
+  UsageSubjectKey,
+} from './usage/ports.ts';
+export type {
+  AccountMonthView,
+  ObjectCall,
+  PublishedUsage,
+  UsageMeter,
+  UsageMeterOptions,
+} from './usage/meter.ts';
+export { createUsageMeter, maxKeptSubjects } from './usage/meter.ts';
