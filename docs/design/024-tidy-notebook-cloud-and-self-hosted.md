@@ -2,18 +2,19 @@
 
 Status: active
 
-This design states how the product becomes two editions of one code base. The
-owner hosts a paid cloud service with a subscription for each user. Any person
-can host the same product for free, and it stays private to that person. The
-design covers the name of the product, the landing site, the payments, the
-production infrastructure, and the limits that keep each cost of the cloud
-bounded. It closes every choice, so the plan can be built in order with no
-question left.
+This design states how the product becomes a free open core and a paid cloud.
+The owner hosts a paid cloud service with a subscription for each user. Any
+person can host the same product for free, and it stays private to that
+person. The design covers the name of the product, the boundary between the
+open core and the private billing service, the payments, the hosting, and the
+limits that keep each cost of the cloud bounded. It closes every choice, so the
+plan can be built in order with no question left.
 
 [Design 015](015-several-accounts-on-one-installation.md) gave one installation
 several accounts, and [design 016](016-a-public-service.md) made one
 installation safe for strangers. Design 016 named the account quota as "the
-point where a plan would attach". This design attaches the plan there.
+point where a plan would attach". This design attaches the plan there, from
+outside the core.
 
 ## The problem
 
@@ -24,16 +25,16 @@ things.
 1. **A landing site.** It describes the product, lists the plans and what each
    plan gives, and leads a visitor to a subscription.
 2. **Payments.** A person subscribes to a plan, in US dollars, for each user.
-   The owner must spend as little time on it as possible: no tax filing in each
-   country, no invoice by hand, no failed payment to chase.
-3. **Production infrastructure.** The cloud must scale and stay up. The
-   subscription decides who has access, and every resource that costs the
-   owner money has a limit, so no account and no use of the product can make
-   the bill grow without bound. A flood of requests is the one exception, and
-   the thirteenth question states its cost.
+   The owner sells from India and must spend as little time on it as possible:
+   no tax filing in each country, no invoice by hand, no failed payment to
+   chase.
+3. **Hosting.** The cloud must be able to grow, and it must start inside a
+   monthly budget of `$20`. The subscription decides who has access, and every
+   resource that costs the owner money has a limit.
 
 The cloud has no free plan. The self-hosted edition has every feature, costs
-nothing, sends nothing to the owner, and becomes open source.
+nothing, sends nothing to the owner, holds no billing code, and becomes open
+source.
 
 ## What the code already does
 
@@ -49,116 +50,103 @@ and needs no new sign-up path.
 by `notesapp_add_usage` in the database, over the usage of every workspace that
 the account owns (record 0112). The default comes from
 `NOTESAPP_ACCOUNT_LIMIT_BYTES`, and an administrator can change it for one
-account. The limit counts the text of each revision, a fixed overhead for each
-revision and receipt, and the bytes of each attachment. A deletion keeps a
-small reserve so it works on a full account.
+account. A deletion keeps a small reserve so it works on a full account.
+
+**An account can already be disabled and removed.** Record 0111 disables an
+account, which ends its sessions, and removes an account, which leaves a
+tombstone.
 
 **A refused save waits.** `packages/sync/src/queue.ts` keeps a save that the
-quota refused in the queue for a later cycle, because space can come back. A
-lapsed plan needs exactly this behaviour.
+quota refused in the queue for a later cycle, because space can come back.
 
 **Limits and jobs hold across processes.** Record 0121 moved the attempt
-counters to PostgreSQL and gave each job an advisory lock in
-`packages/storage-server/src/coordination.ts`. Records 0124 and 0125 wake the
-sync notices through PostgreSQL. The server keeps no state in memory that a
-second process needs, with one exception below.
+counters to PostgreSQL and gave each job an advisory lock. Records 0124 and
+0125 wake the sync notices through PostgreSQL, and record 0129 sends an `a:`
+hint when the state of an account changes.
 
 **Attachments live on one disk.** `openAttachmentStore` in
 `packages/storage-server/src/attachments.ts` writes each image under
-`NOTESAPP_STORAGE_ROOT`, by workspace and digest. Two processes on two hosts
-cannot share that directory. Only PNG, JPEG, GIF and WebP images are accepted,
-each up to the bound `attachmentBytes` in `apps/server/src/config.ts`.
+`NOTESAPP_STORAGE_ROOT`. Two replicas cannot share that directory.
 
-**Published pages already have their own origin.** Record 0118 serves the
-reader path from `NOTESAPP_PUBLISHED_ORIGIN`, which sets no cookie and answers
-no API. The `open` policy requires it.
+**Published pages can have their own origin.** Record 0118 lets an
+installation serve the reader path from `NOTESAPP_PUBLISHED_ORIGIN`, and record
+0114 requires one for the `open` policy.
 
-**The legal documents are configuration.** Records 0140 and 0148 let the
-operator name the terms and the privacy notice by an address or a Markdown
-file, with a version that asks every account to accept again.
+**Every operation needs a person.** No operation of the contract accepts a
+credential of a service.
 
-**The guide is a static site.** `apps/docs` builds `docs/guide/` into static
-files with the one renderer and the one stylesheet (record 0152). It is hosted
-apart from the application, today at the personal domain of the owner.
+**Nothing is billed or hosted.** The repository holds no payment code, no plan
+and no hosting code. The license is MIT. The product calls itself NotesApp in
+some places and Notesapp in others.
 
-**Nothing is billed, measured or hosted.** The repository holds no payment
-code, no plan, no metric route, no error tracker and no infrastructure code.
-The release workflow pushes an `amd64` image to the GitHub registry. The
-license is MIT. The product calls itself NotesApp in some places and Notesapp
-in others.
-
-## The first question: the name and the domains
+## The first question: the name and the domain
 
 NotesApp describes the product, so no office registers it as a trademark, and
 every domain of the name is taken. The owner compared more than fifty names
-against three checks: the `.com` and the `.page` domain are unregistered, the
-USPTO register holds no live mark near the name for software, and the web shows
-no product of that name in the notes market. Short words such as minimal,
-simple, mono, zen, calm, pure and clear are the most crowded part of that
-market. Minimal and Zen are direct competitors, and Simplenote owns the
-simple notes space.
+for a free `.com` domain, no live mark near it for software, and no product of
+that name in the notes market. The owner chose **Tidy Notebook**. It says the
+promise of the product: notes in order, as plain files, in a calm interface.
+Its weak point is that "tidy" praises the product, so a trademark office can
+call the name descriptive. The two words together still form a mark.
 
-The owner chose **Tidy Notebook**. It says the promise of the product: notes in
-order, as plain files, in a calm interface. All its domains were free, and no
-product or live mark is near it. Its weak point is that "tidy" praises the
-product, so a trademark office can call the name descriptive. The two words
-together still form a mark.
+The owner bought `tidynotebook.com` at Cloudflare. Cloudflare Registrar
+requires Cloudflare DNS, so Cloudflare holds the zone. A second registrable
+domain for published pages was considered, and the fifteenth question below
+explains why the owner keeps one domain.
 
-**Two registrable domains.** `tidynotebook.com` holds the site, the
-application and the guide. `tidynotebook.page` holds the published pages and
-nothing else. One domain with a subdomain for the pages was the other option,
-and it fails in two ways:
-
-- A browser treats two subdomains of one registrable domain as one site. A
-  hostile published page on `pages.tidynotebook.com` is then same-site with the
-  application, and the SameSite cookie protection no longer separates them.
-- A block list such as Google Safe Browsing, a corporate filter or a mail
-  reputation list acts on a whole domain. One phishing page would then block
-  the application, the checkout and the receipts of every customer.
-
-Notion serves public pages from `notion.site`, GitHub from
-`githubusercontent.com`, and Google from `googleusercontent.com`, for the same
-reasons. Collaboration, which comes later, adds more content of other people,
-so the split matters more over time. Shared workspaces stay on the application
-origin, and a custom domain for a published page points at the `.page` domain.
-
-`tidynotebook.app` is bought only to protect the name. The GitHub organization
-`tidynotebook` holds the repository when it opens.
+Every host is one level under the domain: `app`, `billing`, `docs`, `mail`,
+and `app-staging` and `billing-staging` for staging. The free certificate of
+Cloudflare covers one level, so a name such as `staging.app` would need a paid
+certificate.
 
 **What a rename costs.** A person sees the name in the web title, the manifest,
-the wordmark, the mail, the guide and the README. The name becomes one constant
-that every one of them reads. The package names `@notesapp/*`, the variables
-`NOTESAPP_*`, the database names and the SQL functions stay. Nobody outside the
-code sees them, and a rename of them breaks every self-hosted installation for
-no gain.
+the wordmark, the mail, the guide and the README. The name becomes one
+constant that every one of them reads. The package names `@notesapp/*`, the
+variables `NOTESAPP_*`, the database names and the SQL functions stay. Nobody
+outside the code sees them, and a rename of them breaks every self-hosted
+installation for no gain.
 
-## The second question: one code base or two
+## The second question: where the billing code lives
 
-**Option A. A private fork for the cloud.** The cloud adds billing in a fork,
-and the open repository has no billing. The cost is a second tree to merge on
-each release, and two products that drift.
+The owner wants the open repository and its image to hold nothing about
+payments. Three patterns are common.
 
-**Option B. A closed module that the open build leaves out.** The cost is a
-build with two shapes, a boundary that a contributor cannot test, and code that
-the open repository mentions but does not hold.
+**P1. One repository, billing behind a setting.** Joplin Server, Bitwarden and
+Cal.com work this way. The billing code is in the open code and the open
+image, and it does not run unless a setting turns it on. It keeps one test
+suite, but it fails the request of the owner.
 
-**Option C. One code base and one image, with billing behind configuration.**
-The self-hosted edition is the default. The cloud sets `NOTESAPP_BILLING` to
-`paddle` and names its keys. Every other line of code runs the same in both.
+**P2. One repository, billing in a folder that the open build leaves out.**
+Plausible CE, GitLab FOSS and PostHog FOSS work this way. The open image holds
+no billing, but the open repository still does.
 
-Option C is the choice. It keeps one test suite, one image and one release.
-Billing code in an open repository leaks nothing, because a webhook secret and
-an API key are configuration. The rule that holds it is simple: **the editions
-differ in who pays, never in what the product does.** No feature is closed to
-the self-hosted edition, and the self-hosted edition has no license key, no
-telemetry and no request to any service of the owner.
+**P3. An open core and a private cloud repository.** Sentry with its private
+`getsentry` and Ghost(Pro) work this way. Only this pattern keeps billing out
+of the open repository. It has two forms:
 
-The edition is a fact of the installation, so the database records it. The
-server writes the billing mode into the one row of installation settings at
-startup. The server refuses to start when the mode in the environment differs
-from the mode in the row and any account exists, because a switch from `off`
-to `paddle` would lock every account out, and a switch back would give every
-account free access.
+- **P3a. A separate private service.** The core offers general controls of an
+  account and an API for an operator. The service talks to Paddle and sets
+  those controls over HTTP.
+- **P3b. A private plugin in the same process.** The cloud image adds a
+  private module to the core.
+
+The license decides between the two. The core opens under AGPL, and outside
+contributions come in under AGPL with a sign-off and no contributor license
+agreement. Private code that runs in the same process as that code must be
+offered as source too, unless every contributor signs a CLA, which keeps many
+contributors away. A separate program that talks over HTTP is not a part of
+the core.
+
+**P3a is the choice.** The core holds no payment provider, no plan, no price
+and no billing screen. One image serves both editions, and the cloud runs the
+public image with no change. The private repository `tidynotebook/cloud` holds
+the billing service, the landing site and the runbook of the cloud. The cost
+is a second program, an API between the two, and a second set of pages.
+
+The rule that holds it: **the self-hosted edition has every feature.** Teams
+and collaboration, when they exist, are in the core. Only the cloud turns a
+feature off for an account that does not pay for it. The self-hosted edition
+has no license key, no telemetry and no request to any service of the owner.
 
 ## The third question: the license
 
@@ -166,486 +154,353 @@ The repository is private and carries the MIT license. When it opens, a
 competitor could run the same code as a paid service, which MIT allows with no
 duty to share a change.
 
-**Option A. Keep MIT.** It is the simplest license and the most liked by
-contributors. It gives the cloud no protection.
+**Option A. Keep MIT.** It is the simplest license. It gives the cloud no
+protection.
 
 **Option B. AGPL-3.0.** A service that runs a changed copy must offer its
-source to its users. Plausible, Cal.com, Mastodon and Nextcloud use it. It is
-an OSI license, so the self-hosted edition is fully open source.
+source to its users. It is an OSI license, so the self-hosted edition is fully
+open source. Most open notes products that also sell a cloud use it: Joplin,
+which moved from MIT, Standard Notes, Logseq, AppFlowy and Trilium.
 
-**Option C. A source-available license, such as BSL or the Elastic license.**
-It forbids a competing service. It is not open source, which breaks the promise
-of a free open-source edition.
+**Option C. A source-available license, such as BSL.** It forbids a competing
+service. It is not open source, which breaks the promise of a free open-source
+edition.
 
 Option B is the choice, as AGPL-3.0-only. The owner holds every copyright
 today, so the change needs no consent from anybody. Contributions come in under
-the same license with a Developer Certificate of Origin sign-off, and no
-contributor license agreement. The owner needs no special right over a
-contribution, because the cloud runs the public code and is bound by the same
-terms.
+the same license with a Developer Certificate of Origin sign-off. The repository
+opens when the cloud launches.
 
-The repository opens when the cloud launches, because the launch is the moment
-when everything is decided and every edition works.
+## The fourth question: what the core offers to a plan
 
-## The fourth question: the payment provider
+A plan needs four things from the core: a limit on the bytes that cost the
+most, a way to stop the writes of an account that does not pay, a switch for a
+feature of one plan, and a removal after a time. None of them names a payment,
+so each is a general control of an account that a self-hosted operator can use
+too.
+
+The account row carries the storage limit that exists, a text limit, a
+published transfer limit, a standing that is `active` or `locked`, a removal
+time while it is `locked`, and a switch for each feature that a later design
+makes switchable. Teams and collaboration are the first two switches, and each
+is on by default. The configuration gives the controls of a new account, and
+with no setting a new account is `active` with every feature, as today.
+
+**The text limit** sits inside the storage limit. Text and history live in
+PostgreSQL, where a byte costs more than in object storage, and only a script
+comes near the limit. `workspace_usage` counts text apart from attachments,
+and `notesapp_add_usage` checks both sums.
+
+**A locked account** signs in to one screen. It exports every workspace and
+removes the account, and nothing else. When the operator names an account
+portal, the screen links it as the one action that unlocks the account. The
+database refuses every write of a locked account with `account_locked`, the
+reader path closes its published links, and the client keeps a refused save in
+its queue until the account is active again. The owner chose this over a read
+only account: a person who does not pay sees only the way to pay and the way to
+take the notes out.
+
+**The removal** is a daily job that removes each locked account past its time,
+through record 0111, with a mail `30 days` and `7 days` before.
+
+## The fifth question: how the billing service reaches the core
+
+**Option A. A database role for the service.** The service writes the account
+rows itself. It ties a private program to the schema of the core, and a
+migration of the core can break it in silence.
+
+**Option B. An outbound webhook from the core.** The core posts each account
+event to the service. The core then sends data out, which the self-hosted
+promise forbids, and it needs a signature and a retry of its own.
+
+**Option C. An operator API.** The core declares operations for a service
+under `/api/operator/`, behind one bearer token from a file. The service sets
+the controls, reads the usage, removes an account, and reads the account events
+after a cursor of its own. The core sends nothing out.
+
+Option C is the choice. Two more parts make it work.
+
+- **The handoff.** The service must know which person opened it, but it reads
+  no cookie of the core. The application asks the core for a single-use token
+  that expires after `60 s` and opens the portal with it. The service redeems
+  it through the operator API. This is the pattern of a sign-in link.
+- **The private network.** The service calls the core by an internal host
+  name. The operator operations skip the Host allowlist, as the probes do,
+  because they set no cookie and answer no page.
+
+## The sixth question: the payment provider
 
 The product sells a digital service to people in many countries, in US dollars,
 per user. Each sale owes the sales tax, VAT or GST of the country of the buyer.
+The owner sells from India.
 
-**Option A. Stripe Billing, with Stripe Tax.** The best API and the lowest fee.
-The owner is the seller, so the owner registers for tax in each place that
-requires it and files each return. Stripe calculates the tax but does not pay
-it.
+**Option A. Stripe Billing, with Stripe Tax.** The owner is the seller, so the
+owner registers for tax in each place that requires it and files each return.
+Stripe also takes a new seller in India only by invitation, with a video check.
 
-**Option B. Stripe Managed Payments.** Stripe acts as the merchant of record.
-It accepts sellers from a short list of countries only, and India and most
-emerging markets are not on it, so it ties the business to where its owner is
-based.
+**Option B. Stripe Managed Payments.** Stripe acts as the merchant of record,
+but it does not accept a seller in India.
 
-**Option C. Paddle Billing.** Paddle is the merchant of record. Paddle sells
-the subscription to the buyer, collects and pays every tax, writes every
-invoice, runs the retries of a failed payment, handles disputes, and pays the
-owner. The fee is higher than Stripe's, about five cents of each dollar plus a
-fixed part, and it includes all of that work.
+**Option C. Paddle Billing.** Paddle is the merchant of record. It sells the
+subscription to the buyer, collects and pays every tax, writes every invoice,
+retries a failed payment, handles disputes, and pays the owner. It has one
+fee with no extra charge for a foreign card, a subscription, a refund or a
+dispute. It accepts a seller in India.
 
-**Option D. Lemon Squeezy or Polar.** Both are merchants of record. Lemon
-Squeezy belongs to Stripe now and moves its sellers to Stripe Managed Payments.
-Polar is young and focused on developer tools.
+**Option D. Dodo Payments or Polar.** Both are merchants of record that accept
+a seller in India. On these prices their cost is about that of Paddle. Dodo
+adds a fee for each refund, each dispute and each wire payout. The free plan
+of Polar costs a little more than Paddle, and Polar is young.
 
-Option C is the choice. It removes tax, invoices and dunning from the owner,
-which is the request. Paddle supports a quantity on each price, which is a seat
-count, a change of quantity with proration, a customer portal for the payment
-method, the invoices and the cancellation, and signed webhooks. The official
-Node SDK, `@paddle/paddle-node-sdk`, carries the API and the signature check.
+Option C is the choice. It is the most established of the three, and its fee
+is the simplest. Paddle supports a quantity on each price, which is a seat
+count, a change of quantity with proration, a customer portal and signed
+webhooks. The fixed part of the fee weighs most on a monthly charge for one
+seat, so the yearly interval and a team charge cost less in fees, and the owner
+asks Paddle for its pricing of a low price.
 
 Paddle approves a seller by the website. The site must show the product, the
-prices, the terms, the privacy notice and a refund policy, and the terms must
-name the seller. The refund policy must be a clean guarantee with no
-conditions. The cloud gives a full refund of any payment that a person asks for
-within `14 days` of the charge.
+prices, the terms, the privacy notice and a refund policy. The cloud gives a
+full refund of any payment that a person asks for within `14 days` of the
+charge, and the owner grants each one in the dashboard.
 
-## The fifth question: what a plan is
+## The seventh question: what a plan is
 
-**Plans differ in limits, never in features.** A feature that only one plan
-has needs a check in each screen and each handler that touches it, and it
-contradicts the rule that the self-hosted edition has every feature. A limit
-already has one place to live, the account row, and one place that checks it,
-the database. So each plan is a set of numbers.
-
-**Two plans.** One plan is the simplest, but a person with many images needs
-more room than a person who writes text, and a single price is either too high
-for the first or too low for the second. Two plans with the same features and
-different room answer both. A third plan adds a choice and no new buyer.
+**Two plans.** Standard is for one person. Pro is for a team: it sells seats,
+it turns on teams and collaboration, and it gives more room. History and
+publishing are in both plans, because they are the core of the product.
 
 **No trial and no free plan.** The refund guarantee does the work of a trial,
-with a card on file, and it keeps every account on the cloud a paying one. An
-account with no plan cannot write, so it costs almost nothing.
+and it keeps every account on the cloud a paying one.
 
-**Monthly and yearly.** The yearly price is ten times the monthly price, so a
-year costs ten months. The prices are in US dollars and exclude tax, which
-Paddle adds where it applies.
+**Monthly and yearly.** The yearly price is ten times the monthly price. The
+prices are in US dollars and exclude tax.
 
-| Plan     | Monthly, each user | Yearly, each user | Storage | Note text and history | Published pages, each month |
-| -------- | ------------------ | ----------------- | ------- | --------------------- | --------------------------- |
-| Standard | `$5`               | `$50`             | `10 GB` | `2 GB`                | `10 GB` of transfer         |
-| Pro      | `$10`              | `$100`            | `50 GB` | `2 GB`                | `50 GB` of transfer         |
+| Plan     | Monthly, each seat | Yearly, each seat | Seats        | Storage | Text and history | Published transfer, each month | Teams and collaboration |
+| -------- | ------------------ | ----------------- | ------------ | ------- | ---------------- | ------------------------------ | ----------------------- |
+| Standard | `$5`               | `$50`             | `1`          | `10 GB` | `2 GB`           | `10 GB`                        | Off                     |
+| Pro      | `$10`              | `$100`            | `1` to `100` | `50 GB` | `2 GB`           | `50 GB`                        | On                      |
 
-Each number has a reason.
+A GB here is `1000000000` bytes. The catalog of the billing service holds the
+numbers, and its pages and the landing site read it.
 
-- **Storage** is the account limit of record 0112. It counts every byte of
-  text, of history and of images. The images go to object storage, which is
-  cheap.
-- **Note text and history** is a second limit inside the first. Text and
-  history live in PostgreSQL, where a byte costs more than in object storage,
-  and it is the only way to make the database grow fast. No person who writes
-  by hand comes near it. A script that writes text does, and the limit stops
-  it at a cost that the price of the plan covers.
-- **Published transfer** is the bytes that published pages of the account send
-  to readers in one calendar month. A reader is a stranger, so this is the one
-  traffic that the account does not bound by itself. The cloud pays for each
-  byte that leaves it.
+## The eighth question: seats
 
-A GB here is `1000000000` bytes, because a person reads it that way. The
-catalog in `packages/core` holds the numbers, and the site, the server and the
-checkout all read the catalog, so a price or a limit changes in one place.
+A Pro subscription has seats. The buyer is the billing owner and holds the
+first seat. The billing owner invites an address to each other seat, and the
+person accepts with an account of that address that no plan covers. A seat
+covers one account and shares nothing. Sharing a workspace is the later
+collaboration design, and the members of a subscription are its first group.
 
-## The sixth question: for each user
+A seat ends when the billing owner removes the member, when the member leaves,
+or when the member removes the account. The billing owner changes the seat
+count, the plan and the interval on the billing pages, with immediate
+proration after a preview. The count cannot go below the seats in use and the
+open invitations. The billing owner cannot hand the subscription to another
+account, and a billing owner who removes the account cancels it at once,
+because the right to erasure cannot wait for the end of a period.
 
-"Per user" can mean two things. Each person pays for themselves, or one person
-pays for a group.
+## The ninth question: an account with no plan
 
-**Option A. One person, one subscription.** The simplest model. A company
-cannot buy for its staff, and the price "per user" means nothing more than "per
-account".
+An account has no plan when it never paid, when its subscription ended, when
+it left a seat, or when Paddle stopped the subscription after the last failed
+retry. It is `locked`.
 
-**Option B. A subscription with seats.** The buyer chooses a plan and a number
-of seats. The buyer holds the first seat and invites a person to each other
-seat. The cloud covers each account that holds a seat. Paddle charges the price
-times the number of seats.
+- An account that never paid is removed `30 days` after it was made. It holds
+  only an address and a password hash, because it could never write.
+- An account whose plan ended is removed `90 days` after the plan ended.
+- A subscription in `past_due` still covers its accounts while Paddle retries
+  the payment.
 
-Option B is the choice, because it is what "per user" means to a buyer, and the
-pieces already exist. An invitation already carries a target (record 0108), and
-design 015 planned a second target for sharing. A seat is that second target.
+## The tenth question: how the subscription reaches the service
 
-The rules of a seat:
-
-- **The buyer is the billing owner.** The billing owner always holds one seat,
-  so a subscription has at least one. A subscription has at most `100` seats,
-  which is the default maximum of a Paddle price.
-- **A seat covers an account and does not share it.** Each person keeps their
-  own notes. Sharing a workspace is the later collaboration design, and a seat
-  is the natural group for it.
-- **An invitation names an address.** The person accepts with a new account,
-  or with an existing account that no plan covers. An account that holds
-  another seat, or pays its own subscription, cannot take a seat until it
-  leaves that one.
-- **A seat ends in three ways.** The billing owner removes the member, the
-  member leaves, or the member removes their account. The account keeps its
-  notes and falls to the rules of an account with no plan. The member can then
-  buy their own plan.
-- **The seat count changes in the application.** The Paddle portal cannot
-  change a quantity. The billing page raises or lowers the count through the
-  API with immediate proration: a raise charges the rest of the period at once,
-  and a lowering credits it. The count cannot go below the seats in use and
-  the open invitations.
-- **The plan and the interval change in the application** too, with the same
-  proration. A change applies to every seat. A lower plan never deletes a note.
-  An account over the new limit works as a full account works today: it reads,
-  exports and deletes, and a new write waits.
-- **The billing owner cannot hand the subscription to another person.** To
-  move it, the billing owner cancels, and the new payer subscribes and invites
-  the members again. A transfer adds a flow that few teams need at launch.
-- **A billing owner who removes their account cancels the subscription at
-  once**, after a confirmation that names it. The right to erasure cannot wait
-  for the end of a period. Every member then falls to the rules of an account
-  with no plan, and receives a mail.
-
-## The seventh question: an account with no plan
-
-An account has no plan in four cases: it signed up and never paid, its
-subscription ended, it left a seat, or Paddle stopped the subscription after
-the last failed retry.
-
-**Option A. Refuse the sign-in.** The person cannot even export their notes.
-That breaks the promise that the notes stay theirs.
-
-**Option B. Delete at once.** The same problem, and worse.
-
-**Option C. Read only, then removal after a fixed time.** The account signs in,
-reads, searches, exports and deletes. It cannot add a byte. Its published pages
-show the closed page of record 0146, because a page of an account that does not
-pay still costs transfer. After a fixed time with no plan, the removal of
-record 0111 erases the account.
-
-Option C is the choice. It costs almost nothing, because an account that
-cannot add a byte cannot grow, and it keeps the notes of a person for long
-enough to come back.
-
-**Read only is the quota rule with a limit of zero.** The account row carries
-whether a plan covers it. `notesapp_add_usage` refuses every write of an
-account with no plan, with its own error, `plan_required`. The client already
-keeps a save that the quota refused in its queue. A save refused for the plan
-waits in the same way, so no work is lost, and it goes through when a plan
-covers the account again. The editor opens a note read only while the account
-has no plan, and one notice row names the reason and the one action that helps.
-
-**The times.**
-
-- An account that never had a plan is removed `30 days` after it was made.
-  It holds nothing, because it could never write.
-- An account that had a plan keeps its notes for `90 days` after the plan
-  ended. A mail goes out when the plan ends, `30 days` before the removal and
-  `7 days` before it.
-- A subscription in `past_due` still covers its accounts. Paddle retries the
-  payment and mails the buyer. When Paddle cancels after the last retry, the
-  plan ends.
-
-## The eighth question: how the subscription reaches the server
-
-**Option A. Read Paddle on each request.** Every request then waits for Paddle,
-and an outage of Paddle stops the product.
-
-**Option B. Webhooks alone.** Paddle posts each change. A lost webhook leaves
-the account wrong until the next change.
-
-**Option C. Webhooks, with jobs that reconcile.** Paddle posts each change. An
-hourly job reads the Paddle events after a cursor of its own, which moves past
-every event that it reads, so a lost event is never skipped. A daily job reads
-again every subscription that the database or Paddle holds as live, so a
-subscription that ended in Paddle cannot stay covered here. Paddle recommends
-this check against its API.
-
-Option C is the choice. Four rules make it safe:
+Paddle's guide to provisioning access gives the usual pattern, and the
+service follows it.
 
 - **The signature first.** The handler checks the `Paddle-Signature` header
-  against the raw body with the webhook secret, through the SDK, before it
-  reads anything.
-- **Each event once.** The database keeps the identifier of each event, so a
-  repeated delivery changes nothing.
-- **The newest snapshot wins.** Each subscription event carries the whole
-  subscription. The database applies it only when it is newer than the stored
-  one, so two events that arrive out of order end in the right state.
-- **One function applies a snapshot.** The webhook, the reconciling job, the
-  answer of an API change and the command `pnpm billing:sync` all call it. It
-  locks the subscription, stores the snapshot, and sets the coverage and the
-  limits of every account that holds a seat, in one transaction. No other code
-  writes the coverage of an account.
+  against the raw body before it reads anything.
+- **Each event once.** The service stores the identifier of each event.
+- **The newest event wins.** Paddle does not promise the order of delivery, so
+  the service applies a subscription event only when its `occurred_at` is
+  newer than the stored one.
+- **One function applies a snapshot**, then sets the controls of every seat
+  through the operator API. A control write sets the whole set, so a retry is
+  safe.
+- **A daily reconcile job** reads each live subscription again and repairs a
+  difference. Paddle retries a failed delivery for days, so the job is the
+  bound when the service was down for longer.
 
-The webhook answers at once after its transaction, and Paddle retries a failed
-delivery. A commit sends a notice to each account whose coverage or limits it
-changed, so an open application sees the change without a reload.
+An hourly job over the event list of Paddle was considered, and the daily job
+makes it unnecessary. An automatic refund of a duplicate subscription was
+considered too. Instead, a checkout is refused for an account that already
+pays, and a rare duplicate mails the owner, who refunds it by hand.
 
-## The ninth question: the checkout
+## The eleventh question: the checkout
 
-**Option A. Paddle.js inside the application.** The checkout opens over the
-application. The cost is a third-party script on the origin that holds the
-session, and a content policy that trusts Paddle on every screen.
+**Option A. Paddle.js inside the application.** The cost is a third-party
+script on the origin that holds the session of the core.
 
-**Option B. A hosted checkout link.** Paddle hosts the page. A link takes a
-price but no reference to the account, so the server cannot tie the payment to
-the person who clicked.
+**Option B. A transaction that the server creates and opens by its
+identifier.** It ties the payment to the account strictly, at the cost of more
+code than the usual integration.
 
-**Option C. A transaction that this server creates, opened on the site.** The
-application asks this server for a checkout. The server creates the Paddle
-customer of the account when it has none, then a transaction with the price,
-the seat count and the account in its custom data, and stores the identifier
-of the transaction beside the account. It answers the address of the checkout
-page of the site with the transaction in the query. That page loads Paddle.js,
-which opens the checkout of that transaction. Paddle requires this page anyway:
-it is the default payment link of the seller, and Paddle mails it for an
-invoice that a buyer must pay by hand.
+**Option C. The usual integration on the billing service.** On the first
+checkout, the service creates the Paddle customer of the account and stores its
+identifier. Paddle.js opens the checkout with that customer and with the
+account in the custom data. The service finds the account from the customer of
+each event, never from data that a browser sent.
 
-Option C is the choice. The script of Paddle runs only on one page of the
-static site, which holds no session. The server ties the payment to the
-account through the transaction it made, not through data that a browser sent.
-When the payment completes, Paddle.js returns the person to the billing page of
-the application. That page waits on the `billing` notice of the eighth question,
-and it shows a plain state while the webhook is on its way.
+Option C is the choice. Paddle.js runs only on the billing origin, which holds
+no session of the core. The billing service keeps its own session, made from
+the handoff of the fifth question.
 
-## The tenth question: the landing site
+## The twelfth question: the landing site
 
-**Option A. A route of the web application.** A signed-out visitor would load
-the application shell to read a marketing page, and the first screen of the
-application stays the sign-in screen that it is today.
+A route of the web application would load the application shell to read a
+marketing page, and a part of the guide would mix two audiences. The landing
+site is a static site of the private repository, served by Cloudflare at
+`tidynotebook.com`. It reads the catalog, so a price on a page cannot differ
+from the price in the service. It loads no analytics, no cookie and no script
+of a third party. The legal pages live there, and the core names the terms and
+the privacy notice by address through record 0140.
 
-**Option B. A part of the guide site.** The guide is for both editions and is
-built from `docs/guide/`. Marketing text there would mix the audiences and the
-sources.
+## The thirteenth question: where the bytes live
 
-**Option C. A static site of its own, `apps/site`.** It follows the shape of
-`apps/docs`: pure modules that answer HTML, one build step that writes files,
-the one stylesheet, the recipes of `packages/ui`, and the checks of
-`tools/check-design-rules.mjs`.
+The cloud runs several replicas, and an attachment written by one must be
+readable by all. A shared file system is slow and costs more than object
+storage. Object storage with the S3 API is cheap and every store speaks it.
+The core gains a second adapter of the attachment store, and the cloud uses
+Cloudflare R2, which charges no egress. Temporary files stay on the local
+disk, because each lives for one request. The object key equals the path of
+the file store, so an installation moves between the two by copying files.
 
-Option C is the choice. The site serves `tidynotebook.com`:
-
-- `/` states what the product is and why: plain Markdown files, offline work,
-  every version kept, search, published pages, and a free edition to host.
-- `/pricing` shows both plans from the catalog, what each plan includes, and
-  the answers to the common questions: refunds, cancellation, export, taxes,
-  data location and the self-hosted edition.
-- `/self-hosted` describes the free edition and links the guide and the
-  repository.
-- `/checkout` is the Paddle page of the ninth question, and the one page with a
-  script of a third party.
-- `/terms`, `/privacy` and `/refunds` are the legal pages. The application
-  names the first two by address, through the settings of record 0140, so one
-  text serves both.
-
-The site loads no analytics script and sets no cookie. The one filled button of
-a page is its main action, as `docs/development/design.md` asks. A picture of
-the application on the site is one of the light and dark screenshots that each
-landing already takes.
-
-## The eleventh question: where the bytes live
-
-The cloud runs several server processes on several hosts, and an attachment
-written by one must be readable by all.
-
-**Option A. A shared network file system, such as EFS.** No code changes. The
-cost is a file system that is slower, priced several times higher than object
-storage, and one more thing to keep healthy.
-
-**Option B. Object storage with the S3 API.** It is cheap, durable, and every
-cloud and every self-hosted object store speaks it. The cost is a second
-adapter of the attachment store.
-
-Option B is the choice. The bytes of a finished attachment go to S3. Its
-metadata stays in PostgreSQL, as now. Temporary uploads, the inspection of an
-image and the body of an import stay on the local disk of the process, because
-each lives for one request. The object key equals the relative path that the
-file store uses today, so an installation moves between the two by copying the
-files. The file store stays the default, and a self-hosted installation can
-choose S3 with the same setting.
-
-## The twelfth question: where the cloud runs
+## The fourteenth question: where the cloud runs
 
 The cloud needs a container that runs the image, PostgreSQL with roles, row
-level security, advisory locks and `LISTEN`, object storage, mail, and an
-edge that ends TLS and stops abuse.
+level security, advisory locks and `LISTEN`, object storage, mail, and an edge
+that ends TLS and stops abuse. The budget is `$20` a month.
 
-**Option A. A platform such as Render or Fly.io.** Little to operate. The
-managed PostgreSQL of these platforms limits roles or connections in ways that
-the three database roles of this product need, the regions are few, and the
-owner depends on one small vendor for everything.
+**Option A. AWS, with ECS on Fargate, RDS and a load balancer.** Each part is
+managed and scales far. A database in two zones, two tasks and a load balancer
+cost more than ten times the budget before the first customer.
 
-**Option B. One host with Docker Compose, as a self-hosted installation.** The
-cheapest. It does not scale, and one host failure stops the service.
+**Option B. One host with Docker Compose.** The cheapest, and it does not
+scale.
 
-**Option C. Kubernetes.** It scales, and it is a second product to operate.
+**Option C. Render.** Managed replicas and a managed database fit the budget.
+Its backups reach back only a few days on the free workspace, and it was not
+clear that its database user can make the roles of the core.
 
-**Option D. AWS, with ECS on Fargate, RDS, S3 and SES, written in OpenTofu.**
-Each part is managed: no host to patch, a database with a standby in a second
-zone and restore to any second of the last weeks, and object storage built for
-durability. The cost is more configuration, which the code in `infra/` holds,
-and a bill that needs limits, which the thirteenth question gives.
+**Option D. Hetzner servers behind a Cloudflare Tunnel.** The most resources
+for the money, but the owner runs PostgreSQL, its upgrades and its backups.
 
-Option D is the choice, in the region `eu-central-1`. Data in the EU suits a
-product that sells privacy, and an offline-first client hides the distance to
-a person in another continent. The shape:
+**Option E. Railway behind Cloudflare.** Railway charges for what the services
+use. Its Hobby plan runs several replicas of a service, its PostgreSQL gives a
+superuser that makes the roles of the core, and it keeps point-in-time
+recovery for weeks. A hard usage limit stops the services at a fixed amount.
 
-- **Accounts.** One AWS organization with a management account, a staging
-  account and a production account. A mistake in staging cannot touch
-  production, and each account has its own budget.
-- **Network.** One VPC over two zones. The load balancer and the tasks sit in
-  public subnets, and a security group lets a task take traffic only from the
-  load balancer. The database sits in private subnets. No NAT gateway, because
-  it costs more than the rest of the network and the tasks need only outbound
-  calls to Paddle, the breach range service and SES. A gateway endpoint reaches
-  S3.
-- **Compute.** One ECS service on Fargate with ARM64 tasks, at least two, at
-  most six, scaled on CPU. An application load balancer in front, with AWS WAF.
-- **Database.** RDS for PostgreSQL 18, in two zones, with automated backups for
-  `35 days`, deletion protection, and a daily AWS Backup copy to a vault in
-  `eu-west-1` that deletes each copy after the same time.
-- **Objects.** One S3 bucket for attachments, with versioning, and a replica
-  in `eu-west-1`. A lifecycle rule on both removes a deleted version after a
-  short recovery time, so a deletion ends its charge.
-- **Mail.** SES in the region, with DKIM and a custom sending domain. The
-  server speaks SMTP to it through record 0150, with no new mail code.
-- **Static sites.** The site and the guide are S3 buckets behind CloudFront,
-  with WAF on each distribution.
-- **Names.** Route 53 holds both zones. ACM holds the certificates.
-- **Secrets.** Secrets Manager holds each secret, and ECS gives it to the task.
-  The migration runs as a separate task with the migration role, so the
-  serving tasks never hold that secret.
-- **Deploy.** A release tag builds the image for `amd64` and `arm64`. A manual
-  workflow copies one release to the registry of an environment, runs the
-  migration task, rolls the service, and publishes the two static sites.
-  Production needs the approval of the owner.
-- **Support mail.** Fastmail receives `support@tidynotebook.com`. Paddle
-  handles the questions about a payment.
+Option E is the choice, in the EU West region. Cloudflare on its free plan
+holds DNS, the proxy, TLS, the rules against abuse, R2, the static sites and
+the forwarding of the support address. Resend sends the mail on its free plan.
+The database has no standby, and that is the cost of the budget: a failure of
+it stops the service until Railway restarts it or the owner restores it. A
+weekly dump to R2 keeps a copy off the platform.
 
-## The thirteenth question: every cost has a limit
+## The fifteenth question: one domain for published pages
 
-Each line of the AWS bill and each outside service has a limit that holds it,
-and an alarm that tells the owner before it matters.
+A second registrable domain for published pages, such as `tidynotebook.page`,
+keeps a hostile page from being same-site with the application, and keeps a
+block list that acts on that page away from the application. Notion and GitHub
+work this way.
 
-| What costs money                      | The limit that holds it                                                                                                                                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Object storage                        | The storage limit of the plan, checked by the database for each write.                                                                                                                                             |
-| Database storage                      | The text and history limit of the plan, and a maximum size of the RDS volume.                                                                                                                                      |
-| Transfer to readers of a page         | The published transfer of the plan, counted for each answer of the reader path.                                                                                                                                    |
-| Transfer to the devices of the person | The storage limit, times the devices that hold a session. The sessions of an account are already bounded, and WAF bounds the rate of one address.                                                                  |
-| Compute                               | The maximum task count of the service.                                                                                                                                                                             |
-| Requests from strangers               | WAF: the managed common rules, a rate limit for each address, and a rate limit of all addresses together on each host. The webhook has a rate rule of its own. The attempt counters of record 0121 stay behind it. |
-| Accounts that never pay               | They cannot write, and they are removed after `30 days`. The proof of work and the address check of design 016 stay.                                                                                               |
-| Mail                                  | The mail budget of each address that exists, a daily limit of seat invitations for each subscription, and the SES sending quota.                                                                                   |
-| WebSocket connections                 | The bounds of record 0129, for each account and each process.                                                                                                                                                      |
-| Imports and exports                   | The job bounds of record 0170.                                                                                                                                                                                     |
-| Logs                                  | A retention of `30 days` in CloudWatch.                                                                                                                                                                            |
-| Transfer of the whole service         | A monthly cap on the published transfer of all accounts together.                                                                                                                                                  |
-| The whole bill                        | An AWS budget for each account with alerts at three levels, and AWS cost anomaly detection, both by mail to the owner. These are alarms, not limits.                                                               |
+The owner keeps one domain. Collaboration and published pages then live on the
+one domain of the product, and the owner pays for one domain. The cost is
+accepted: a phishing page that a stranger publishes can get
+`app.tidynotebook.com` blocked until the takedown and a review clear it. A
+page of a published link runs only the script of the product, under the
+sanitized renderer, so the risk is the block list and not a script.
 
-**The published transfer holds across processes with a short delay.** A write
-to PostgreSQL for each answer of the reader path would make each published
-page cost a database write. Each process instead adds the bytes it sent to a
-sum in memory for each account, and writes the sums to PostgreSQL every
-`10 s`. A check reads the stored total and adds the sum of its own process.
-Several processes can therefore pass the limit by the traffic of one interval.
-That is a few cents at most, and it is the one place where a limit is not
-exact. Record 0121 accepts a limit that holds across processes, and this one
-does, with that delay.
+## The sixteenth question: every cost has a limit
 
-**The alarms.** A CloudWatch alarm mails the owner when the load balancer
-answers too many errors, when the latency rises, when a task does not start,
-when the database runs out of CPU, of storage or of connections, when the
-webhook fails, when the reconciling job finds a difference, and when SES
-reports too many bounces. A Route 53 health check reads `/ready` of the
-application from outside.
+Each line of the bill has a limit that holds it, and an alarm that tells the
+owner.
 
-**A flood is the one cost with no hard bound.** WAF charges for each request
-that it inspects, also for a request that it then blocks. AWS Shield Standard
-absorbs a flood at the network layer for free, but only Shield Advanced
-refunds the WAF fee of a flood, and its monthly fee is larger than the whole
-bill of the launch. The cloud therefore accepts this one cost and makes it
-short: an alarm on the request count of each WAF mails the owner within
-minutes, and the runbook of `docs/development/cloud.md` states the steps that
-stop it, from a rule that blocks the source to a host that answers nothing
-for a time. The fee for each million requests is small, so a flood that the
-alarm reports early costs little.
+- **The whole Railway bill** has a usage alert at `$20` and a hard limit at
+  `$30`. The hard limit trades an outage for a bounded bill.
+- **Compute** is two replicas of the core and one of the billing service.
+- **The database volume** is bounded by the text limit of each plan. The Hobby
+  plan caps a volume, and the owner moves to the Pro plan of Railway before it.
+- **Object storage** is bounded by the storage limit of each plan.
+- **Transfer to readers** is bounded by the limit of each plan and by a cap
+  of `100 GB` a month for the whole service. Each process keeps a sum in
+  memory and writes it to PostgreSQL every `10 s`, so several processes can
+  pass a limit by the traffic of one interval.
+- **A flood** costs nothing, because Cloudflare absorbs it before Railway. A
+  rate rule for each address and the attempt counters stay behind it.
+- **Mail** is bounded by the free plan of Resend, the mail budget of each
+  address, and a daily limit of seat invitations.
 
 ## What stays out
 
-- **A free plan and a trial.** The refund guarantee replaces a trial.
-- **A feature that only one plan or only one edition has.**
-- **Sharing a workspace.** The collaboration design comes later. A seat is
-  ready to be its group.
-- **A transfer of the billing owner, and a pause of a subscription.**
-- **Any currency other than US dollars.**
-- **A price with a tax included.** Paddle adds the tax where it applies.
-- **Analytics, an error tracker, and a public status page.** The logs, the
-  alarms and the health check cover the launch.
-- **A second region that serves traffic.** The copies in `eu-west-1` are for
-  disaster recovery only.
-- **A native application for a phone or a desktop.** The web application and
-  its installable form serve both.
+- A free plan and a trial.
+- A feature that only one edition has.
+- Billing code, a plan or a price in the open repository.
+- Sharing a workspace. The collaboration design comes later.
+- A transfer of the billing owner, and a pause of a subscription.
+- Any currency other than US dollars, and a price with a tax included.
+- Analytics, an error tracker and a public status page.
+- A standby database and a second region. Both come with revenue.
+- Infrastructure as code. The runbook lists each dashboard setting.
 
 ## What the gate must prove
 
-- The database refuses a write of an account with no plan with `plan_required`,
-  with the use case bypassed, and a deletion still works.
-- The database refuses a text write past the text and history limit, and an
-  image write past the storage limit.
-- A save that the plan refused stays in the queue, and it goes through when a
-  plan covers the account again.
-- A seat cannot be taken past the seat count, also by two acceptances at the
-  same time.
-- A webhook with a wrong signature changes nothing. A repeated event changes
-  nothing. An older snapshot after a newer one changes nothing.
-- A lost cancellation event still ends the coverage, through the hourly job
-  and through the daily job.
-- The snapshot function sets the coverage and the limits of every seat in one
-  transaction, and a lost seat count removes the newest seats first and never
-  the billing owner.
-- The server refuses to start when its billing mode differs from the stored
-  mode and an account exists.
+In this repository:
+
+- The database refuses a write of a locked account with `account_locked`,
+  with the use case bypassed, and a locked account still exports and removes
+  itself.
+- The database refuses a text write past the text limit, and an image write
+  past the storage limit.
+- A save refused with `account_locked` stays in the queue, and it goes through
+  when the account is active again.
+- The removal job removes a locked account past its time, and never an active
+  account.
+- A wrong or missing operator token changes nothing, a handoff works once and
+  expires, and the event cursor misses no event.
 - The published reader answers the closed page past the transfer of the month
-  of the account and of the whole service, and for an account with no plan.
-- The removal job removes an account that never had a plan after its time, and
-  an account whose plan ended after its time, and never an account with a plan.
-- The site build reads its prices from the catalog, and a test fails when the
-  page and the catalog differ.
-- `pnpm billing:check` fails when a price in Paddle differs from the catalog in
-  amount, currency or interval.
+  of an account and of the whole installation, with two server instances, and
+  for a locked account.
 - The S3 adapter passes the same contract test as the file store, against a
   real S3 API in the test stack.
-- `tofu validate` and `tofu plan` pass for both environments.
+- A probe answers the host of Railway, and a normal route with that host does
+  not.
+
+In the private repository:
+
+- A webhook with a wrong signature, a repeated event, and an older event after
+  a newer one change nothing.
+- A dropped cancellation still ends the coverage through the reconcile job.
+- Two acceptances of the last seat make one member, and a lost seat count
+  removes the newest seats first and never the billing owner.
+- A forged custom data cannot cover another account.
+- The site and the check command fail when a price differs from the catalog.
 
 ## Decisions
 
-- [0186. One code base serves a paid cloud and a free self-hosted edition](../decisions/0186-one-code-base-serves-a-paid-cloud-and-a-free-self-hosted-edition.md)
-- [0187. The product is Tidy Notebook on two domains](../decisions/0187-the-product-is-tidy-notebook-on-two-domains.md)
+- [0186. The open core holds no billing, and a private service sells the cloud](../decisions/0186-the-open-core-holds-no-billing-and-a-private-service-sells-the-cloud.md)
+- [0187. The product is Tidy Notebook on tidynotebook.com](../decisions/0187-the-product-is-tidy-notebook-on-tidynotebook-com.md)
 - [0188. The repository opens under AGPL-3.0-only](../decisions/0188-the-repository-opens-under-agpl-3-0-only.md)
-- [0189. Paddle is the merchant of record](../decisions/0189-paddle-is-the-merchant-of-record.md)
-- [0190. A plan is a row of one catalog and differs only in limits](../decisions/0190-a-plan-is-a-row-of-one-catalog-and-differs-only-in-limits.md)
-- [0191. A subscription buys seats and a seat covers one account](../decisions/0191-a-subscription-buys-seats-and-a-seat-covers-one-account.md)
-- [0192. An account with no plan reads and keeps its notes for a fixed time](../decisions/0192-an-account-with-no-plan-reads-and-keeps-its-notes-for-a-fixed-time.md)
-- [0193. One function applies a subscription and webhooks feed it](../decisions/0193-one-function-applies-a-subscription-and-webhooks-feed-it.md)
-- [0194. A checkout opens a transaction that this server creates](../decisions/0194-a-checkout-opens-a-transaction-that-this-server-creates.md)
-- [0195. The landing site is a static site of its own](../decisions/0195-the-landing-site-is-a-static-site-of-its-own.md)
-- [0196. An attachment can live in S3](../decisions/0196-an-attachment-can-live-in-s3.md)
-- [0197. The cloud runs on AWS from OpenTofu in infra](../decisions/0197-the-cloud-runs-on-aws-from-opentofu-in-infra.md)
-- [0198. Every cost of the cloud has a limit](../decisions/0198-every-cost-of-the-cloud-has-a-limit.md)
+- [0189. An account carries limits, a standing and feature switches](../decisions/0189-an-account-carries-limits-a-standing-and-feature-switches.md)
+- [0190. An operator API reaches the account controls](../decisions/0190-an-operator-api-reaches-the-account-controls.md)
+- [0191. A published page of the cloud lives on the application origin](../decisions/0191-a-published-page-of-the-cloud-lives-on-the-application-origin.md)
+- [0192. An attachment can live in an S3 compatible store](../decisions/0192-an-attachment-can-live-in-an-s3-compatible-store.md)
+- [0193. Published transfer has a limit for each account and for the installation](../decisions/0193-published-transfer-has-a-limit-for-each-account-and-for-the-installation.md)
+- [0194. Paddle is the merchant of record](../decisions/0194-paddle-is-the-merchant-of-record.md)
+- [0195. Two plans: Standard for one person and Pro for a team](../decisions/0195-two-plans-standard-for-one-person-and-pro-for-a-team.md)
+- [0196. The billing service mirrors Paddle into the account controls](../decisions/0196-the-billing-service-mirrors-paddle-into-the-account-controls.md)
+- [0197. The billing pages and the checkout live on the billing service](../decisions/0197-the-billing-pages-and-the-checkout-live-on-the-billing-service.md)
+- [0198. The landing site is a static site of the private repository](../decisions/0198-the-landing-site-is-a-static-site-of-the-private-repository.md)
+- [0199. The cloud runs on Railway behind Cloudflare](../decisions/0199-the-cloud-runs-on-railway-behind-cloudflare.md)
+- [0200. Every cost of the cloud has a limit](../decisions/0200-every-cost-of-the-cloud-has-a-limit.md)
 
 [Plan 019](../plans/019-tidy-notebook-cloud.md) orders the work.
