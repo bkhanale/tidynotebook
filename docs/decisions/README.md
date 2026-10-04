@@ -217,6 +217,19 @@ and needs no record.
 | [0183](0183-a-save-never-builds-on-a-parked-save.md)                                  | A save never builds on a parked save                                            |
 | [0184](0184-a-free-name-avoids-every-path-the-server-may-hold.md)                     | A free name avoids every path the server may hold                               |
 | [0185](0185-a-step-of-the-grammar-that-grows-faster-than-the-note-is-patched.md)      | A step of the grammar that grows faster than the note is patched                |
+| [0186](0186-one-code-base-serves-a-paid-cloud-and-a-free-self-hosted-edition.md)      | One code base serves a paid cloud and a free self-hosted edition                |
+| [0187](0187-the-product-is-tidy-notebook-on-two-domains.md)                           | The product is Tidy Notebook on two domains                                     |
+| [0188](0188-the-repository-opens-under-agpl-3-0-only.md)                              | The repository opens under AGPL-3.0-only                                        |
+| [0189](0189-paddle-is-the-merchant-of-record.md)                                      | Paddle is the merchant of record                                                |
+| [0190](0190-a-plan-is-a-row-of-one-catalog-and-differs-only-in-limits.md)             | A plan is a row of one catalog and differs only in limits                       |
+| [0191](0191-a-subscription-buys-seats-and-a-seat-covers-one-account.md)               | A subscription buys seats and a seat covers one account                         |
+| [0192](0192-an-account-with-no-plan-reads-and-keeps-its-notes-for-a-fixed-time.md)    | An account with no plan reads and keeps its notes for a fixed time              |
+| [0193](0193-one-function-applies-a-subscription-and-webhooks-feed-it.md)              | One function applies a subscription and webhooks feed it                        |
+| [0194](0194-a-checkout-opens-a-transaction-that-this-server-creates.md)               | A checkout opens a transaction that this server creates                         |
+| [0195](0195-the-landing-site-is-a-static-site-of-its-own.md)                          | The landing site is a static site of its own                                    |
+| [0196](0196-an-attachment-can-live-in-s3.md)                                          | An attachment can live in S3                                                    |
+| [0197](0197-the-cloud-runs-on-aws-from-opentofu-in-infra.md)                          | The cloud runs on AWS from OpenTofu in infra                                    |
+| [0198](0198-every-cost-of-the-cloud-has-a-limit.md)                                   | Every cost of the cloud has a limit                                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -781,3 +794,19 @@ list, the typed brackets, a paste or an import, and answers
 fence language of the one list is a CodeMirror language, so both surfaces
 share its parser and the editor its editing, and a code block carries its
 language and a copy action in the note and on a published page.
+
+Records 0186 to 0198 follow
+[design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md), which makes
+the product two editions of one code base. Record 0186 puts billing behind one
+setting, so the editions differ in who pays and never in what the product does.
+Record 0187 names the product Tidy Notebook and gives published pages a domain
+of their own. Record 0188 opens the repository under AGPL-3.0-only. Record 0189
+makes Paddle the merchant of record. Record 0190 makes a plan a row of one
+catalog that differs only in limits, and adds a text limit and a published
+transfer limit to the account limit of record 0112. Record 0191 sells seats,
+and record 0192 makes an account with no plan read only for a fixed time.
+Record 0193 gives one function the right to apply a subscription, and record
+0194 opens the checkout from a transaction that the server made. Record 0195
+adds the landing site, record 0196 lets an attachment live in S3, record 0197
+states the AWS shape of the cloud, and record 0198 gives every cost of the
+cloud a limit.
