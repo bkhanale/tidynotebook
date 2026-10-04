@@ -5444,6 +5444,14 @@ export const operations: readonly OperationEntry[] = [
         }
       },
       {
+        "status": 429,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
         "status": 500,
         "mediaType": "application/problem+json",
         "schema": {
@@ -5977,6 +5985,7 @@ export const operations: readonly OperationEntry[] = [
             "preferences",
             "consentRequired",
             "controls",
+            "month",
             "accountPortal"
           ],
           "properties": {
@@ -6035,6 +6044,71 @@ export const operations: readonly OperationEntry[] = [
               ],
               "readOnly": true,
               "description": "The controls of the account (record 0189). A locked account opens one screen, which names the way to unlock it (record 0201)."
+            },
+            "month": {
+              "allOf": [
+                {
+                  "type": "object",
+                  "description": "What the account sent in the current calendar month in UTC, and each limit of record 0193 that holds it now. A state is true past the limit of the account or past the cap of the installation, and it holds until endsAt.",
+                  "additionalProperties": false,
+                  "required": [
+                    "month",
+                    "endsAt",
+                    "publishedTransferBytes",
+                    "downloadBytes",
+                    "publishedPagesClosed",
+                    "downloadsPaused",
+                    "uploadsPaused",
+                    "imagesPaused"
+                  ],
+                  "properties": {
+                    "month": {
+                      "allOf": [
+                        {
+                          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/UsageMonth"
+                        }
+                      ],
+                      "readOnly": true,
+                      "description": "The month of the counts."
+                    },
+                    "endsAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "maxLength": 64,
+                      "readOnly": true,
+                      "description": "The first instant of the next month in UTC, when every count starts again from zero."
+                    },
+                    "publishedTransferBytes": {
+                      "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared83"
+                    },
+                    "downloadBytes": {
+                      "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared84"
+                    },
+                    "publishedPagesClosed": {
+                      "type": "boolean",
+                      "readOnly": true,
+                      "description": "Whether each published link of the account answers the closed page, past its published transfer limit or the published transfer cap of the installation."
+                    },
+                    "downloadsPaused": {
+                      "type": "boolean",
+                      "readOnly": true,
+                      "description": "Whether an export, an attachment and a sync snapshot answer download_limit, past the download limit of the account or the download cap of the installation."
+                    },
+                    "uploadsPaused": {
+                      "type": "boolean",
+                      "readOnly": true,
+                      "description": "Whether an upload and an import answer storage_busy, past the object write cap of the installation."
+                    },
+                    "imagesPaused": {
+                      "type": "boolean",
+                      "readOnly": true,
+                      "description": "Whether an attachment answers download_limit and a published page shows no image, past the object read cap of the installation."
+                    }
+                  }
+                }
+              ],
+              "readOnly": true,
+              "description": "The transfer of the current month and each limit that holds the account now (record 0193)."
             },
             "accountPortal": {
               "type": "boolean",
@@ -6201,6 +6275,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 423,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 429,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -8820,6 +8902,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 423,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 429,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -14627,6 +14717,14 @@ export const operations: readonly OperationEntry[] = [
         }
       },
       {
+        "status": 503,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
         "status": 507,
         "mediaType": "application/problem+json",
         "schema": {
@@ -15419,6 +15517,14 @@ export const operations: readonly OperationEntry[] = [
         }
       },
       {
+        "status": 429,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
         "status": 500,
         "mediaType": "application/problem+json",
         "schema": {
@@ -15593,6 +15699,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 503,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17587,6 +17701,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 503,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -88,7 +88,9 @@ export type ProblemCode =
   | 'mail_failed'
   | 'account_locked'
   | 'controls_changed'
-  | 'operator_off';
+  | 'operator_off'
+  | 'download_limit'
+  | 'storage_busy';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -183,6 +185,10 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   account_locked: 'The account is locked.',
   controls_changed: 'The controls of the account changed.',
   operator_off: 'This installation serves no operator API.',
+  download_limit:
+    'The download limit of this month is reached. Downloads start again next month.',
+  storage_busy:
+    'The object store took the most writes of this month. Uploads and imports start again next month.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
   shutting_down: 'The service is stopping and accepts no new traffic.',
@@ -696,6 +702,31 @@ export class AccountLockedError extends Error {
 }
 
 /**
+ * An export, an attachment or a sync snapshot past a limit of the month
+ * (record 0193): the download limit of the account, the download cap of the
+ * installation, or for an attachment the object read cap. The answer is 429,
+ * and `retry-after` names the start of the next month in UTC.
+ */
+export class DownloadLimitError extends Error {
+  constructor() {
+    super(titles.download_limit);
+    this.name = 'DownloadLimitError';
+  }
+}
+
+/**
+ * An upload or an import past the object write cap of the month (record
+ * 0193). The answer is 503, and `retry-after` names the start of the next
+ * month in UTC.
+ */
+export class StorageBusyError extends Error {
+  constructor() {
+    super(titles.storage_busy);
+    this.name = 'StorageBusyError';
+  }
+}
+
+/**
  * The installation names no operator token, so the operator API is off
  * (record 0190). The answer is the not-found answer of the operation, with
  * its own code.
@@ -891,6 +922,20 @@ export function classifyError(error: unknown): {
     return {
       status: 423,
       code: 'account_locked',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof DownloadLimitError)
+    return {
+      status: 429,
+      code: 'download_limit',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof StorageBusyError)
+    return {
+      status: 503,
+      code: 'storage_busy',
       detail: error.message,
       issues: [],
     };

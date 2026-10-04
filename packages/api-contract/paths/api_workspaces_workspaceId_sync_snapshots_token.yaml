@@ -31,6 +31,8 @@ get:
       $ref: '../components/responses/SnapshotRequired.yaml'
     '423':
       $ref: '../components/responses/AccountLocked.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
     '503':

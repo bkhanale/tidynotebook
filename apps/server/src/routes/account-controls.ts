@@ -6,7 +6,11 @@
  * the operator write them in one shape. This module turns the one into the
  * other, so the three operations cannot drift apart.
  */
-import type { AccountControls, ControlsChange } from '@notesapp/core';
+import type {
+  AccountControls,
+  AccountMonthView,
+  ControlsChange,
+} from '@notesapp/core';
 import { readProperty } from '../values.ts';
 import { RequestContractError } from '../plugins/problem.ts';
 
@@ -38,6 +42,22 @@ export function controlsBody(
       teams: controls.features.teams,
       collaboration: controls.features.collaboration,
     },
+  };
+}
+
+/** The public shape of the month of one account (record 0193). */
+export function accountMonthBody(
+  view: AccountMonthView,
+): Record<string, unknown> {
+  return {
+    month: view.month,
+    endsAt: view.endsAt,
+    publishedTransferBytes: view.counts.publishedTransferBytes,
+    downloadBytes: view.counts.downloadBytes,
+    publishedPagesClosed: view.state.publishedPagesClosed,
+    downloadsPaused: view.state.downloadsPaused,
+    uploadsPaused: view.state.uploadsPaused,
+    imagesPaused: view.state.imagesPaused,
   };
 }
 

@@ -24,7 +24,7 @@ authentication routes on one origin, and it holds no domain rule.
   and `legal-document.ts` writes their page like the published page (0140). `operator.ts` serves the
   operator API, which `host.ts` lets any host reach, and `account-controls.ts` the controls (0189, 0190).
 - `src/notices/` holds the notice gateway and its bounds (0129). Only `src/plugins/websocket.ts`
-  imports a WebSocket library; the gateway reads its `StreamSocket`.
+  imports a WebSocket library; the gateway reads its `StreamSocket`. `src/usage/` puts the limits of a month (0193) on the boundary: the gate before a handler, the count of the last `onSend` hook, and the writes of the sums.
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start and the stop, and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a
   published link, the seal of a reported address and of the mail password

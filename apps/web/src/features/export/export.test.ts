@@ -255,3 +255,16 @@ function readCode(error: unknown): unknown {
     ? Object.fromEntries(Object.entries(error))['code']
     : undefined;
 }
+
+await test('a limit of the month names its own cause and when it ends', () => {
+  // Record 0193. An export past the download limit, and an import past the
+  // object write cap, each have a sentence of their own.
+  assert.equal(
+    downloadRefusalMessage({ code: 'download_limit' }),
+    'The download limit of this month is used. Downloads start again next month. You can still write and save notes.',
+  );
+  assert.equal(
+    importRefusalMessage({ code: 'storage_busy' }),
+    'The file storage of this server is busy this month. Imports start again next month. You can still write and save notes.',
+  );
+});

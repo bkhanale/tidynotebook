@@ -13,6 +13,7 @@ import type {
   ImportedPalette,
   LegalDocuments,
   Result,
+  UsageMeter,
   WorkspaceAdminStore,
 } from '@notesapp/core';
 import {
@@ -34,7 +35,7 @@ import {
   newPublishedSecret,
   secretDigest,
 } from '../auth/publication-secrets.ts';
-import { controlsBody } from './account-controls.ts';
+import { accountMonthBody, controlsBody } from './account-controls.ts';
 import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import {
@@ -158,6 +159,8 @@ export function createAccountHandlers(
   legalDocuments: () => Promise<LegalDocuments | null>,
   /** The account portal of the operator, or `null` (record 0190). */
   accountPortal: string | null,
+  /** The counts and the closures of the month (record 0193). */
+  usage: Pick<UsageMeter, 'accountMonth'>,
 ): HandlerMap {
   return {
     openAccountPortal: async (request): Promise<HandlerResult> => {
@@ -181,6 +184,7 @@ export function createAccountHandlers(
       const preferences = unwrap(await readPreferences(store, resolved.actor));
       const standing = unwrap(await readOwnStanding(store, resolved.actor));
       const consent = unwrap(await readConsent(store, resolved.actor));
+      const month = await usage.accountMonth(resolved.actor.accountId);
       return {
         status: 200,
         mediaType: jsonMediaType,
@@ -200,6 +204,9 @@ export function createAccountHandlers(
           // A locked account opens one screen, and the portal is its one
           // action when the installation names one (record 0201).
           controls: controlsBody(standing.controls),
+          // What the account sent this month, and each closure that holds
+          // it until the next month (record 0193).
+          month: accountMonthBody(month),
           accountPortal: accountPortal !== null,
         },
       };

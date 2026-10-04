@@ -16,6 +16,11 @@ const sentences: Readonly<Record<string, string>> = {
     'This account cannot sign in. Ask an administrator of this installation.',
   address_unverified:
     'Open the link in the message that went to this address to finish your account. To get a new link, sign up again.',
+  // Record 0193: each holds until the next month in UTC.
+  download_limit:
+    'The download limit of this month is used. Downloads start again next month. You can still write and save notes.',
+  storage_busy:
+    'The file storage of this server is busy this month. New images and imports start again next month. You can still write and save notes.',
   deleted_remotely:
     'This note was deleted on another device. Open Trash to restore it.',
   forbidden: 'This account cannot do that.',

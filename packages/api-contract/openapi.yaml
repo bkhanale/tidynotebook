@@ -908,6 +908,8 @@ components:
       $ref: './components/schemas/UsageMonth.yaml'
     AccountUsage:
       $ref: './components/schemas/AccountUsage.yaml'
+    AccountMonth:
+      $ref: './components/schemas/AccountMonth.yaml'
     OperatorAccount:
       $ref: './components/schemas/OperatorAccount.yaml'
     OperatorTotals:

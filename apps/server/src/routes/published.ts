@@ -26,12 +26,20 @@
  * through the one sanitized renderer, builds the addresses of the page, and
  * writes the headers of decision 0047.
  *
+ * **A month has a limit.** Past the published transfer limit of the owner of
+ * the workspace, or past the cap of the installation, a link answers the
+ * one document of a link that opens nothing, and its pictures the one
+ * refusal, until the next month in UTC. Past the object read cap, a page
+ * shows each picture as its words and a picture answers the refusal (record
+ * 0193). Each answer names the owner whose bytes it sends.
+ *
  * **One file is the one script.** A note that holds a diagram or a code
  * block names the script of a published page, and its content policy names
  * that file, and for a diagram the frame document, by their exact address on
  * the host of the request (records 0158 and 0174). Every other page keeps the
  * policy that refuses every script.
  */
+import type { FastifyRequest } from 'fastify';
 import {
   isReportReason,
   readPublishedPage,
@@ -43,6 +51,7 @@ import {
   type PublishedAttachmentReference,
   type PublishedNote,
   type PublishedPage,
+  type PublishedUsage,
   type ReaderRefusalCause,
   type SecretDigest,
 } from '@notesapp/core';
@@ -121,6 +130,16 @@ export type PublishedDependencies = {
   readonly clock: () => number;
   /** Where the cause of a refusal goes, for the operator only. */
   readonly recordRefusal: (cause: ReaderRefusalCause) => void;
+  /** The limits of each month of the owner of a link (record 0193). */
+  readonly usage: {
+    /** The owner of a workspace and what its limits close now. */
+    readonly state: (workspaceId: string) => Promise<PublishedUsage>;
+    /** Names the account that the bytes of one answer count for. */
+    readonly charge: (
+      request: FastifyRequest,
+      accountId: string | null,
+    ) => void;
+  };
 };
 
 /** The placeholder of a diagram, as `renderMarkdown` writes it. */
@@ -345,6 +364,27 @@ export function createPublishedHandlers(
     };
   };
 
+  /**
+   * The page as the limits of the month of its owner let it show (record
+   * 0193). A link past the published transfer limit opens nothing, and a
+   * note past the object read cap shows each picture as its words.
+   */
+  const limitPage = async (
+    request: FastifyRequest,
+    page: PublishedPage,
+  ): Promise<PublishedPage> => {
+    if (page.kind !== 'list' && page.kind !== 'note') return page;
+    const usage = await parts.usage.state(page.link.workspaceId);
+    parts.usage.charge(request, usage.accountId);
+    if (usage.state.publishedPagesClosed) {
+      parts.recordRefusal('monthly_limit');
+      return { kind: 'unavailable' };
+    }
+    return page.kind === 'note' && usage.state.imagesPaused
+      ? { ...page, attachments: [] }
+      : page;
+  };
+
   /** The state of one address, as one read of the domain answers it. */
   const readPage = (
     token: string,
@@ -369,7 +409,10 @@ export function createPublishedHandlers(
       const token = readText(request.params, 'token');
       const ticket = queryValue(request, 'ticket');
       const note = queryValue(request, 'note');
-      const page = await readPage(token, ticket, note);
+      const page = await limitPage(
+        request,
+        await readPage(token, ticket, note),
+      );
       return answerPage(
         await viewOf(page, token, ticket, renderNote),
         token,
@@ -393,7 +436,10 @@ export function createPublishedHandlers(
       if (!unlocked.ok) {
         parts.recordRefusal(unlocked.cause);
         // The same words and the same form as a link that was never opened.
-        const page = await readPage(token, null, note);
+        const page = await limitPage(
+          request,
+          await readPage(token, null, note),
+        );
         return answerPage(
           await viewOf(page, token, null, renderNote),
           token,
@@ -402,7 +448,10 @@ export function createPublishedHandlers(
           request.headers.host,
         );
       }
-      const page = await readPage(token, ticket, note);
+      const page = await limitPage(
+        request,
+        await readPage(token, ticket, note),
+      );
       return answerPage(
         await viewOf(page, token, ticket, renderNote),
         token,
@@ -496,6 +545,13 @@ export function createPublishedHandlers(
       // store proves the token again before it reads a byte, so no caller of
       // it can widen the read by naming another workspace.
       if (!allowed.ok) throw new PublishedLinkUnavailableError();
+      // A picture past a limit of the month takes the one refusal too.
+      const usage = await parts.usage.state(allowed.value.link.workspaceId);
+      parts.usage.charge(request, usage.accountId);
+      if (usage.state.publishedPagesClosed || usage.state.imagesPaused) {
+        parts.recordRefusal('monthly_limit');
+        throw new PublishedLinkUnavailableError();
+      }
       const bytes = await parts.attachments.readPublishedAttachmentRevision(
         tokenDigest,
         allowed.value.link.workspaceId,

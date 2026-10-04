@@ -11,6 +11,7 @@ import type {
   OperatorStore,
   PasswordHasher,
   ReaderRefusalCause,
+  UsageMeter,
   WorkspaceAdminStore,
   WorkspaceStore,
 } from '@notesapp/core';
@@ -52,6 +53,8 @@ import { createLegalHandlers, type LegalDependencies } from './legal.ts';
 import { createAddressSeal, createMailPasswordSeal } from '../auth/seal.ts';
 import { createInstallationSettings } from '../installation-settings.ts';
 import { publishedOrigin } from '../served-origins.ts';
+import { chargeReader } from '../usage/boundary.ts';
+import { unmeteredUsage } from '../usage/writes.ts';
 
 /**
  * A store that is not there yet.
@@ -204,6 +207,12 @@ export type HandlerDependencies = {
    * the token then answers a server error.
    */
   readonly operator?: OperatorStore;
+  /**
+   * The meter of the limits of each month (record 0193). A test that checks
+   * the service operations leaves it out, and every month then reads zero
+   * and closes nothing.
+   */
+  readonly usage?: UsageMeter;
 };
 
 /**
@@ -233,6 +242,7 @@ export function createHandlers(
     });
   const lifecycle = dependencies.lifecycle ?? runningLifecycle;
   const published = dependencies.publications;
+  const usage = dependencies.usage ?? unmeteredUsage();
   // A report keeps the address of its link sealed with a key of this server
   // (record 0123). The address names the published origin when there is one.
   const seal = createAddressSeal(config.authSecret);
@@ -242,6 +252,7 @@ export function createHandlers(
       store,
       async () => (await settings.legal()).documents,
       config.accountPortal,
+      usage,
     ),
     ...createOperatorHandlers({
       store: dependencies.operator ?? missingOperatorStore(),
@@ -318,6 +329,10 @@ export function createHandlers(
               : { render: published.render }),
             clock: Date.now,
             recordRefusal: published.recordRefusal,
+            usage: {
+              state: (workspaceId) => usage.publishedState(workspaceId),
+              charge: chargeReader,
+            },
           },
     ),
     ...createLegalHandlers(dependencies.legal),

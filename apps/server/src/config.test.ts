@@ -1048,3 +1048,51 @@ await test('the operator token comes from its file, whole and long enough', asyn
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+await test('with no cap of a month the installation caps nothing', () => {
+  assert.deepEqual(loadServerConfig(environment({})).usageCaps, {
+    publishedTransferBytes: null,
+    downloadBytes: null,
+    objectWrites: null,
+    objectReads: null,
+  });
+  // An empty value in a Compose file is no cap.
+  assert.equal(
+    loadServerConfig(environment({ NOTESAPP_OBJECT_WRITE_CAP: '' })).usageCaps
+      .objectWrites,
+    null,
+  );
+});
+
+await test('each cap of a month reads a whole count above zero', () => {
+  assert.deepEqual(
+    loadServerConfig(
+      environment({
+        NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES: '50000000000',
+        NOTESAPP_DOWNLOAD_CAP_BYTES: '9007199254740991',
+        NOTESAPP_OBJECT_WRITE_CAP: '1000000',
+        NOTESAPP_OBJECT_READ_CAP: '10000000',
+      }),
+    ).usageCaps,
+    {
+      publishedTransferBytes: 50_000_000_000,
+      downloadBytes: 9_007_199_254_740_991,
+      objectWrites: 1_000_000,
+      objectReads: 10_000_000,
+    },
+  );
+  for (const [name, value] of [
+    ['NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES', '0'],
+    ['NOTESAPP_DOWNLOAD_CAP_BYTES', '9007199254740992'],
+    ['NOTESAPP_OBJECT_WRITE_CAP', '-1'],
+    ['NOTESAPP_OBJECT_READ_CAP', '1e6'],
+    ['NOTESAPP_OBJECT_READ_CAP', '12345678901234567'],
+  ] as const)
+    assert.throws(
+      () => loadServerConfig(environment({ [name]: value })),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.issues.some((issue) => issue.includes(name)),
+      `${name}=${value}`,
+    );
+});

@@ -58,6 +58,7 @@ import {
 } from '../../app.tsx';
 
 import { profileNameProblem, storageLine } from '../../lib/accounts.ts';
+import { monthNotices, transferLines } from '../../lib/monthly-limits.ts';
 
 import { LegalLinks, useLegalDocuments } from './legal-links.tsx';
 import {
@@ -558,6 +559,12 @@ export function AccountSettingsPage(): ReactNode {
   const offline = useOfflineChoices(store.store, accountId, workspaceId);
   const documents = useLegalDocuments();
   useDocumentTitle(settingsTitle);
+  // The limits of the month change with no notice to this device, so the
+  // page reads the account again when it opens (record 0193).
+  const recheckAccount = session.recheck;
+  useEffect(() => {
+    recheckAccount();
+  }, [recheckAccount]);
 
   useEffect(() => {
     if (store.store === null || accountId === null || workspaceId === null) {
@@ -760,11 +767,19 @@ export function AccountSettingsPage(): ReactNode {
         section={settingsSection('account')}
         description="Your account owns every note in your workspaces. No other account can read them."
       >
+        {monthNotices(account.month).map((notice) => (
+          <Notice key={notice} className="mb-3" tone="info" message={notice} />
+        ))}
         {storageLine(account.storage) === '' ? null : (
           <p className="mb-0 mt-1 text-control text-muted">
             {storageLine(account.storage)}
           </p>
         )}
+        {transferLines(account.month, account.controls).map((line) => (
+          <p key={line} className="mb-0 mt-1 text-control text-muted">
+            {line}
+          </p>
+        ))}
         {account.installationRole === 'administrator' &&
         workspaceId !== null ? (
           <Link

@@ -554,6 +554,17 @@ function throttleGroup(id: OperationId): string | null {
  */
 const prefixGroups: ReadonlySet<string> = new Set(['report', 'signup']);
 
+/**
+ * The `onSend` hook that runs last on every contract route, after the
+ * compression of a large read, so it reads the bytes that leave the server.
+ * The meter of record 0193 counts there.
+ */
+export type AnswerHook = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+  payload: unknown,
+) => Promise<unknown>;
+
 /** The body bounds of the routes that carry a file, from `config.limits`. */
 export type RouteBodyLimits = {
   readonly uploadBodyBytes: number;
@@ -595,6 +606,7 @@ export function registerOperations(
     readonly max: number;
   },
   limits: RouteBodyLimits,
+  answered?: AnswerHook,
 ): void {
   checkRegistration(
     operations,
@@ -815,8 +827,12 @@ export function registerOperations(
             }),
       },
       ...(bodyLimit === null ? {} : { bodyLimit }),
-      // A large JSON read leaves compressed (record 0169).
-      ...(operation.method === 'get' ? { onSend: compressAnswer } : {}),
+      // A large JSON read leaves compressed (record 0169), and the last hook
+      // reads the bytes that leave (record 0193).
+      onSend: [
+        ...(operation.method === 'get' ? [compressAnswer] : []),
+        ...(answered === undefined ? [] : [answered]),
+      ],
       schema,
       handler: async (request, reply) => {
         const result = await handler(request, reply);

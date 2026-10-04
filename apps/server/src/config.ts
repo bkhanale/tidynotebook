@@ -34,6 +34,7 @@ import {
   controlStandings,
   maxRemoveAfterDays,
   type NewAccountSettings,
+  type UsageCaps,
 } from '@notesapp/core';
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
@@ -263,6 +264,13 @@ export type ServerConfig = {
    */
   readonly accountPortal: string | null;
   /**
+   * The caps of the installation for one calendar month in UTC (record
+   * 0193), each `null` for none: the bytes of the published pages, the bytes
+   * of the downloads, and the write calls and the read calls to an S3 store.
+   * With no cap and no limit of an account, nothing is checked.
+   */
+  readonly usageCaps: UsageCaps;
+  /**
    * The stop of this process.
    *
    * `gracePeriodMs` is the wait between the moment the readiness answer
@@ -366,6 +374,10 @@ export const optionalVariables = [
   'NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER',
   'NOTESAPP_OPERATOR_TOKEN_FILE',
   'NOTESAPP_ACCOUNT_PORTAL_URL',
+  'NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES',
+  'NOTESAPP_DOWNLOAD_CAP_BYTES',
+  'NOTESAPP_OBJECT_WRITE_CAP',
+  'NOTESAPP_OBJECT_READ_CAP',
 ] as const;
 
 const protectedFiles = {
@@ -444,6 +456,7 @@ const positiveInteger = { type: 'string', pattern: '^[1-9][0-9]{0,9}$' };
 // front, so nothing has to observe the readiness answer before the listener
 // closes.
 const wholeNumber = { type: 'string', pattern: '^(0|[1-9][0-9]{0,9})$' };
+const monthlyCap = { type: 'string', pattern: '^[1-9][0-9]{0,15}$' };
 
 /**
  * The stop of a deployment that names no value of its own.
@@ -635,6 +648,12 @@ const configSchema: SchemaObject = {
       maxLength: 1024,
     },
     NOTESAPP_ACCOUNT_PORTAL_URL: { type: 'string', maxLength: 2048 },
+    // A cap of a month is a whole count that a JSON number carries (record
+    // 0193), so at most sixteen digits.
+    NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES: monthlyCap,
+    NOTESAPP_DOWNLOAD_CAP_BYTES: monthlyCap,
+    NOTESAPP_OBJECT_WRITE_CAP: monthlyCap,
+    NOTESAPP_OBJECT_READ_CAP: monthlyCap,
   },
 };
 
@@ -775,9 +794,44 @@ export function loadServerConfig(
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
     operatorTokenFile,
     accountPortal,
+    usageCaps: readUsageCaps(raw),
     ...readLegalDocuments(raw, canonical),
   };
 }
+
+/**
+ * The caps of the installation for one month (record 0193). Each is a whole
+ * number above zero that a JSON number carries, and an empty value is no cap.
+ */
+function readUsageCaps(raw: RawConfig): UsageCaps {
+  const issues: string[] = [];
+  const read = (name: (typeof capVariables)[number]): number | null => {
+    const value = raw[name];
+    if (value === undefined) return null;
+    const cap = Number(value);
+    if (Number.isSafeInteger(cap)) return cap;
+    issues.push(
+      `${name}: name at most ${String(Number.MAX_SAFE_INTEGER)}, or leave it empty for no cap.`,
+    );
+    return null;
+  };
+  const caps = {
+    publishedTransferBytes: read('NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES'),
+    downloadBytes: read('NOTESAPP_DOWNLOAD_CAP_BYTES'),
+    objectWrites: read('NOTESAPP_OBJECT_WRITE_CAP'),
+    objectReads: read('NOTESAPP_OBJECT_READ_CAP'),
+  };
+  if (issues.length > 0) throw new ConfigError(issues);
+  return caps;
+}
+
+/** The four caps of a month, in the order of the guide. */
+const capVariables = [
+  'NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES',
+  'NOTESAPP_DOWNLOAD_CAP_BYTES',
+  'NOTESAPP_OBJECT_WRITE_CAP',
+  'NOTESAPP_OBJECT_READ_CAP',
+] as const;
 
 /** The variables of an S3 store, in the order of the guide. */
 const s3Variables = [

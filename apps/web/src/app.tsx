@@ -68,6 +68,7 @@ import {
 } from './lib/imported-themes.ts';
 import { createFocusPass } from './lib/focus-pass.ts';
 import { createAccountRecheck, isLocked } from './lib/locked.ts';
+import { openMonth } from './lib/monthly-limits.ts';
 import { displayNoteName } from './lib/note-name.ts';
 import {
   chooseWorkspace,
@@ -255,6 +256,9 @@ function readCachedAccount(): Account | null {
       // as active with no new limit until the server answers (record 0189),
       // and a cached locked account stays locked.
       controls: cachedControls(row['controls'], limit),
+      // A closure of the month that this device kept can be over, so a
+      // cached account states none until the server answers (record 0193).
+      month: openMonth(new Date()),
       accountPortal: row['accountPortal'] === true,
     };
   } catch {

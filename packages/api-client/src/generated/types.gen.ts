@@ -125,6 +125,10 @@ export type Account = {
      */
     readonly controls: AccountControls;
     /**
+     * The transfer of the current month and each limit that holds the account now (record 0193).
+     */
+    readonly month: AccountMonth;
+    /**
      * Whether the installation names an account portal, which openAccountPortal opens (record 0190).
      */
     readonly accountPortal: boolean;
@@ -288,6 +292,44 @@ export type AccountList = {
      * The accounts, in the order in which they were made.
      */
     readonly accounts: Array<AccountSummary>;
+};
+
+/**
+ * What the account sent in the current calendar month in UTC, and each limit of record 0193 that holds it now. A state is true past the limit of the account or past the cap of the installation, and it holds until endsAt.
+ */
+export type AccountMonth = {
+    /**
+     * The month of the counts.
+     */
+    readonly month: UsageMonth;
+    /**
+     * The first instant of the next month in UTC, when every count starts again from zero.
+     */
+    readonly endsAt: string;
+    /**
+     * The bytes that the published pages of the account sent in the month.
+     */
+    readonly publishedTransferBytes: ByteCount;
+    /**
+     * The bytes that the account downloaded in the month.
+     */
+    readonly downloadBytes: ByteCount;
+    /**
+     * Whether each published link of the account answers the closed page, past its published transfer limit or the published transfer cap of the installation.
+     */
+    readonly publishedPagesClosed: boolean;
+    /**
+     * Whether an export, an attachment and a sync snapshot answer download_limit, past the download limit of the account or the download cap of the installation.
+     */
+    readonly downloadsPaused: boolean;
+    /**
+     * Whether an upload and an import answer storage_busy, past the object write cap of the installation.
+     */
+    readonly uploadsPaused: boolean;
+    /**
+     * Whether an attachment answers download_limit and a published page shows no image, past the object read cap of the installation.
+     */
+    readonly imagesPaused: boolean;
 };
 
 /**
@@ -3942,7 +3984,7 @@ export type RemoveOwnAccountErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5409,7 +5451,7 @@ export type FindOperatorAccountErrors = {
      */
     404: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5465,7 +5507,7 @@ export type RemoveOperatorAccountErrors = {
      */
     409: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5517,7 +5559,7 @@ export type ReadOperatorAccountErrors = {
      */
     404: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5588,7 +5630,7 @@ export type SetOperatorAccountControlsErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5644,7 +5686,7 @@ export type ListOperatorAccountEventsErrors = {
      */
     404: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5702,7 +5744,7 @@ export type RedeemAccountHandoffErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5754,7 +5796,7 @@ export type ReadOperatorTotalsErrors = {
      */
     404: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5850,7 +5892,7 @@ export type RegisterAccountErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5887,7 +5929,7 @@ export type GetSignUpChallengeErrors = {
      */
     403: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5935,7 +5977,7 @@ export type ReadInvitationErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -5987,7 +6029,7 @@ export type SignUpAccountErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -6035,7 +6077,7 @@ export type VerifyAddressErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -6227,7 +6269,7 @@ export type GetSetupStatusErrors = {
      */
     400: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -6292,7 +6334,7 @@ export type CreateOwnerErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -6677,6 +6719,10 @@ export type UploadAttachmentErrors = {
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, a failure of the service stopped the work, or the object store of the installation took the most writes that one calendar month in UTC allows (record 0193). The code names the cause, for example storage_busy. Nothing changed.
+     */
+    503: ProblemDetails;
 };
 
 export type UploadAttachmentError = UploadAttachmentErrors[keyof UploadAttachmentErrors];
@@ -6828,6 +6874,10 @@ export type GetAttachmentRevisionErrors = {
      * The account is locked, and a locked account keeps only a fixed list of operations (record 0201). The code is account_locked. Nothing changed.
      */
     423: ProblemDetails;
+    /**
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
+     */
+    429: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
@@ -7099,7 +7149,7 @@ export type ExportWorkspaceErrors = {
      */
     422: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -7107,7 +7157,7 @@ export type ExportWorkspaceErrors = {
      */
     500: ProblemDetails;
     /**
-     * The service cannot do this work now: it runs as many jobs of this kind as it can, or a failure of the service stopped the work. The code names the cause.
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, a failure of the service stopped the work, or the object store of the installation took the most writes that one calendar month in UTC allows (record 0193). The code names the cause, for example storage_busy. Nothing changed.
      */
     503: ProblemDetails;
 };
@@ -7163,7 +7213,7 @@ export type InspectWorkspaceExportErrors = {
      */
     422: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -7704,6 +7754,10 @@ export type ExportNoteErrors = {
      */
     423: ProblemDetails;
     /**
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
+     */
+    429: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
@@ -7931,13 +7985,17 @@ export type StartWorkspaceImportErrors = {
      */
     423: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, a failure of the service stopped the work, or the object store of the installation took the most writes that one calendar month in UTC allows (record 0193). The code names the cause, for example storage_busy. Nothing changed.
+     */
+    503: ProblemDetails;
     /**
      * The storage of the server has no room for this request body now.
      */
@@ -8067,7 +8125,7 @@ export type CompleteWorkspaceImportErrors = {
      */
     423: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -8075,7 +8133,7 @@ export type CompleteWorkspaceImportErrors = {
      */
     500: ProblemDetails;
     /**
-     * The service cannot do this work now: it runs as many jobs of this kind as it can, or a failure of the service stopped the work. The code names the cause.
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, a failure of the service stopped the work, or the object store of the installation took the most writes that one calendar month in UTC allows (record 0193). The code names the cause, for example storage_busy. Nothing changed.
      */
     503: ProblemDetails;
     /**
@@ -8161,6 +8219,10 @@ export type SendWorkspaceImportPartErrors = {
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * The service cannot do this work now: it runs as many jobs of this kind as it can, a failure of the service stopped the work, or the object store of the installation took the most writes that one calendar month in UTC allows (record 0193). The code names the cause, for example storage_busy. Nothing changed.
+     */
+    503: ProblemDetails;
     /**
      * The storage of the server has no room for this request body now.
      */
@@ -8829,6 +8891,10 @@ export type StartSnapshotErrors = {
      */
     423: ProblemDetails;
     /**
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
+     */
+    429: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
@@ -8905,6 +8971,10 @@ export type GetSnapshotPageErrors = {
      * The account is locked, and a locked account keeps only a fixed list of operations (record 0201). The code is account_locked. Nothing changed.
      */
     423: ProblemDetails;
+    /**
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
+     */
+    429: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
@@ -9377,7 +9447,7 @@ export type OpenPublishedPageErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -9529,7 +9599,7 @@ export type ReportPublishedLinkErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**
@@ -9588,7 +9658,7 @@ export type UnlockPublishedLinkErrors = {
      */
     415: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
+     * Too many requests. Too many attempts were made in a short time, the account runs its limit of archive jobs, or the account or the installation downloaded the most bytes or read the most objects that one calendar month in UTC allows (record 0193). The code names the cause: rate_limited, archive_job_running or download_limit. Nothing changed.
      */
     429: ProblemDetails;
     /**

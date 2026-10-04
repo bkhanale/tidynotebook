@@ -13,8 +13,8 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { LogController } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { ReaderRefusalCause } from '@notesapp/core';
-import { lockedAccountKeeps } from '@notesapp/core';
+import type { ReaderRefusalCause, UsageMeter } from '@notesapp/core';
+import { createUsageMeter, lockedAccountKeeps } from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
 import { findChannel, findOperation } from '@notesapp/api-contract';
 import {
@@ -149,6 +149,8 @@ import { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
 import { createNoticeGateway } from './notices/gateway.ts';
 import { registerWebSocket } from './plugins/websocket.ts';
 import { coordinatedArchiveJobs } from './routes/archive-jobs.ts';
+import { checkUsageGate, countAnswer } from './usage/boundary.ts';
+import { startUsageWrites, usageWriteIntervalMs } from './usage/writes.ts';
 
 /**
  * How many messages one address takes in an hour from a person with no
@@ -263,6 +265,17 @@ export type AppOptions = {
    * listener lasts until the test ends it.
    */
   readonly listenerSchedule?: ListenerSchedule;
+  /**
+   * The meter of the limits of each month (record 0193). `createApp` builds
+   * the meter of the installation. A caller of `createAppWithHandlers` that
+   * passes none counts nothing and refuses nothing.
+   */
+  readonly usage?: UsageMeter;
+  /**
+   * How often this process writes its counts of the month, in milliseconds.
+   * A deployment takes `usageWriteIntervalMs`, and a test a shorter time.
+   */
+  readonly usageWriteIntervalMs?: number;
 };
 
 /** Builds the application with an explicit handler map. */
@@ -591,6 +604,14 @@ export async function createAppWithHandlers(
       );
     },
   });
+  // The closures of a month refuse an operation before its handler runs,
+  // and the last hook of each route counts the bytes that leave (record
+  // 0193).
+  const usage = options.usage;
+  if (usage !== undefined)
+    app.addHook('preHandler', async (request, reply) => {
+      await checkUsageGate(usage, () => new Date(), request, reply);
+    });
   registerOperations(
     app,
     options.handlers,
@@ -598,6 +619,7 @@ export async function createAppWithHandlers(
     protocols,
     config.rateLimit,
     config.limits,
+    usage === undefined ? undefined : countAnswer(usage),
   );
   return app;
 }
@@ -673,10 +695,25 @@ async function composeApp(
     createDocumentService(),
   );
   opened.push(() => content.close());
+  // The counts of each month and their limits (record 0193). The sums live
+  // in the memory of this process and reach the monthly table, which every
+  // process shares, at each write. A check keeps the limits of an account
+  // for one interval of the writes.
+  const writeIntervalMs = options?.usageWriteIntervalMs ?? usageWriteIntervalMs;
+  const usage = createUsageMeter({
+    store: coordination,
+    caps: config.usageCaps,
+    clock: () => new Date(),
+    subjectTtlMs: writeIntervalMs,
+  });
   // Every byte that a later request reads lives in the object store, so any
-  // process of the installation answers that request (record 0192).
+  // process of the installation answers that request (record 0192). An S3
+  // store tells the meter each call that it makes.
   const objects = openObjectStore(
     options?.objectStore ?? (await loadObjectStoreSettings(config)),
+    (kind) => {
+      usage.countObjectCall(kind);
+    },
   );
   opened.push(() => Promise.resolve(objects.close()));
   // The database probes read through the pool that serves the workspace
@@ -839,6 +876,7 @@ async function composeApp(
         content,
         attachments,
         operator: identity,
+        usage,
         archiveJobs: coordinatedArchiveJobs(coordination),
         publications: {
           store: content,
@@ -914,6 +952,7 @@ async function composeApp(
       ? { noticeBounds: options.noticeBounds }
       : {}),
     attempts,
+    usage,
   });
   const logger = createServerLogger(app.log);
   noticeLog.logger = logger;
@@ -1013,6 +1052,11 @@ async function composeApp(
       logger.emit('auth.info', { source: 'better-auth' });
     else logger.emit('auth.debug', { source: 'better-auth' });
   };
+  // The sums of this process reach the monthly table at each interval, and
+  // once more at the stop (record 0193).
+  const usageWrites = startUsageWrites(usage, writeIntervalMs, () => {
+    logger.emit('maintenance.failed', { job: 'usage' });
+  });
   // The listener starts once the instance exists. A stream opens only after
   // it listens, so no stream can miss a commit that follows its admission.
   gateway.start();
@@ -1025,6 +1069,9 @@ async function composeApp(
     await attachments.close();
     objects.close();
     await content.close();
+    // The last sums of this process, after every answer and every call to
+    // the object store that it counts.
+    await usageWrites.stop();
     await coordination.close();
     await identity.close();
   });

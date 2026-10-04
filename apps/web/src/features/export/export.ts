@@ -14,6 +14,7 @@ import {
   abortWorkspaceImport,
   completeWorkspaceImport,
   exportNote,
+  getAccount,
   exportWorkspaceAddress,
   inspectWorkspaceExport,
   sendWorkspaceImportPart,
@@ -58,6 +59,9 @@ export function downloadRefusalMessage(error: unknown): string {
   if (code === 'not_found') return 'This note is not on the server any more.';
   if (code === 'unauthenticated')
     return 'Sign in again to download your notes.';
+  // Record 0193. The limit holds until the next month in UTC.
+  if (code === 'download_limit')
+    return 'The download limit of this month is used. Downloads start again next month. You can still write and save notes.';
   // Issue 243. The export refuses a workspace past the bounds that the import
   // reads too, so every zip file that it writes comes back.
   if (code === 'export_too_large')
@@ -92,6 +96,9 @@ const importRefusals: Readonly<Record<string, string>> = {
     'The zip file can hold only Markdown files and images. Remove the other files and import again.',
   storage_full:
     'The server has no room for this zip file now. Try again later, or ask the administrator for more room.',
+  // Record 0193. The cap holds until the next month in UTC.
+  storage_busy:
+    'The file storage of this server is busy this month. Imports start again next month. You can still write and save notes.',
   quota_exceeded:
     'Your account has no room for these files. Delete some notes or images, then import again.',
   unrenderable_note:
@@ -242,8 +249,14 @@ export function exportCheckMessage(status: number): string {
 export async function downloadAll(workspaceId: string): Promise<void> {
   const checked = await inspectWorkspaceExport({ path: { workspaceId } });
   const status = checked.response?.status ?? 0;
-  if (checked.error !== undefined || status !== 200)
+  if (checked.error !== undefined || status !== 200) {
+    // A 429 of the check is a job that runs or the download limit of the
+    // month (record 0193). The answer of a check has no body, so the
+    // account states which one holds.
+    if (status === 429 && (await downloadsPaused()))
+      throw new Error(downloadRefusalMessage({ code: 'download_limit' }));
     throw new Error(exportCheckMessage(status));
+  }
   const anchor = document.createElement('a');
   anchor.href = exportWorkspaceAddress({ workspaceId });
   // An empty name keeps the name that the answer states.
@@ -252,6 +265,16 @@ export async function downloadAll(workspaceId: string): Promise<void> {
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
+}
+
+/** Whether the account reads that its downloads wait for the next month. */
+async function downloadsPaused(): Promise<boolean> {
+  try {
+    const account = await getAccount();
+    return account.data?.month.downloadsPaused === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

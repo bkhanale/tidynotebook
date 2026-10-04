@@ -35,3 +35,5 @@ post:
       $ref: '../components/responses/AccountLocked.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/ServiceBusy.yaml'

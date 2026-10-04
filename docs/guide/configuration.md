@@ -132,6 +132,24 @@ off and the installation sends nothing anywhere.
 | `NOTESAPP_OPERATOR_TOKEN_FILE` | The file that holds the one secret of the operator API, of at least 32 characters with no space. A service sends it as a bearer token to the operations under `/api/operator/`. These operations answer on any host name, so a service on a private network can reach them. Empty turns the operator API off, and each of its operations answers that it is off.                                                                             |
 | `NOTESAPP_ACCOUNT_PORTAL_URL`  | The full address of the account portal of that service, with no query, for example `https://billing.example.com`. A locked account opens it to unlock itself. The server adds a single-use token that works for 60 seconds, and the portal gives the token back to the operator API to learn the account. The portal needs the operator API, so set `NOTESAPP_OPERATOR_TOKEN_FILE` too, or the server does not start. Empty shows no portal. |
 
+## Limits of each month
+
+The server counts, for each calendar month in UTC, the bytes that the published
+pages send, the bytes that each account downloads, and each write and read
+call to an S3 store. An administrator or the operator API can give one account
+a published transfer limit and a download limit. The settings below are caps
+for the whole installation. A count stays in the memory of the server for at
+most 10 seconds, so two servers can pass a cap by the traffic of 10 seconds.
+Each cap holds until the first day of the next month. With no cap and no limit
+of an account, the server refuses nothing.
+
+| Setting                                 | What it does                                                                                                                                                                                                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES` | The most bytes that all published pages send in one month. Past it, each published link shows a page that says that the link opens nothing. Empty sets no cap.                                                                                                                             |
+| `NOTESAPP_DOWNLOAD_CAP_BYTES`           | The most bytes that all accounts download in one month. Past it, an export, an image and the first copy of the notes on a new device wait for the next month. The rest of the application still works. Empty sets no cap.                                                                  |
+| `NOTESAPP_OBJECT_WRITE_CAP`             | The most write calls to the S3 store in one month: a write, a copy, a part of an upload and a list. Past it, an image upload and a workspace import wait for the next month. The file store of the storage directory makes no call, so this cap holds an S3 store only. Empty sets no cap. |
+| `NOTESAPP_OBJECT_READ_CAP`              | The most read calls to the S3 store in one month. Past it, an image does not load, and a published page shows no image. This cap holds an S3 store only. Empty sets no cap.                                                                                                                |
+
 ## Mail
 
 The mail server sends invitations, the links of a sign-up and the links of a
