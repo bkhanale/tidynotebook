@@ -17,9 +17,8 @@ identity store, the object store of the attachment bytes, and provisioning.
   `publication-transaction.ts` the read-only one of the reader path and `publication-unlock.ts`
   its one write (0031), one repository per context holds the SQL, `index.ts` is the composition
   root, and `admin.ts`, `identity-store.ts`, `profiles.ts`, `snapshots.ts`, `attachments.ts`,
-  `attachment-row.ts` (0019), `installation-settings-row.ts` (0148) and
-  `account-controls-row.ts` (0189) own the rest. `coordination.ts` holds what every process shares (0121, 0129), and
-  `sync-listener.ts` and `sync-hints.ts` the hints (0125, 0144).
+  `attachment-row.ts` (0019), `installation-settings-row.ts` (0148) and `account-controls-row.ts`
+  (0189) own the rest. `coordination.ts` holds what every process shares (0121, 0129), and `sync-listener.ts` and `sync-hints.ts` the hints (0125, 0144).
 - `src/object-store/` holds the port of each byte that outlives a request, its
   two adapters, the keys of `keys.ts` and the cleanup of `staging/` (0192).
 - `src/migrate.ts` runs the migrations and exports `requiredSchemaVersion`.
