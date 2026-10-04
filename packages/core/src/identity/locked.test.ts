@@ -23,7 +23,12 @@ await test('a locked account keeps nothing that the list does not name', () => {
     'createWorkspace',
     'createPublishedLink',
     'uploadAttachment',
-    'importWorkspace',
+    'finalizeAttachment',
+    // Each step of an import in parts, the abort too: record 0201 names none.
+    'startWorkspaceImport',
+    'sendWorkspaceImportPart',
+    'completeWorkspaceImport',
+    'abortWorkspaceImport',
     'exportNote',
     'updateProfile',
     'updatePreferences',

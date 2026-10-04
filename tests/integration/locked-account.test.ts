@@ -15,6 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+  abortWorkspaceImport,
+  completeWorkspaceImport,
   configureClient,
   createFile,
   createInvitation,
@@ -34,6 +36,7 @@ import {
   registerAccount,
   removeOwnAccount,
   setOperatorAccountControls,
+  startWorkspaceImport,
   updatePreferences,
   updateProfile,
 } from '@notesapp/api-client';
@@ -194,6 +197,26 @@ await test('a new locked account goes through the handoff and is unlocked by a c
   });
   assert.equal(responseOf(profile.response).status, 423);
   assert.equal(codeOf(profile.error), 'account_locked');
+  // An import writes notes, so each step of it is refused. Record 0201 does
+  // not name the abort of an import either, so it is refused too.
+  const started = await startWorkspaceImport({
+    headers: person.headers,
+    path: { workspaceId },
+    body: { size: 1024 },
+  });
+  assert.equal(responseOf(started.response).status, 423);
+  assert.equal(codeOf(started.error), 'account_locked');
+  const importId = randomUUID();
+  const completed = await completeWorkspaceImport({
+    headers: person.headers,
+    path: { workspaceId, importId },
+  });
+  assert.equal(responseOf(completed.response).status, 423);
+  const aborted = await abortWorkspaceImport({
+    headers: person.headers,
+    path: { workspaceId, importId },
+  });
+  assert.equal(responseOf(aborted.response).status, 423);
   // The sessions of the account are on its list.
   const sessions = await listSessions({ headers: person.headers });
   assert.equal(responseOf(sessions.response).status, 200);

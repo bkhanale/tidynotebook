@@ -10,6 +10,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import test from 'node:test';
 import {
   acceptWithDocuments,
@@ -20,6 +21,9 @@ import {
   createDocumentService,
   createTestDatabase,
   dropTestDatabase,
+  isLockedRefusal,
+  openAttachmentStore,
+  openFileObjectStore,
   migrationsFolder,
   openIdentityStore,
   openWorkspaceStore,
@@ -632,6 +636,82 @@ await test('the database refuses each write of the runtime role for a locked own
     ]);
   } finally {
     await again.close();
+  }
+});
+
+await test('the database refuses the staged upload and the finalize of a locked owner', async () => {
+  // The upload and an import write an image the same way: the checked bytes
+  // go to a staging key of the object store, a row names them, and a
+  // finalize promotes them (record 0192). Only the row is a write of the
+  // database, so the guard of attachment_objects must refuse it when the
+  // store is called directly, with the use case bypassed.
+  const made = await owner();
+  const root = await mkdtemp(join(tmpdir(), 'notesapp-locked-objects-'));
+  const objects = openFileObjectStore(root);
+  const attachments = openAttachmentStore(database.runtimeUrl, objects, {
+    poolSize: 2,
+  });
+  const actor = memberActor(made.accountId, made.workspaceId);
+  const bytes = Buffer.from(randomUUID());
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const image = (id: string) => ({
+    id,
+    digest,
+    size: BigInt(bytes.length),
+    mediaType: 'image/png' as const,
+    width: 1,
+    height: 1,
+  });
+  try {
+    // A row that the owner staged while active, to finalize when locked.
+    const staged = randomUUID();
+    await attachments.stageAttachmentBytes(
+      staged,
+      Readable.from([bytes]),
+      bytes.length,
+    );
+    await attachments.saveTemporaryAttachment(
+      actor,
+      made.workspaceId,
+      image(staged),
+    );
+    assert.equal(
+      await writeControls(made.accountId, 1, { standing: 'locked' }),
+      'written',
+    );
+    const late = randomUUID();
+    await attachments.stageAttachmentBytes(
+      late,
+      Readable.from([bytes]),
+      bytes.length,
+    );
+    await assert.rejects(
+      attachments.saveTemporaryAttachment(actor, made.workspaceId, image(late)),
+      (error: unknown) => isLockedRefusal(error),
+    );
+    await assert.rejects(
+      attachments.finalizeAttachmentObject(
+        actor,
+        made.workspaceId,
+        staged,
+        digest,
+      ),
+      (error: unknown) => isLockedRefusal(error),
+    );
+    const rows = await attachments.getAttachmentObject(
+      actor,
+      made.workspaceId,
+      staged,
+    );
+    assert.equal(rows?.state, 'temporary');
+    assert.equal(
+      await attachments.getAttachmentObject(actor, made.workspaceId, late),
+      null,
+    );
+  } finally {
+    await attachments.close();
+    objects.close();
+    await rm(root, { recursive: true, force: true });
   }
 });
 
