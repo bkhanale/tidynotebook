@@ -469,7 +469,7 @@ owner.
   every call to the store, so it counts them, and a monthly cap on writes and
   on reads holds the R2 bill.
 - **Transfer to readers** is bounded by the limit of each plan and by a cap
-  of `100 GB` a month for the whole service.
+  of `50 GB` a month for the whole service.
 - **Transfer to devices** is not bounded by storage times devices, because one
   session can download the same export again and again. The core counts the
   bytes of each authenticated response, and a monthly download limit of each
