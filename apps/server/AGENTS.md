@@ -21,7 +21,8 @@ authentication routes on one origin, and it holds no domain rule.
   operations. `import-layout.ts` places the files of an import (0172), `scratch.ts` the
   files of one request (0192), and `sync-notices.ts` serves the notice stream and checks
   its origin (0128, 0129). `legal.ts` serves the terms and the privacy notice of the operator,
-  and `legal-document.ts` writes their page like the published page (0140).
+  and `legal-document.ts` writes their page like the published page (0140). `operator.ts` serves the
+  operator API, which `host.ts` lets any host reach, and `account-controls.ts` the controls (0189, 0190).
 - `src/notices/` holds the notice gateway and its bounds (0129). Only
   `src/plugins/websocket.ts` imports a WebSocket library; the gateway reads its
   `StreamSocket`.
