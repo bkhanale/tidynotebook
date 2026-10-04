@@ -19,9 +19,21 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
   the closed page of record 0146 until the next month in UTC. The owner of the
   account sees the state on the published links page. Several processes can
   pass the limit by the traffic of one interval, and that is accepted.
-- **Requests.** AWS WAF runs the managed common rule set and a rate rule of
-  `3000` requests in each five minutes for one address. The webhook of record
-  0193 is exempt from the rate rule. The attempt counters of record 0121 stay.
+- **Published transfer of the whole service.** The same table holds the sum
+  of every account. Past `2000 GB` in a month, the reader path answers the
+  closed page for every link until the next month, and an alarm mails the
+  owner. One busy month can therefore cost at most that much transfer.
+- **Requests.** AWS WAF runs the managed common rule set, and these rate
+  rules, each over five minutes:
+  - `3000` requests from one address, on every host.
+  - `100000` requests from all addresses together on `tidynotebook.page`,
+    and `300000` on `app.tidynotebook.com`. During a flood the service refuses
+    requests instead of growing the bill.
+  - The webhook path of record 0193 admits only the published webhook
+    addresses of Paddle, from an IP set of `infra/` for each environment, and
+    has its own rule of `1000` requests from one address. No request skips a
+    rate rule.
+- The attempt counters of record 0121 stay behind WAF.
 - **Compute.** At most six tasks (record 0197).
 - **Database volume.** The RDS volume grows by itself up to `1000 GB` and no
   further.
@@ -30,7 +42,9 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 - **Logs.** CloudWatch keeps logs for `30 days`.
 - **The bill.** An AWS budget of `$500` a month in production and `$100` in
   staging, with mail alerts at half, at most of it and at all of it, and AWS
-  cost anomaly detection.
+  cost anomaly detection. A budget is an alarm, not a limit: AWS updates its
+  data a few times a day, and it stops no charge. The limits above are the
+  bounds.
 - **Alarms** by mail to the owner: errors and latency of the load balancer,
   a task that does not start, CPU, storage and connections of the database,
   a failed webhook, a difference that a reconciling job repaired, the bounce
@@ -38,7 +52,10 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 
 ## Consequences
 
-- No account and no stranger can make one line of the bill grow without
-  bound, and an alarm reports a cost that grows before the budget is spent.
+- Each line of the bill that use drives has a bound: storage, database,
+  transfer, compute and mail. The one cost that a flood still drives is the
+  fee of WAF for each request that it inspects. AWS Shield Standard absorbs a
+  flood at the network layer, and the alarms report the rest.
 - An integration test proves that the reader path closes past the transfer of
-  the month, with two server instances that share one total.
+  the month of one account and of the whole service, with two server
+  instances that share one total.

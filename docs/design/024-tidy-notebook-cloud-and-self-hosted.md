@@ -368,9 +368,11 @@ and an outage of Paddle stops the product.
 the account wrong until the next change.
 
 **Option C. Webhooks, with jobs that reconcile.** Paddle posts each change. An
-hourly job reads the Paddle events after the newest one that the server stored,
-and applies each one that it lacks. A daily job reads every live subscription
-and applies it again.
+hourly job reads the Paddle events after a cursor of its own, which moves past
+every event that it reads, so a lost event is never skipped. A daily job reads
+again every subscription that the database or Paddle holds as live, so a
+subscription that ended in Paddle cannot stay covered here. Paddle recommends
+this check against its API.
 
 Option C is the choice. Four rules make it safe:
 
@@ -536,20 +538,21 @@ a person in another continent. The shape:
 Each line of the AWS bill and each outside service has a limit that holds it,
 and an alarm that tells the owner before it matters.
 
-| What costs money                      | The limit that holds it                                                                                                                           |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Object storage                        | The storage limit of the plan, checked by the database for each write.                                                                            |
-| Database storage                      | The text and history limit of the plan, and a maximum size of the RDS volume.                                                                     |
-| Transfer to readers of a page         | The published transfer of the plan, counted for each answer of the reader path.                                                                   |
-| Transfer to the devices of the person | The storage limit, times the devices that hold a session. The sessions of an account are already bounded, and WAF bounds the rate of one address. |
-| Compute                               | The maximum task count of the service.                                                                                                            |
-| Requests from strangers               | WAF: the managed common rules, and a rate limit for each address. The attempt counters of record 0121 stay behind it.                             |
-| Accounts that never pay               | They cannot write, and they are removed after `30 days`. The proof of work and the address check of design 016 stay.                              |
-| Mail                                  | The mail budget of each address that exists, a daily limit of seat invitations for each subscription, and the SES sending quota.                  |
-| WebSocket connections                 | The bounds of record 0129, for each account and each process.                                                                                     |
-| Imports and exports                   | The job bounds of record 0170.                                                                                                                    |
-| Logs                                  | A retention of `30 days` in CloudWatch.                                                                                                           |
-| The whole bill                        | An AWS budget for each account with alerts at three levels, and AWS cost anomaly detection, both by mail to the owner.                            |
+| What costs money                      | The limit that holds it                                                                                                                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Object storage                        | The storage limit of the plan, checked by the database for each write.                                                                                                                                                      |
+| Database storage                      | The text and history limit of the plan, and a maximum size of the RDS volume.                                                                                                                                               |
+| Transfer to readers of a page         | The published transfer of the plan, counted for each answer of the reader path.                                                                                                                                             |
+| Transfer to the devices of the person | The storage limit, times the devices that hold a session. The sessions of an account are already bounded, and WAF bounds the rate of one address.                                                                           |
+| Compute                               | The maximum task count of the service.                                                                                                                                                                                      |
+| Requests from strangers               | WAF: the managed common rules, a rate limit for each address, and a rate limit of all addresses together on each host. The webhook admits only the addresses of Paddle. The attempt counters of record 0121 stay behind it. |
+| Accounts that never pay               | They cannot write, and they are removed after `30 days`. The proof of work and the address check of design 016 stay.                                                                                                        |
+| Mail                                  | The mail budget of each address that exists, a daily limit of seat invitations for each subscription, and the SES sending quota.                                                                                            |
+| WebSocket connections                 | The bounds of record 0129, for each account and each process.                                                                                                                                                               |
+| Imports and exports                   | The job bounds of record 0170.                                                                                                                                                                                              |
+| Logs                                  | A retention of `30 days` in CloudWatch.                                                                                                                                                                                     |
+| Transfer of the whole service         | A monthly cap on the published transfer of all accounts together.                                                                                                                                                           |
+| The whole bill                        | An AWS budget for each account with alerts at three levels, and AWS cost anomaly detection, both by mail to the owner. These are alarms, not limits.                                                                        |
 
 **The published transfer holds across processes with a short delay.** A write
 to PostgreSQL for each answer of the reader path would make each published
@@ -596,13 +599,15 @@ application from outside.
   same time.
 - A webhook with a wrong signature changes nothing. A repeated event changes
   nothing. An older snapshot after a newer one changes nothing.
+- A lost cancellation event still ends the coverage, through the hourly job
+  and through the daily job.
 - The snapshot function sets the coverage and the limits of every seat in one
   transaction, and a lost seat count removes the newest seats first and never
   the billing owner.
 - The server refuses to start when its billing mode differs from the stored
   mode and an account exists.
-- The published reader answers the closed page past the transfer of the month,
-  and for an account with no plan.
+- The published reader answers the closed page past the transfer of the month
+  of the account and of the whole service, and for an account with no plan.
 - The removal job removes an account that never had a plan after its time, and
   an account whose plan ended after its time, and never an account with a plan.
 - The site build reads its prices from the catalog, and a test fails when the

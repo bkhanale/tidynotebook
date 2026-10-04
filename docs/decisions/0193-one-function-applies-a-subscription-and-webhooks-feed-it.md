@@ -25,10 +25,19 @@ subscription. See
   before it parses anything, stores the event identifier and ignores one it
   has seen, and calls the function for each `subscription.*` event. It answers
   200 for any other valid event and stores nothing for it.
-- An hourly job lists the Paddle events after the newest one that it stored
-  and applies each that it lacks. A daily job lists every subscription that is
-  `active` or `past_due` and applies each snapshot. Both run under an advisory
-  lock (record 0121) and log each difference that they repair.
+- An hourly job reads the Paddle events after a stored cursor, applies each
+  `subscription.*` event that it lacks, and moves the cursor past every event
+  that it read, in the transaction of the last one. The cursor never follows
+  the webhooks, so a lost event is never skipped. Paddle keeps events for a
+  limited time, so the daily job is the bound when the hourly job stops for
+  longer than that.
+- A daily job fetches by identifier every subscription that the database
+  holds as `active` or `past_due`, then lists every subscription that Paddle
+  holds as `active` or `past_due`, and applies each snapshot. A subscription
+  that ended in Paddle while the database still covers it is found by the
+  first pass.
+- Both jobs run under an advisory lock (record 0121) and log each difference
+  that they repair.
 - An API change of record 0191 applies the subscription that Paddle answers
   through the same function, so the person sees the change at once.
 - `pnpm billing:sync` runs both jobs by hand.
@@ -40,6 +49,8 @@ subscription. See
 
 - An outage of Paddle stops no request. A change made in that time arrives
   through a retry of Paddle or through the hourly job.
+- An integration test drops a cancellation event, stores a later event, and
+  proves that both the hourly and the daily job end the coverage.
 - Integration tests feed signed fixture events: a wrong signature changes
   nothing, a repeated event changes nothing, an older snapshot after a newer
   one changes nothing, and the coverage of every seat follows one snapshot.
