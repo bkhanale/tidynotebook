@@ -11,6 +11,19 @@
  * its sums back, so it loses no count. A count belongs to the month in which
  * it happened, so a write after the end of a month still adds it to that
  * month.
+ *
+ * Two errors of one interval are accepted, as record 0193 accepts that
+ * processes pass a limit by the traffic of one interval:
+ *
+ * - A check whose stored read starts after a write commits, and ends before
+ *   this process reads the answer of that write, counts the sums of the
+ *   write twice until `settle` runs. The error is at most one interval of
+ *   this process, it lasts for one answer, and it closes early and never
+ *   late. Only the database knows when a write commits, so the process
+ *   cannot tell this read apart from a read before the commit.
+ * - A write whose commit succeeds and whose answer is lost reads as failed,
+ *   so its sums go to the next write and are stored twice. The error is at
+ *   most one interval of this process, and it closes early and never late.
  */
 import { isZero, sumCounts, zeroCounts, type MonthlyCounts } from './model.ts';
 

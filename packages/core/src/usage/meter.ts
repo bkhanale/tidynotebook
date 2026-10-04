@@ -3,7 +3,8 @@
  * writes its sums.
  *
  * A check reads the stored total of the month and adds the sum of its own
- * process. Several processes can pass a limit by the traffic of one interval
+ * process. A check can count one write twice for a moment, as `tally.ts`
+ * states. Several processes can pass a limit by the traffic of one interval
  * between two writes, and the record accepts that.
  *
  * With no limit of the account and no cap of the installation, a check reads
