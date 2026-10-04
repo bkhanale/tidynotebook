@@ -367,9 +367,10 @@ and an outage of Paddle stops the product.
 **Option B. Webhooks alone.** Paddle posts each change. A lost webhook leaves
 the account wrong until the next change.
 
-**Option C. Webhooks, with a job that reconciles.** Paddle posts each change,
-and an hourly job reads every subscription that changed since its last run and
-applies it again.
+**Option C. Webhooks, with jobs that reconcile.** Paddle posts each change. An
+hourly job reads the Paddle events after the newest one that the server stored,
+and applies each one that it lacks. A daily job reads every live subscription
+and applies it again.
 
 Option C is the choice. Four rules make it safe:
 
@@ -388,8 +389,8 @@ Option C is the choice. Four rules make it safe:
   writes the coverage of an account.
 
 The webhook answers at once after its transaction, and Paddle retries a failed
-delivery. A commit sends a notice to each covered account, so an open
-application sees the change without a reload.
+delivery. A commit sends a notice to each account whose coverage or limits it
+changed, so an open application sees the change without a reload.
 
 ## The ninth question: the checkout
 

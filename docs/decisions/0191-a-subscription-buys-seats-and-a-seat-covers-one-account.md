@@ -21,7 +21,8 @@ planned a second target (record 0108). See
 - The billing owner invites an address to a seat. The invitation is the token
   of record 0108 with the target `seat` and the subscription. It is accepted
   by a new account through the registration function, or by an existing
-  account that no plan covers and that bills no subscription. A seat
+  account that no plan covers and that bills no subscription. The address of
+  that account must equal the address of the invitation. A seat
   invitation counts against the seats, so seats in use plus open invitations
   never pass the seat count.
 - A seat ends when the billing owner removes the member, when the member

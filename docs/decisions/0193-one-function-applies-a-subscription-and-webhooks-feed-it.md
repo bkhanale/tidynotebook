@@ -17,7 +17,8 @@ subscription. See
   ignores a snapshot whose Paddle `updated_at` is not newer than the stored
   one, stores the snapshot, and sets the coverage and the limits of every
   account that holds a seat, in one transaction. It then sends a `billing`
-  notice to each of those accounts through the notice path of record 0125.
+  notice to each account whose coverage or limits it changed, including an
+  account that lost its seat, through the notice path of record 0125.
 - The contract operation `receivePaddleEvent`, at
   `POST /api/billing/paddle-events`, takes each webhook. The handler
   checks the `Paddle-Signature` header against the raw body through the SDK
