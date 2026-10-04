@@ -5,6 +5,25 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.0 - 2026-10-04
+
+This minor release gives the product its new name, tidy notebook, and a new
+install icon. The source and the container image move to the tidynotebook
+organization on GitHub.
+
+### Changed
+
+- **A new name.** The product is tidy notebook. The title of the browser tab,
+  the installed application, the mail and the published page show it.
+- The welcome note of a new account is "Welcome to tidy notebook". An existing
+  note keeps its name.
+- The install icon is a ring bound page with a tn monogram. The small mark in
+  the application shows the same page.
+- The container image is `ghcr.io/tidynotebook/tidynotebook`. Pull this
+  image to get 0.14.0 and each later release.
+- The settings of the server keep their names. An installation needs no other
+  change.
+
 ## 0.13.2 - 2026-10-04
 
 This patch release keeps the tools, the menus and the caret in view when you
