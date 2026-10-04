@@ -5,6 +5,22 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.13.2 - 2026-10-04
+
+This patch release keeps the tools, the menus and the caret in view when you
+write a note on a phone.
+
+### Fixed
+
+- On a phone, the row of formatting tools stands above the note again. You can
+  reach it when the keyboard is closed.
+- The slash menu and the other menus open above the keyboard of a phone. A long
+  menu scrolls and keeps every item.
+- When the keyboard of a phone opens, the caret stays in view. The word count
+  gives its row to the text while you type.
+- A notice at the top of the screen no longer pushes the foot of the note out
+  of view.
+
 ## 0.13.1 - 2026-10-03
 
 This patch release gives the container image that 0.13.0 did not build.
