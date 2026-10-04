@@ -59,6 +59,9 @@ function account(extra: Partial<AccountSummary> = {}): AccountSummary {
 
 await test('a byte count reads in one unit with at most one decimal', () => {
   assert.equal(formatBytes(0), '0 bytes');
+  // A count of one takes the whole phrase of one, as a limit of one byte
+  // reads on the account page (record 0193).
+  assert.equal(formatBytes(1), '1 byte');
   assert.equal(formatBytes(512), '512 bytes');
   assert.equal(formatBytes(1536), '1.5 KB');
   assert.equal(formatBytes(15 * 1024 * 1024), '15 MB');

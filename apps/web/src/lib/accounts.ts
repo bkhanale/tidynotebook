@@ -147,7 +147,10 @@ export function formatBytes(bytes: number): string {
     value /= 1024;
     unit += 1;
   }
-  if (unit === 0) return `${String(Math.round(value))} bytes`;
+  if (unit === 0) {
+    const count = Math.round(value);
+    return count === 1 ? '1 byte' : `${String(count)} bytes`;
+  }
   const shown = value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
   return `${String(shown)} ${byteUnits[unit] ?? 'bytes'}`;
 }
