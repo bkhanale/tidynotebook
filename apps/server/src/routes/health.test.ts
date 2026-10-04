@@ -298,39 +298,45 @@ function storeWithProbe(probe: () => Promise<boolean>): ObjectStore {
   };
 }
 
-await test('a store that never answers reports degraded at its deadline', async (t) => {
-  // Review of record 0192. The probe of the object store had no deadline,
-  // so a store that dropped every packet held the readiness answer.
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const probe = storageProbe(
-    tmpdir(),
-    storeWithProbe(() => new Promise<boolean>(() => undefined)),
-  );
-  let settled = false;
-  const answer = probe().then((check) => {
-    settled = true;
-    return check;
-  });
-  // The deadline starts once the directory is checked, which is real I/O.
-  for (let step = 0; step < 200 && !settled; step += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
-    t.mock.timers.tick(storeReadTimeoutMs);
-  }
-  assert.deepEqual(await answer, {
-    name: 'storage',
-    status: 'degraded',
-    detail: 'The object store does not answer.',
-  });
-  assert.equal(
-    (
-      await storageProbe(
-        tmpdir(),
-        storeWithProbe(async () => true),
-      )()
-    ).status,
-    'ok',
-  );
-});
+await test(
+  'a store that never answers reports degraded at its deadline',
+  { timeout: 10_000 },
+  async (t) => {
+    // Review of record 0192. The probe of the object store had no deadline,
+    // so a store that dropped every packet held the readiness answer.
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const probe = storageProbe(
+      tmpdir(),
+      storeWithProbe(() => new Promise<boolean>(() => undefined)),
+    );
+    let settled = false;
+    const answer = probe().then((check) => {
+      settled = true;
+      return check;
+    });
+    // The deadline starts once the directory is checked, which is real I/O
+    // that takes as long as the machine needs. Each turn of the loop lets
+    // that I/O go on, and the timeout of the test bounds a probe that hangs.
+    while (!settled) {
+      await new Promise((resolve) => setImmediate(resolve));
+      t.mock.timers.tick(storeReadTimeoutMs);
+    }
+    assert.deepEqual(await answer, {
+      name: 'storage',
+      status: 'degraded',
+      detail: 'The object store does not answer.',
+    });
+    assert.equal(
+      (
+        await storageProbe(
+          tmpdir(),
+          storeWithProbe(async () => true),
+        )()
+      ).status,
+      'ok',
+    );
+  },
+);
 
 await test('one running read serves every caller that asks while it runs', async () => {
   let calls = 0;
