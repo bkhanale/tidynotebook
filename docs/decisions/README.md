@@ -234,6 +234,7 @@ and needs no record.
 | [0200](0200-every-cost-of-the-cloud-has-a-limit.md)                                   | Every cost of the cloud has a limit                                             |
 | [0201](0201-a-locked-account-keeps-a-fixed-list-of-operations.md)                     | A locked account keeps a fixed list of operations                               |
 | [0202](0202-the-image-takes-a-migrate-and-a-serve-command.md)                         | The image takes a migrate and a serve command                                   |
+| [0203](0203-the-product-name-is-written-in-lowercase.md)                              | The product name is written in lowercase                                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -816,4 +817,5 @@ and of the installation. Record 0202 gives the image a migrate and a serve
 command. Records 0194 to 0200 state the cloud: Paddle as the merchant of
 record, two plans with seats, the billing service that mirrors Paddle into the
 account controls, its pages and checkout, the landing site, Railway behind
-Cloudflare, and a limit on every cost.
+Cloudflare, and a limit on every cost. Record 0203 writes the name in lowercase, tidy
+notebook, and gives the install icon its tn monogram.
