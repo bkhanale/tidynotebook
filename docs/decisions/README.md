@@ -235,6 +235,7 @@ and needs no record.
 | [0201](0201-a-locked-account-keeps-a-fixed-list-of-operations.md)                     | A locked account keeps a fixed list of operations                               |
 | [0202](0202-the-image-takes-a-migrate-and-a-serve-command.md)                         | The image takes a migrate and a serve command                                   |
 | [0203](0203-the-product-name-is-written-in-lowercase.md)                              | The product name is written in lowercase                                        |
+| [0204](0204-the-release-gate-builds-the-image-before-the-tag.md)                      | The release gate builds the image before the tag                                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -819,3 +820,6 @@ record, two plans with seats, the billing service that mirrors Paddle into the
 account controls, its pages and checkout, the landing site, Railway behind
 Cloudflare, and a limit on every cost. Record 0203 writes the name in lowercase, tidy
 notebook, and gives the install icon its tn monogram.
+
+Record 0204 builds the image in the release gate before the tag, from the
+committed tree, because the tags of 0.13.0 and 0.14.0 have no image.

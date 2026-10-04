@@ -6,8 +6,8 @@
  * reference and then applies the same exact version rule to the resolved
  * value, so a range fails wherever a person writes it.
  */
-import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { glob, readFile } from 'node:fs/promises';
+import { join, matchesGlob, posix, resolve, sep } from 'node:path';
 import { readJson, record, root, workspaces } from './workspace.mjs';
 
 /** A manifest states this, or the catalog states it for the manifest. */
@@ -239,6 +239,86 @@ export function patchCopyFailures(dockerfile, patches) {
 }
 
 /**
+ * Tells whether `.dockerignore` keeps a file out of the image build context.
+ *
+ * A rule matches the file or a folder above it, the last matching rule wins,
+ * and a rule that starts with `!` brings the file back, as Docker reads them.
+ *
+ * @param {string} ignore
+ * @param {string} file
+ * @returns {boolean}
+ */
+export function outsideContext(ignore, file) {
+  const parts = file.split('/');
+  const paths = parts.map((_, index) => parts.slice(0, index + 1).join('/'));
+  let excluded = false;
+  for (const raw of ignore.split('\n')) {
+    const line = raw.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const keep = line.startsWith('!');
+    const rule = (keep ? line.slice(1) : line)
+      .replace(/^\.?\//, '')
+      .replace(/\/$/, '');
+    if (paths.some((path) => matchesGlob(path, rule))) excluded = !keep;
+  }
+  return excluded;
+}
+
+/**
+ * The failures of the files that the image build type-checks against the
+ * build context.
+ *
+ * `pnpm build` runs the root `tsc` inside the image, so each file that the
+ * root `tsconfig.json` includes and the context keeps must import only files
+ * that the context keeps. Without it the image build fails only after a tag
+ * is pushed.
+ *
+ * @param {string} ignore
+ * @param {{ path: string; text: string }[]} files
+ * @returns {string[]}
+ */
+export function contextImportFailures(ignore, files) {
+  /** @type {string[]} */
+  const failures = [];
+  for (const file of files) {
+    if (outsideContext(ignore, file.path)) continue;
+    const imports = file.text.matchAll(
+      /\b(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/g,
+    );
+    for (const [, specifier = ''] of imports) {
+      const target = posix.join(posix.dirname(file.path), specifier);
+      if (outsideContext(ignore, target))
+        failures.push(
+          `${file.path} imports ${target}, which .dockerignore keeps out of the image build.`,
+        );
+    }
+  }
+  return failures;
+}
+
+/**
+ * The files that the root `tsconfig.json` includes, with their text.
+ *
+ * @param {string} directory
+ * @returns {Promise<{ path: string; text: string }[]>}
+ */
+async function typeCheckedFiles(directory) {
+  const config = await readJson(join(directory, 'tsconfig.json')).catch(
+    () => ({}),
+  );
+  const include = record(config).include;
+  const patterns = Array.isArray(include) ? include.map(String) : [];
+  /** @type {{ path: string; text: string }[]} */
+  const files = [];
+  for await (const path of glob(patterns, { cwd: directory }))
+    files.push({
+      path: path.split(sep).join('/'),
+      text: await readFile(join(directory, path), 'utf8'),
+    });
+  return files;
+}
+
+/**
  * The version policy over one workspace tree, and the manifests it read.
  *
  * @param {string} [directory]
@@ -271,6 +351,12 @@ export async function versionPolicy(directory = root) {
   ).catch(() => '');
   failures.push(...imageFailures(dockerfile, serviceScript(manifest), runtime));
   failures.push(...patchCopyFailures(dockerfile, patchFiles(workspaceText)));
+  const ignore = await readFile(join(directory, '.dockerignore'), 'utf8').catch(
+    () => '',
+  );
+  failures.push(
+    ...contextImportFailures(ignore, await typeCheckedFiles(directory)),
+  );
   const pinnedManager = String(manifest.packageManager).split('+')[0] ?? '';
   const expectedManager = pinnedManager.replace(/^pnpm@/, '');
   if (engines.pnpm !== expectedManager)

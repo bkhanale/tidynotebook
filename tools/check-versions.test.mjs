@@ -7,7 +7,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   baseImages,
+  contextImportFailures,
   imageFailures,
+  outsideContext,
   parseCatalogs,
   patchCopyFailures,
   patchFiles,
@@ -386,4 +388,56 @@ await test('a Dockerfile that installs before it copies a patch is refused', () 
   ].join('\n');
   assert.deepEqual(patchCopyFailures(after, [patch]), []);
   assert.deepEqual(patchCopyFailures(before, []), []);
+});
+
+await test('the build context follows the rules of .dockerignore', () => {
+  const ignore = [
+    '# a comment',
+    'apps/docs',
+    '**/dist',
+    'tools/*.test.mjs',
+    'docs',
+    '!docs/keep.md',
+  ].join('\n');
+  assert.equal(outsideContext(ignore, 'apps/docs/src/site.ts'), true);
+  assert.equal(outsideContext(ignore, 'apps/web/src/main.ts'), false);
+  assert.equal(outsideContext(ignore, 'packages/ui/dist/index.js'), true);
+  assert.equal(outsideContext(ignore, 'tools/a.test.mjs'), true);
+  assert.equal(outsideContext(ignore, 'tools/a.mjs'), false);
+  assert.equal(outsideContext(ignore, 'docs/other.md'), true);
+  assert.equal(outsideContext(ignore, 'docs/keep.md'), false);
+});
+
+// Regression: the tag of 0.14.0 has no image. The root tsc of the image build
+// read a tool test that imports the docs site, which the context leaves out.
+await test('a type-checked file that imports outside the build context is refused', () => {
+  const file = {
+    path: 'tools/product-name.test.mjs',
+    text: [
+      "import { productName } from '../packages/core/src/product.ts';",
+      "import { productName as docs } from '../apps/docs/src/site.ts';",
+      "const later = await import('../tests/fixture.mjs');",
+    ].join('\n'),
+  };
+  assert.deepEqual(contextImportFailures('apps/docs\ntests', [file]), [
+    'tools/product-name.test.mjs imports apps/docs/src/site.ts, which .dockerignore keeps out of the image build.',
+    'tools/product-name.test.mjs imports tests/fixture.mjs, which .dockerignore keeps out of the image build.',
+  ]);
+  assert.deepEqual(
+    contextImportFailures('apps/docs\ntests\ntools/*.test.mjs', [file]),
+    [],
+  );
+});
+
+await test('the checker refuses a tree whose image build cannot read an import', () => {
+  const result = check({
+    '.dockerignore': 'apps/docs\n',
+    'tsconfig.json': JSON.stringify({ include: ['tools/*.mjs'] }),
+    'tools/a.mjs': "import { name } from '../apps/docs/src/site.ts';\n",
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(
+    result.output,
+    /tools\/a\.mjs imports apps\/docs\/src\/site\.ts/,
+  );
 });
