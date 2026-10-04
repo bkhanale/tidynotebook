@@ -287,6 +287,7 @@ function storeWithProbe(probe: () => Promise<boolean>): ObjectStore {
     removePrefix: refuse,
     list: refuse,
     startUpload: refuse,
+    declaredSize: refuse,
     writePart: refuse,
     listParts: refuse,
     completeUpload: refuse,
