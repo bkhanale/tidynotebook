@@ -104,9 +104,39 @@ add a common thing, how to test it, and what is forbidden. **Read the
 [docs/decisions](docs/decisions/README.md) holds the architecture decision
 records. A new architectural choice gets a record before the code.
 
+## License and sign-off
+
+tidy notebook is under the GNU Affero General Public License, version 3 only
+([AGPL-3.0-only](LICENSE)). A contribution comes in under the same license.
+There is no contributor license agreement.
+
+Each commit of a contribution carries a sign-off. The sign-off states that you
+agree to the [Developer Certificate of Origin](https://developercertificate.org):
+you wrote the change, or you have the right to give it under the license of
+this repository. Git writes the sign-off for you:
+
+```bash
+git commit --signoff
+```
+
+The sign-off is a `Signed-off-by: Your Name <your address>` line at the end of
+the commit message. The address must be the author address of the commit. To
+add the sign-off to each commit of a branch that you already wrote, run:
+
+```bash
+git rebase --signoff origin/main
+```
+
+The `DCO` workflow in `.github/workflows/dco.yml` runs on each pull request.
+It fails when a commit has no sign-off of its author. A commit of the owner
+needs no sign-off, because the owner holds the copyright. The rule is in
+`tools/check-dco.mjs`.
+
 ## Workflow
 
-There are no pull requests. Work lands directly on `main`.
+The owner lands work directly on `main`. A contributor opens a pull request
+from a fork, and the owner lands it after review. The steps below are the
+path of the owner.
 
 1. Create a worktree on a short-lived branch:
 
