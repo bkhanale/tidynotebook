@@ -28,8 +28,9 @@ things.
    country, no invoice by hand, no failed payment to chase.
 3. **Production infrastructure.** The cloud must scale and stay up. The
    subscription decides who has access, and every resource that costs the
-   owner money has a limit, so no account and no stranger can make the bill
-   grow without bound.
+   owner money has a limit, so no account and no use of the product can make
+   the bill grow without bound. A flood of requests is the one exception, and
+   the thirteenth question states its cost.
 
 The cloud has no free plan. The self-hosted edition has every feature, costs
 nothing, sends nothing to the owner, and becomes open source.
@@ -515,8 +516,8 @@ a person in another continent. The shape:
 - **Compute.** One ECS service on Fargate with ARM64 tasks, at least two, at
   most six, scaled on CPU. An application load balancer in front, with AWS WAF.
 - **Database.** RDS for PostgreSQL 18, in two zones, with automated backups for
-  `35 days`, deletion protection, and a daily copy of the backups to
-  `eu-west-1`.
+  `35 days`, deletion protection, and a daily AWS Backup copy to a vault in
+  `eu-west-1` that deletes each copy after the same time.
 - **Objects.** One S3 bucket for attachments, with versioning, and a replica
   in `eu-west-1`. A lifecycle rule on both removes a deleted version after a
   short recovery time, so a deletion ends its charge.
@@ -572,6 +573,17 @@ when the database runs out of CPU, of storage or of connections, when the
 webhook fails, when the reconciling job finds a difference, and when SES
 reports too many bounces. A Route 53 health check reads `/ready` of the
 application from outside.
+
+**A flood is the one cost with no hard bound.** WAF charges for each request
+that it inspects, also for a request that it then blocks. AWS Shield Standard
+absorbs a flood at the network layer for free, but only Shield Advanced
+refunds the WAF fee of a flood, and its monthly fee is larger than the whole
+bill of the launch. The cloud therefore accepts this one cost and makes it
+short: an alarm on the request count of each WAF mails the owner within
+minutes, and the runbook of `docs/development/cloud.md` states the steps that
+stop it, from a rule that blocks the source to a host that answers nothing
+for a time. The fee for each million requests is small, so a flood that the
+alarm reports early costs little.
 
 ## What stays out
 

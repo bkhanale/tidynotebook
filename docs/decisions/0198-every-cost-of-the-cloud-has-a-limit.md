@@ -54,14 +54,20 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 - **Alarms** by mail to the owner: errors and latency of the load balancer,
   a task that does not start, CPU, storage and connections of the database,
   a failed webhook, a difference that a reconciling job repaired, the bounce
-  rate of SES, and a Route 53 health check of `/ready` from outside.
+  rate of SES, a failed backup or backup copy, the request count of each WAF,
+  and a Route 53 health check of `/ready` from outside.
+- **A flood.** WAF charges for each request that it inspects, also one that it
+  blocks, and only Shield Advanced refunds that fee. Its monthly fee is larger
+  than the whole bill of the launch, so the cloud does not buy it. The alarm
+  on the request count of WAF and the flood runbook of
+  `docs/development/cloud.md` keep a flood short.
 
 ## Consequences
 
-- Each line of the bill that use drives has a bound: storage, database,
-  transfer, compute and mail. The one cost that a flood still drives is the
-  fee of WAF for each request that it inspects. AWS Shield Standard absorbs a
-  flood at the network layer, and the alarms report the rest.
+- Each line of the bill that use of the product drives has a hard bound:
+  storage, database, backups, transfer, compute and mail. The WAF fee of a
+  flood is the one cost with no hard bound. The alarm and the runbook make it
+  short, and the owner accepts it.
 - An integration test proves that the reader path closes past the transfer of
   the month of one account and of the whole service, with two server
   instances that share one total.

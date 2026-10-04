@@ -35,7 +35,9 @@ scale, and Kubernetes is a second product to run. See
   holds no address and no cookie.
 - RDS for PostgreSQL 18 in two zones, `db.t4g.medium` in production and a
   single `db.t4g.small` in staging, with backups for `35 days`, deletion
-  protection and a daily copy to `eu-west-1`.
+  protection. An AWS Backup plan copies a daily backup to a vault in
+  `eu-west-1`, and its lifecycle deletes each copy after `35 days`. An alarm
+  mails the owner when a backup or a copy job fails.
 - One S3 bucket for attachments (record 0196), with versioning and a replica
   in `eu-west-1` that also replicates delete markers. A delete of the object
   store removes the current version. A lifecycle rule on both buckets removes
