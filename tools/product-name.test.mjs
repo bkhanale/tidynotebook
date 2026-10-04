@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { root } from './workspace.mjs';
-import { productName } from '../packages/core/src/product.ts';
+import { productName, productShortName } from '../packages/core/src/product.ts';
 import { productName as docsProductName } from '../apps/docs/src/site.ts';
 
 // Record 0187: `productName` of `packages/core/src/product.ts` is the one
@@ -27,6 +27,13 @@ const history = [
   'docs/audits/',
   'CHANGELOG.md',
 ];
+
+await test('the name is written in lowercase', () => {
+  // Record 0203: the name keeps its lowercase on every surface, even at the
+  // start of a sentence.
+  assert.equal(productName, 'tidy notebook');
+  assert.equal(productShortName, 'tidy');
+});
 
 await test('the documentation site names the product of the core', () => {
   assert.equal(docsProductName, productName);

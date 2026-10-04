@@ -10,9 +10,9 @@ import {
 } from './guide.ts';
 
 const index = [
-  '# Tidy Notebook guide',
+  '# tidy notebook guide',
   '',
-  'This page is for anyone who uses Tidy Notebook.',
+  'This page is for anyone who uses tidy notebook.',
   '',
   '## Writing notes',
   '',

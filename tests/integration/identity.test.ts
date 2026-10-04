@@ -181,7 +181,7 @@ await test('setup leaves exactly one note, the welcome note', async () => {
   assert.equal(files.error, undefined, JSON.stringify(files.error));
   assert.deepEqual(
     files.data?.files.map((file) => file.path),
-    ['Welcome to Tidy Notebook.md'],
+    ['Welcome to tidy notebook.md'],
   );
   const welcome = files.data?.files[0];
   assert.equal(welcome?.kind, 'note');

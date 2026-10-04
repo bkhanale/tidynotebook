@@ -14,7 +14,7 @@
  * `@notesapp/core`, so `tools/product-name.test.mjs` holds this copy to
  * `productName` of `packages/core/src/product.ts` (record 0187).
  */
-export const productName = 'Tidy Notebook';
+export const productName = 'tidy notebook';
 
 /** The name of the site, as a browser tab and a search engine read it. */
 export const siteName = `${productName} docs`;

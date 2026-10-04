@@ -1,4 +1,4 @@
-# Production Compose file for one Tidy Notebook instance.
+# Production Compose file for one tidy notebook instance.
 #
 # Five values are required and have no default: NOTESAPP_ORIGIN and the three
 # host directories that hold the database, the stored files, and the secrets.

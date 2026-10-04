@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create one encrypted Tidy Notebook backup.
+# Create one encrypted tidy notebook backup.
 #
 # The database part is consistent on its own: pg_dump reads one transaction
 # snapshot. The attachment files are content addressed by their digest, so a

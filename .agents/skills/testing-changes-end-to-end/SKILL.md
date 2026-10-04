@@ -1,6 +1,6 @@
 ---
 name: testing-changes-end-to-end
-description: Runs this worktree's own copy of the whole Tidy Notebook application, server and web client, on its own port with its own database and file store, and drives it in a headless Chromium through Playwright as one or more devices or tabs, with screenshots in light and dark. Several worktrees can do this at the same time without conflict. Use it to see or operate a change in the real application, to reproduce a defect in a browser, to take the light and dark screenshots before a landing, or to act as two devices on one note. It covers how to start, reach, drive and stop the application, not what to check.
+description: Runs this worktree's own copy of the whole tidy notebook application, server and web client, on its own port with its own database and file store, and drives it in a headless Chromium through Playwright as one or more devices or tabs, with screenshots in light and dark. Several worktrees can do this at the same time without conflict. Use it to see or operate a change in the real application, to reproduce a defect in a browser, to take the light and dark screenshots before a landing, or to act as two devices on one note. It covers how to start, reach, drive and stop the application, not what to check.
 ---
 
 # Testing changes end to end

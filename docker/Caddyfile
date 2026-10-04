@@ -1,4 +1,4 @@
-# TLS front of one Tidy Notebook installation.
+# TLS front of one tidy notebook installation.
 #
 # The `tls` profile of `docker-compose.yml` starts this file. Caddy answers the
 # domain in NOTESAPP_DOMAIN and the domain of published pages in

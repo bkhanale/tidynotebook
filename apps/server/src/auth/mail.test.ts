@@ -20,9 +20,9 @@ const message: MailMessage = {
 
 await test('every message states that a program wrote it', () => {
   assert.deepEqual(
-    envelopeOf('Tidy Notebook <no-reply@example.com>', message),
+    envelopeOf('tidy notebook <no-reply@example.com>', message),
     {
-      from: 'Tidy Notebook <no-reply@example.com>',
+      from: 'tidy notebook <no-reply@example.com>',
       to: 'a@example.com',
       subject: 'Subject',
       text: 'Text\n',

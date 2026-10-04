@@ -104,8 +104,8 @@ await test('the manifest takes its interface colour from the registry', () => {
   const theme = defaultThemeFor('dark');
   assert.equal(manifest.theme_color, theme.tokens.background);
   assert.equal(manifest.background_color, theme.tokens.background);
-  assert.equal(manifest.name, 'Tidy Notebook');
-  assert.equal(manifest.short_name, 'Tidy');
+  assert.equal(manifest.name, 'tidy notebook');
+  assert.equal(manifest.short_name, 'tidy');
 });
 
 await test('the editor reads exactly the syntax group of a theme', () => {

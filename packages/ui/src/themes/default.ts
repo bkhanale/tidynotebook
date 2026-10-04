@@ -22,7 +22,7 @@
 import type { Theme, ThemeFamily, ThemeSource } from '../theme.ts';
 
 const source: ThemeSource = {
-  project: 'Tidy Notebook',
+  project: 'tidy notebook',
   url: 'https://github.com/tidynotebook/tidynotebook',
   licence: 'MIT',
 };

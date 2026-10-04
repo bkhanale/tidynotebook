@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in Tidy Notebook. This page is the complete setup and
+Thank you for your interest in tidy notebook. This page is the complete setup and
 landing path. Read [AGENTS.md](AGENTS.md) for the full rule set and
 [docs/development/architecture.md](docs/development/architecture.md) for the
 current picture of the system.

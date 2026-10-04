@@ -22,7 +22,7 @@ services:
       NOTESAPP_SMTP_SECURITY: ${NOTESAPP_SMTP_SECURITY:?Set NOTESAPP_SMTP_SECURITY in .env to tls, starttls or none.}
       NOTESAPP_SMTP_USERNAME: ${NOTESAPP_SMTP_USERNAME:?Set NOTESAPP_SMTP_USERNAME in .env. It is the user name that signs in to the mail server.}
       NOTESAPP_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
-      NOTESAPP_MAIL_FROM: ${NOTESAPP_MAIL_FROM:?Set NOTESAPP_MAIL_FROM in .env. It names the sender of every message, for example Tidy Notebook <no-reply@notes.example.com>.}
+      NOTESAPP_MAIL_FROM: ${NOTESAPP_MAIL_FROM:?Set NOTESAPP_MAIL_FROM in .env. It names the sender of every message, for example tidy notebook <no-reply@notes.example.com>.}
     secrets:
       - smtp_password
 

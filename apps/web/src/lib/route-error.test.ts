@@ -63,8 +63,8 @@ await test('a failure of the application names the application', () => {
     pathname: '/login',
     workspaceId: null,
   });
-  assert.equal(screen.title, 'Tidy Notebook stopped');
-  assert.match(screen.description, /^An error stopped Tidy Notebook\./);
+  assert.equal(screen.title, 'tidy notebook stopped');
+  assert.match(screen.description, /^An error stopped tidy notebook\./);
   assert.equal(screen.notesPath, '/');
 });
 

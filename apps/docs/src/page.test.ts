@@ -12,7 +12,7 @@ import {
 
 const groups = readGuideIndex(
   [
-    '# Tidy Notebook guide',
+    '# tidy notebook guide',
     '',
     '## Hosting a server',
     '',
@@ -58,7 +58,7 @@ await test('text and attributes lose every markup character', () => {
 
 await test('a page states its title, its reader and its alternates', () => {
   const html = pageDocument(view);
-  assert.match(html, /<title>Self-hosting \| Tidy Notebook docs<\/title>/);
+  assert.match(html, /<title>Self-hosting \| tidy notebook docs<\/title>/);
   assert.match(
     html,
     /<meta name="description" content="This page is for the person who runs the server\.">/,

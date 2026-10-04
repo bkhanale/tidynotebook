@@ -1318,7 +1318,7 @@ export type MailSettingsInput = {
      */
     username?: string;
     /**
-     * The sender of every message, an address or a name and an address, for example Tidy Notebook <no-reply@notes.example.com>.
+     * The sender of every message, an address or a name and an address, for example tidy notebook <no-reply@notes.example.com>.
      */
     sender: string;
 };
@@ -2764,7 +2764,7 @@ export type MailSettingsInputWritable = {
      */
     password?: string;
     /**
-     * The sender of every message, an address or a name and an address, for example Tidy Notebook <no-reply@notes.example.com>.
+     * The sender of every message, an address or a name and an address, for example tidy notebook <no-reply@notes.example.com>.
      */
     sender: string;
 };

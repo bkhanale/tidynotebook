@@ -13,11 +13,11 @@ const hosted = { base: '/notesapp/', origin: 'https://docs.bhu.sh' };
 const local = { base: '/', origin: null };
 
 const readme = [
-  '# Tidy Notebook guide',
+  '# tidy notebook guide',
   '',
-  'This page is for anyone who uses Tidy Notebook.',
+  'This page is for anyone who uses tidy notebook.',
   '',
-  'Tidy Notebook is a self-hosted Markdown notes application.',
+  'tidy notebook is a self-hosted Markdown notes application.',
   '',
   '## Writing notes',
   '',
@@ -50,9 +50,9 @@ await test('llms.txt names every page with its summary', () => {
   assert.equal(
     llmsIndex(hosted, groups, home),
     [
-      '# Tidy Notebook docs',
+      '# tidy notebook docs',
       '',
-      '> Tidy Notebook is a self-hosted Markdown notes application.',
+      '> tidy notebook is a self-hosted Markdown notes application.',
       '',
       'Each link opens the Markdown copy of one page. Every page in one file: https://docs.bhu.sh/notesapp/llms-full.txt. The pages for people start at https://docs.bhu.sh/notesapp/.',
       '',
@@ -89,7 +89,7 @@ await test('a Markdown copy links the other copies', () => {
 await test('llms-full.txt holds every page in reading order', () => {
   const full = llmsFull(hosted, files, pages);
   const order = [
-    '# Tidy Notebook guide',
+    '# tidy notebook guide',
     '# Getting started',
     '# Quick start',
   ].map((title) => full.indexOf(title));

@@ -29,7 +29,7 @@ the account with a command on the server. See
 
 ## What you see first
 
-Your new account already holds one note, **Welcome to Tidy Notebook**. It is a
+Your new account already holds one note, **Welcome to tidy notebook**. It is a
 normal note: you can change it, rename it, or delete it.
 
 The screen has three parts.

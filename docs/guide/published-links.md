@@ -48,7 +48,7 @@ opens without a password.
 If you give a password, the person must type it before the note opens. Send the
 password in a different message than the link.
 
-The reader types the password to open the link. Tidy Notebook keeps that answer for
+The reader types the password to open the link. tidy notebook keeps that answer for
 12 hours while the reader moves between the notes of a folder link. The page
 asks for the password again after that time, and it asks again when the reader
 opens the address in a new browser.
@@ -102,7 +102,7 @@ the main site moves the reader there.
 
 - It does not let anybody change your note.
 - It does not open a note outside the link. A note in the Trash stays closed.
-- It does not count the readers. Tidy Notebook does not tell you how many people
+- It does not count the readers. tidy notebook does not tell you how many people
   opened a link, or when they opened it.
 - It does not hide the address. Every person who has the address reads the
   note. Send the address only to people you trust. Revoke the link when the

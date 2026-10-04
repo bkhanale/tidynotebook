@@ -59,13 +59,13 @@ is missed most often.
 ```sh
 # It is missing.
 node tools/release-notes.mjs X.Y.Z \
-  | gh release create vX.Y.Z --verify-tag --latest --title "Tidy Notebook X.Y.Z" --notes-file -
+  | gh release create vX.Y.Z --verify-tag --latest --title "tidy notebook X.Y.Z" --notes-file -
 
 # The body does not match the changelog.
 node tools/release-notes.mjs X.Y.Z | gh release edit vX.Y.Z --notes-file -
 
 # The title is wrong.
-gh release edit vX.Y.Z --title "Tidy Notebook X.Y.Z"
+gh release edit vX.Y.Z --title "tidy notebook X.Y.Z"
 
 # GitHub calls an older release the latest one.
 gh release edit vX.Y.Z --latest

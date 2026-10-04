@@ -38,7 +38,7 @@ the person in after the account exists.
 ## Sign-in and sessions
 
 Better Auth owns password hashing, sessions, reset tokens, and cookie security.
-Tidy Notebook mounts only the routes it needs; `better-auth.ts` states the exact
+tidy notebook mounts only the routes it needs; `better-auth.ts` states the exact
 list, and the sign-up route is not one of them.
 
 A session create hook asks `notesapp_session_account` before every new

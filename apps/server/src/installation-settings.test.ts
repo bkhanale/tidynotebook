@@ -264,10 +264,10 @@ await test('a template takes the host of the origin', () => {
   const { settings } = decider(emptyInstallationSettings);
   assert.match(
     settings.template('terms'),
-    /Tidy Notebook at notes\.example\.com/,
+    /tidy notebook at notes\.example\.com/,
   );
   assert.match(
     settings.template('privacy'),
-    /Tidy Notebook at notes\.example\.com/,
+    /tidy notebook at notes\.example\.com/,
   );
 });

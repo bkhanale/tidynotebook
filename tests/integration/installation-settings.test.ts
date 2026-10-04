@@ -227,7 +227,7 @@ await test('a test message goes to the administrator and a failure names its kin
   assert.equal(responseOf(tested.response).status, 200);
   assert.deepEqual(tested.data, { to: ownerEmail });
   assert.equal(sent.at(-1)?.to, ownerEmail);
-  assert.match(sent.at(-1)?.subject ?? '', /^Test message from Tidy Notebook/);
+  assert.match(sent.at(-1)?.subject ?? '', /^Test message from tidy notebook/);
   failure = Object.assign(new Error('535 5.7.8 rejected for notes'), {
     code: 'EAUTH',
     responseCode: 535,
@@ -293,7 +293,7 @@ await test('the template fills what the server knows and a blank is refused', as
   assert.equal(read.data?.document, null);
   assert.equal(read.data?.source, 'none');
   const template = read.data?.template ?? '';
-  assert.match(template, /Tidy Notebook at 127\.0\.0\.1/);
+  assert.match(template, /tidy notebook at 127\.0\.0\.1/);
   // The breach check is off here, so the template names no such service.
   assert.doesNotMatch(template, /Have I Been Pwned/);
   const refused = await updateLegalDocument({
