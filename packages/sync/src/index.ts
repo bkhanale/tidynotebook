@@ -78,6 +78,7 @@ export {
   SnapshotRestartNeeded,
   SyncFailedError,
   transportFailedCode,
+  downloadLimitCode,
 } from './queue.ts';
 export type {
   ChangeRecord,

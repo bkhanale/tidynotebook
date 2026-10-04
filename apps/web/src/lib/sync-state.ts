@@ -13,6 +13,7 @@
  * disagree.
  */
 import {
+  downloadLimitCode,
   transportFailedCode,
   type QueueState,
   type SyncNotice,
@@ -29,6 +30,11 @@ export type SyncState =
   | { readonly kind: 'sending' }
   /** The device has no connection, so saves wait here. */
   | { readonly kind: 'waiting' }
+  /**
+   * The first sync of this device waits for the next month, because the
+   * download limit of the month is used (record 0193). Saves wait here.
+   */
+  | { readonly kind: 'download-limit' }
   /**
    * The server refused saves for good, so they are parked and wait in the
    * Needs attention list. Nothing sends them until the person acts.
@@ -132,7 +138,9 @@ export function syncStateOfNotice(notice: SyncNotice): SyncState | null {
   if (notice.kind === 'cycle-error')
     return notice.code === transportFailedCode
       ? { kind: 'waiting' }
-      : { kind: 'stopped' };
+      : notice.code === downloadLimitCode
+        ? { kind: 'download-limit' }
+        : { kind: 'stopped' };
   return null;
 }
 
@@ -153,6 +161,8 @@ export function syncStateMessage(
   if (state.kind === 'sending') return 'Sending your save to the server.';
   if (state.kind === 'waiting')
     return 'No connection. Saves wait on this device.';
+  if (state.kind === 'download-limit')
+    return 'Sync waits for the next month. Saves wait here.';
   // The status only states the fact. The Needs attention link below it is
   // the way to the saves, so the cause has one message and one action.
   if (state.kind === 'attention')

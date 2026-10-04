@@ -158,6 +158,16 @@ export type SyncContext = {
  */
 export const transportFailedCode = 'transport_failed';
 
+/**
+ * The code of a download that waits for the next month (record 0193).
+ *
+ * A sync snapshot past the download limit of the account or the cap of the
+ * installation answers it with 429. The limit holds until the next month in
+ * UTC, so a try again within one run cannot pass it, and the interface
+ * states this cause and not a lost connection.
+ */
+export const downloadLimitCode = 'download_limit';
+
 /** How one push run ended. `deferred` means transport failed; retry later. */
 export type PushOutcome = 'done' | 'deferred' | 'paused' | 'access-lost';
 
@@ -261,7 +271,11 @@ export async function sendWithRetry<T>(
       continue;
     }
     if (outcome.ok) return outcome;
-    if (!isRetryableStatus(outcome.problem.status)) return outcome;
+    if (
+      !isRetryableStatus(outcome.problem.status) ||
+      outcome.problem.code === downloadLimitCode
+    )
+      return outcome;
     if (attempt + 1 >= maxAttempts) return null;
     const delayMs = backoffDelay(attempt, ctx.random);
     ctx.announce({ kind: 'retry', attempt: attempt + 1, delayMs });

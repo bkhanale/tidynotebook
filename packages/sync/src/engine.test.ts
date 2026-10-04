@@ -35,7 +35,9 @@ import {
 import { acquireWorkerLease, releaseWorkerLease } from './lease.ts';
 import {
   backoffDelay,
+  downloadLimitCode,
   pushQueue,
+  SyncFailedError,
   type CommitResult,
   type Problem,
   type PushOutcome,
@@ -1459,6 +1461,31 @@ await test('backoff delays grow exponentially within the cap', async () => {
     999,
   );
   assert.ok(backoffDelay(3, () => 0.5) <= 8500);
+});
+
+await test('a snapshot past the download limit of the month fails at once with its code', async () => {
+  // Record 0193. The limit holds until the next month, so a try again in
+  // the same run only waits, and the interface names the cause.
+  const store = new FakeStore();
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let starts = 0;
+  const ops = stubOperations({
+    start: () => {
+      starts += 1;
+      return Promise.resolve({
+        ok: false as const,
+        problem: { status: 429, code: downloadLimitCode, fileIds: [] },
+      });
+    },
+  });
+  await assert.rejects(
+    pullNew(store, accountId, workspaceId, ops, testContext(notices, delays)),
+    (error: unknown) =>
+      error instanceof SyncFailedError && error.code === downloadLimitCode,
+  );
+  assert.equal(starts, 1);
+  assert.deepEqual(delays, []);
 });
 
 await test('the first pull stages, fetches, and activates a snapshot', async () => {

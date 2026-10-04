@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
+import {
+  downloadLimitCode,
+  transportFailedCode,
+  type SyncNotice,
+} from '@notesapp/sync';
 import {
   noticeReadsQueue,
   noticeStartsOver,
@@ -99,6 +103,7 @@ const states: readonly SyncState[] = [
   { kind: 'in-step' },
   { kind: 'sending' },
   { kind: 'waiting' },
+  { kind: 'download-limit' },
   { kind: 'attention', parked: 1 },
   { kind: 'attention', parked: 3 },
   { kind: 'delete-refused', path: 'plans/old.md' },
@@ -360,6 +365,21 @@ await test('a lost connection says that there is no connection', () => {
   });
   assert.deepEqual(state, { kind: 'waiting' });
   assert.match(syncStateMessage(state ?? startingSyncState), /No connection/);
+});
+
+await test('a first sync past the download limit names its cause, not the connection', () => {
+  // Record 0193. A new device whose snapshot waits for the next month read
+  // that it had no connection, which was not the cause.
+  const state = syncStateOfNotice({
+    kind: 'cycle-error',
+    code: downloadLimitCode,
+  });
+  assert.deepEqual(state, { kind: 'download-limit' });
+  assert.equal(
+    syncStateMessage(state ?? startingSyncState),
+    'Sync waits for the next month. Saves wait here.',
+  );
+  assert.equal(syncDot(state ?? startingSyncState, true), 'pending');
 });
 
 await test('a refusal still says that saving stopped', () => {
