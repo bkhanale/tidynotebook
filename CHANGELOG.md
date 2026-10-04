@@ -5,6 +5,15 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.14.1 - 2026-10-04
+
+This patch release gives the container image that 0.14.0 did not build.
+
+### Fixed
+
+- The container image builds again. The tag 0.14.0 has no image, and this
+  release holds every change of 0.14.0.
+
 ## 0.14.0 - 2026-10-04
 
 This minor release gives the product its new name, tidy notebook, and a new
@@ -19,8 +28,7 @@ organization on GitHub.
   note keeps its name.
 - The install icon is a ring bound page with a tn monogram. The small mark in
   the application shows the same page.
-- The container image is `ghcr.io/tidynotebook/tidynotebook`. Pull this
-  image to get 0.14.0 and each later release.
+- The container image moves to `ghcr.io/tidynotebook/tidynotebook`.
 - The settings of the server keep their names. An installation needs no other
   change.
 
