@@ -13,6 +13,13 @@
 -- statement adds every sum, so a failure adds none and the process keeps its
 -- sums for the next write. A sum of an account that does not exist adds
 -- nothing, so one such sum never blocks the others.
+--
+-- Every process writes the installation row and many account rows at once,
+-- so the write locks its rows in one order: the month, then the
+-- installation, then each account by its identifier. Two writes then wait
+-- for each other and never deadlock. The loop reads its sums in that order
+-- and writes one row at a time, because the order in which one statement
+-- writes the rows of a grouping is not a rule of the planner.
 CREATE FUNCTION public.notesapp_add_monthly_usage(
 		p_months date[],
 		p_accounts uuid[],
@@ -27,6 +34,7 @@ CREATE FUNCTION public.notesapp_add_monthly_usage(
 	AS $$
 	DECLARE
 		size integer := coalesce(cardinality(p_months), 0);
+		entry record;
 	BEGIN
 		IF coalesce(cardinality(p_accounts), 0) <> size
 			OR coalesce(cardinality(p_published), 0) <> size
@@ -36,21 +44,32 @@ CREATE FUNCTION public.notesapp_add_monthly_usage(
 			RAISE EXCEPTION 'notesapp: each monthly count needs every member'
 				USING ERRCODE = '22023';
 		END IF;
-		INSERT INTO public.monthly_usage AS mu (month, account_id,
-			published_transfer_bytes, download_bytes, object_writes, object_reads)
-		SELECT u.month, u.account_id, sum(u.published), sum(u.downloads),
-			sum(u.writes), sum(u.reads)
-		FROM unnest(p_months, p_accounts, p_published, p_downloads, p_writes,
-			p_reads) AS u(month, account_id, published, downloads, writes, reads)
-		WHERE u.account_id IS NULL
-			OR EXISTS (SELECT 1 FROM public.accounts a WHERE a.id = u.account_id)
-		GROUP BY u.month, u.account_id
-		ON CONFLICT ON CONSTRAINT monthly_usage_month_account_unique DO UPDATE SET
-			published_transfer_bytes =
-				mu.published_transfer_bytes + excluded.published_transfer_bytes,
-			download_bytes = mu.download_bytes + excluded.download_bytes,
-			object_writes = mu.object_writes + excluded.object_writes,
-			object_reads = mu.object_reads + excluded.object_reads;
+		FOR entry IN
+			SELECT u.month, u.account_id, sum(u.published) AS published,
+				sum(u.downloads) AS downloads, sum(u.writes) AS writes,
+				sum(u.reads) AS reads
+			FROM unnest(p_months, p_accounts, p_published, p_downloads,
+				p_writes, p_reads)
+				AS u(month, account_id, published, downloads, writes, reads)
+			WHERE u.account_id IS NULL
+				OR EXISTS (SELECT 1 FROM public.accounts a
+					WHERE a.id = u.account_id)
+			GROUP BY u.month, u.account_id
+			ORDER BY u.month, u.account_id NULLS FIRST
+		LOOP
+			INSERT INTO public.monthly_usage AS mu (month, account_id,
+				published_transfer_bytes, download_bytes, object_writes,
+				object_reads)
+			VALUES (entry.month, entry.account_id, entry.published,
+				entry.downloads, entry.writes, entry.reads)
+			ON CONFLICT ON CONSTRAINT monthly_usage_month_account_unique
+			DO UPDATE SET
+				published_transfer_bytes =
+					mu.published_transfer_bytes + excluded.published_transfer_bytes,
+				download_bytes = mu.download_bytes + excluded.download_bytes,
+				object_writes = mu.object_writes + excluded.object_writes,
+				object_reads = mu.object_reads + excluded.object_reads;
+		END LOOP;
 	END
 	$$;--> statement-breakpoint
 
