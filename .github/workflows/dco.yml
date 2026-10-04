@@ -24,10 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # The tip of the base branch, not `base.sha`. `base.sha` is the base
+      # commit of the pull request, which can predate the check itself.
       - name: Check out the base branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
 
       - name: Set up the pinned Node release

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
@@ -182,4 +183,20 @@ await test('the script fails a pull request with an unsigned commit', () => {
   });
   assert.equal(unreadable.status, 1);
   assert.match(unreadable.stderr, /cannot be read/);
+});
+
+await test('the workflow runs the check of the tip of the base branch', () => {
+  // `base.sha` is the base commit of the pull request. A pull request that
+  // was opened before the check landed has a base with no check script, so
+  // the job failed on a missing file. The tip of the base branch always holds
+  // the check.
+  const workflow = readFileSync(
+    fileURLToPath(new URL('../.github/workflows/dco.yml', import.meta.url)),
+    'utf8',
+  );
+  assert.match(
+    workflow,
+    /ref: \$\{\{ github\.event\.pull_request\.base\.ref \}\}/,
+  );
+  assert.doesNotMatch(workflow, /pull_request\.base\.sha/);
 });
