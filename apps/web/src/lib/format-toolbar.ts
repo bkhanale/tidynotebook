@@ -270,23 +270,15 @@ export function pressKeepsTextFocus(press: ToolbarPress): boolean {
  * region a person scrolls, as the footer does above itself
  * (`noteFooterClassName` in `./note-column.ts`). Its inline padding is the
  * one of the footer, so the row and the text start on one line.
+ *
+ * The row stands above the text at every width (record 0094). A row at the
+ * foot of a phone screen stood in the place where a swipe starts the gestures
+ * of the system, so a finger that scrolled the row left the application, and
+ * with the keyboard closed the row was out of reach.
  */
 export function formatToolbarFrameClassName(): string {
-  return `shrink-0 border-b border-edge-line px-2 ${phoneFormatRowClassName}`;
+  return 'shrink-0 border-b border-edge-line px-2';
 }
-
-/**
- * The place of the row on a phone (issue 261): a finger on a narrow screen.
- *
- * The keyboard of a phone covers the foot of the screen, and the text that a
- * person types stands just above it, so the row goes to the foot of the note,
- * last in the column, with the divider above it. The frame of the application
- * takes the height of the visual viewport (`./viewport-fit.ts`), so the foot
- * of the note is the top of the keyboard and the row stands on it. A desktop
- * keeps the row above the text.
- */
-export const phoneFormatRowClassName =
-  'max-md:pointer-coarse:order-last max-md:pointer-coarse:border-b-0 max-md:pointer-coarse:border-t';
 
 /** The classes of the column that holds the row, on the note measure (0055). */
 export function formatToolbarColumnClassName(): string {

@@ -28,6 +28,16 @@ export function noteColumnClassName(): string {
 }
 
 /**
+ * The classes of the note screen inside the content area of the frame.
+ *
+ * It takes the height that the frame notices leave, so its foot stays on the
+ * screen (`./frame-content.ts`). The text scrolls inside it.
+ */
+export function noteScreenClassName(): string {
+  return 'flex min-h-0 min-w-0 flex-1 flex-col';
+}
+
+/**
  * The classes of the frame that holds the note text and the note footer.
  *
  * The frame draws no space above the text. The editor scrolls inside it, so
@@ -68,7 +78,17 @@ export function noteOutlineScrollClassName(): string {
  * person scrolls, and the design guide draws a divider exactly there, so the
  * line states where the text stops and the count of the note starts. Without
  * it the sentence reads as one more line of the note.
+ *
+ * While a person types on a phone, the keyboard takes half of the screen, and
+ * the count is not what they read then. The footer gives its row to the text
+ * while the text has the focus on a narrow screen under a finger, and comes
+ * back when the text lets the focus go. A desktop keeps it.
  */
-export function noteFooterClassName(): string {
-  return 'shrink-0 border-t border-edge-line px-2 py-2 text-control text-muted';
+export function noteFooterClassName(typing: boolean): string {
+  const base =
+    'shrink-0 border-t border-edge-line px-2 py-2 text-control text-muted';
+  return typing ? `${base} ${phoneTypingHiddenClassName}` : base;
 }
+
+/** Hides a part of the note on a phone while the text has the focus. */
+const phoneTypingHiddenClassName = 'max-md:pointer-coarse:hidden';

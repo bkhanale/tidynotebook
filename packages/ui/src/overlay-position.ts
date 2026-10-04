@@ -14,9 +14,13 @@
  * and its depth, stays in the named scales. See
  * [decision 0058](../../../docs/decisions/0058-an-overlay-is-placed-on-the-screen.md).
  *
+ * The room is the visible part of the screen (`./visible-area.ts`), so a menu
+ * that opens while the keyboard of a phone is up stays above the keyboard.
+ *
  * Nothing here reads the document, so `./overlay-position.test.ts` holds every
  * rule without a browser.
  */
+import type { ScreenArea } from './visible-area.ts';
 
 /** A size in device independent pixels. */
 export type OverlaySize = {
@@ -76,14 +80,18 @@ export function placeOverlay(input: {
   readonly anchor: OverlayRect;
   /** The size the overlay wants, measured with no bound on its height. */
   readonly overlay: OverlaySize;
-  readonly viewport: OverlaySize;
+  /** The part of the screen that a person sees. */
+  readonly screen: ScreenArea;
   readonly align: OverlayAlign;
 }): OverlayPlacement {
-  const { anchor, overlay, viewport, align } = input;
+  const { anchor, overlay, screen, align } = input;
 
   const below = anchor.top + anchor.height + overlayGap;
-  const roomBelow = Math.max(viewport.height - below - overlayMargin, 0);
-  const roomAbove = Math.max(anchor.top - overlayGap - overlayMargin, 0);
+  const roomBelow = Math.max(screen.bottom - below - overlayMargin, 0);
+  const roomAbove = Math.max(
+    anchor.top - overlayGap - overlayMargin - screen.top,
+    0,
+  );
   const fitsBelow = overlay.height <= roomBelow;
   const above = !fitsBelow && roomAbove > roomBelow;
   const room = Math.min(above ? roomAbove : roomBelow, overlayMaxHeight);
@@ -94,8 +102,8 @@ export function placeOverlay(input: {
     align === 'end' ? anchor.left + anchor.width - overlay.width : anchor.left;
   const left = clamp(
     wanted,
-    overlayMargin,
-    viewport.width - overlay.width - overlayMargin,
+    screen.left + overlayMargin,
+    screen.right - overlay.width - overlayMargin,
   );
 
   return { top, left, maxHeight: room, above };

@@ -87,6 +87,7 @@ on each rule below.
 | `src/lib/route-error.ts`                      | What a boundary says (0161)        |
 | `src/tailwind.css`                            | CSS source and the named scales    |
 | `src/shell/shell.tsx`                         | Frame, sidebar, sidebar size       |
+| `src/lib/frame-content.ts`                    | The notices and page of the frame  |
 | `src/shell/tree.tsx`                          | The tree, its selection and menu   |
 | `src/lib/tree-rows.ts`                        | The visible rows of the tree       |
 | `src/shell/row-window.ts`                     | The window of a long list          |

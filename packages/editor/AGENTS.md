@@ -105,3 +105,4 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/note-measure.ts`     | The reading of the lines after a change      |
 | `src/search-panel.ts`     | The find and replace panel                   |
 | `src/slash-menu.ts`       | The slash menu of the blocks                 |
+| `src/caret-in-view.ts`    | The caret stays in view as the text shrinks  |

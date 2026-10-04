@@ -14,8 +14,7 @@
  * stop goes back to the first tool that applies. Every tool is a button of
  * the row, and a row wider than the screen scrolls sideways, so no menu covers
  * the text. An arrow at an end that hides tools states them and scrolls the
- * row, and on a phone the row stands at the foot of the note, on the
- * keyboard (issue 261).
+ * row (issue 261). The row stands above the text at every width.
  *
  * Where the caret stands decides which tools apply. In a table a block tool
  * is disabled, because a table line is a row. A table carries its own

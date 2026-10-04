@@ -165,6 +165,12 @@ export {
 export type { DialogWidth } from './dialog.tsx';
 export { Dialog, DialogBody, DialogFooter } from './dialog.tsx';
 export type { MenuAlign, MenuAnchor, MenuItem } from './menu.tsx';
+export type { ScreenArea, VisualViewportBox } from './visible-area.ts';
+export {
+  followVisibleArea,
+  readVisibleArea,
+  visibleArea,
+} from './visible-area.ts';
 export { AnchoredMenu, Menu } from './menu.tsx';
 export type { NoticeTone } from './notice.tsx';
 export { Notice } from './notice.tsx';

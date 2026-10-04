@@ -20,7 +20,8 @@ import {
 import { pasteURLAsLink } from '@codemirror/lang-markdown';
 import { openSearchPanel, search } from '@codemirror/search';
 import { EditorState, Prec, type Extension } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView, keymap, tooltips } from '@codemirror/view';
+import { readVisibleArea } from '@notesapp/ui';
 import {
   noteLinkCompartment,
   noteLinkCompletion,
@@ -43,6 +44,7 @@ import { typedFenceOpeners } from './fence-close.ts';
 import { tableControls } from './table-controls.ts';
 import { codeControls } from './code-controls.ts';
 import { slashMenuCompletion } from './slash-menu.ts';
+import { caretInView } from './caret-in-view.ts';
 import { tableGridEditing } from './table-grid.ts';
 
 /** Opens the find panel with its replace field. */
@@ -60,6 +62,13 @@ export function editorCommands(): Extension {
     search({ top: true, createPanel: createSearchPanel }),
     replaceAllAnnouncement,
     EditorState.phrases.of(editorPhrases),
+    // A list at the caret, such as the slash menu, opens in the part of the
+    // screen that a person sees, so it stands above the keyboard of a phone
+    // and not under it (record 0058).
+    tooltips({ tooltipSpace: readVisibleArea }),
+    // The keyboard of a phone that opens over the text keeps the caret in
+    // view.
+    caretInView(),
     autocompletion({
       // The list of notes after `[[` and `](`, and the slash menu of the
       // blocks (issue 259).

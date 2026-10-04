@@ -40,9 +40,21 @@ await test('the frame of the note draws no space above the text', () => {
 await test('the footer draws the one divider above itself', () => {
   // The note text is a region a person scrolls, so the design guide draws a
   // line there. It is `edge-line`, the one divider of the product.
-  const footer = noteFooterClassName().split(' ');
-  assert.ok(footer.includes('border-t'));
-  assert.ok(footer.includes('border-edge-line'));
+  for (const typing of [false, true]) {
+    const footer = noteFooterClassName(typing).split(' ');
+    assert.ok(footer.includes('border-t'));
+    assert.ok(footer.includes('border-edge-line'));
+  }
+});
+
+await test('the footer gives its row to the text while a person types on a phone', () => {
+  // The count took a row of a phone screen that the keyboard already halves.
+  const typing = noteFooterClassName(true).split(' ');
+  assert.ok(typing.includes('max-md:pointer-coarse:hidden'));
+  // Only a narrow screen under a finger hides it, so a desktop keeps it.
+  assert.ok(!typing.includes('hidden'));
+  const resting = noteFooterClassName(false).split(' ');
+  assert.ok(!resting.some((name) => name.endsWith('hidden')));
 });
 
 await test('the outline scrolls inside the note side region', () => {

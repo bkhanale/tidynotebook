@@ -11,8 +11,12 @@
  * person scrolls, and the design guide draws a divider exactly there, so the
  * line states where the text stops. `noteFooterClassName` in
  * `apps/web/src/lib/note-column.ts` holds the rule, and a unit test reads it.
+ *
+ * On a phone the footer gives its row to the text while the text has the
+ * focus, which is while the keyboard is up. The focus moves no key, so the
+ * footer renders only when the text takes the focus or lets it go.
  */
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useActiveNote } from './active-note.tsx';
 import {
   noteColumnClassName,
@@ -41,8 +45,26 @@ export function NoteFooter({
     () => wordCount(view === null ? initialText : view.state.doc.toString()),
     [view, revision, initialText],
   );
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    if (view === null) return;
+    const text = view.contentDOM;
+    const take = (): void => {
+      setTyping(true);
+    };
+    const leave = (): void => {
+      setTyping(false);
+    };
+    setTyping(view.hasFocus);
+    text.addEventListener('focus', take);
+    text.addEventListener('blur', leave);
+    return () => {
+      text.removeEventListener('focus', take);
+      text.removeEventListener('blur', leave);
+    };
+  }, [view]);
   return (
-    <footer className={noteFooterClassName()}>
+    <footer className={noteFooterClassName(typing)}>
       <div className={noteColumnClassName()}>
         <span>
           {count} {count === 1 ? 'word' : 'words'}

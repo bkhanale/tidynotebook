@@ -128,6 +128,18 @@ await test('the row stands on the measure of the note, above a divider', () => {
   }
 });
 
+await test('the row stays above the text on a phone', () => {
+  // The row stood at the foot of a phone screen, where a swipe starts the
+  // gestures of the system, and it was out of reach with the keyboard closed.
+  // No width and no pointer moves it below the text or its divider.
+  for (const name of formatToolbarFrameClassName().split(' ')) {
+    const utility = name.split(':').at(-1) ?? name;
+    assert.ok(!utility.startsWith('order-'), `${name} moves the row`);
+    assert.ok(!utility.startsWith('border-t'), `${name} moves the divider`);
+    assert.ok(utility !== 'border-b-0', `${name} drops the divider`);
+  }
+});
+
 await test('the row scrolls sideways and never moves a tool out of it', () => {
   // A phone scrolls the row instead of hiding tools in a menu, so a menu
   // never covers the text that a person selected.

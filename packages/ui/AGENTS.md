@@ -24,8 +24,8 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
 - `src/layout.tsx` holds the page frame, `pageGutter`, and the row of every
   page from `layout-classes.ts` (0137). `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
-  surfaces, `overlay-position.ts` the place an overlay takes (0058),
-  `loading.tsx` the placeholder of a wait, and `motion.ts` the named
+  surfaces, `overlay-position.ts` the place of an overlay in `visible-area.ts`
+  (0058), `loading.tsx` the placeholder of a wait, and `motion.ts` the named
   transitions, which no other module here may name (0054).
 - No screen, no route, no data fetching, and no storage lives here. A control
   takes its data and its callbacks as props.
@@ -89,6 +89,7 @@ holds the built page, the editor and the stylesheet fallbacks to one registry.
 | `src/icon-grid.ts`        | The one grid and the two sizes of an icon               |
 | `src/icons.tsx`           | The one icon set                                        |
 | `src/overlay-position.ts` | Where an overlay sits on the screen                     |
+| `src/visible-area.ts`     | The part of the screen a person sees                    |
 | `src/motion.ts`           | The named transitions of the application                |
 | `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow             |
 | `src/layout-classes.ts`   | The row, column and side region of a page               |

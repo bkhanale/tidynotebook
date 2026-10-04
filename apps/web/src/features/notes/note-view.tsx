@@ -21,6 +21,7 @@ import { MoveItemsDialog } from '../folders/folders.tsx';
 import { PublishDialog } from '../publishing/publish-dialog.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
+import { noteScreenClassName } from '../../lib/note-column.ts';
 
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('../editor/note-loader.tsx')).NoteEditorLoader,
@@ -67,7 +68,7 @@ export function NoteView(): ReactNode {
     );
 
   return (
-    <main className="flex h-full min-w-0 flex-col">
+    <main className={noteScreenClassName()}>
       <Suspense
         fallback={
           <PageRegion>
