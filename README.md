@@ -10,6 +10,20 @@ version on your server.
 [GitHub project board](https://github.com/users/bkhanale/projects/2) for the
 open work.
 
+## Editions
+
+tidy notebook has two editions. They run the same code.
+
+- **tidy notebook self-hosted** is free. You run it on your own server from
+  the image and the Compose file of this repository. It has every feature. It
+  has no license key and no telemetry, and it sends no request to the owner.
+  It is under the GNU Affero General Public License, version 3 only
+  (AGPL-3.0-only). See [License](#license).
+- **tidy notebook cloud** is the paid service of the owner at
+  `app.tidynotebook.com`. It runs the public image of a public release with no
+  change. A separate private service sells the plans, and it talks to the
+  application over HTTP only.
+
 ## Features
 
 - **Plain Markdown files.** Notes are organised in folders. Nothing is stored
@@ -110,4 +124,11 @@ pnpm generated:check
 
 ## License
 
-tidy notebook is available under the [MIT License](LICENSE).
+tidy notebook is available under the
+[GNU Affero General Public License, version 3 only](LICENSE)
+(AGPL-3.0-only). You can use, change and share it. When you run a changed copy
+as a service for other people, you must offer them the source of your copy.
+
+A contribution comes in under the same license, with a sign-off on each
+commit and no contributor license agreement. See
+[CONTRIBUTING.md](CONTRIBUTING.md#license-and-sign-off).

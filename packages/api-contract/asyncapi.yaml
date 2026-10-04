@@ -10,8 +10,8 @@ info:
     the channel below. Each message payload is a schema component that
     `openapi.yaml` also lists, so one file states each shape once.
   license:
-    name: MIT
-    url: https://spdx.org/licenses/MIT.html
+    name: AGPL-3.0-only
+    url: https://spdx.org/licenses/AGPL-3.0-only.html
 defaultContentType: application/json
 channels:
   syncNotices:

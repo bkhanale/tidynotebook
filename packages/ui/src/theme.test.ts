@@ -148,6 +148,8 @@ await test('a family of this application names its repository', () => {
       family?.source.url,
       'https://github.com/tidynotebook/tidynotebook',
     );
+    // Record 0188: the palettes of this repository carry its license.
+    assert.equal(family?.source.licence, 'AGPL-3.0-only');
   }
 });
 

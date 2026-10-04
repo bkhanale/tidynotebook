@@ -9,8 +9,8 @@ info:
     generated from this document. Errors use RFC 9457 problem details with a
     stable application code.
   license:
-    name: MIT
-    identifier: MIT
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
   contact:
     name: notesapp maintainers
     url: https://notesapp.invalid/support
