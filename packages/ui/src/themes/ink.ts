@@ -12,7 +12,7 @@ import type { Theme, ThemeFamily, ThemeSource } from '../theme.ts';
 
 const source: ThemeSource = {
   project: 'notesapp',
-  url: 'https://github.com/bkhanale/notesapp',
+  url: 'https://github.com/tidynotebook/tidynotebook',
   licence: 'MIT',
 };
 

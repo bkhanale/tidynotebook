@@ -50,11 +50,11 @@ await test('a rendered link between guide pages opens the page', async () => {
   assert.match(html, /href="#user-content-logs"/);
   assert.match(
     html,
-    /href="https:\/\/github\.com\/bkhanale\/notesapp\/blob\/main\/SECURITY\.md"/,
+    /href="https:\/\/github\.com\/tidynotebook\/tidynotebook\/blob\/main\/SECURITY\.md"/,
   );
   assert.match(
     html,
-    /href="https:\/\/github\.com\/bkhanale\/notesapp\/blob\/main\/docs\/development\/identity\.md#sessions"/,
+    /href="https:\/\/github\.com\/tidynotebook\/tidynotebook\/blob\/main\/docs\/development\/identity\.md#sessions"/,
   );
   assert.match(html, /href="https:\/\/example\.com"/);
 });
@@ -81,7 +81,7 @@ await test('a Markdown copy links the other copies in full', () => {
   );
   assert.equal(
     mapped.text,
-    '[Quick start](https://docs.bhu.sh/notesapp/quickstart.md#open) and [Rules](https://github.com/bkhanale/notesapp/blob/main/SECURITY.md).',
+    '[Quick start](https://docs.bhu.sh/notesapp/quickstart.md#open) and [Rules](https://github.com/tidynotebook/tidynotebook/blob/main/SECURITY.md).',
   );
   assert.equal(
     markdownDestination(root, files, 'docs/guide/README.md', ''),
@@ -92,7 +92,7 @@ await test('a Markdown copy links the other copies in full', () => {
 await test('the edit address opens the source of the page', () => {
   assert.equal(
     editHref('quickstart.md'),
-    'https://github.com/bkhanale/notesapp/edit/main/docs/guide/quickstart.md',
+    'https://github.com/tidynotebook/tidynotebook/edit/main/docs/guide/quickstart.md',
   );
 });
 

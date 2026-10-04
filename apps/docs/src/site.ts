@@ -16,7 +16,7 @@ export const productName = 'NotesApp';
 export const siteName = `${productName} docs`;
 
 /** The repository that holds the source of the product and of this site. */
-export const repositoryUrl = 'https://github.com/bkhanale/notesapp';
+export const repositoryUrl = 'https://github.com/tidynotebook/tidynotebook';
 
 /** The branch whose files a link out of the guide opens. */
 export const repositoryBranch = 'main';

@@ -438,14 +438,35 @@ export function isoDate(when) {
 }
 
 /**
- * The container package that the release workflow pushes.
+ * The owner and the name of the container package that the release workflow
+ * pushes, from an image such as `ghcr.io/<owner>/<name>`.
  *
  * @param {string} workflow
- * @returns {string}
+ * @returns {{ owner: string; name: string }}
  */
 export function imagePackage(workflow) {
   const image = /^\s*IMAGE:\s*(\S+)\s*$/m.exec(workflow)?.[1] ?? '';
-  return image.split('/').at(-1) ?? '';
+  const parts = image.split('/');
+  return {
+    owner: parts.length >= 3 ? (parts.at(-2) ?? '') : '',
+    name: parts.length >= 3 ? (parts.at(-1) ?? '') : '',
+  };
+}
+
+/**
+ * The API address that lists the versions of the image package.
+ *
+ * A package of an organization is listed under that organization. Any other
+ * package belongs to the account that runs the check.
+ *
+ * @param {{ owner: string; name: string }} image
+ * @param {string} ownerType The `type` of the owner account, for example `Organization`.
+ * @returns {string}
+ */
+export function packageVersionsPath(image, ownerType) {
+  const scope =
+    ownerType === 'Organization' ? `orgs/${image.owner}` : 'user';
+  return `${scope}/packages/container/${image.name}/versions?per_page=100`;
 }
 
 /**
@@ -548,12 +569,17 @@ async function readAfter(version, directory) {
     directory,
   );
   const [milestoneState = '', openIssues = '0'] = milestone.out.split('\t');
-  const packageName = imagePackage(workflow);
+  const imageName = imagePackage(workflow);
+  const ownerType = run(
+    'gh',
+    ['api', `users/${imageName.owner}`, '--jq', '.type'],
+    directory,
+  ).out;
   const image = run(
     'gh',
     [
       'api',
-      `user/packages/container/${packageName}/versions?per_page=100`,
+      packageVersionsPath(imageName, ownerType),
       '--jq',
       '.[].metadata.container.tags[]',
     ],

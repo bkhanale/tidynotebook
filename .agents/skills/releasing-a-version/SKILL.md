@@ -102,7 +102,7 @@ git push origin vX.Y.Z
 ```
 
 The tag push starts `.github/workflows/release.yml`, which builds the image and
-pushes `ghcr.io/bkhanale/notesapp:X.Y.Z` and `:latest`. Watch it to the end:
+pushes `ghcr.io/tidynotebook/tidynotebook:X.Y.Z` and `:latest`. Watch it to the end:
 
 ```sh
 gh run watch "$(gh run list --workflow=release.yml --branch vX.Y.Z --limit 1 --json databaseId --jq '.[0].databaseId')"

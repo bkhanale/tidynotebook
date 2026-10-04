@@ -5,6 +5,7 @@ import {
   beforeChecks,
   compareVersions,
   imagePackage,
+  packageVersionsPath,
   isoDate,
   parseVersion,
 } from './release-check.mjs';
@@ -212,11 +213,26 @@ await test('a release with no milestone and no package scope skips those checks'
 });
 
 await test('the image package comes from the release workflow', () => {
-  assert.equal(
-    imagePackage('    env:\n      IMAGE: ghcr.io/owner/notesapp\n'),
-    'notesapp',
+  assert.deepEqual(
+    imagePackage('    env:\n      IMAGE: ghcr.io/tidynotebook/tidynotebook\n'),
+    { owner: 'tidynotebook', name: 'tidynotebook' },
   );
-  assert.equal(imagePackage('no image here\n'), '');
+  assert.deepEqual(imagePackage('no image here\n'), { owner: '', name: '' });
+});
+
+await test('the versions of an organization package are read from the organization', () => {
+  // The repository moved to an organization (record 0187). The package of
+  // the image belongs to that organization, and the address of the user
+  // finds no package there.
+  const image = { owner: 'tidynotebook', name: 'tidynotebook' };
+  assert.equal(
+    packageVersionsPath(image, 'Organization'),
+    'orgs/tidynotebook/packages/container/tidynotebook/versions?per_page=100',
+  );
+  assert.equal(
+    packageVersionsPath({ owner: 'someone', name: 'notes' }, 'User'),
+    'user/packages/container/notes/versions?per_page=100',
+  );
 });
 
 await test('the date of a release is the local day', () => {
