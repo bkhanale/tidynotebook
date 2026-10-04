@@ -69,6 +69,7 @@ pnpm verify
 ```
 
 The gate must pass before the commit lands. A release never ships a red gate.
+It does not build the container image. The before gate does that in step 5.
 
 ## 4. Land the prepare commit on main
 
@@ -78,7 +79,12 @@ and `README.md`, and its subject is exact:
 
 ```sh
 git commit -m "chore(release): prepare X.Y.Z" CHANGELOG.md README.md
+git rebase main
+git -C <main checkout> merge --ff-only <branch>
 ```
+
+Stay in the worktree for the rest of the release. Its `HEAD` is now the tip of
+`main`, and every command below runs there.
 
 ## 5. Pass the before gate
 
@@ -86,9 +92,12 @@ git commit -m "chore(release): prepare X.Y.Z" CHANGELOG.md README.md
 node tools/release-check.mjs before X.Y.Z
 ```
 
-It reads the branch, the working tree, the commit subject, the entry, its date,
-its sections, the status line, the free tag, and tag signing. Repair every
-`FAIL` and run it again. Do not tag while one line fails.
+It reads that `HEAD` is the tip of `main` and holds `origin/main`, the working
+tree, the commit subject, the entry, its date, its sections, the status line,
+the free tag, and tag signing. Then it builds the image from the committed tree,
+as the release workflow does, so a fault of the image build stops the release
+before the tag (record 0204). The build needs Docker and takes some minutes.
+Repair every `FAIL` and run it again. Do not tag while one line fails.
 
 ## 6. Tag, push, and watch the image build
 

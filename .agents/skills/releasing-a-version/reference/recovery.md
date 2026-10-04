@@ -51,6 +51,19 @@ gh run view "$(gh run list --workflow=release.yml --branch vX.Y.Z --limit 1 --js
 - A fault in the source cannot be repaired under the same tag. Fix it on `main`
   and release the next patch version.
 
+A tag with no image stays in place, and it gets no GitHub release. Its after
+gate keeps a `FAIL` on the image build, and that line is the record of the
+fault. The fix lands on `main` with a regression check, before the next
+prepare commit. In the changelog:
+
+- Correct a line of the failed entry that promises its image.
+- Open the next patch entry with a summary that gives the image that the
+  failed version did not build. A `### Fixed` item states that the failed tag
+  has no image and that this release holds every change of it.
+
+The milestone of the failed version stays as it is. The next patch carries no
+milestone, so its gate reports `skip` for that line.
+
 ## The GitHub release is missing or wrong
 
 The tag push builds the image. It publishes no release. This is the step that

@@ -58,3 +58,18 @@ tag."
 - Lists the open rows of the milestone, moves them to the next milestone, and
   closes the milestone.
 - Runs the gate again.
+
+## 5. A tag whose image did not build
+
+**Query:** "The Release run of v0.4.0 failed in the build step. Fix it."
+
+**Expected behaviour:**
+
+- Reads the failed log with `gh run view --log-failed` and names the cause.
+- Does not move, delete, or rebuild the tag, and publishes no release for it.
+- Fixes the cause on `main` with a regression check, so that `pnpm lint` or the
+  before gate refuses the same fault.
+- Corrects a line of the 0.4.0 entry that promises its image, and writes the
+  0.4.1 entry, which states that the tag v0.4.0 has no image.
+- Releases 0.4.1 through every step, and the before gate builds the image
+  before the tag.

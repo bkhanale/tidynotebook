@@ -14,7 +14,9 @@
  * Usage: `node tools/release-check.mjs <before|after> <version>`
  */
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import {
@@ -86,12 +88,15 @@ export function compareVersions(left, right) {
  *   today: string;
  *   changelog: string;
  *   readme: string;
- *   branch: string;
+ *   headSha: string;
+ *   mainSha: string;
+ *   holdsOriginMain: boolean;
  *   headSubject: string;
  *   pending: string;
  *   localTag: boolean;
  *   remoteTag: boolean;
  *   signsTags: boolean;
+ *   imageBuild: string;
  * }} BeforeState
  */
 
@@ -112,10 +117,22 @@ export function beforeChecks(state) {
       ? failed('the version', `${version} is not major.minor.patch.`)
       : ok('the version', version),
   );
+  // The tip of main, not the name of the branch: a release runs from its
+  // worktree, and `git push origin main` pushes the local main (record 0204).
   checks.push(
-    state.branch === 'main'
-      ? ok('the branch', 'main')
-      : failed('the branch', `${state.branch}. A release leaves main.`),
+    state.mainSha === ''
+      ? failed('the branch', 'there is no local main.')
+      : state.headSha !== state.mainSha
+        ? failed(
+            'the branch',
+            'HEAD is not the tip of main. Land the prepare commit on main.',
+          )
+        : state.holdsOriginMain
+          ? ok('the branch', 'HEAD is the tip of main')
+          : failed(
+              'the branch',
+              'main does not hold origin/main. Rebase onto origin/main.',
+            ),
   );
   checks.push(
     state.pending.trim() === ''
@@ -228,7 +245,74 @@ export function beforeChecks(state) {
           'git does not sign tags. Set tag.gpgsign, or sign this tag with git tag -s.',
         ),
   );
+  checks.push(
+    state.imageBuild === ''
+      ? ok('the image build', 'the prepare commit builds the image')
+      : failed('the image build', state.imageBuild),
+  );
   return checks;
+}
+
+/**
+ * The line that names the cause of a failed image build.
+ *
+ * The build prints every step, so the first line that states an error names
+ * the cause, and its step number and time are left out.
+ *
+ * @param {string} output
+ * @returns {string}
+ */
+export function buildFailure(output) {
+  const lines = output.split('\n').map((line) => line.trim());
+  const cause =
+    lines.find((line) => /\berror\b/i.test(line)) ??
+    lines.filter(Boolean).at(-1) ??
+    '';
+  return cause.replace(/^#\d+\s+[\d.]+\s+/, '');
+}
+
+/**
+ * Builds the image of one commit as the release workflow does, and returns
+ * the cause of a failure, or the empty string when the image builds.
+ *
+ * The context is `git archive` of the commit in a temporary folder, so the
+ * build reads the committed tree and `.dockerignore`, as a checkout does. A
+ * folder, not a stream: BuildKit loses its session over a streamed context
+ * when the Dockerfile names a syntax frontend. The build exports no image.
+ *
+ * @param {string} directory
+ * @param {string} [revision]
+ * @returns {string}
+ */
+export function buildImage(directory, revision = 'HEAD') {
+  const context = mkdtempSync(join(tmpdir(), 'release-image-'));
+  try {
+    const archive = spawnSync('git', ['archive', '--format=tar', revision], {
+      cwd: directory,
+      maxBuffer: 2 ** 30,
+    });
+    if (archive.status !== 0) return `git archive of ${revision} failed.`;
+    const unpack = spawnSync('tar', ['-x', '-C', context], {
+      input: archive.stdout,
+    });
+    if (unpack.status !== 0) return `tar could not unpack ${revision}.`;
+    process.stderr.write(
+      `Building the image of ${revision}. This takes some minutes.\n`,
+    );
+    const build = spawnSync(
+      'docker',
+      ['build', '--progress=plain', '--output', 'type=cacheonly', context],
+      { cwd: directory, maxBuffer: 2 ** 28 },
+    );
+    if (build.error !== undefined)
+      return 'Docker is not here. The gate builds the image before the tag.';
+    if (build.status === 0) return '';
+    return buildFailure(
+      `${build.stdout.toString()}\n${build.stderr.toString()}`,
+    );
+  } finally {
+    rmSync(context, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -493,7 +577,17 @@ async function readBefore(version, directory) {
     today: isoDate(new Date()),
     changelog,
     readme,
-    branch: run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], directory).out,
+    headSha: run('git', ['rev-parse', 'HEAD'], directory).out,
+    mainSha: run('git', ['rev-parse', '--verify', 'refs/heads/main'], directory)
+      .out,
+    holdsOriginMain:
+      run('git', ['fetch', '--quiet', 'origin', 'main'], directory).status ===
+        0 &&
+      run(
+        'git',
+        ['merge-base', '--is-ancestor', 'FETCH_HEAD', 'HEAD'],
+        directory,
+      ).status === 0,
     headSubject: run('git', ['log', '-1', '--pretty=%s'], directory).out,
     pending: run('git', ['status', '--porcelain'], directory).out,
     localTag: run('git', ['tag', '--list', tag], directory).out !== '',
@@ -505,6 +599,7 @@ async function readBefore(version, directory) {
       ).out !== '',
     signsTags:
       run('git', ['config', '--get', 'tag.gpgsign'], directory).out === 'true',
+    imageBuild: buildImage(directory),
   };
 }
 

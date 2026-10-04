@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   afterChecks,
   beforeChecks,
+  buildFailure,
   compareVersions,
   imagePackage,
   packageVersionsPath,
@@ -35,12 +36,15 @@ const before = {
   today: '2026-10-01',
   changelog,
   readme: '**Status:** 0.4.0 is the current release. See\n',
-  branch: 'main',
+  headSha: 'abc123',
+  mainSha: 'abc123',
+  holdsOriginMain: true,
   headSubject: 'chore(release): prepare 0.4.0',
   pending: '',
   localTag: false,
   remoteTag: false,
   signsTags: true,
+  imageBuild: '',
 };
 
 /** A published release that passes every check after the push. */
@@ -91,9 +95,16 @@ await test('a whole prepare commit passes the before gate', () => {
 });
 
 await test('the before gate names each missing step', () => {
-  assert.deepEqual(failures(beforeChecks({ ...before, branch: 'fix-trash' })), [
+  assert.deepEqual(failures(beforeChecks({ ...before, headSha: 'def456' })), [
     'the branch',
   ]);
+  assert.deepEqual(failures(beforeChecks({ ...before, mainSha: '' })), [
+    'the branch',
+  ]);
+  assert.deepEqual(
+    failures(beforeChecks({ ...before, holdsOriginMain: false })),
+    ['the branch'],
+  );
   assert.deepEqual(
     failures(beforeChecks({ ...before, pending: ' M README.md' })),
     ['the working tree'],
@@ -115,6 +126,43 @@ await test('the before gate names each missing step', () => {
   assert.deepEqual(failures(beforeChecks({ ...before, signsTags: false })), [
     'tag signing',
   ]);
+});
+
+// Record 0204: a release runs from its worktree, so the gate reads the commit
+// of main and not the name of the branch.
+await test('a worktree branch at the tip of main passes the branch check', () => {
+  const checks = beforeChecks(before);
+  assert.equal(
+    checks.find((check) => check.name === 'the branch')?.status,
+    'ok',
+  );
+});
+
+// Regression: the tag of 0.14.0 has no image. pnpm verify passed, and the
+// image build failed only after the tag was pushed (record 0204).
+await test('an image that does not build fails the before gate', () => {
+  const cause =
+    "tools/product-name.test.mjs(8,48): error TS2307: Cannot find module '../apps/docs/src/site.ts'.";
+  const checks = beforeChecks({ ...before, imageBuild: cause });
+  assert.deepEqual(failures(checks), ['the image build']);
+  assert.equal(
+    checks.find((check) => check.name === 'the image build')?.detail,
+    cause,
+  );
+});
+
+await test('the cause of a failed build is its first error line', () => {
+  assert.equal(
+    buildFailure(
+      [
+        '#34 [builder 21/22] RUN pnpm build',
+        "#34 2.074 tools/a.test.mjs(8,48): error TS2307: Cannot find module '../b.ts'.",
+        '#34 ERROR: process "/bin/sh -c pnpm build" did not complete successfully',
+      ].join('\n'),
+    ),
+    "tools/a.test.mjs(8,48): error TS2307: Cannot find module '../b.ts'.",
+  );
+  assert.equal(buildFailure('one\nlast line\n'), 'last line');
 });
 
 await test('an entry that is not written yet reports one cause', () => {

@@ -21,7 +21,9 @@ concurrency:
 jobs:
   image:
     name: Build and push the image
-    runs-on: ubuntu-latest
+    # A named runner image, so a move of ubuntu-latest does not change the
+    # build between two releases (record 0204).
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       # The registry path is lowercase, as the registry requires.
