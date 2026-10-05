@@ -15,6 +15,7 @@ import {
   mebibyte,
   optionalVariables,
   serverVariables,
+  startFailureMessage,
   templateBlanks,
 } from './config.ts';
 
@@ -538,6 +539,32 @@ await test('a configuration error never repeats a rejected value', () => {
     assert.ok(error instanceof ConfigError);
     assert.equal(error.message.includes('super-secret'), false);
   }
+});
+
+await test('a failed start names each refused setting, and hides any other failure', () => {
+  // A configuration error reaches the operator line by line, also when the
+  // composition finds it after the configuration was read.
+  assert.equal(
+    startFailureMessage(
+      new ConfigError([
+        'NOTESAPP_OPERATOR_TOKEN_FILE: the file cannot be read.',
+        'NOTESAPP_REGISTRATION_POLICY: the open policy needs a mail server.',
+      ]),
+      'the server could not start.',
+    ),
+    'notesapp: configuration error:\nNOTESAPP_OPERATOR_TOKEN_FILE: the file cannot be read.\nNOTESAPP_REGISTRATION_POLICY: the open policy needs a mail server.\n',
+  );
+  // The message of a driver can name a host, a file or a stack, so the
+  // operator reads the general sentence instead.
+  const driver = new Error('connect ECONNREFUSED 10.0.0.7:5432');
+  assert.equal(
+    startFailureMessage(driver, 'the server could not start.'),
+    'notesapp: the server could not start.\n',
+  );
+  assert.equal(
+    startFailureMessage('a thrown text', 'the server could not start.'),
+    'notesapp: the server could not start.\n',
+  );
 });
 
 await test('every optional setting reaches the container of the Compose file', async () => {

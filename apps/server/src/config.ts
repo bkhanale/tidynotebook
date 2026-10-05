@@ -325,6 +325,23 @@ export class ConfigError extends Error {
   }
 }
 
+/**
+ * What the operator reads when the start of the server fails.
+ *
+ * A configuration error states one line for each value that it refused, in
+ * the words of this server. Each line names the variable and the form that it
+ * needs, and never the value, so the operator reads it as it is, also when
+ * the composition found it after the configuration was read. Any other
+ * failure is the message of a library or of the operating system, which names
+ * a file, a code or a stack, so the operator reads the one sentence of
+ * `general` instead.
+ */
+export function startFailureMessage(error: unknown, general: string): string {
+  return error instanceof ConfigError
+    ? `notesapp: configuration error:\n${error.issues.join('\n')}\n`
+    : `notesapp: ${general}\n`;
+}
+
 const variables = [
   'NOTESAPP_ORIGIN',
   'NOTESAPP_DATABASE_URL',
