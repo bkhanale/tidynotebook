@@ -2,7 +2,8 @@
  * The Settings page of the workspace frame (record 0091).
  *
  * Settings is the one place for the profile, the palette, the spell check,
- * offline availability, and sign-out. It reads as sections and not as a
+ * offline availability, and sign-out. When the installation names an account
+ * portal, the account section opens it for any standing. It reads as sections and not as a
  * stack of cards: each section states its name and its sentence in a column
  * of its own and holds its controls beside them, and a hairline separates one
  * from the next. Theme changes apply locally first and sync in the background
@@ -36,6 +37,7 @@ import {
   ListRow,
   ComputerIcon,
   DownloadIcon,
+  ExternalLinkIcon,
   LoadingState,
   Notice,
   Page,
@@ -91,6 +93,8 @@ import { useNow } from '../../shell/now.ts';
 import { importResultSentence } from '../../lib/import-result.ts';
 import { settingsTitle } from './accounts.tsx';
 import { RemoveOwnAccountDialog } from './remove-account-dialog.tsx';
+import { useOpenPortal } from './open-portal.ts';
+import { portalHome } from '../../lib/portal.ts';
 
 /** One section of Settings, by its name in the list of the page. */
 function settingsSection(key: SettingsSectionKey): PageSection {
@@ -558,6 +562,7 @@ export function AccountSettingsPage(): ReactNode {
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
   const offline = useOfflineChoices(store.store, accountId, workspaceId);
   const documents = useLegalDocuments();
+  const portal = useOpenPortal();
   useDocumentTitle(settingsTitle);
   // The limits of the month change with no notice to this device, so the
   // page reads the account again when it opens (record 0193).
@@ -780,6 +785,28 @@ export function AccountSettingsPage(): ReactNode {
             {line}
           </p>
         ))}
+        {account.accountPortal ? (
+          // The portal of the operator, for any standing (record 0190). The
+          // one filled action of the page stays Save, so this is secondary.
+          <div className="mt-3">
+            <p className="mb-2 mt-0 text-control text-muted">
+              Use the account portal to change your account.
+            </p>
+            {portal.error === '' ? null : (
+              <Notice className="mb-3" tone="problem" message={portal.error} />
+            )}
+            <Button
+              variant="secondary"
+              icon={<ExternalLinkIcon />}
+              disabled={portal.busy}
+              onClick={() => {
+                void portal.open(portalHome);
+              }}
+            >
+              Open the account portal
+            </Button>
+          </div>
+        ) : null}
         {account.installationRole === 'administrator' &&
         workspaceId !== null ? (
           <Link

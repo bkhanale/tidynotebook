@@ -118,3 +118,5 @@ on each rule below.
 | `src/pwa/icons.ts`                            | The one list of the icons          |
 | `icons/`                                      | The icon files the build names     |
 | `src/logging.ts`                              | Browser sink for log events        |
+| `src/features/accounts/portal.tsx`            | The route of the portal (0190)     |
+| `src/lib/sign-in-return.ts`                   | Where sign-in goes back to         |

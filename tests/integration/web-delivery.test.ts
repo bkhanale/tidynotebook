@@ -14,6 +14,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { createHandlers, type HandlerMap } from '@notesapp/server';
+import { portalAddress, portalRoute } from '../../apps/web/src/lib/portal.ts';
+import {
+  returnAddress,
+  signInAddress,
+} from '../../apps/web/src/lib/sign-in-return.ts';
 import { LogRecorder, startTestServer } from './support/server.ts';
 
 /** The inline theme script of the shell, as `index.html` carries it. */
@@ -330,6 +335,61 @@ await test('a missing asset is 404 and never the application shell', async () =>
   } finally {
     await server.close();
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+await test('the address that an account portal links opens the application shell', async () => {
+  // A page or a message of the portal links `/portal` with a portal path,
+  // and a person with no session comes back to it through sign-in (record
+  // 0190). A portal path can hold a dot, which must not read as a file.
+  const directory = await writeBuild();
+  const server = await startTestServer({ webDist: directory });
+  try {
+    for (const url of [
+      portalAddress('/members/join'),
+      `${portalRoute}?path=/docs/v1.2`,
+      signInAddress(portalAddress('/profile')),
+    ]) {
+      const answer = await server.app.inject({
+        method: 'GET',
+        url,
+        headers: { 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate' },
+      });
+      assert.equal(answer.statusCode, 200, url);
+      assert.equal(answer.headers['content-type'], 'text/html; charset=utf-8');
+      assert.equal(answer.body, shellHtml, url);
+    }
+  } finally {
+    await server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+await test('sign-in goes back to no other origin, as the URL standard reads it', () => {
+  // `apps/web/src/lib/sign-in-return.ts` checks the return with no URL
+  // object, so the parser of the standard checks its answer here.
+  const origin = 'https://notes.example';
+  for (const value of [
+    '/portal?path=%2Fprofile',
+    '/w/one/settings#account',
+    '/%2F%2Fevil.example',
+    'https://evil.example/',
+    '//evil.example',
+    '///evil.example',
+    '/\\evil.example',
+    '\\\\evil.example',
+    '\\/evil.example',
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r/evil.example',
+    '/ /evil.example',
+    'javascript:alert(1)',
+    'data:text/html,hi',
+    ' //evil.example',
+  ]) {
+    const back = returnAddress(value);
+    assert.equal(new URL(back, origin).origin, origin, JSON.stringify(value));
+    assert.ok(back.startsWith('/'), JSON.stringify(value));
   }
 });
 

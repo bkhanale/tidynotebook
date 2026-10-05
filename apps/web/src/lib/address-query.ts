@@ -1,0 +1,45 @@
+/**
+ * One member of the query of an address of the application.
+ *
+ * A screen of the application builds no URL object (the boundary check
+ * keeps URL construction in generated output), so the two routes that take
+ * a value from the address bar, sign-in and the account portal, read and
+ * write their one member here. The text follows the form encoding that a
+ * browser writes: `&` separates the members, `=` a name from its value, and
+ * `+` is a space.
+ */
+
+/** One part of a query, decoded, or `null` when it is not valid encoding. */
+function decodePart(part: string): string | null {
+  try {
+    return decodeURIComponent(part.replaceAll('+', ' '));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The value of the first member `name` of a query, with or without its `?`.
+ * A member with no `=` has the empty value. No member, or a value that is not
+ * valid encoding, answers `null`.
+ */
+export function queryValue(search: string, name: string): string | null {
+  const query = search.startsWith('?') ? search.slice(1) : search;
+  if (query === '') return null;
+  for (const member of query.split('&')) {
+    const at = member.indexOf('=');
+    const key = decodePart(at === -1 ? member : member.slice(0, at));
+    if (key !== name) continue;
+    return at === -1 ? '' : decodePart(member.slice(at + 1));
+  }
+  return null;
+}
+
+/** A path with one member in its query, its name and value encoded. */
+export function queryAddress(
+  path: string,
+  name: string,
+  value: string,
+): string {
+  return `${path}?${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+}

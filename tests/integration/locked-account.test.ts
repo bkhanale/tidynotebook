@@ -40,7 +40,9 @@ import {
   updatePreferences,
   updateProfile,
 } from '@notesapp/api-client';
+import { requestValidator } from '@notesapp/api-contract';
 import { createApp, loadServerConfig } from '@notesapp/server';
+import { portalPath, portalPathOf } from '../../apps/web/src/lib/portal.ts';
 import { createDisposableDatabase } from './support/database.ts';
 import { firstSave, useDocumentHeaders } from './support/documents.ts';
 
@@ -251,6 +253,58 @@ await test('a new locked account goes through the handoff and is unlocked by a c
     body: { name: 'Second' },
   });
   assert.equal(responseOf(second.response).status, 201);
+});
+
+await test('the route of the portal takes the paths that the contract takes', () => {
+  // `apps/web/src/lib/portal.ts` checks a path of the address bar before the
+  // handoff. Its copy of the pattern must take what the contract takes and
+  // nothing else, or a valid link opens the root and an invalid one fails.
+  const validate = requestValidator('openAccountPortal', 'body');
+  assert.ok(validate !== undefined);
+  for (const path of [
+    '/',
+    '/profile',
+    '/members/join',
+    '/members/join/',
+    '/docs/v1.2',
+    '/a~b_c-d',
+    '/a.',
+    '//evil.example',
+    '/a//b',
+    '/../admin',
+    '/./a',
+    '/.hidden',
+    '/profile?x=1',
+    '/profile#top',
+    '/profile%2F',
+    '/ space',
+    '/ünicode',
+    'profile',
+    'https://evil.example/',
+    `/${'a'.repeat(254)}`,
+    `/${'a'.repeat(255)}`,
+    `/${'a'.repeat(256)}`,
+  ]) {
+    const accepted = validate({ path });
+    assert.equal(portalPath(path) === path, accepted, path);
+    if (!accepted) assert.equal(portalPath(path), '/', path);
+  }
+});
+
+await test('an active account opens the path of the portal that a link names', async () => {
+  // The owner is active. A deep link of the portal names a path, and the
+  // handoff answers that path of the portal with its token.
+  const path = portalPathOf('?path=%2Fmembers%2Fjoin');
+  const opened = await openAccountPortal({ headers: admin, body: { path } });
+  assert.equal(opened.error, undefined, JSON.stringify(opened.error));
+  const url = new URL(opened.data?.url ?? 'http://x/');
+  assert.equal(url.origin, 'https://billing.example.test');
+  assert.equal(url.pathname, '/members/join');
+  const redeemed = await redeemAccountHandoff({
+    headers: operator,
+    body: { token: url.searchParams.get('token') ?? '' },
+  });
+  assert.equal(redeemed.data?.email, 'owner@notes.invalid');
 });
 
 await test('a locked account exports its notes and removes itself', async () => {

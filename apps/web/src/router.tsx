@@ -4,7 +4,8 @@
  * The one workspace of the account keeps its identifier in the address, so a
  * note link stays stable, but no screen names the workspace. Session
  * protection wraps every private route. Login and first-run setup use one
- * public page, and the link of an invitation opens the other.
+ * public page, and the link of an invitation opens the other. The route of
+ * the account portal needs a session of any standing and checks it itself.
  *
  * Every page a signed in person opens is a child of the workspace frame, so
  * each has the sidebar and the breadcrumb (record 0091). Each child names its
@@ -36,6 +37,7 @@ import {
   signUpRoute,
   verificationRoute,
 } from './lib/accounts.ts';
+import { portalRoute } from './lib/portal.ts';
 const loadShell = () => import('./shell/shell.tsx');
 const loadNoteView = () => import('./features/notes/note-view.tsx');
 const loadNotesHome = () => import('./features/notes/notes-home.tsx');
@@ -87,6 +89,9 @@ const ResetPasswordPage = lazy(async () => ({
   default: (await import('./features/accounts/password-reset.tsx'))
     .ResetPasswordPage,
 }));
+const PortalPage = lazy(async () => ({
+  default: (await import('./features/accounts/portal.tsx')).PortalPage,
+}));
 const PublishedLinksView = lazy(async () => ({
   default: (await import('./features/publishing/published-links.tsx'))
     .PublishedLinksView,
@@ -136,6 +141,12 @@ const routes: RouteObject[] = [
       // every reset message.
       { path: forgotPasswordRoute, element: deferred(<ForgotPasswordPage />) },
       { path: resetPasswordRoute, element: deferred(<ResetPasswordPage />) },
+      // The way back to the account portal (record 0190). A page or a
+      // message of the portal links it with a portal path. It takes a
+      // session of any standing, so it stays outside the session guard,
+      // which shows the locked screen, and it sends a person with no
+      // session to sign-in itself.
+      { path: portalRoute, element: deferred(<PortalPage />) },
       startsEarly(
         {
           path: '/w/:workspaceId',

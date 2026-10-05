@@ -4,13 +4,11 @@
  * A locked account signs in to one screen. It keeps the way to unlock the
  * account, to take the notes out and to remove the account, and nothing else.
  * When the installation names an account portal, the screen links it as the
- * one action that unlocks the account. Every word of the screen is decided
- * here, so the screen holds no rule.
+ * one action that unlocks the account, at the root of the portal that
+ * `portal.ts` names. Every word of the screen is decided here, so the screen
+ * holds no rule.
  */
 import type { Account } from '@notesapp/api-client';
-
-/** The path of the account portal that the screen opens. */
-export const portalPath = '/';
 
 /** Whether the account opens the one screen of a locked account. */
 export function isLocked(account: Pick<Account, 'controls'>): boolean {

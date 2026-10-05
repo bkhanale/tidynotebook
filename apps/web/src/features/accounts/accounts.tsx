@@ -18,12 +18,11 @@
  * `app.tsx`.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import {
   acceptLegalDocuments,
   createOwner,
   listWorkspaces,
-  openAccountPortal,
   type LegalDocuments,
   getSetupStatus,
   signInWithPassword,
@@ -49,7 +48,10 @@ import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
 import { forgotPasswordRoute, signUpRoute } from '../../lib/accounts.ts';
 import { consentTo, waitsForConsent } from '../../lib/legal.ts';
-import { isLocked, lockedSentences, portalPath } from '../../lib/locked.ts';
+import { isLocked, lockedSentences } from '../../lib/locked.ts';
+import { portalHome } from '../../lib/portal.ts';
+import { returnOf } from '../../lib/sign-in-return.ts';
+import { useOpenPortal } from './open-portal.ts';
 import { useNow } from '../../shell/now.ts';
 import { LegalLinks } from './legal-links.tsx';
 
@@ -113,9 +115,13 @@ function LockedPage(): ReactNode {
   const session = useSession();
   const store = useLocalStore();
   const now = useNow();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const portal = useOpenPortal();
+  const [working, setWorking] = useState(false);
+  const [exportError, setExportError] = useState('');
   const [removing, setRemoving] = useState(false);
+  const busy = working || portal.busy;
+  // One message for one cause: each action clears the message of the other.
+  const error = portal.error === '' ? exportError : portal.error;
   useDocumentTitle('Your account is locked');
 
   // The stream says when the account changes. A return to the tab reads it
@@ -137,27 +143,16 @@ function LockedPage(): ReactNode {
   const account = session.account;
   if (account === null) return <Navigate to="/login" replace />;
 
-  const openPortal = async (): Promise<void> => {
-    setBusy(true);
-    setError('');
-    const result = await openAccountPortal({ body: { path: portalPath } });
-    if (result.data === undefined) {
-      setBusy(false);
-      setError(problemMessage(result.error));
-      return;
-    }
-    window.location.assign(result.data.url);
-  };
-
   const exportNotes = async (): Promise<void> => {
-    setBusy(true);
-    setError('');
+    setWorking(true);
+    setExportError('');
+    portal.reset();
     try {
       await exportOwnedWorkspaces();
     } catch (failure: unknown) {
-      setError(transferFailureMessage(failure));
+      setExportError(transferFailureMessage(failure));
     } finally {
-      setBusy(false);
+      setWorking(false);
     }
   };
 
@@ -176,7 +171,8 @@ function LockedPage(): ReactNode {
           className="mt-2 w-full"
           disabled={busy}
           onClick={() => {
-            void openPortal();
+            setExportError('');
+            void portal.open(portalHome);
           }}
         >
           Open the account portal
@@ -423,6 +419,8 @@ type SetupStatus =
 export function LoginPage(): ReactNode {
   const session = useSession();
   const navigate = useNavigate();
+  // Where sign-in goes back to: a path of this origin, or the root.
+  const back = returnOf(useLocation().search);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -497,10 +495,10 @@ export function LoginPage(): ReactNode {
       return;
     }
     session.refresh();
-    void navigate('/');
+    void navigate(back);
   }
 
-  if (session.status === 'signed-in') return <Navigate to="/" replace />;
+  if (session.status === 'signed-in') return <Navigate to={back} replace />;
 
   const title = setup ? 'Create your account' : 'Sign in';
   const documents = status.kind === 'ready' ? status.legalDocuments : null;
