@@ -16,8 +16,10 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 ## Decision
 
 - The private repository `tidynotebook/cloud` declares the infrastructure of
-  the cloud as OpenTofu code under `infra/`:
-  - the Railway project, with its services, environments and variables;
+  the cloud as code. The Railway project, with its services, environments and
+  variables, is the infrastructure code of Railway itself, because Railway
+  deprecates its configuration files and has no official OpenTofu provider.
+  The rest is OpenTofu code under `infra/`:
   - the settings of the Cloudflare zone, the DNS records, and the rules of
     record 0200;
   - the R2 buckets and their lifecycle rules (records 0192 and 0199);
@@ -29,8 +31,10 @@ See [design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md).
 - The runbook keeps only a step that no provider API offers, and each such
   step names why no API offers it.
 - This record replaces only the bullet of record 0199 that lists the
-  dashboard settings, and the line of design 024 that keeps infrastructure as
-  code out. Every other part of record 0199 stands.
+  dashboard settings, the words of record 0200 that call each step up a
+  dashboard change, and the line of design 024 that keeps infrastructure as
+  code out. A step up is a change of that code. Every other part of records
+  0199 and 0200 stands.
 
 ## Consequences
 
