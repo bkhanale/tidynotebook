@@ -501,7 +501,7 @@ await test('the Dockerfile of this repository copies each manifest before the in
   );
 });
 
-test('a dependency folder of a workspace member stays out of the image build', () => {
+await test('a dependency folder of a workspace member stays out of the image build', () => {
   const members = ['apps/web', 'packages/ui'];
   assert.deepEqual(dependencyFolderFailures('**/node_modules\n', members), []);
   assert.deepEqual(dependencyFolderFailures('node_modules\n', members), [
