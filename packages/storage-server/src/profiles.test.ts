@@ -4,7 +4,11 @@ import {
   assertProfileDatabase,
   databaseName,
   isTestDatabaseName,
+  migrationSecrets,
+  migrationVariables,
   parseProfile,
+  readDeploySecrets,
+  readMigrationSecret,
   withCredentials,
   withDatabaseName,
 } from './profiles.ts';
@@ -116,4 +120,105 @@ await test('connection URL helpers: replaces the credentials', () => {
   assert.equal(decodeURIComponent(parsed.username), 'notesapp_app');
   assert.equal(decodeURIComponent(parsed.password), 'two:three@four');
   assert.equal(databaseName(url), 'notesapp_test');
+});
+
+/** A reader of files that knows a fixed set of paths. */
+function filesOf(
+  files: Readonly<Record<string, string>>,
+): (path: string) => Promise<string> {
+  return (path) => {
+    const text = files[path];
+    return text === undefined
+      ? Promise.reject(new Error(`ENOENT: no such file, open '${path}'`))
+      : Promise.resolve(text);
+  };
+}
+
+await test('migration secrets: each comes from its variable or its file', async () => {
+  // Record 0207: a platform that mounts no file sets the variable, and
+  // Compose mounts the file.
+  for (const name of migrationSecrets) {
+    const fileName = `${name}_FILE`;
+    const read = filesOf({ '/run/secrets/one': ' value-from-file \n' });
+    assert.equal(
+      await readMigrationSecret({ [name]: ' as written ' }, name, read),
+      ' as written ',
+    );
+    assert.equal(
+      await readMigrationSecret({ [fileName]: '/run/secrets/one' }, name, read),
+      'value-from-file',
+    );
+    // An empty value is a value that is not set.
+    assert.equal(
+      await readMigrationSecret(
+        { [name]: '', [fileName]: '/run/secrets/one' },
+        name,
+        read,
+      ),
+      'value-from-file',
+    );
+  }
+});
+
+await test('migration secrets: both forms, no form, and a bad file stop the command', async () => {
+  const read = filesOf({
+    '/run/secrets/one': 'value-from-file',
+    '/run/secrets/empty': ' \n',
+  });
+  for (const name of migrationSecrets) {
+    const fileName = `${name}_FILE`;
+    const refusals: readonly (readonly [Record<string, string>, string])[] = [
+      [
+        { [name]: 'secret-value', [fileName]: '/run/secrets/one' },
+        `notesapp: set either ${name} or ${fileName}, not both.`,
+      ],
+      [{}, `notesapp: set ${name} or ${fileName}.`],
+      [{ [name]: '', [fileName]: '' }, `notesapp: set ${name} or ${fileName}.`],
+      [
+        { [fileName]: '/run/secrets/empty' },
+        `notesapp: ${fileName}: the file is empty.`,
+      ],
+      [
+        { [fileName]: '/run/secrets/missing' },
+        `notesapp: ${fileName}: the file cannot be read.`,
+      ],
+    ];
+    for (const [environment, message] of refusals)
+      await assert.rejects(
+        readMigrationSecret(environment, name, read),
+        (error: unknown) =>
+          error instanceof Error &&
+          error.message === message &&
+          !error.message.includes('secret-value'),
+        `${name} ${JSON.stringify(environment)}`,
+      );
+  }
+});
+
+await test('migration secrets: the deploy profile reads the names of the image', async () => {
+  // The runtime address of a container that migrates and serves is never
+  // the migration address, so the profile reads no setting of the server.
+  const secrets = await readDeploySecrets(
+    {
+      NOTESAPP_DATABASE_URL: 'postgres://runtime@db/notesapp',
+      NOTESAPP_DATABASE_URL_FILE: '/run/secrets/runtime_database_url',
+      NOTESAPP_MIGRATION_DATABASE_URL: 'postgres://migrate@db/notesapp',
+      NOTESAPP_RUNTIME_PASSWORD_FILE: '/run/secrets/runtime',
+      NOTESAPP_AUTH_PASSWORD: 'identity-password',
+    },
+    filesOf({ '/run/secrets/runtime': 'runtime-password\n' }),
+  );
+  assert.deepEqual(secrets, {
+    databaseUrl: 'postgres://migrate@db/notesapp',
+    runtimePassword: 'runtime-password',
+    authPassword: 'identity-password',
+  });
+  assert.deepEqual(migrationVariables, [
+    'NOTESAPP_MIGRATION_DATABASE_URL',
+    'NOTESAPP_MIGRATION_DATABASE_URL_FILE',
+    'NOTESAPP_RUNTIME_PASSWORD',
+    'NOTESAPP_RUNTIME_PASSWORD_FILE',
+    'NOTESAPP_AUTH_PASSWORD',
+    'NOTESAPP_AUTH_PASSWORD_FILE',
+  ]);
 });

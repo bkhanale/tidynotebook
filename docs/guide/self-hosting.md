@@ -307,6 +307,14 @@ steps apart. Then only the migration step holds the migration secret.
 - `serve` starts the server with the restricted runtime role. It reads no
   migration setting, so a serving container needs no migration secret.
 
+A platform that mounts no file, such as a platform that gives a service
+variables only, sets each secret in a variable instead. `migrate` then reads
+`NOTESAPP_MIGRATION_DATABASE_URL`, `NOTESAPP_RUNTIME_PASSWORD` and
+`NOTESAPP_AUTH_PASSWORD`. `serve` reads `NOTESAPP_DATABASE_URL`,
+`NOTESAPP_AUTH_DATABASE_URL`, `NOTESAPP_AUTH_SECRET`, and the other secrets
+that you use. Each secret has a variable and a file. Set one of the two, never
+both. [Configuration](configuration.md) names each one.
+
 Run `migrate` once for each new version, and do not run it in each serving
 container. A serving container that starts before the migrations are complete
 does not report ready, so the platform sends it no traffic. It reports ready

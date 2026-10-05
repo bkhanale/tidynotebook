@@ -8,9 +8,6 @@
  * they share PostgreSQL.
  */
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import process from 'node:process';
 import {
   AbortMultipartUploadCommand,
@@ -43,8 +40,8 @@ export type TestBucket = {
   /** A store on the bucket, which `destroy` closes. */
   readonly store: ObjectStore;
   /**
-   * The settings of a server on this bucket, with the two files of the key
-   * pair written to a folder that `destroy` removes.
+   * The settings of a server on this bucket, with the key pair in its
+   * variables (record 0207).
    */
   readonly environment: Readonly<Record<string, string>>;
   /**
@@ -54,7 +51,7 @@ export type TestBucket = {
   abortBehindTheStore(key: string): Promise<void>;
   /** The identifiers of the multipart uploads of exactly `key`. */
   uploadsOf(key: string): Promise<readonly string[]>;
-  /** Removes every upload, every object, the bucket and the key files. */
+  /** Removes every upload, every object and the bucket. */
   destroy(): Promise<void>;
 };
 
@@ -73,12 +70,6 @@ export async function createTestBucket(): Promise<TestBucket> {
     credentials: testKeys,
   });
   await client.send(new CreateBucketCommand({ Bucket: settings.bucket }));
-  const keys = await mkdtemp(join(tmpdir(), 'notesapp-s3-keys-'));
-  await writeFile(join(keys, 'access_key_id'), `${testKeys.accessKeyId}\n`);
-  await writeFile(
-    join(keys, 'secret_access_key'),
-    `${testKeys.secretAccessKey}\n`,
-  );
   const store = openS3ObjectStore(settings);
   return {
     settings,
@@ -88,8 +79,8 @@ export async function createTestBucket(): Promise<TestBucket> {
       NOTESAPP_S3_BUCKET: settings.bucket,
       NOTESAPP_S3_REGION: settings.region,
       NOTESAPP_S3_ENDPOINT: testS3Endpoint,
-      NOTESAPP_S3_ACCESS_KEY_ID_FILE: join(keys, 'access_key_id'),
-      NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: join(keys, 'secret_access_key'),
+      NOTESAPP_S3_ACCESS_KEY_ID: testKeys.accessKeyId,
+      NOTESAPP_S3_SECRET_ACCESS_KEY: testKeys.secretAccessKey,
     },
     abortBehindTheStore: async (key) => {
       const uploads = await client.send(
@@ -148,7 +139,6 @@ export async function createTestBucket(): Promise<TestBucket> {
         await client.send(new DeleteBucketCommand({ Bucket: settings.bucket }));
       } finally {
         client.destroy();
-        await rm(keys, { recursive: true, force: true });
       }
     },
   };

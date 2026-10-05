@@ -116,9 +116,8 @@ export type ServerConfig = {
   readonly storageRoot: string;
   /**
    * Where every byte that outlives one request lives (record 0192): the
-   * directory of `storageRoot`, or an S3 compatible store. The key pair of an
-   * S3 store is read from its files by `loadObjectStoreSettings`, so no
-   * secret is in the configuration value.
+   * directory of `storageRoot`, or an S3 compatible store with its key pair
+   * (record 0207).
    */
   readonly objectStore: ObjectStoreConfig;
   /** Secret that signs sessions and tokens. */
@@ -254,16 +253,17 @@ export type ServerConfig = {
    */
   readonly legalFiles: LegalFiles;
   /**
-   * The file that holds the one secret of the operator API, or `null` for
-   * none (record 0190). With no file every operator operation answers 404
-   * with the code `operator_off`. `loadOperatorToken` reads it.
+   * The one secret of the operator API, or `null` for none (record 0190).
+   * With no secret every operator operation answers 404 with the code
+   * `operator_off`. It comes from `NOTESAPP_OPERATOR_TOKEN` or from the file
+   * of `NOTESAPP_OPERATOR_TOKEN_FILE` (record 0207).
    */
-  readonly operatorTokenFile: string | null;
+  readonly operatorToken: string | null;
   /**
    * The account portal of the operator, as a full address with no query, or
    * `null` (record 0190). `openAccountPortal` answers a path of it with a
    * handoff token, and a locked account links it (record 0201). A portal
-   * needs `operatorTokenFile`, because it redeems the handoff through the
+   * needs `operatorToken`, because it redeems the handoff through the
    * operator API, so startup stops when it has none.
    */
   readonly accountPortal: string | null;
@@ -310,8 +310,8 @@ export type ObjectStoreConfig =
       readonly region: string;
       /** The address of the service, or `null` for AWS itself. */
       readonly endpoint: string | null;
-      readonly accessKeyIdFile: string;
-      readonly secretAccessKeyFile: string;
+      readonly accessKeyId: string;
+      readonly secretAccessKey: string;
     };
 
 /** Startup failure that names every rejected configuration entry. */
@@ -397,11 +397,11 @@ export const optionalVariables = [
   'NOTESAPP_S3_BUCKET',
   'NOTESAPP_S3_REGION',
   'NOTESAPP_S3_ENDPOINT',
-  'NOTESAPP_S3_ACCESS_KEY_ID_FILE',
-  'NOTESAPP_S3_SECRET_ACCESS_KEY_FILE',
+  'NOTESAPP_S3_ACCESS_KEY_ID',
+  'NOTESAPP_S3_SECRET_ACCESS_KEY',
   'NOTESAPP_NEW_ACCOUNT_STANDING',
   'NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER',
-  'NOTESAPP_OPERATOR_TOKEN_FILE',
+  'NOTESAPP_OPERATOR_TOKEN',
   'NOTESAPP_ACCOUNT_PORTAL_URL',
   'NOTESAPP_REGISTRATION_POLICY',
   'NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES',
@@ -410,13 +410,46 @@ export const optionalVariables = [
   'NOTESAPP_OBJECT_READ_CAP',
 ] as const;
 
-const protectedFiles = {
+/**
+ * Every secret of the server and the variable of its file.
+ *
+ * An operator names each secret as the variable or as its file, never both
+ * (record 0207). A file suits Compose, which mounts each secret, and the
+ * variable suits a platform that gives a service variables only.
+ * `loadProtectedEnvironment` reads each file before the configuration, so
+ * every secret of the server follows one rule.
+ */
+export const protectedFiles = {
   NOTESAPP_DATABASE_URL: 'NOTESAPP_DATABASE_URL_FILE',
   NOTESAPP_AUTH_DATABASE_URL: 'NOTESAPP_AUTH_DATABASE_URL_FILE',
   NOTESAPP_AUTH_SECRET: 'NOTESAPP_AUTH_SECRET_FILE',
   NOTESAPP_SMTP_URL: 'NOTESAPP_SMTP_URL_FILE',
   NOTESAPP_SMTP_PASSWORD: 'NOTESAPP_SMTP_PASSWORD_FILE',
+  NOTESAPP_S3_ACCESS_KEY_ID: 'NOTESAPP_S3_ACCESS_KEY_ID_FILE',
+  NOTESAPP_S3_SECRET_ACCESS_KEY: 'NOTESAPP_S3_SECRET_ACCESS_KEY_FILE',
+  NOTESAPP_OPERATOR_TOKEN: 'NOTESAPP_OPERATOR_TOKEN_FILE',
 } as const;
+
+/** The name of one secret of the server. */
+type ProtectedName = keyof typeof protectedFiles;
+
+/** Whether a variable holds a value. An empty value is not set. */
+function isSet(value: string | undefined): value is string {
+  return value !== undefined && value !== '';
+}
+
+/**
+ * The variable that the operator set for one secret: its file variable when
+ * that names a file, or else the variable itself. A message about a secret
+ * names this one, so the operator reads the name that they wrote.
+ */
+function secretSource(
+  environment: Readonly<Record<string, string | undefined>>,
+  name: ProtectedName,
+): string {
+  const file = protectedFiles[name];
+  return isSet(environment[file]) ? file : name;
+}
 
 /**
  * Every variable that this server reads, each name once.
@@ -654,16 +687,10 @@ const configSchema: SchemaObject = {
       pattern: '^https?://',
       maxLength: 1024,
     },
-    NOTESAPP_S3_ACCESS_KEY_ID_FILE: {
-      type: 'string',
-      pattern: '^/',
-      maxLength: 1024,
-    },
-    NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: {
-      type: 'string',
-      pattern: '^/',
-      maxLength: 1024,
-    },
+    // A secret is checked where it is read, so no message of the schema
+    // describes it.
+    NOTESAPP_S3_ACCESS_KEY_ID: { type: 'string' },
+    NOTESAPP_S3_SECRET_ACCESS_KEY: { type: 'string' },
     NOTESAPP_NEW_ACCOUNT_STANDING: {
       type: 'string',
       enum: [...controlStandings],
@@ -672,11 +699,7 @@ const configSchema: SchemaObject = {
       type: 'string',
       pattern: '^[1-9][0-9]{0,3}d$',
     },
-    NOTESAPP_OPERATOR_TOKEN_FILE: {
-      type: 'string',
-      pattern: '^/',
-      maxLength: 1024,
-    },
+    NOTESAPP_OPERATOR_TOKEN: { type: 'string' },
     NOTESAPP_ACCOUNT_PORTAL_URL: { type: 'string', maxLength: 2048 },
     NOTESAPP_REGISTRATION_POLICY: {
       type: 'string',
@@ -700,6 +723,16 @@ const validate = compileSchema<RawConfig>(configSchema);
 export function loadServerConfig(
   environment: Readonly<Record<string, string | undefined>>,
 ): ServerConfig {
+  // A file of a secret that nobody read would leave its secret unset in
+  // silence, and the operator API or the object store would then be off.
+  // Every caller reads the files through `loadProtectedEnvironment` first.
+  const unread = Object.entries(protectedFiles).filter(
+    ([name, file]) => isSet(environment[file]) && !isSet(environment[name]),
+  );
+  if (unread.length > 0)
+    throw new Error(
+      `notesapp: ${unread.map(([, file]) => file).join(', ')} names a file that was not read. Read the environment through loadProtectedEnvironment first.`,
+    );
   const removed = removedVariables.flatMap(([name, advice]) => {
     const value = environment[name];
     return value === undefined || value === '' ? [] : [`${name}: ${advice}`];
@@ -778,12 +811,15 @@ export function loadServerConfig(
     );
   if (partial.length > 0) throw new ConfigError(partial);
   const accountPortal = readAccountPortal(raw.NOTESAPP_ACCOUNT_PORTAL_URL);
-  const operatorTokenFile = raw.NOTESAPP_OPERATOR_TOKEN_FILE ?? null;
+  const operatorToken = readOperatorToken(
+    raw.NOTESAPP_OPERATOR_TOKEN,
+    secretSource(environment, 'NOTESAPP_OPERATOR_TOKEN'),
+  );
   // The portal gives each handoff token back to the operator API, so a
   // portal with the API off could never unlock an account (record 0190).
-  if (accountPortal !== null && operatorTokenFile === null)
+  if (accountPortal !== null && operatorToken === null)
     throw new ConfigError([
-      'NOTESAPP_ACCOUNT_PORTAL_URL: the portal needs the operator API to unlock an account. Set NOTESAPP_OPERATOR_TOKEN_FILE too, or remove NOTESAPP_ACCOUNT_PORTAL_URL.',
+      'NOTESAPP_ACCOUNT_PORTAL_URL: the portal needs the operator API to unlock an account. Set NOTESAPP_OPERATOR_TOKEN or NOTESAPP_OPERATOR_TOKEN_FILE too, or remove NOTESAPP_ACCOUNT_PORTAL_URL.',
     ]);
   const legal = readLegalDocuments(raw, canonical);
   const registrationPolicy = readRegistrationPolicy(
@@ -796,7 +832,7 @@ export function loadServerConfig(
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
-    objectStore: readObjectStore(raw),
+    objectStore: readObjectStore(raw, environment),
     authSecret: raw.NOTESAPP_AUTH_SECRET,
     servedOrigins: served.origins,
     listen,
@@ -832,7 +868,7 @@ export function loadServerConfig(
     shutdown,
     accounts: readAccounts(raw),
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
-    operatorTokenFile,
+    operatorToken,
     accountPortal,
     registrationPolicy,
     usageCaps: readUsageCaps(raw),
@@ -908,27 +944,40 @@ const capVariables = [
   'NOTESAPP_OBJECT_READ_CAP',
 ] as const;
 
-/** The variables of an S3 store, in the order of the guide. */
-const s3Variables = [
+/** The settings of an S3 store that are not secret, in the order of the guide. */
+const s3Settings = [
   'NOTESAPP_S3_BUCKET',
   'NOTESAPP_S3_REGION',
   'NOTESAPP_S3_ENDPOINT',
-  'NOTESAPP_S3_ACCESS_KEY_ID_FILE',
-  'NOTESAPP_S3_SECRET_ACCESS_KEY_FILE',
+] as const;
+
+/** The key pair of an S3 store, each a secret (record 0207). */
+const s3Secrets = [
+  'NOTESAPP_S3_ACCESS_KEY_ID',
+  'NOTESAPP_S3_SECRET_ACCESS_KEY',
 ] as const;
 
 /**
  * The object store of the environment (record 0192).
  *
  * The file store is the default and needs nothing more. An S3 store needs
- * its bucket, its region and the two files of its key pair, and names its
- * endpoint unless it is AWS itself. A setting of an S3 store beside the file
- * store stops startup, because the operator meant one of the two and the
- * server cannot tell which.
+ * its bucket, its region and its key pair, and names its endpoint unless it
+ * is AWS itself. A setting of an S3 store beside the file store stops
+ * startup, because the operator meant one of the two and the server cannot
+ * tell which. A message about a key names the variable that the operator
+ * set, the key or its file, and never the key.
  */
-function readObjectStore(raw: RawConfig): ObjectStoreConfig {
-  const named = s3Variables.filter((name) => raw[name] !== undefined);
+function readObjectStore(
+  raw: RawConfig,
+  environment: Readonly<Record<string, string | undefined>>,
+): ObjectStoreConfig {
   if (raw.NOTESAPP_OBJECT_STORE !== 's3') {
+    const named = [
+      ...s3Settings.filter((name) => raw[name] !== undefined),
+      ...s3Secrets
+        .filter((name) => raw[name] !== undefined)
+        .map((name) => secretSource(environment, name)),
+    ];
     if (named.length > 0)
       throw new ConfigError(
         named.map(
@@ -941,70 +990,52 @@ function readObjectStore(raw: RawConfig): ObjectStoreConfig {
   const {
     NOTESAPP_S3_BUCKET: bucket,
     NOTESAPP_S3_REGION: region,
-    NOTESAPP_S3_ACCESS_KEY_ID_FILE: accessKeyIdFile,
-    NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: secretAccessKeyFile,
+    NOTESAPP_S3_ACCESS_KEY_ID: accessKeyId,
+    NOTESAPP_S3_SECRET_ACCESS_KEY: secretAccessKey,
   } = raw;
   if (
     bucket === undefined ||
     region === undefined ||
-    accessKeyIdFile === undefined ||
-    secretAccessKeyFile === undefined
+    accessKeyId === undefined ||
+    secretAccessKey === undefined
   )
-    throw new ConfigError(
-      s3Variables
+    throw new ConfigError([
+      ...s3Settings
         .filter(
           (name) => name !== 'NOTESAPP_S3_ENDPOINT' && raw[name] === undefined,
         )
         .map((name) => `${name}: an S3 compatible store needs it.`),
-    );
+      ...s3Secrets
+        .filter((name) => raw[name] === undefined)
+        .map(
+          (name) =>
+            `${name}: an S3 compatible store needs it. Set ${name} or ${protectedFiles[name]}.`,
+        ),
+    ]);
   return {
     kind: 's3',
     bucket,
     region,
     endpoint: raw.NOTESAPP_S3_ENDPOINT ?? null,
-    accessKeyIdFile,
-    secretAccessKeyFile,
+    accessKeyId,
+    secretAccessKey,
   };
 }
 
-/**
- * The settings that open the object store, with the key pair of an S3 store
- * read from its files. A file that cannot be read, or that is empty, stops
- * startup and names its variable.
- */
-export async function loadObjectStoreSettings(
+/** The settings that open the object store of a configuration. */
+export function objectStoreSettings(
   config: Pick<ServerConfig, 'objectStore' | 'storageRoot'>,
-): Promise<ObjectStoreSettings> {
+): ObjectStoreSettings {
   const store = config.objectStore;
   if (store.kind === 'filesystem')
     return { kind: 'filesystem', root: config.storageRoot };
-  const issues: string[] = [];
-  const read = async (variable: string, path: string): Promise<string> => {
-    try {
-      const value = (await readFile(path, 'utf8')).trim();
-      if (value === '') issues.push(`${variable}: the file is empty.`);
-      return value;
-    } catch {
-      issues.push(`${variable}: the file cannot be read.`);
-      return '';
-    }
-  };
-  const accessKeyId = await read(
-    'NOTESAPP_S3_ACCESS_KEY_ID_FILE',
-    store.accessKeyIdFile,
-  );
-  const secretAccessKey = await read(
-    'NOTESAPP_S3_SECRET_ACCESS_KEY_FILE',
-    store.secretAccessKeyFile,
-  );
-  if (issues.length > 0) throw new ConfigError(issues);
   return {
     kind: 's3',
     bucket: store.bucket,
     region: store.region,
     endpoint: store.endpoint,
-    accessKeyId,
-    secretAccessKey,
+    accessKeyId: store.accessKeyId,
+    secretAccessKey: store.secretAccessKey,
   };
 }
 
@@ -1138,34 +1169,27 @@ function readAccountPortal(value: string | undefined): string | null {
 export const minOperatorTokenLength = 32;
 
 /**
- * Reads the one secret of the operator API (record 0190), or `null` when the
- * configuration names no file.
+ * The one secret of the operator API (record 0190), or `null` when the
+ * environment names none.
  *
- * The file loses the space around its value. A file that cannot be read, a
- * value shorter than 32 characters, and a value with a space or a control
- * character inside it stop startup, so the API never opens with a guessable
- * or a broken secret. The error never repeats the value.
+ * It comes from the variable or from its file (record 0207), and a file
+ * loses the space around its value. A value shorter than 32 characters and a
+ * value with a space or a control character inside it stop startup, so the
+ * API never opens with a guessable or a broken secret. `source` is the
+ * variable that the operator set, and the error never repeats the value.
  */
-export async function loadOperatorToken(
-  config: Pick<ServerConfig, 'operatorTokenFile'>,
-): Promise<string | null> {
-  const path = config.operatorTokenFile;
-  if (path === null) return null;
-  let value: string;
-  try {
-    value = (await readFile(path, 'utf8')).trim();
-  } catch {
-    throw new ConfigError([
-      'NOTESAPP_OPERATOR_TOKEN_FILE: the file cannot be read.',
-    ]);
-  }
+function readOperatorToken(
+  value: string | undefined,
+  source: string,
+): string | null {
+  if (value === undefined) return null;
   if (value.length < minOperatorTokenLength || value.length > 512)
     throw new ConfigError([
-      `NOTESAPP_OPERATOR_TOKEN_FILE: the file must hold one secret of ${String(minOperatorTokenLength)} to 512 characters.`,
+      `${source}: the operator secret must have ${String(minOperatorTokenLength)} to 512 characters.`,
     ]);
   if (!/^[\x21-\x7e]+$/.test(value))
     throw new ConfigError([
-      'NOTESAPP_OPERATOR_TOKEN_FILE: the secret must hold no space and no control character.',
+      `${source}: the operator secret must hold no space and no control character.`,
     ]);
   return value;
 }

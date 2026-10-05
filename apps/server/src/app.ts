@@ -24,8 +24,7 @@ import { findChannel, findOperation } from '@notesapp/api-contract';
 import {
   ConfigError,
   loadLegalTexts,
-  loadObjectStoreSettings,
-  loadOperatorToken,
+  objectStoreSettings,
   type LegalTexts,
   type ServerConfig,
 } from './config.ts';
@@ -722,7 +721,7 @@ async function composeApp(
   // process of the installation answers that request (record 0192). An S3
   // store tells the meter each call that it makes.
   const objects = openObjectStore(
-    options?.objectStore ?? (await loadObjectStoreSettings(config)),
+    options?.objectStore ?? objectStoreSettings(config),
     (kind) => {
       usage.countObjectCall(kind);
     },
@@ -883,11 +882,11 @@ async function composeApp(
     auth: auth.auth,
     identity,
     servedOrigins: config.servedOrigins,
-    // The operator API of record 0190. With no token file every operator
+    // The operator API of record 0190. With no secret every operator
     // operation answers operator_off, and a wrong token counts in the shared
     // attempt counter.
     operator: {
-      token: await loadOperatorToken(config),
+      token: config.operatorToken,
       attempts,
       windowMs: config.rateLimit.windowSeconds * 1000,
       max: config.rateLimit.max,

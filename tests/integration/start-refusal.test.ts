@@ -9,7 +9,10 @@
  *
  * This file runs the real entry point as its own process against a real
  * database, with an operator token file that holds a secret that is too
- * short, and reads what the process writes before it stops.
+ * short, and reads what the process writes before it stops. Since record
+ * 0207 the configuration reads that secret before the composition, so the
+ * file holds what the operator reads, and the unit test of
+ * `startFailureMessage` holds the rule of both catches of the start.
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

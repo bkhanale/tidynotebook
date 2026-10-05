@@ -15,7 +15,7 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -91,9 +91,7 @@ const closedSentence = 'This link is not available.';
 const database = await createDisposableDatabase();
 const bucket = await createTestBucket();
 const directory = await mkdtemp(join(tmpdir(), 'notesapp-monthly-test-'));
-const tokenFile = join(directory, 'operator_token');
 const operatorToken = `operator-${randomUUID()}-${randomUUID()}`;
-await writeFile(tokenFile, operatorToken);
 const origin = { origin: 'http://127.0.0.1' };
 const operator = { authorization: `Bearer ${operatorToken}` };
 
@@ -113,7 +111,7 @@ function environment(
     NOTESAPP_MAX_HEADER_BYTES: '16384',
     NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
     NOTESAPP_RATE_LIMIT_MAX: '10000',
-    NOTESAPP_OPERATOR_TOKEN_FILE: tokenFile,
+    NOTESAPP_OPERATOR_TOKEN: operatorToken,
     ...bucket.environment,
     ...caps,
   };

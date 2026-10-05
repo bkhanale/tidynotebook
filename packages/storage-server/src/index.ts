@@ -105,6 +105,7 @@ export {
   assertProfileDatabase,
   databaseName,
   isTestDatabaseName,
+  migrationVariables,
   parseProfile,
   testDatabasePrefix,
   withCredentials,

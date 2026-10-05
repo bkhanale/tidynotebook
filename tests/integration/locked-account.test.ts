@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,9 +67,7 @@ function cookieHeader(values: readonly string[]): string {
 
 const database = await createDisposableDatabase();
 const directory = await mkdtemp(join(tmpdir(), 'notesapp-locked-test-'));
-const tokenFile = join(directory, 'operator_token');
 const operatorToken = `operator-${randomUUID()}-${randomUUID()}`;
-await writeFile(tokenFile, operatorToken);
 const app = await createApp(
   loadServerConfig({
     NOTESAPP_ORIGIN: 'http://127.0.0.1',
@@ -84,7 +82,7 @@ const app = await createApp(
     NOTESAPP_RATE_LIMIT_MAX: '10000',
     NOTESAPP_NEW_ACCOUNT_STANDING: 'locked',
     NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER: '30d',
-    NOTESAPP_OPERATOR_TOKEN_FILE: tokenFile,
+    NOTESAPP_OPERATOR_TOKEN: operatorToken,
     NOTESAPP_ACCOUNT_PORTAL_URL: 'https://billing.example.test',
   }),
 );

@@ -238,6 +238,7 @@ and needs no record.
 | [0204](0204-the-release-gate-builds-the-image-before-the-tag.md)                      | The release gate builds the image before the tag                                |
 | [0205](0205-the-cloud-infrastructure-is-code.md)                                      | The cloud infrastructure is code                                                |
 | [0206](0206-the-environment-can-name-the-registration-policy.md)                      | The environment can name the registration policy                                |
+| [0207](0207-every-secret-of-the-image-has-an-environment-form.md)                     | Every secret of the image has an environment form                               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -834,3 +835,7 @@ code out.
 Record 0206 lets the environment name the registration policy, as record 0148
 lets it set the mail and the legal documents, so an installation set up as
 code needs no step in a browser.
+
+Record 0207 gives each secret of the image a variable form beside its file,
+never both, so the image runs on a platform that mounts no file. It refines
+records 0190, 0192 and 0202.

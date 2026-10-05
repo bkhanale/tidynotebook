@@ -56,14 +56,20 @@ interface of a library.
 - **The image commands.** `docker/entrypoint.sh` takes `migrate` and `serve`
   ([record 0202](../decisions/0202-the-image-takes-a-migrate-and-a-serve-command.md)).
   `migrate` exits after the migrations, `serve` reads no migration setting,
-  and an unknown command stops with a nonzero status.
-- **The settings that an operator sets.** `NOTESAPP_OPERATOR_TOKEN_FILE`,
+  and an unknown command stops with a nonzero status. `migrate` reads
+  `NOTESAPP_MIGRATION_DATABASE_URL`, `NOTESAPP_RUNTIME_PASSWORD` and
+  `NOTESAPP_AUTH_PASSWORD`, each from its variable or its `_FILE` variable,
+  and the file under `/run/secrets` when neither is set.
+- **The settings that an operator sets.** `NOTESAPP_OPERATOR_TOKEN`,
   `NOTESAPP_ACCOUNT_PORTAL_URL`, `NOTESAPP_NEW_ACCOUNT_STANDING`,
   `NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER`, `NOTESAPP_REGISTRATION_POLICY`, the
-  monthly caps, the settings of the
-  object store, and `NOTESAPP_TRUSTED_PROXIES`. `apps/server/src/config.ts`
-  reads each one and refuses a bad value at startup, and
-  `docs/guide/configuration.md` states each one for the operator.
+  monthly caps, the settings of the object store with its key pair, and
+  `NOTESAPP_TRUSTED_PROXIES`. Each secret, of the server and of `migrate`,
+  takes its variable or its `_FILE` variable, never both
+  ([record 0207](../decisions/0207-every-secret-of-the-image-has-an-environment-form.md)).
+  `apps/server/src/config.ts` reads each one and refuses a bad value at
+  startup, and `docs/guide/configuration.md` states each one for the
+  operator.
 
 `tools/agent-context.mjs` holds the list of the files of this interface. A
 change to one of them lists this page before the first edit.

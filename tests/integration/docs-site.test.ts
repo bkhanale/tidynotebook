@@ -22,6 +22,7 @@ import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { serverVariables } from '@notesapp/server';
+import { migrationVariables } from '@notesapp/storage-server';
 import { buildSite } from '../../apps/docs/src/build.ts';
 import {
   administrationSections,
@@ -304,7 +305,13 @@ await test('the built documentation site', async (t) => {
         ),
         ...interpolated,
       ];
-      const known = new Set([...serverVariables, ...compose]);
+      // The migrate command of the image reads its own secrets, which the
+      // server never reads (records 0202 and 0207).
+      const known = new Set([
+        ...serverVariables,
+        ...migrationVariables,
+        ...compose,
+      ]);
       const missing = [...known].filter((name) => !page.has(name)).sort();
       assert.deepEqual(missing, []);
       const unknown = [...page].filter((name) => !known.has(name)).sort();

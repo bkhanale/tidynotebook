@@ -14,9 +14,9 @@ export type {
 export {
   ConfigError,
   loadLegalTexts,
-  loadObjectStoreSettings,
   loadProtectedEnvironment,
   loadServerConfig,
+  objectStoreSettings,
   serverVariables,
   templateBlanks,
 } from './config.ts';

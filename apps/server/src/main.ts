@@ -10,7 +10,6 @@ import process from 'node:process';
 import { createApp } from './app.ts';
 import {
   loadLegalTexts,
-  loadObjectStoreSettings,
   loadProtectedEnvironment,
   loadServerConfig,
   startFailureMessage,
@@ -84,14 +83,14 @@ function reportStart(
 export async function main(): Promise<void> {
   let config;
   let legalTexts;
-  let objectStore;
   try {
+    // Every secret, from its variable or from its file, is read here, so a
+    // secret that cannot be used stops the start before any connection
+    // (record 0207).
     config = loadServerConfig(await loadProtectedEnvironment(process.env));
     // The legal documents are part of the configuration: a file that cannot
     // be read, or a template with a blank left, stops the start here.
     legalTexts = await loadLegalTexts(config);
-    // So is the key pair of an S3 store (record 0192).
-    objectStore = await loadObjectStoreSettings(config);
   } catch (error) {
     process.stderr.write(
       startFailureMessage(
@@ -108,7 +107,7 @@ export async function main(): Promise<void> {
 
   let app;
   try {
-    app = await createApp(config, { lifecycle, legalTexts, objectStore });
+    app = await createApp(config, { lifecycle, legalTexts });
   } catch (error) {
     // The composition finds some configuration errors itself, such as the
     // start check of the registration policy (record 0206), and each one

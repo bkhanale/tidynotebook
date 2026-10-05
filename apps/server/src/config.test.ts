@@ -7,13 +7,13 @@ import { importPartBytes, maxArchiveBytes } from '@notesapp/core';
 import {
   ConfigError,
   loadLegalTexts,
-  loadObjectStoreSettings,
-  loadOperatorToken,
   loadProtectedEnvironment,
   loadServerConfig,
   maxLegalDocumentBytes,
   mebibyte,
+  objectStoreSettings,
   optionalVariables,
+  protectedFiles,
   serverVariables,
   startFailureMessage,
   templateBlanks,
@@ -592,27 +592,28 @@ await test('every optional setting reaches the container of the Compose file', a
     NOTESAPP_S3_BUCKET: 'docker/compose.s3.yaml',
     NOTESAPP_S3_REGION: 'docker/compose.s3.yaml',
     NOTESAPP_S3_ENDPOINT: 'docker/compose.s3.yaml',
-    NOTESAPP_S3_ACCESS_KEY_ID_FILE: 'docker/compose.s3.yaml',
-    NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: 'docker/compose.s3.yaml',
+    NOTESAPP_S3_ACCESS_KEY_ID: 'docker/compose.s3.yaml',
+    NOTESAPP_S3_SECRET_ACCESS_KEY: 'docker/compose.s3.yaml',
   };
+  const protectedFile = (name: string): string | undefined =>
+    Object.entries(protectedFiles).find(([secret]) => secret === name)?.[1];
   for (const name of optionalVariables) {
+    // A secret arrives as its protected file, because a file is the form
+    // that Compose mounts (record 0207). The Compose files never set the
+    // variable of a secret.
+    const file = protectedFile(name);
+    const variable = file ?? name;
     const override = byOverride[name];
-    if (override === undefined) {
-      assert.match(compose, new RegExp(`^ +${name}:`, 'm'), name);
-      continue;
-    }
-    assert.doesNotMatch(compose, new RegExp(`^ +${name}(_FILE)?:`, 'm'), name);
-    // The mail URL and the mail password arrive as protected files, the
-    // others as themselves.
-    const variable =
-      name === 'NOTESAPP_SMTP_URL' || name === 'NOTESAPP_SMTP_PASSWORD'
-        ? `${name}_FILE`
-        : name;
-    assert.match(
-      await read(override),
-      new RegExp(`^ +${variable}:`, 'm'),
-      variable,
-    );
+    const source = override === undefined ? compose : await read(override);
+    if (override !== undefined)
+      assert.doesNotMatch(
+        compose,
+        new RegExp(`^ +${name}(_FILE)?:`, 'm'),
+        name,
+      );
+    assert.match(source, new RegExp(`^ +${variable}:`, 'm'), variable);
+    if (file !== undefined)
+      assert.doesNotMatch(source, new RegExp(`^ +${name}:`, 'm'), name);
   }
 });
 
@@ -786,22 +787,22 @@ await test('the list of every variable names each one once', () => {
   );
 });
 
-/** The settings of an S3 compatible store, with the two key files. */
+/** The settings of an S3 compatible store, with its key pair. */
 const s3: Record<string, string> = {
   NOTESAPP_OBJECT_STORE: 's3',
   NOTESAPP_S3_BUCKET: 'notes-uploads',
   NOTESAPP_S3_REGION: 'auto',
   NOTESAPP_S3_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
-  NOTESAPP_S3_ACCESS_KEY_ID_FILE: '/run/secrets/s3_access_key_id',
-  NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: '/run/secrets/s3_secret_access_key',
+  NOTESAPP_S3_ACCESS_KEY_ID: 'key-identifier',
+  NOTESAPP_S3_SECRET_ACCESS_KEY: 'secret-value',
 };
 
-await test('the object store is the directory of the server by default', async () => {
+await test('the object store is the directory of the server by default', () => {
   // Record 0192. An installation that names no store keeps every byte in
   // NOTESAPP_STORAGE_ROOT, as it did before the record.
   const config = loadServerConfig(valid);
   assert.deepEqual(config.objectStore, { kind: 'filesystem' });
-  assert.deepEqual(await loadObjectStoreSettings(config), {
+  assert.deepEqual(objectStoreSettings(config), {
     kind: 'filesystem',
     root: '/var/lib/notesapp',
   });
@@ -812,14 +813,23 @@ await test('the object store is the directory of the server by default', async (
   );
 });
 
-await test('an S3 store names its bucket, its region, its endpoint and its key files', () => {
-  assert.deepEqual(loadServerConfig(environment(s3)).objectStore, {
+await test('an S3 store names its bucket, its region, its endpoint and its key pair', () => {
+  const config = loadServerConfig(environment(s3));
+  assert.deepEqual(config.objectStore, {
     kind: 's3',
     bucket: 'notes-uploads',
     region: 'auto',
     endpoint: 'https://account.r2.cloudflarestorage.com',
-    accessKeyIdFile: '/run/secrets/s3_access_key_id',
-    secretAccessKeyFile: '/run/secrets/s3_secret_access_key',
+    accessKeyId: 'key-identifier',
+    secretAccessKey: 'secret-value',
+  });
+  assert.deepEqual(objectStoreSettings(config), {
+    kind: 's3',
+    bucket: 'notes-uploads',
+    region: 'auto',
+    endpoint: 'https://account.r2.cloudflarestorage.com',
+    accessKeyId: 'key-identifier',
+    secretAccessKey: 'secret-value',
   });
   // AWS itself needs no endpoint.
   const aws = loadServerConfig(
@@ -835,15 +845,17 @@ await test('an S3 store with a missing setting stops startup and names it', () =
         environment({
           ...s3,
           NOTESAPP_S3_BUCKET: undefined,
-          NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: undefined,
+          NOTESAPP_S3_SECRET_ACCESS_KEY: undefined,
         }),
       ),
     (error: unknown) =>
       error instanceof ConfigError &&
       error.issues.length === 2 &&
       error.issues.some((issue) => issue.startsWith('NOTESAPP_S3_BUCKET:')) &&
-      error.issues.some((issue) =>
-        issue.startsWith('NOTESAPP_S3_SECRET_ACCESS_KEY_FILE:'),
+      error.issues.some(
+        (issue) =>
+          issue.startsWith('NOTESAPP_S3_SECRET_ACCESS_KEY:') &&
+          issue.includes('NOTESAPP_S3_SECRET_ACCESS_KEY_FILE'),
       ),
   );
   assert.throws(
@@ -864,7 +876,7 @@ await test('an S3 store with a missing setting stops startup and names it', () =
   );
 });
 
-await test('a setting of an S3 store beside the file store stops startup', () => {
+await test('a setting of an S3 store beside the file store stops startup', async () => {
   // The operator meant one of the two stores, and the server cannot tell
   // which, so it names the setting instead of a silent choice.
   assert.throws(
@@ -877,58 +889,132 @@ await test('a setting of an S3 store beside the file store stops startup', () =>
         error.issues[0] ?? '',
       ),
   );
-});
-
-await test('the key pair of an S3 store comes from its files only', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'notesapp-s3-config-'));
+  // A key names the variable that the operator set, and never the key.
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-s3-beside-'));
   try {
     const keyId = join(directory, 'id');
-    const secret = join(directory, 'secret');
     await writeFile(keyId, 'key-identifier\n');
-    await writeFile(secret, ' secret-value \n');
-    const config = loadServerConfig(
-      environment({
-        ...s3,
-        NOTESAPP_S3_ACCESS_KEY_ID_FILE: keyId,
-        NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: secret,
-      }),
-    );
-    // The configuration value names the files and holds no secret.
-    assert.doesNotMatch(JSON.stringify(config.objectStore), /secret-value/);
-    assert.deepEqual(await loadObjectStoreSettings(config), {
-      kind: 's3',
-      bucket: 'notes-uploads',
-      region: 'auto',
-      endpoint: 'https://account.r2.cloudflarestorage.com',
-      accessKeyId: 'key-identifier',
-      secretAccessKey: 'secret-value',
-    });
-    await writeFile(secret, '\n');
-    await assert.rejects(
-      loadObjectStoreSettings(config),
-      (error: unknown) =>
-        error instanceof ConfigError &&
-        error.issues.join('\n') ===
-          'NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: the file is empty.',
-    );
-    await assert.rejects(
-      loadObjectStoreSettings(
-        loadServerConfig(
-          environment({
-            ...s3,
-            NOTESAPP_S3_ACCESS_KEY_ID_FILE: join(directory, 'missing'),
-            NOTESAPP_S3_SECRET_ACCESS_KEY_FILE: keyId,
-          }),
-        ),
-      ),
-      (error: unknown) =>
-        error instanceof ConfigError &&
-        error.issues.join('\n') ===
-          'NOTESAPP_S3_ACCESS_KEY_ID_FILE: the file cannot be read.',
-    );
+    for (const [overrides, named] of [
+      [
+        { NOTESAPP_S3_ACCESS_KEY_ID: 'key-identifier' },
+        'NOTESAPP_S3_ACCESS_KEY_ID',
+      ],
+      [
+        { NOTESAPP_S3_ACCESS_KEY_ID_FILE: keyId },
+        'NOTESAPP_S3_ACCESS_KEY_ID_FILE',
+      ],
+    ] as const)
+      await assert.rejects(
+        async () =>
+          loadServerConfig(
+            await loadProtectedEnvironment({ ...valid, ...overrides }),
+          ),
+        (error: unknown) =>
+          error instanceof ConfigError &&
+          error.issues.join('\n') ===
+            `${named}: set NOTESAPP_OBJECT_STORE to s3 to use an S3 compatible store, or remove ${named}.`,
+      );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+/** The secrets of the server that record 0207 gives a variable form. */
+const environmentSecrets = [
+  ['NOTESAPP_OPERATOR_TOKEN', 'Zx9'.repeat(12)],
+  ['NOTESAPP_S3_ACCESS_KEY_ID', 'key-identifier'],
+  ['NOTESAPP_S3_SECRET_ACCESS_KEY', 'secret-value'],
+] as const;
+
+await test('each secret of the server comes from its variable or its file, never both', async () => {
+  // Record 0207: a platform that mounts no file sets the variable, and
+  // Compose sets the file. The rules of every protected file hold for each.
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-secret-forms-'));
+  try {
+    for (const [name, secret] of environmentSecrets) {
+      const fileName = `${name}_FILE`;
+      assert.equal(
+        Object.entries(protectedFiles).some(
+          ([value, file]) => value === name && file === fileName,
+        ),
+        true,
+        name,
+      );
+      const file = join(directory, name);
+      await writeFile(file, ` ${secret} \n`);
+      // The variable form, as it is written.
+      assert.equal(
+        (await loadProtectedEnvironment({ [name]: secret }))[name],
+        secret,
+      );
+      // The file form, with the space around the value removed.
+      assert.equal(
+        (await loadProtectedEnvironment({ [fileName]: file }))[name],
+        secret,
+      );
+      // Both forms stop the start and name both.
+      await assert.rejects(
+        loadProtectedEnvironment({ [name]: secret, [fileName]: file }),
+        (error: unknown) =>
+          error instanceof ConfigError &&
+          error.issues.join('\n') ===
+            `${name}: set either ${name} or ${fileName}, not both.`,
+      );
+      // An empty file stops the start.
+      const empty = join(directory, `${name}-empty`);
+      await writeFile(empty, ' \n');
+      await assert.rejects(
+        loadProtectedEnvironment({ [fileName]: empty }),
+        (error: unknown) =>
+          error instanceof ConfigError &&
+          error.issues.join('\n') ===
+            `${fileName}: the protected file is empty.`,
+      );
+      // A file that cannot be read stops the start.
+      await assert.rejects(
+        loadProtectedEnvironment({ [fileName]: join(directory, 'missing') }),
+        (error: unknown) =>
+          error instanceof ConfigError &&
+          error.issues.join('\n') ===
+            `${fileName}: the protected file cannot be read.`,
+      );
+      // An empty value is a value that is not set, so the other form wins.
+      assert.equal(
+        (await loadProtectedEnvironment({ [name]: '', [fileName]: file }))[
+          name
+        ],
+        secret,
+      );
+      assert.equal(
+        (await loadProtectedEnvironment({ [name]: secret, [fileName]: '' }))[
+          name
+        ],
+        secret,
+      );
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+await test('the server never takes a file of a secret that nobody read', () => {
+  // A file that loadProtectedEnvironment did not read would leave the
+  // operator API or the object store off in silence.
+  for (const [name] of environmentSecrets)
+    assert.throws(
+      () =>
+        loadServerConfig(
+          environment({
+            ...s3,
+            [name]: undefined,
+            [`${name}_FILE`]: '/run/secrets/unread',
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof Error &&
+        !(error instanceof ConfigError) &&
+        error.message.includes(`${name}_FILE`),
+    );
 });
 
 await test('a new account starts active with no removal time unless the operator names one', () => {
@@ -981,13 +1067,16 @@ await test('a removal time needs a locked new account and a count of days', () =
     );
 });
 
+/** An operator secret that the server takes. */
+const operatorSecret = 'Zx9'.repeat(12);
+
 await test('the account portal is a full address that a path can follow', () => {
   assert.equal(loadServerConfig(environment({})).accountPortal, null);
   assert.equal(
     loadServerConfig(
       environment({
         NOTESAPP_ACCOUNT_PORTAL_URL: 'https://billing.example.test/portal/',
-        NOTESAPP_OPERATOR_TOKEN_FILE: '/run/secrets/operator_token',
+        NOTESAPP_OPERATOR_TOKEN: operatorSecret,
       }),
     ).accountPortal,
     'https://billing.example.test/portal',
@@ -1029,18 +1118,17 @@ await test('an account portal needs the operator API to redeem its handoff', () 
       error.issues.every(
         (issue) =>
           issue.startsWith('NOTESAPP_ACCOUNT_PORTAL_URL') &&
+          issue.includes('NOTESAPP_OPERATOR_TOKEN or') &&
           issue.includes('NOTESAPP_OPERATOR_TOKEN_FILE'),
       ),
   );
   // The operator API alone stays allowed: a service can set the controls
   // with no portal.
   const alone = loadServerConfig(
-    environment({
-      NOTESAPP_OPERATOR_TOKEN_FILE: '/run/secrets/operator_token',
-    }),
+    environment({ NOTESAPP_OPERATOR_TOKEN: operatorSecret }),
   );
   assert.equal(alone.accountPortal, null);
-  assert.equal(alone.operatorTokenFile, '/run/secrets/operator_token');
+  assert.equal(alone.operatorToken, operatorSecret);
 });
 
 /** A mail server and both legal documents, as the environment names them. */
@@ -1115,38 +1203,63 @@ await test('the open policy of the environment needs its mail and both documents
   );
 });
 
-await test('the operator token comes from its file, whole and long enough', async () => {
-  assert.equal(await loadOperatorToken({ operatorTokenFile: null }), null);
+await test('the operator token comes from its variable or its file, whole and long enough', async () => {
+  assert.equal(loadServerConfig(environment({})).operatorToken, null);
   const directory = await mkdtemp(join(tmpdir(), 'notesapp-operator-'));
   try {
     const file = join(directory, 'operator_token');
-    const secret = 'Zx9'.repeat(12);
-    await writeFile(file, `${secret}\n`);
-    const config = loadServerConfig(
-      environment({ NOTESAPP_OPERATOR_TOKEN_FILE: file }),
+    await writeFile(file, `${operatorSecret}\n`);
+    const fromFile = async (): Promise<string | null> =>
+      loadServerConfig(
+        await loadProtectedEnvironment(
+          environment({ NOTESAPP_OPERATOR_TOKEN_FILE: file }),
+        ),
+      ).operatorToken;
+    assert.equal(await fromFile(), operatorSecret);
+    assert.equal(
+      loadServerConfig(environment({ NOTESAPP_OPERATOR_TOKEN: operatorSecret }))
+        .operatorToken,
+      operatorSecret,
     );
-    assert.equal(await loadOperatorToken(config), secret);
-    for (const text of ['short', `${'a'.repeat(20)} ${'b'.repeat(20)}`]) {
+    // Each refusal names the form that the operator set, and never the
+    // secret.
+    for (const text of [
+      'short',
+      `${'a'.repeat(20)} ${'b'.repeat(20)}`,
+      'z'.repeat(513),
+    ]) {
       await writeFile(file, text);
-      await assert.rejects(
-        loadOperatorToken(config),
-        (error: unknown) =>
-          error instanceof ConfigError &&
-          error.issues.every(
-            (issue) =>
-              issue.startsWith('NOTESAPP_OPERATOR_TOKEN_FILE') &&
-              !issue.includes(text),
-          ),
+      await assert.rejects(fromFile, (error: unknown) =>
+        refusedAs(error, 'NOTESAPP_OPERATOR_TOKEN_FILE', text),
+      );
+      assert.throws(
+        () => loadServerConfig(environment({ NOTESAPP_OPERATOR_TOKEN: text })),
+        (error: unknown) => refusedAs(error, 'NOTESAPP_OPERATOR_TOKEN', text),
       );
     }
     await assert.rejects(
-      loadOperatorToken({ operatorTokenFile: join(directory, 'missing') }),
+      loadProtectedEnvironment(
+        environment({
+          NOTESAPP_OPERATOR_TOKEN_FILE: join(directory, 'missing'),
+        }),
+      ),
       ConfigError,
     );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+/** Whether a refusal names exactly one variable and never the value. */
+function refusedAs(error: unknown, variable: string, value: string): boolean {
+  return (
+    error instanceof ConfigError &&
+    error.issues.length === 1 &&
+    error.issues.every(
+      (issue) => issue.startsWith(`${variable}: `) && !issue.includes(value),
+    )
+  );
+}
 
 await test('with no cap of a month the installation caps nothing', () => {
   assert.deepEqual(loadServerConfig(environment({})).usageCaps, {

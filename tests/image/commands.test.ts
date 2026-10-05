@@ -6,7 +6,9 @@
  * `serve` starts the server with the runtime role and reads no migration
  * setting, so a serving replica holds no migration credential. With no
  * command, the container migrates and then serves, as a self-hosted
- * installation always did.
+ * installation always did. Each secret of both commands comes from a file or
+ * from a variable, never both (record 0207), so the image also runs on a
+ * platform that mounts no file.
  *
  * The deploy profile of the migration refuses a disposable test database, so
  * this file cannot use the test service of `compose.test.yaml`. It starts its
@@ -334,6 +336,117 @@ await test('no command migrates and then serves, as before', async () => {
     return await ready(name);
   });
   assert.match(await dockerOk(['logs', name]), /migrations applied/);
+});
+
+/** Turns pairs of a name and a value into the options of `docker create`. */
+function environmentOptions(
+  pairs: readonly (readonly [string, string])[],
+): string[] {
+  return pairs.flatMap(([name, value]) => ['--env', `${name}=${value}`]);
+}
+
+/** The three secrets of the migration, as variables (record 0207). */
+const migrationVariables = [
+  ['NOTESAPP_MIGRATION_DATABASE_URL', migrationFiles.migration_database_url],
+  ['NOTESAPP_RUNTIME_PASSWORD', runtimePassword],
+  ['NOTESAPP_AUTH_PASSWORD', authPassword],
+] as const;
+
+/** An operator secret that the server takes. */
+const operatorToken = randomBytes(24).toString('hex');
+
+/** The settings of the server with every secret as a variable. */
+function servingVariables(token: string): string[] {
+  return environmentOptions([
+    ['NOTESAPP_ORIGIN', 'http://localhost:3000'],
+    [
+      'NOTESAPP_DATABASE_URL',
+      `postgres://notesapp_app:${runtimePassword}@${database}:5432/notesapp`,
+    ],
+    [
+      'NOTESAPP_AUTH_DATABASE_URL',
+      `postgres://notesapp_auth:${authPassword}@${database}:5432/notesapp`,
+    ],
+    ['NOTESAPP_AUTH_SECRET', randomBytes(32).toString('hex')],
+    ['NOTESAPP_OPERATOR_TOKEN', token],
+    ['NOTESAPP_LOG_LEVEL', 'warn'],
+    ['NOTESAPP_MAX_BODY_BYTES', '1048576'],
+    ['NOTESAPP_MAX_HEADER_BYTES', '16384'],
+    ['NOTESAPP_REQUEST_TIMEOUT_MS', '60000'],
+    ['NOTESAPP_SHUTDOWN_GRACE_MS', '0'],
+  ]);
+}
+
+await test('migrate and serve take every secret from a variable, with no secret file', async () => {
+  // A platform such as Railway gives a service variables and mounts no file
+  // (record 0207). The migration and the server then read each secret from
+  // its variable.
+  const migration = `notesapp-image-test-migrate-variables-${run}`;
+  await startContainer(migration, {
+    environment: environmentOptions(migrationVariables),
+    secrets: [],
+    command: ['/app/entrypoint.sh', 'migrate'],
+  });
+  const migrated = await finish(migration);
+  assert.equal(migrated.code, 0, migrated.output);
+  assert.match(migrated.output, /migrations applied to notesapp/);
+  for (const [, value] of migrationVariables)
+    assert.equal(migrated.output.includes(value), false, 'no secret is shown');
+
+  const name = `notesapp-image-test-serve-variables-${run}`;
+  await startContainer(name, {
+    environment: servingVariables(operatorToken),
+    secrets: [],
+    command: ['/app/entrypoint.sh', 'serve'],
+  });
+  await until('the replica with variables only is ready', async () => {
+    if (!(await running(name))) throw new Error(await dockerOk(['logs', name]));
+    return await ready(name);
+  });
+  const secrets = await docker([
+    'exec',
+    name,
+    'sh',
+    '-c',
+    'ls -A /run/secrets 2>/dev/null || true',
+  ]);
+  assert.equal(secrets.output.trim(), '', 'the replica holds no secret file');
+  assert.doesNotMatch(await dockerOk(['exec', name, 'env']), /MIGRATION/);
+});
+
+await test('a secret in a variable is checked as its file is', async () => {
+  // The server reads the operator secret from its variable, so a secret
+  // that is too short stops the start and names the variable, not the value.
+  const short = `notesapp-image-test-short-token-${run}`;
+  const shortToken = 'short-operator-secret';
+  await startContainer(short, {
+    environment: servingVariables(shortToken),
+    secrets: [],
+    command: ['/app/entrypoint.sh', 'serve'],
+  });
+  const refused = await finish(short);
+  assert.equal(refused.code, 1, refused.output);
+  assert.match(refused.output, /NOTESAPP_OPERATOR_TOKEN: /);
+  assert.equal(refused.output.includes(shortToken), false);
+
+  // A secret of the migration in both forms stops the migration.
+  const both = `notesapp-image-test-migrate-both-${run}`;
+  await startContainer(both, {
+    environment: environmentOptions([
+      ...migrationVariables,
+      ['NOTESAPP_AUTH_PASSWORD_FILE', '/run/secrets/auth_database_password'],
+    ]),
+    secrets: [migrationSecrets],
+    command: ['/app/entrypoint.sh', 'migrate'],
+  });
+  const doubled = await finish(both);
+  assert.equal(doubled.code, 1, doubled.output);
+  assert.match(
+    doubled.output,
+    /set either NOTESAPP_AUTH_PASSWORD or NOTESAPP_AUTH_PASSWORD_FILE, not both/,
+  );
+  assert.equal(doubled.output.includes(authPassword), false);
+  assert.doesNotMatch(doubled.output, /migrations applied/);
 });
 
 await test('an unknown command starts nothing and names the commands', async () => {

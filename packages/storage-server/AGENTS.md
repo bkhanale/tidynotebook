@@ -86,6 +86,7 @@ well: `row-access.test.ts` is the pattern, and `object-store.test.ts` holds both
 | `src/workspace-store/index.ts`       | The store and its per-context repositories       |
 | `src/workspace-store/transaction.ts` | The transaction unit of work                     |
 | `src/migrate.ts`                     | Migration run and `requiredSchemaVersion`        |
+| `src/profiles.ts`                    | The profile guards and the deploy secrets (0207) |
 | `src/pool.ts`                        | The one factory of a connection pool             |
 | `src/object-store/port.ts`           | The port of every byte that outlives one request |
 | `migrations/0000_initial.sql`        | The base schema, roles, and policies             |

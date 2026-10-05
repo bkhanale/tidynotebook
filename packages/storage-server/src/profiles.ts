@@ -89,6 +89,94 @@ export function parseProfile(argv: readonly string[]): MigrationProfile {
   throw new Error('notesapp: pass --profile test or --profile deploy.');
 }
 
+/**
+ * The three secrets of the deploy profile, by the names that the `migrate`
+ * command of the image reads.
+ *
+ * Each one comes from its variable or from the file that its `_FILE`
+ * variable names, never both (record 0207). A file suits Compose, which
+ * mounts each secret, and the variable suits a platform that gives a service
+ * variables only. None of them is a setting of the server, so a container
+ * that only serves holds none (record 0202).
+ */
+export const migrationSecrets = [
+  'NOTESAPP_MIGRATION_DATABASE_URL',
+  'NOTESAPP_RUNTIME_PASSWORD',
+  'NOTESAPP_AUTH_PASSWORD',
+] as const;
+
+/** The name of one secret of the deploy profile. */
+export type MigrationSecret = (typeof migrationSecrets)[number];
+
+/** Every variable that the deploy profile reads, each name once. */
+export const migrationVariables: readonly string[] = migrationSecrets.flatMap(
+  (name) => [name, `${name}_FILE`],
+);
+
+/** The secrets of one deploy run. */
+export type DeploySecrets = {
+  readonly databaseUrl: string;
+  readonly runtimePassword: string;
+  readonly authPassword: string;
+};
+
+/**
+ * Reads one secret of the deploy profile.
+ *
+ * An empty value is a value that is not set. The variable is taken as it is
+ * written, and a file loses the space around its value. Both forms, neither
+ * form, a file that cannot be read and an empty file each stop the command.
+ * Each message names the variable and never the value. `read` answers the
+ * text of one file.
+ */
+export async function readMigrationSecret(
+  environment: Readonly<Record<string, string | undefined>>,
+  name: MigrationSecret,
+  read: (path: string) => Promise<string>,
+): Promise<string> {
+  const fileName = `${name}_FILE`;
+  const direct = environment[name] ?? '';
+  const path = environment[fileName] ?? '';
+  if (direct !== '' && path !== '')
+    throw new Error(`notesapp: set either ${name} or ${fileName}, not both.`);
+  if (direct !== '') return direct;
+  if (path === '') throw new Error(`notesapp: set ${name} or ${fileName}.`);
+  let text: string;
+  try {
+    text = await read(path);
+  } catch {
+    throw new Error(`notesapp: ${fileName}: the file cannot be read.`);
+  }
+  const value = text.trim();
+  if (value === '')
+    throw new Error(`notesapp: ${fileName}: the file is empty.`);
+  return value;
+}
+
+/** Reads the three secrets of the deploy profile. */
+export async function readDeploySecrets(
+  environment: Readonly<Record<string, string | undefined>>,
+  read: (path: string) => Promise<string>,
+): Promise<DeploySecrets> {
+  return {
+    databaseUrl: await readMigrationSecret(
+      environment,
+      'NOTESAPP_MIGRATION_DATABASE_URL',
+      read,
+    ),
+    runtimePassword: await readMigrationSecret(
+      environment,
+      'NOTESAPP_RUNTIME_PASSWORD',
+      read,
+    ),
+    authPassword: await readMigrationSecret(
+      environment,
+      'NOTESAPP_AUTH_PASSWORD',
+      read,
+    ),
+  };
+}
+
 /** Replaces the database name of a connection URL. */
 export function withDatabaseName(url: string, name: string): string {
   const parsed = new URL(url);

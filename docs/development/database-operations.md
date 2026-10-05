@@ -44,9 +44,13 @@ statements are written and reviewed by hand.
   container that serves without its migrations never reports ready.
 - `pnpm db:migrate` requires an explicit profile, and each profile refuses a
   database whose name does not match it, so no default can point a developer
-  command at an operator database. The deployment profile reads protected
-  operator files rather than environment values, so a URL and a password never
-  reach a process list or a shell history.
+  command at an operator database. The deployment profile reads each of its
+  three secrets from a variable or from its file, never both, by names that
+  only the migration reads
+  ([record 0207](../decisions/0207-every-secret-of-the-image-has-an-environment-form.md)).
+  `readDeploySecrets` in `src/profiles.ts` holds the rule. A file is the form
+  for Compose, and a variable the form for a platform that mounts no file. No
+  secret reaches a process argument or a message.
 - Three data migrations run after the SQL, under the same lock:
   `src/portable-markdown-migration.ts`, `src/note-document-migration.ts` and
   `src/search-index-migration.ts`. The second starts the document of every

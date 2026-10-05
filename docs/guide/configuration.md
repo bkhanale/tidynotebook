@@ -12,6 +12,10 @@ you need a setting. This page is the list to look a name up in.
   example value for each line, and change the values.
 - **The secret directory**, `NOTESAPP_SECRETS_DIR`, holds one file for each
   secret. A secret never goes in `.env`.
+- **A platform that mounts no file**, such as a platform that gives a service
+  variables only, sets each secret in its variable instead of its file. Each
+  secret has a variable and a `_FILE` variable. Set one of the two, never
+  both. With Compose, use the file.
 - **The accounts page** of the application holds the mail server, the two
   legal documents and who can make an account, unless the environment names
   them. See [Accounts and invitations](accounts.md).
@@ -84,7 +88,9 @@ these values. See [Object storage](self-hosting.md#object-storage).
 | `NOTESAPP_S3_BUCKET`                 | The bucket of the store.                                                                                                                  |
 | `NOTESAPP_S3_REGION`                 | The region of the bucket, for example `auto` for Cloudflare R2 or `us-east-1` for AWS.                                                    |
 | `NOTESAPP_S3_ENDPOINT`               | The address of the store, for example the address of R2 or of a MinIO server. Empty uses AWS itself.                                      |
+| `NOTESAPP_S3_ACCESS_KEY_ID`          | The access key ID, on a platform that mounts no file. Compose reads it from the `s3_access_key_id` file.                                  |
 | `NOTESAPP_S3_ACCESS_KEY_ID_FILE`     | The file that holds the access key ID, from `s3_access_key_id`. Compose sets it.                                                          |
+| `NOTESAPP_S3_SECRET_ACCESS_KEY`      | The secret access key, on a platform that mounts no file. Compose reads it from the `s3_secret_access_key` file.                          |
 | `NOTESAPP_S3_SECRET_ACCESS_KEY_FILE` | The file that holds the secret access key, from `s3_secret_access_key`. Compose sets it.                                                  |
 
 ## Requests and limits
@@ -128,10 +134,11 @@ A service of the operator, such as a billing service, can read and set the
 controls of an account with one secret. With no setting, the operator API is
 off and the installation sends nothing anywhere.
 
-| Setting                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NOTESAPP_OPERATOR_TOKEN_FILE` | The file that holds the one secret of the operator API, of at least 32 characters with no space. A service sends it as a bearer token to the operations under `/api/operator/`. These operations answer on any host name, so a service on a private network can reach them. Empty turns the operator API off, and each of its operations answers that it is off.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `NOTESAPP_ACCOUNT_PORTAL_URL`  | The full address of the account portal of that service, with no query, for example `https://billing.example.com`. Every account opens it from Settings, and a locked account opens it to unlock itself. A page or a message of the portal can send a person back to `/portal?path=<path>` of the application, for example `/portal?path=/account`. The application signs the person in first when needed, then opens that path of the portal. A path that the portal cannot take opens the root of the portal. The server adds a single-use token that works for 60 seconds, and the portal gives the token back to the operator API to learn the account. The portal needs the operator API, so set `NOTESAPP_OPERATOR_TOKEN_FILE` too, or the server does not start. Empty shows no portal. |
+| Setting                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTESAPP_OPERATOR_TOKEN`      | The one secret of the operator API, of at least 32 characters with no space. A service sends it as a bearer token to the operations under `/api/operator/`. These operations answer on any host name, so a service on a private network can reach them. Set it here on a platform that mounts no file, or set the file below. Empty in both turns the operator API off, and each of its operations answers that it is off.                                                                                                                                                                                                                                                                                                                                                |
+| `NOTESAPP_OPERATOR_TOKEN_FILE` | The file that holds that secret. Use it with Compose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `NOTESAPP_ACCOUNT_PORTAL_URL`  | The full address of the account portal of that service, with no query, for example `https://billing.example.com`. Every account opens it from Settings, and a locked account opens it to unlock itself. A page or a message of the portal can send a person back to `/portal?path=<path>` of the application, for example `/portal?path=/account`. The application signs the person in first when needed, then opens that path of the portal. A path that the portal cannot take opens the root of the portal. The server adds a single-use token that works for 60 seconds, and the portal gives the token back to the operator API to learn the account. The portal needs the operator API, so set its secret too, or the server does not start. Empty shows no portal. |
 
 ## Limits of each month
 
@@ -207,6 +214,23 @@ the server shows. See [Open sign-up](self-hosting.md#open-sign-up).
 | `NOTESAPP_LOG_MAX_FILE` | How many log files of each container Docker keeps.             |
 
 See [Logs](self-hosting.md#logs).
+
+## The migration
+
+The `migrate` command of the image applies the migrations and stops. It reads
+three secrets and no setting of the server, and the `serve` command reads none
+of them. See [Migrate and serve as two steps](self-hosting.md#migrate-and-serve-as-two-steps).
+Each secret comes from its variable or from its file, never both. When neither
+is set, the command reads the file that Compose puts in the container.
+
+| Setting                                | What it does                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `NOTESAPP_MIGRATION_DATABASE_URL`      | The database address of the administrator or of the migration role.                       |
+| `NOTESAPP_MIGRATION_DATABASE_URL_FILE` | The file that holds that address. Empty reads `migration_database_url`.                   |
+| `NOTESAPP_RUNTIME_PASSWORD`            | The password that the migration gives `notesapp_app`, of at least 12 characters.          |
+| `NOTESAPP_RUNTIME_PASSWORD_FILE`       | The file that holds that password. Empty reads `runtime_database_password`.               |
+| `NOTESAPP_AUTH_PASSWORD`               | The password that the migration gives `notesapp_auth`. It must differ from the other one. |
+| `NOTESAPP_AUTH_PASSWORD_FILE`          | The file that holds that password. Empty reads `auth_database_password`.                  |
 
 ## Settings that the Compose file sets
 

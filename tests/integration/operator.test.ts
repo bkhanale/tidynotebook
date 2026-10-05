@@ -30,7 +30,11 @@ import {
   removeOperatorAccount,
   setOperatorAccountControls,
 } from '@notesapp/api-client';
-import { createApp, loadServerConfig } from '@notesapp/server';
+import {
+  createApp,
+  loadProtectedEnvironment,
+  loadServerConfig,
+} from '@notesapp/server';
 import { createDisposableDatabase, openSession } from './support/database.ts';
 
 function responseOf(response: Response | undefined): Response {
@@ -72,12 +76,17 @@ const baseEnvironment = {
   // Each check makes accounts, so the attempt limit stays out of the way.
   NOTESAPP_RATE_LIMIT_MAX: '10000',
 };
+// The secret reaches this server through its file, as Compose gives it, and
+// the limited server below through its variable, as a platform with no file
+// gives it (record 0207).
 const app = await createApp(
-  loadServerConfig({
-    ...baseEnvironment,
-    NOTESAPP_OPERATOR_TOKEN_FILE: tokenFile,
-    NOTESAPP_ACCOUNT_PORTAL_URL: portal,
-  }),
+  loadServerConfig(
+    await loadProtectedEnvironment({
+      ...baseEnvironment,
+      NOTESAPP_OPERATOR_TOKEN_FILE: tokenFile,
+      NOTESAPP_ACCOUNT_PORTAL_URL: portal,
+    }),
+  ),
 );
 await app.listen({ host: '127.0.0.1', port: 0 });
 const offApp = await createApp(loadServerConfig(baseEnvironment));
@@ -87,7 +96,7 @@ const limitedApp = await createApp(
   loadServerConfig({
     ...baseEnvironment,
     NOTESAPP_RATE_LIMIT_MAX: '10',
-    NOTESAPP_OPERATOR_TOKEN_FILE: tokenFile,
+    NOTESAPP_OPERATOR_TOKEN: operatorToken,
   }),
 );
 await limitedApp.listen({ host: '127.0.0.1', port: 0 });

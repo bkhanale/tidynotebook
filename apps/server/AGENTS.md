@@ -92,7 +92,7 @@ request that no generated operation can express uses `app.inject()`.
 | `src/routes/published-render-cache.ts` | The bounded cache of published bodies          |
 | `src/auth/actor.ts`                    | Turns a session into a verified actor          |
 | `src/lifecycle.ts`                     | The order of the start and of the stop         |
-| `src/config.ts`                        | Environment reading and refusal messages       |
+| `src/config.ts`                        | Settings, secrets (0207) and refusal messages  |
 | `src/served-origins.ts`                | The one list of origins this deployment serves |
 | `src/trusted-proxies.ts`               | The one list of proxies this deployment trusts |
 | `src/logging.ts`                       | Pino sink for the shared event catalog         |
