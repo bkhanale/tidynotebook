@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { areaReadingList, coreReadingList } from './agent-context.mjs';
@@ -19,6 +19,7 @@ import {
   maximumGuideLines,
   skillsDirectory,
 } from './check-agents-md.mjs';
+import { root, workspaces } from './workspace.mjs';
 
 /** The `SKILL.md` of one skill directory. */
 const skillFile = (/** @type {string} */ name) =>
@@ -216,4 +217,26 @@ await test('a skill whose name differs from its directory fails', () => {
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /They are one name/);
+});
+
+// Regression: packages/logging carried a guide that no check read, because
+// the list of guided directories did not name it.
+await test('a workspace directory that the list does not name fails', () => {
+  const result = check({
+    'packages/extra/package.json': '{"name":"@notesapp/extra"}\n',
+    'packages/extra/AGENTS.md': guide(),
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /packages\/extra: a workspace directory that the guided list does not name/,
+  );
+});
+
+await test('every workspace directory of this repository is guided', async () => {
+  for (const { path } of await workspaces())
+    assert.ok(
+      guidedDirectories.includes(relative(root, path).split(sep).join('/')),
+      `${path} is not a guided directory.`,
+    );
 });

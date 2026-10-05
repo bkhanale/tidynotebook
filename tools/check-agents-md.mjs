@@ -9,7 +9,9 @@
  *    `rules/link.sh`: the two header lines, then every `NN-name.md` file in
  *    name order, separated by one blank line.
  * 2. Every directory that owns code has its own `AGENTS.md`, because an agent
- *    reads the guide of a directory before it edits under it. A guide stays
+ *    reads the guide of a directory before it edits under it. Each workspace
+ *    directory of `apps/` and `packages/` is in the guided list, so a new
+ *    package cannot carry a guide that no check reads. A guide stays
  *    short enough to read in full, so its rules are capped at 80 lines. The
  *    cap ends at the `## Key files` heading: that table is an index of the
  *    directory, not a rule, and its length follows how many files the
@@ -41,6 +43,7 @@ export const guidedDirectories = [
   'packages/api-contract',
   'packages/core',
   'packages/editor',
+  'packages/logging',
   'packages/markdown',
   'packages/note-document',
   'packages/storage-browser',
@@ -155,6 +158,30 @@ export function guideRules(text) {
 }
 
 /**
+ * The workspace directories of a tree: each directory of `apps/` and
+ * `packages/` that holds a manifest, as `pnpm-workspace.yaml` names them.
+ *
+ * @param {string} directory
+ * @returns {Promise<string[]>}
+ */
+export async function workspaceDirectories(directory) {
+  /** @type {string[]} */
+  const found = [];
+  for (const parent of ['apps', 'packages']) {
+    const entries = await readdir(join(directory, parent), {
+      withFileTypes: true,
+    }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const manifest = join(directory, parent, entry.name, 'package.json');
+      if ((await readFile(manifest, 'utf8').catch(() => null)) !== null)
+        found.push(`${parent}/${entry.name}`);
+    }
+  }
+  return found.sort();
+}
+
+/**
  * Runs the check over one repository tree.
  *
  * @param {string} directory
@@ -210,6 +237,11 @@ export async function main(directory) {
         `${skillsLink}/${name}: it must link to ${skillsDirectory}/${name}.`,
       );
   }
+  for (const workspace of await workspaceDirectories(directory))
+    if (!guidedDirectories.includes(workspace))
+      failures.push(
+        `${workspace}: a workspace directory that the guided list does not name. Add it to guidedDirectories in tools/check-agents-md.mjs.`,
+      );
   /** @type {Set<string>} */
   const stale = new Set();
   for (const guided of guidedDirectories) {
