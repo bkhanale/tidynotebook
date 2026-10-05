@@ -88,6 +88,7 @@ import {
   invitationFacts,
   missingPartsOf,
   openRegistrationMissingText,
+  registrationPolicyLocked,
   registrationPolicyText,
   type AccountAction,
 } from '../../lib/accounts.ts';
@@ -304,14 +305,21 @@ function AccountsPage(): ReactNode {
               registration: {
                 description: registrationPolicyText(
                   state.installation.registrationPolicy,
+                  state.installation.registrationPolicySource,
                 ),
                 body: (
-                  // The choice applies at once, as every setting does.
+                  // The choice applies at once, as every setting does. A
+                  // policy that the environment names is locked (0206).
                   <Checkbox
                     id="registration-open"
                     label="Let anybody sign up"
                     checked={state.installation.registrationPolicy === 'open'}
-                    disabled={busy}
+                    disabled={
+                      busy ||
+                      registrationPolicyLocked(
+                        state.installation.registrationPolicySource,
+                      )
+                    }
                     onChange={(open) => {
                       changePolicy(open ? 'open' : 'invitation');
                     }}

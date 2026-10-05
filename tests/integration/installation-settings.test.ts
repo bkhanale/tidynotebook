@@ -528,6 +528,52 @@ await test('the environment wins and locks each group it sets', async () => {
   );
 });
 
+await test('the environment names the registration policy, wins and locks it', async () => {
+  // Record 0206. The row says invitation, and the environment says open
+  // with the mail server and both documents that open needs.
+  assert.equal((await storedRow())['registration_policy'], 'invitation');
+  await current.served.close();
+  current = await serve(
+    {
+      NOTESAPP_REGISTRATION_POLICY: 'open',
+      NOTESAPP_SMTP_URL: 'smtp://relay.example.test:25',
+      NOTESAPP_MAIL_FROM: 'Notes <no-reply@example.test>',
+      NOTESAPP_TERMS_URL: 'https://example.test/env-terms',
+      NOTESAPP_TERMS_VERSION: 'e1',
+      NOTESAPP_PRIVACY_URL: 'https://example.test/env-privacy',
+      NOTESAPP_PRIVACY_VERSION: 'e2',
+    },
+    { send: () => Promise.resolve() },
+  );
+  // The start wrote the policy into the row, so the SQL gate of a sign-up
+  // reads it too.
+  assert.equal((await storedRow())['registration_policy'], 'open');
+  const installation = await getInstallation({ headers: owner });
+  assert.equal(installation.data?.registrationPolicy, 'open');
+  assert.equal(installation.data?.registrationPolicySource, 'environment');
+  assert.equal((await getSetupStatus()).data?.openRegistration, true);
+  const changed = await updateInstallation({
+    headers: owner,
+    body: { registrationPolicy: 'invitation' },
+  });
+  assert.equal(responseOf(changed.response).status, 409);
+  assert.equal(memberOf(changed.error, 'code'), 'setting_locked');
+  assert.equal((await storedRow())['registration_policy'], 'open');
+
+  // With no variable the setting unlocks, and the row keeps the last policy.
+  await current.served.close();
+  current = await serve();
+  const unlocked = await getInstallation({ headers: owner });
+  assert.equal(unlocked.data?.registrationPolicy, 'open');
+  assert.equal(unlocked.data?.registrationPolicySource, 'application');
+  const back = await updateInstallation({
+    headers: owner,
+    body: { registrationPolicy: 'invitation' },
+  });
+  assert.equal(responseOf(back.response).status, 200);
+  assert.equal(back.data?.registrationPolicy, 'invitation');
+});
+
 await current.served.close();
 await database.destroy();
 await rm(storageRoot, { recursive: true, force: true });

@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyActor, type Actor } from './actor.ts';
 import {
+  applyEnvironmentPolicy,
   createInvitation,
   dismissReport,
   listAccounts,
@@ -55,6 +56,7 @@ const digest = 'a'.repeat(64);
 const ready = {
   mail: true,
   legalDocuments: true,
+  registrationPolicy: false,
   mailUsable: () => true,
 };
 
@@ -583,8 +585,64 @@ await test('the open policy needs every part and a member changes nothing', asyn
 const none = {
   mail: false,
   legalDocuments: false,
+  registrationPolicy: false,
   mailUsable: () => true,
 };
+await test('a policy that the environment names is locked', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const named = { ...ready, registrationPolicy: true };
+  const locked = { ok: false, error: { code: 'setting_locked', fileIds: [] } };
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(ada), 'open', named),
+    locked,
+  );
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(ada), 'invitation', named),
+    locked,
+  );
+  assert.equal(store.policy, 'invitation');
+  // A member is still forbidden first, so the lock tells a member nothing.
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(bea), 'open', named),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+});
+
+await test('the policy of the environment is stored, and open needs its parts', async () => {
+  const written: string[] = [];
+  const store = {
+    applyRegistrationPolicy: (policy: string) => {
+      written.push(policy);
+      return Promise.resolve();
+    },
+  };
+  for (const readiness of [
+    { mail: false, legalDocuments: true },
+    { mail: true, legalDocuments: false },
+  ])
+    assert.deepEqual(await applyEnvironmentPolicy(store, 'open', readiness), {
+      ok: false,
+      error: { code: 'open_registration_unavailable', fileIds: [] },
+    });
+  assert.deepEqual(written, []);
+  // Invitation needs no part.
+  assert.deepEqual(
+    await applyEnvironmentPolicy(store, 'invitation', {
+      mail: false,
+      legalDocuments: false,
+    }),
+    { ok: true, value: 'invitation' },
+  );
+  assert.deepEqual(
+    await applyEnvironmentPolicy(store, 'open', {
+      mail: true,
+      legalDocuments: true,
+    }),
+    { ok: true, value: 'open' },
+  );
+  assert.deepEqual(written, ['invitation', 'open']);
+});
+
 const sealed = { kind: 'set' as const, sealed: 'sealed' };
 const noPassword = { kind: 'set' as const, sealed: null };
 const keep = { kind: 'keep' as const };

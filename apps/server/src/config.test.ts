@@ -1016,6 +1016,78 @@ await test('an account portal needs the operator API to redeem its handoff', () 
   assert.equal(alone.operatorTokenFile, '/run/secrets/operator_token');
 });
 
+/** A mail server and both legal documents, as the environment names them. */
+const openParts = {
+  NOTESAPP_SMTP_URL: 'smtps://mail.invalid',
+  NOTESAPP_MAIL_FROM: 'Notes <no-reply@example.test>',
+  NOTESAPP_TERMS_URL: 'https://example.test/terms',
+  NOTESAPP_TERMS_VERSION: '1',
+  NOTESAPP_PRIVACY_URL: 'https://example.test/privacy',
+  NOTESAPP_PRIVACY_VERSION: '1',
+};
+
+await test('the environment can name the registration policy', () => {
+  assert.equal(loadServerConfig(environment({})).registrationPolicy, null);
+  assert.equal(
+    loadServerConfig(
+      environment({ NOTESAPP_REGISTRATION_POLICY: 'invitation' }),
+    ).registrationPolicy,
+    'invitation',
+  );
+  assert.equal(
+    loadServerConfig(
+      environment({ NOTESAPP_REGISTRATION_POLICY: 'open', ...openParts }),
+    ).registrationPolicy,
+    'open',
+  );
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({ NOTESAPP_REGISTRATION_POLICY: 'approval-secret' }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.every(
+        (issue) =>
+          issue.includes('NOTESAPP_REGISTRATION_POLICY') &&
+          !issue.includes('approval-secret'),
+      ),
+  );
+});
+
+await test('the open policy of the environment needs its mail and both documents', () => {
+  const { NOTESAPP_SMTP_URL, NOTESAPP_MAIL_FROM, ...documents } = openParts;
+  const mail = { NOTESAPP_SMTP_URL, NOTESAPP_MAIL_FROM };
+  for (const [parts, names] of [
+    [documents, ['NOTESAPP_SMTP_']],
+    [mail, ['NOTESAPP_TERMS_']],
+    [{}, ['NOTESAPP_SMTP_', 'NOTESAPP_TERMS_']],
+  ] as const)
+    assert.throws(
+      () =>
+        loadServerConfig(
+          environment({ NOTESAPP_REGISTRATION_POLICY: 'open', ...parts }),
+        ),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.issues.length === names.length &&
+        error.issues.every(
+          (issue, index) =>
+            issue.startsWith('NOTESAPP_REGISTRATION_POLICY: ') &&
+            issue.includes(names[index] ?? '') &&
+            !issue.includes('mail.invalid') &&
+            !issue.includes('example.test'),
+        ),
+      JSON.stringify(names),
+    );
+  // A transport and documents that the application stores do not count:
+  // the configuration cannot read them, and the application could remove
+  // them while the environment keeps the policy open.
+  assert.throws(() =>
+    loadServerConfig(environment({ NOTESAPP_REGISTRATION_POLICY: 'open' })),
+  );
+});
+
 await test('the operator token comes from its file, whole and long enough', async () => {
   assert.equal(await loadOperatorToken({ operatorTokenFile: null }), null);
   const directory = await mkdtemp(join(tmpdir(), 'notesapp-operator-'));

@@ -339,7 +339,7 @@ export const getInstallation = <ThrowOnError extends boolean = false>(options?: 
 /**
  * Change the registration policy of the installation.
  *
- * Only an administrator changes the settings. The server refuses open registration until the installation has a mail transport, an origin for published pages, and its legal documents.
+ * Only an administrator changes the settings. The server refuses open registration until the installation has a mail transport and its legal documents, and it refuses any change while the server environment names the policy.
  */
 export const updateInstallation = <ThrowOnError extends boolean = false>(options: Options<UpdateInstallationData, ThrowOnError>): RequestResult<UpdateInstallationResponses, UpdateInstallationErrors, ThrowOnError> => (options.client ?? client).put<UpdateInstallationResponses, UpdateInstallationErrors, ThrowOnError>({
     security: [{

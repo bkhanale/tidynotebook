@@ -163,6 +163,8 @@ await test('the first account is an administrator with the default limit', async
   const installation = await getInstallation({ headers: admin });
   assert.deepEqual(installation.data, {
     registrationPolicy: 'invitation',
+    // No environment names the policy, so an administrator sets it (0206).
+    registrationPolicySource: 'application',
     mailConfigured: false,
     invitationLifetimeHours: config.accounts.invitationLifetimeHours,
     defaultLimitBytes: Number(defaultAccountLimitBytes),

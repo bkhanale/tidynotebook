@@ -10,7 +10,11 @@
  * the guarantee: the server and the database refuse the same change
  * (record 0110).
  */
-import type { AccountSummary, Invitation } from '@notesapp/api-client';
+import type {
+  AccountSummary,
+  Invitation,
+  SettingSource,
+} from '@notesapp/api-client';
 import type { OpenRegistrationPart } from '@notesapp/core';
 import { relativeTime } from './relative-time.ts';
 
@@ -332,9 +336,25 @@ export function invitationFacts(invitation: Invitation, now: number): string[] {
   ];
 }
 
-/** The sentence of a registration policy. */
-export function registrationPolicyText(policy: 'invitation' | 'open'): string {
-  return policy === 'invitation'
-    ? 'Only a person with an invitation can make an account.'
-    : 'A person who proves their address can make an account.';
+/**
+ * The sentences of a registration policy. A policy that the server
+ * environment names is locked, so the page says where it changes (record
+ * 0206).
+ */
+export function registrationPolicyText(
+  policy: 'invitation' | 'open',
+  source: SettingSource,
+): string {
+  const rule =
+    policy === 'invitation'
+      ? 'Only a person with an invitation can make an account.'
+      : 'A person who proves their address can make an account.';
+  return source === 'environment'
+    ? `${rule} The server environment sets this, so it changes there and not on this page.`
+    : rule;
+}
+
+/** Whether the page can change the registration policy (record 0206). */
+export function registrationPolicyLocked(source: SettingSource): boolean {
+  return source === 'environment';
 }

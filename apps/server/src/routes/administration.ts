@@ -152,6 +152,9 @@ export function createAdministrationHandlers(
     const legal = await settings.legal(stored);
     return {
       registrationPolicy: policy,
+      registrationPolicySource: environment.registrationPolicy
+        ? 'environment'
+        : 'application',
       mailConfigured: await settings.mailer.available(),
       invitationLifetimeHours: dependencies.invitationLifetimeHours,
       defaultLimitBytes: byteNumber(dependencies.defaultLimitBytes),

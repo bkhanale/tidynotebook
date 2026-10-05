@@ -14,10 +14,15 @@ import Fastify, { LogController } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ReaderRefusalCause, UsageMeter } from '@notesapp/core';
-import { createUsageMeter, lockedAccountKeeps } from '@notesapp/core';
+import {
+  applyEnvironmentPolicy,
+  createUsageMeter,
+  lockedAccountKeeps,
+} from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
 import { findChannel, findOperation } from '@notesapp/api-contract';
 import {
+  ConfigError,
   loadLegalTexts,
   loadObjectStoreSettings,
   loadOperatorToken,
@@ -750,6 +755,21 @@ async function composeApp(
       : { connect: options.connectMail }),
   });
   const mail = settings.mailer;
+  // A registration policy that the environment names goes into the row at
+  // each start, so the SQL gate of a sign-up, the sign-up and the accounts
+  // page read one value, and the decider locks it (record 0206). The
+  // configuration refused an open policy with a part missing.
+  if (config.registrationPolicy !== null) {
+    const applied = await applyEnvironmentPolicy(
+      identity,
+      config.registrationPolicy,
+      settings.environment,
+    );
+    if (!applied.ok)
+      throw new ConfigError([
+        'NOTESAPP_REGISTRATION_POLICY: the open policy needs a mail server and both legal documents in the environment.',
+      ]);
+  }
   // The published page reads the stylesheet of the built shell document, so
   // the page cannot drift from the theme (decision 0031). A deployment that
   // serves no built assets, which is what a development run and most tests

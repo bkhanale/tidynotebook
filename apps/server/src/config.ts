@@ -29,7 +29,11 @@ import {
   type LegalDocumentName,
   type LegalDocuments,
   type MailSettingsProblem,
+  type OpenRegistrationPart,
+  type RegistrationPolicy,
   type StoredMailSettings,
+  openRegistrationMissing,
+  registrationPolicies,
   productName,
   controlStandings,
   maxRemoveAfterDays,
@@ -264,6 +268,14 @@ export type ServerConfig = {
    */
   readonly accountPortal: string | null;
   /**
+   * The registration policy that the environment names, or `null` for none
+   * (record 0206). A named policy wins over the setting of the application
+   * and locks it, and the server writes it into the stored row at its start.
+   * The open policy needs the mail transport and both legal documents of the
+   * environment, so startup stops without them.
+   */
+  readonly registrationPolicy: RegistrationPolicy | null;
+  /**
    * The caps of the installation for one calendar month in UTC (record
    * 0193), each `null` for none: the bytes of the published pages, the bytes
    * of the downloads, and the write calls and the read calls to an S3 store.
@@ -374,6 +386,7 @@ export const optionalVariables = [
   'NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER',
   'NOTESAPP_OPERATOR_TOKEN_FILE',
   'NOTESAPP_ACCOUNT_PORTAL_URL',
+  'NOTESAPP_REGISTRATION_POLICY',
   'NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES',
   'NOTESAPP_DOWNLOAD_CAP_BYTES',
   'NOTESAPP_OBJECT_WRITE_CAP',
@@ -648,6 +661,10 @@ const configSchema: SchemaObject = {
       maxLength: 1024,
     },
     NOTESAPP_ACCOUNT_PORTAL_URL: { type: 'string', maxLength: 2048 },
+    NOTESAPP_REGISTRATION_POLICY: {
+      type: 'string',
+      enum: [...registrationPolicies],
+    },
     // A cap of a month is a whole count that a JSON number carries (record
     // 0193), so at most sixteen digits.
     NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES: monthlyCap,
@@ -751,6 +768,12 @@ export function loadServerConfig(
     throw new ConfigError([
       'NOTESAPP_ACCOUNT_PORTAL_URL: the portal needs the operator API to unlock an account. Set NOTESAPP_OPERATOR_TOKEN_FILE too, or remove NOTESAPP_ACCOUNT_PORTAL_URL.',
     ]);
+  const legal = readLegalDocuments(raw, canonical);
+  const registrationPolicy = readRegistrationPolicy(
+    raw,
+    mail.mail,
+    legal.legalDocuments,
+  );
   return {
     origin: canonical,
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
@@ -794,9 +817,44 @@ export function loadServerConfig(
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
     operatorTokenFile,
     accountPortal,
+    registrationPolicy,
     usageCaps: readUsageCaps(raw),
-    ...readLegalDocuments(raw, canonical),
+    ...legal,
   };
+}
+
+/** What a missing part of the open policy names (records 0114, 0191). */
+const openPolicyIssues: Readonly<Record<OpenRegistrationPart, string>> = {
+  mail: 'NOTESAPP_REGISTRATION_POLICY: the open policy needs a mail server in the environment, so a sign-up can prove its address. Set NOTESAPP_SMTP_URL or the NOTESAPP_SMTP_HOST fields, or set NOTESAPP_REGISTRATION_POLICY to invitation.',
+  'legal-documents':
+    'NOTESAPP_REGISTRATION_POLICY: the open policy needs the terms and the privacy notice in the environment. Set the NOTESAPP_TERMS_ and NOTESAPP_PRIVACY_ variables, or set NOTESAPP_REGISTRATION_POLICY to invitation.',
+};
+
+/**
+ * The registration policy of the environment, or `null` (record 0206).
+ *
+ * The open policy needs every part that records 0114 and 0191 name, and the
+ * environment must name each one, so the whole open set has one source and
+ * no change in the application can remove a part of it. A missing part stops
+ * startup. Each message names the variable and never its value.
+ */
+function readRegistrationPolicy(
+  raw: RawConfig,
+  mail: MailConfig | null,
+  legalDocuments: LegalDocuments | null,
+): RegistrationPolicy | null {
+  const policy = registrationPolicies.find(
+    (entry) => entry === raw.NOTESAPP_REGISTRATION_POLICY,
+  );
+  if (policy === undefined) return null;
+  if (policy === 'invitation') return policy;
+  const missing = openRegistrationMissing({
+    mail: mail !== null,
+    legalDocuments: legalDocuments !== null,
+  });
+  if (missing.length > 0)
+    throw new ConfigError(missing.map((part) => openPolicyIssues[part]));
+  return policy;
 }
 
 /**

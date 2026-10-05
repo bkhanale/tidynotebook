@@ -12,6 +12,7 @@ import {
   gigabytesOf,
   invitationFacts,
   invitationTokenOf,
+  registrationPolicyLocked,
   registrationPolicyText,
   missingPartsOf,
   openRegistrationMissingText,
@@ -191,10 +192,22 @@ await test('an invitation row says when it expires and how it travelled', () => 
 
 await test('the registration policy reads as one sentence', () => {
   assert.equal(
-    registrationPolicyText('invitation'),
+    registrationPolicyText('invitation', 'application'),
     'Only a person with an invitation can make an account.',
   );
-  assert.match(registrationPolicyText('open'), /proves their address/);
+  assert.match(
+    registrationPolicyText('open', 'application'),
+    /proves their address/,
+  );
+  assert.equal(registrationPolicyLocked('application'), false);
+});
+
+await test('a policy that the environment names says where it changes', () => {
+  assert.equal(
+    registrationPolicyText('open', 'environment'),
+    'A person who proves their address can make an account. The server environment sets this, so it changes there and not on this page.',
+  );
+  assert.equal(registrationPolicyLocked('environment'), true);
 });
 
 await test('a verification link reads its token from the fragment only', () => {

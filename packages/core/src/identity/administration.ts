@@ -32,6 +32,7 @@ import {
 } from './installation.ts';
 import type {
   AccountRecord,
+  EnvironmentPolicyStore,
   InstallationStore,
   InstallationTransaction,
   InvitationRecord,
@@ -43,6 +44,7 @@ import {
   maxAccountLimitBytes,
   normalizeEmail,
   openRegistrationMissing,
+  type OpenRegistrationReadiness,
 } from './registration.ts';
 import {
   settingsReadiness,
@@ -366,7 +368,9 @@ export function readRegistrationPolicy(
  * The open policy needs every part that records 0114 and 0191 name. The
  * transport states what the installation has, and the answer is
  * `open_registration_unavailable` while one part is missing, so no
- * installation opens to strangers before it can verify an address.
+ * installation opens to strangers before it can verify an address. A policy
+ * that the server environment names is locked, and the answer is
+ * `setting_locked` (record 0206).
  */
 export function setRegistrationPolicy(
   store: InstallationStore,
@@ -377,6 +381,8 @@ export function setRegistrationPolicy(
   return store.installation(actor, async (tx) => {
     if (!(await permitted(tx, actor, 'change-policy')))
       return fail<RegistrationPolicy>('forbidden');
+    if (environment.registrationPolicy)
+      return fail<RegistrationPolicy>('setting_locked');
     const known = registrationPolicies.find((entry) => entry === policy);
     if (known === undefined) return fail<RegistrationPolicy>('forbidden');
     // The stored settings are read under the installation lock, so a removal
@@ -387,4 +393,24 @@ export function setRegistrationPolicy(
     await tx.setRegistrationPolicy(known);
     return ok(known);
   });
+}
+
+/**
+ * Stores the registration policy that the server environment names, at the
+ * start of the server (record 0206).
+ *
+ * The open policy needs the parts that records 0114 and 0191 name, from the
+ * environment too, so the whole open set has one source and no change in the
+ * application can remove a part of it. The configuration refuses such an
+ * environment first, and this check holds the rule where the rule lives.
+ */
+export async function applyEnvironmentPolicy(
+  store: EnvironmentPolicyStore,
+  policy: RegistrationPolicy,
+  environment: OpenRegistrationReadiness,
+): Promise<Result<RegistrationPolicy>> {
+  if (policy === 'open' && openRegistrationMissing(environment).length > 0)
+    return fail<RegistrationPolicy>('open_registration_unavailable');
+  await store.applyRegistrationPolicy(policy);
+  return ok(policy);
 }

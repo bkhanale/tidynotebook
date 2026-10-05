@@ -206,6 +206,15 @@ export type RegistrationStore = {
 };
 
 /**
+ * The write of the registration policy that the server environment names
+ * (record 0206). The server makes it once at its start, with no session.
+ */
+export type EnvironmentPolicyStore = {
+  /** Stores the policy in the row of the installation, under its lock. */
+  applyRegistrationPolicy(policy: RegistrationPolicy): Promise<void>;
+};
+
+/**
  * The mail transport and the legal documents (record 0148), which the server
  * reads with no session: to send a message that a stranger causes and to
  * serve a legal page. The password stays sealed.

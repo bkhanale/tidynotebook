@@ -1269,6 +1269,10 @@ export type Installation = {
      */
     readonly registrationPolicy: RegistrationPolicy;
     /**
+     * Where the registration policy comes from (record 0206). With environment, the server environment names it and the application cannot change it.
+     */
+    readonly registrationPolicySource: SettingSource;
+    /**
      * Whether the installation has a mail transport. Without one, an invitation link appears once for the administrator to copy.
      */
     readonly mailConfigured: boolean;
@@ -4887,6 +4891,10 @@ export type UpdateInstallationErrors = {
      * The actor may not perform this operation.
      */
     403: ProblemDetails;
+    /**
+     * The setting cannot change now. The code is setting_locked when the server environment sets it, and setting_required when open registration needs it. Nothing changed.
+     */
+    409: ProblemDetails;
     /**
      * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */

@@ -105,6 +105,11 @@ services:
       # account active with no removal time.
       NOTESAPP_NEW_ACCOUNT_STANDING: ${NOTESAPP_NEW_ACCOUNT_STANDING:-}
       NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER: ${NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER:-}
+      # Who can make an account, invitation or open (record 0206). A value here
+      # wins over the accounts page and locks it there. Open needs the mail
+      # server and both legal documents in the environment too. An empty value
+      # leaves the choice to an administrator.
+      NOTESAPP_REGISTRATION_POLICY: ${NOTESAPP_REGISTRATION_POLICY:-}
       # The operator API of a service such as a billing service (record 0190).
       # The file holds one secret, so mount it and name its path in the
       # container. An empty value turns the operator API off.

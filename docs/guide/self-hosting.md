@@ -475,7 +475,10 @@ steps in order.
 5. **Backups.** Check that the backup runs, and that a restore works. See
    [Backup and restore](backup-and-restore.md).
 6. **Turn it on.** Sign in as an administrator, open **Settings**, select
-   **Manage accounts**, and select **Let anybody sign up**.
+   **Manage accounts**, and select **Let anybody sign up**. An installation
+   that is set up from its environment sets `NOTESAPP_REGISTRATION_POLICY` to
+   `open` instead. It then needs the mail server and both documents in the
+   environment too.
 
 Then sign up yourself with a new address from a private window, open the link,
 and sign in. Select **Forgot password** once, and check that the reset works.

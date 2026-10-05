@@ -225,6 +225,13 @@
       "when": 1791138344903,
       "tag": "0031_monthly_usage_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791164948810,
+      "tag": "0032_environment_registration_policy",
+      "breakpoints": true
     }
   ]
 }

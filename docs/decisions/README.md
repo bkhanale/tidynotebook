@@ -237,6 +237,7 @@ and needs no record.
 | [0203](0203-the-product-name-is-written-in-lowercase.md)                              | The product name is written in lowercase                                        |
 | [0204](0204-the-release-gate-builds-the-image-before-the-tag.md)                      | The release gate builds the image before the tag                                |
 | [0205](0205-the-cloud-infrastructure-is-code.md)                                      | The cloud infrastructure is code                                                |
+| [0206](0206-the-environment-can-name-the-registration-policy.md)                      | The environment can name the registration policy                                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -825,7 +826,11 @@ notebook, and gives the install icon its tn monogram.
 Record 0204 builds the image in the release gate before the tag, from the
 committed tree, because the tags of 0.13.0 and 0.14.0 have no image.
 
-Record 0205 declares the infrastructure of the cloud as OpenTofu code in the
-private repository. It replaces only the bullet of record 0199 that lists the
+Record 0205 declares the infrastructure of the cloud as code in the private
+repository. It replaces only the bullet of record 0199 that lists the
 dashboard settings, and the line of design 024 that keeps infrastructure as
 code out.
+
+Record 0206 lets the environment name the registration policy, as record 0148
+lets it set the mail and the legal documents, so an installation set up as
+code needs no step in a browser.

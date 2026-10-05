@@ -30,6 +30,10 @@ service. If a part is missing, the page names it. You set the mail server and
 the two documents on the same page. Turn the choice off to require an
 invitation again.
 
+When the server environment names the policy, in
+`NOTESAPP_REGISTRATION_POLICY`, the section states that and offers no change.
+See [Configuration reference](configuration.md#accounts).
+
 While anybody can sign up, the page does not let you remove the mail server or
 a legal document, because sign-up needs them.
 

@@ -46,6 +46,7 @@ import type {
   AppearanceChoice,
   ConsentRecord,
   ConsentVersions,
+  EnvironmentPolicyStore,
   ImportedPalette,
   ImportedTheme,
   InstallationRole,
@@ -315,6 +316,7 @@ function asThemeFamily(value: string): string {
 export type IdentityStoreHandle = WorkspaceAdminStore &
   InstallationStore &
   InstallationSettingsReader &
+  EnvironmentPolicyStore &
   RegistrationStore &
   OperatorStore &
   RemovalStore & {
@@ -1603,6 +1605,17 @@ export function openIdentityStore(
           'select notesapp_registration_policy()::text as policy',
         );
         return asRegistrationPolicy(rows.rows[0]?.policy ?? '');
+      });
+    },
+
+    async applyRegistrationPolicy(policy: RegistrationPolicy): Promise<void> {
+      // The start has no session, so the transaction names no actor
+      // (record 0206).
+      await inTransaction(null, null, async (client) => {
+        await client.query(
+          'select notesapp_apply_registration_policy($1::registration_policy)',
+          [policy],
+        );
       });
     },
 

@@ -34,7 +34,7 @@ authentication routes on one origin, and it holds no domain rule.
   of open registration, `verification.ts` the token of its link (0114), and
   `proof-of-work.ts` the challenges of a sign-up (0115). `src/jobs/` holds background work, `src/cli/` the operator
   commands. `routes/administration.ts` serves the installation operations (0109).
-- `src/installation-settings.ts` decides the mail and the legal documents (0148).
+- `src/installation-settings.ts` decides the mail, the legal documents and the policy lock (0148, 0206).
 - A domain rule lives in `packages/core`, every SQL statement in
   `packages/storage-server`, and every request shape in `packages/api-contract/`.
 

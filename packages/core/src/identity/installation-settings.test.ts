@@ -237,6 +237,7 @@ await test('the readiness takes either source of each part', () => {
   const environment = {
     mail: false,
     legalDocuments: false,
+    registrationPolicy: false,
     mailUsable: () => true,
   };
   assert.deepEqual(settingsReadiness(environment, empty), {

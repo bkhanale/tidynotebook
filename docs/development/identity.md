@@ -30,6 +30,9 @@ The function takes one ground:
   exist, mail and the legal documents.
   [Record 0191](../decisions/0191-a-published-page-of-the-cloud-lives-on-the-application-origin.md)
   states that a published origin is not one of them.
+  `NOTESAPP_REGISTRATION_POLICY` can name the policy, which the server writes
+  into the row at each start and locks
+  ([record 0206](../decisions/0206-the-environment-can-name-the-registration-policy.md)).
 
 The identity user and the account live in two stores. The path makes the
 identity user, calls the function, and deletes the identity user when the

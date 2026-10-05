@@ -106,6 +106,7 @@ export {
 } from './identity/operator.ts';
 export type {
   AccountRecord,
+  EnvironmentPolicyStore,
   InstallationSettingsReader,
   InstallationStore,
   InstallationTransaction,
@@ -144,6 +145,7 @@ export type {
   InvitationView,
 } from './identity/administration.ts';
 export {
+  applyEnvironmentPolicy,
   createInvitation,
   dismissReport,
   listAccounts,

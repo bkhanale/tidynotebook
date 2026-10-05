@@ -1,7 +1,8 @@
 /**
  * The decider of the mail transport and of the legal documents (record
  * 0148): the environment wins, the stored row applies otherwise, and the
- * password stays sealed until a message goes.
+ * password stays sealed until a message goes. A registration policy that the
+ * environment names is locked (record 0206).
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -258,6 +259,20 @@ await test('documents that the environment names win', async () => {
   assert.equal(settings.environment.legalDocuments, true);
   assert.equal(legal.documents?.terms.version, 'e1');
   assert.equal(legal.texts.terms, null);
+});
+
+await test('a registration policy that the environment names is locked', () => {
+  // Record 0206. With no variable an administrator sets the policy.
+  assert.equal(
+    decider(emptyInstallationSettings).settings.environment.registrationPolicy,
+    false,
+  );
+  assert.equal(
+    decider(emptyInstallationSettings, {
+      NOTESAPP_REGISTRATION_POLICY: 'invitation',
+    }).settings.environment.registrationPolicy,
+    true,
+  );
 });
 
 await test('a template takes the host of the origin', () => {
