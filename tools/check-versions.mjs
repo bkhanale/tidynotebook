@@ -269,6 +269,30 @@ export function outsideContext(ignore, file) {
 }
 
 /**
+ * The failures of the dependency folders that the image build context keeps.
+ *
+ * A local install writes `node_modules` in the root and in each workspace
+ * member. Docker reads a bare `node_modules` rule for the root folder only, so
+ * a plain build from a checkout copies the links of each member into the
+ * image. Every one of those folders must stay out of the context.
+ *
+ * @param {string} ignore
+ * @param {string[]} members The relative directories of the workspace members.
+ * @returns {string[]}
+ */
+export function dependencyFolderFailures(ignore, members) {
+  return ['', ...members]
+    .map((member) =>
+      member === '' ? 'node_modules' : `${member}/node_modules`,
+    )
+    .filter((folder) => !outsideContext(ignore, `${folder}/a`))
+    .map(
+      (folder) =>
+        `.dockerignore keeps ${folder} in the image build; ignore **/node_modules.`,
+    );
+}
+
+/**
  * The failures of the files that the image build type-checks against the
  * build context.
  *
@@ -370,6 +394,14 @@ export async function versionPolicy(directory = root) {
       ...patchFiles(workspaceText),
       ...manifests,
     ]),
+  );
+  failures.push(
+    ...dependencyFolderFailures(
+      ignore,
+      members.map((item) =>
+        relative(directory, item.path).split(sep).join('/'),
+      ),
+    ),
   );
   failures.push(
     ...contextImportFailures(ignore, await typeCheckedFiles(directory)),

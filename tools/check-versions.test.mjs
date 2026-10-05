@@ -11,6 +11,7 @@ import {
   imageFailures,
   installCopyFailures,
   outsideContext,
+  dependencyFolderFailures,
   parseCatalogs,
   patchFiles,
   resolveVersion,
@@ -109,6 +110,7 @@ function rootManifest(serviceImage) {
 
 /** A passing workspace: every shared version sits once, in a catalog. */
 const baseline = {
+  '.dockerignore': '**/node_modules\n',
   '.node-version': '2.3.4\n',
   Dockerfile: dockerfile(image),
   'package.json': rootManifest(image),
@@ -442,7 +444,7 @@ await test('a type-checked file that imports outside the build context is refuse
 
 await test('the checker refuses a tree whose image build cannot read an import', () => {
   const result = check({
-    '.dockerignore': 'apps/docs\n',
+    '.dockerignore': '**/node_modules\napps/docs\n',
     'tsconfig.json': JSON.stringify({ include: ['tools/*.mjs'] }),
     'tools/a.mjs': "import { name } from '../apps/docs/src/site.ts';\n",
   });
@@ -473,7 +475,7 @@ await test('a Dockerfile that installs before it copies a manifest is refused', 
 
 await test('a manifest that the build context leaves out needs no copy', () => {
   const result = check({
-    '.dockerignore': 'apps/docs\n',
+    '.dockerignore': '**/node_modules\napps/docs\n',
     'apps/docs/package.json': manifest('docs', {
       typescript: 'catalog:toolchain',
     }),
@@ -497,4 +499,14 @@ await test('the Dockerfile of this repository copies each manifest before the in
     failures.filter((failure) => failure.includes('installs before')),
     [],
   );
+});
+
+test('a dependency folder of a workspace member stays out of the image build', () => {
+  const members = ['apps/web', 'packages/ui'];
+  assert.deepEqual(dependencyFolderFailures('**/node_modules\n', members), []);
+  assert.deepEqual(dependencyFolderFailures('node_modules\n', members), [
+    '.dockerignore keeps apps/web/node_modules in the image build; ignore **/node_modules.',
+    '.dockerignore keeps packages/ui/node_modules in the image build; ignore **/node_modules.',
+  ]);
+  assert.equal(dependencyFolderFailures('', []).length, 1);
 });
