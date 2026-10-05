@@ -94,7 +94,8 @@ A service of the operator reaches the controls through `/api/operator/` with
 one bearer token, and a person hands the portal of that service a single-use
 token ([record 0190](../decisions/0190-an-operator-api-reaches-the-account-controls.md)).
 `packages/core/src/identity/controls.ts` and `operator.ts` hold the rules, and
-`apps/server/src/routes/operator.ts` the handlers.
+`apps/server/src/routes/operator.ts` the handlers. [The operator API](operator-api.md)
+states what a service depends on and which change breaks it.
 
 ## Password recovery
 
