@@ -14,7 +14,7 @@ so they carry no upstream author and their values are original.
 
 - Upstream: [Geist by Vercel](https://github.com/vercel/geist-font)
 - License: SIL Open Font License 1.1
-  ([full text](https://github.com/vercel/geist-font/blob/main/LICENSE.TXT))
+  ([full text](https://github.com/vercel/geist-font/blob/main/OFL.txt))
 - Used files: the latin and the latin extended subsets that Google Fonts
   publishes, served as published with no change to the bytes.
   `apps/web/public/fonts/` holds `geist-latin.woff2`,
