@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { lstatSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +41,36 @@ export async function filesIn(directory) {
     }),
   );
   return files.flat().sort();
+}
+
+/**
+ * The files that git tracks, plus the new ones it would track.
+ *
+ * A directory that `.gitignore` names is never opened, whoever owns it, and a
+ * file that a contributor just wrote is still listed. A symbolic link and a
+ * submodule are left out: `.claude/skills/` links to `.agents/skills/`, and
+ * the file behind the link is in the list under its own name.
+ *
+ * @param {string} directory
+ * @returns {string[]} Paths relative to the directory.
+ */
+export function trackedFiles(directory) {
+  const listed = spawnSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+    { cwd: directory, encoding: 'utf8' },
+  );
+  if (listed.status !== 0)
+    throw new Error('notesapp: git could not list the files of this tree.');
+  return listed.stdout
+    .split('\0')
+    .filter((name) => name !== '')
+    .filter((name) => {
+      const stats = lstatSync(resolve(directory, name), {
+        throwIfNoEntry: false,
+      });
+      return stats !== undefined && stats.isFile();
+    });
 }
 
 /** @param {string} [directory] */

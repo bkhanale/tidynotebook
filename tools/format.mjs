@@ -22,36 +22,8 @@
  * Usage: `node tools/format.mjs --check` or `node tools/format.mjs --write`.
  */
 import { spawnSync } from 'node:child_process';
-import { lstatSync } from 'node:fs';
 import process from 'node:process';
-import { resolve } from 'node:path';
-import { root } from './workspace.mjs';
-
-/**
- * The files that git tracks, plus the new ones it would track.
- *
- * @param {string} directory
- * @returns {string[]}
- */
-export function trackedFiles(directory) {
-  const listed = spawnSync(
-    'git',
-    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-    { cwd: directory, encoding: 'utf8' },
-  );
-  if (listed.status !== 0)
-    throw new Error('notesapp: git could not list the files of this tree.');
-  return listed.stdout
-    .split('\0')
-    .filter((name) => name !== '')
-    .filter((name) => {
-      // A link and a submodule are not files that Prettier reads.
-      const stats = lstatSync(resolve(directory, name), {
-        throwIfNoEntry: false,
-      });
-      return stats !== undefined && stats.isFile();
-    });
-}
+import { root, trackedFiles } from './workspace.mjs';
 
 const mode = process.argv[2];
 if (mode !== '--check' && mode !== '--write') {

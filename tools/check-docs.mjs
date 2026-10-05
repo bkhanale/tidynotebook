@@ -151,12 +151,12 @@ export function placementFailure(path) {
       ? null
       : 'a document sits at the top of docs/. Only README.md belongs there.';
   const [kind, ...rest] = parts;
-  if (!documentKinds.includes(/** @type {string} */ (kind)))
+  if (!documentKinds.includes(kind ?? ''))
     return `"${kind}" is not a documentation directory. Use one of ${documentKinds.join(', ')}.`;
   if (kind === 'audits') {
     if (rest.length !== 2)
       return 'an audit sits in audits/<date>/, one directory deep.';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(/** @type {string} */ (rest[0])))
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rest[0] ?? ''))
       return `"${rest[0]}" is not an audit date. Name the directory YYYY-MM-DD.`;
     return null;
   }
@@ -177,11 +177,11 @@ export function fenceLanguages(text) {
   let open = null;
   const lines = text.split('\n');
   for (let index = 0; index < lines.length; index += 1) {
-    const line = /** @type {string} */ (lines[index]);
+    const line = lines[index] ?? '';
     const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (!match) continue;
-    const marker = /** @type {string} */ (match[1]);
-    const rest = /** @type {string} */ (match[2]).trim();
+    const marker = match[1] ?? '';
+    const rest = (match[2] ?? '').trim();
     if (open === null) {
       if (marker.startsWith('`') && rest.includes('`')) continue;
       open = marker[0] === '`' ? '`' : '~';
@@ -203,7 +203,7 @@ export function relativeLinks(text) {
   /** @type {string[]} */
   const targets = [];
   for (const match of withoutCode.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-    const target = /** @type {string} */ (match[1]);
+    const target = match[1] ?? '';
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
     if (target.startsWith('#')) continue;
     const path = target.split('#')[0];
@@ -220,7 +220,7 @@ export function relativeLinks(text) {
  */
 export function statusLine(text) {
   const match = /^Status: *(\S.*)$/m.exec(text);
-  return match === null ? null : /** @type {string} */ (match[1]).trim();
+  return match === null ? null : (match[1] ?? '').trim();
 }
 
 /**
@@ -374,7 +374,7 @@ export function decisionIndexFailures(names, index) {
     const text = lines[line] ?? '';
     if (!text.startsWith('|')) break;
     const link = /\]\((\d{4}-[^)]+\.md)\)/.exec(text);
-    if (link !== null) rows.push(/** @type {string} */ (link[1]));
+    if (link !== null) rows.push(link[1] ?? '');
   }
   const listed = new Set(rows);
   for (const name of records)
@@ -460,8 +460,8 @@ export function measuredQuantities(text) {
   for (const [index, line] of text.split('\n').entries()) {
     const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (fence !== null) {
-      const marker = /** @type {string} */ (fence[1]);
-      const rest = /** @type {string} */ (fence[2]).trim();
+      const marker = fence[1] ?? '';
+      const rest = (fence[2] ?? '').trim();
       if (open === null) {
         if (!(marker.startsWith('`') && rest.includes('`')))
           open = marker.slice(0, 1);
@@ -587,9 +587,8 @@ export async function main(directory) {
       continue;
     }
     const parts = inside.split('/');
-    const kind =
-      parts.length === 1 ? 'index' : /** @type {string} */ (parts[0]);
-    const name = /** @type {string} */ (parts.at(-1));
+    const kind = parts.length === 1 ? 'index' : (parts[0] ?? '');
+    const name = parts.at(-1) ?? '';
     const text = await readFile(join(directory, path), 'utf8');
     linked.push({ path, text });
     for (const failure of headerFailures(kind, name, text))
