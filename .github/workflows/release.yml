@@ -1,9 +1,11 @@
 name: Release
 
-# The one workflow that is allowed to run on GitHub Actions. Every other check
-# runs on the owner's machine, because the GitHub CI has no credits. A push of
-# a `v*` tag builds the deployment image and pushes it to the GitHub Container
-# Registry.
+# A push of a `v*` tag builds the deployment image and pushes it to the GitHub
+# Container Registry. This is the one workflow that publishes. `ci.yml` runs
+# the gate on a push to `main` and on a pull request, and `dco.yml` checks the
+# sign-off of each commit of a pull request. Before the tag, the before gate of
+# record 0204 builds the image from the prepare commit, so this build repeats a
+# build that already passed.
 on:
   push:
     tags:
