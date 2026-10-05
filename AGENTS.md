@@ -181,9 +181,10 @@ Edit files in `rules/` and run `rules/link.sh`.
 - A document points at code by path and never copies it. Do not copy source, a
   configuration value, a schema, a column list, SQL, TypeScript, YAML, a
   version number, or a measured result.
-- The one allowed code block is a shell command that the reader runs. Any other
-  fenced language fails `pnpm lint`, except in a document whose status line
-  says that it is superseded.
+- The one allowed code block is a shell command that the reader runs, in `sh`,
+  `bash` or `shell`. A block with no language or with any other language
+  fails `pnpm lint`, except in a document whose status line says that it is
+  superseded.
 - Every `.md` file under `docs/` sits in `guide`, `development`, `design`,
   `decisions`, `audits`, or `plans`.
 - A file in `docs/plans/` or `docs/design/` carries `Status: active`,

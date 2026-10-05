@@ -11,9 +11,12 @@ number, or a measured result. A copy goes stale in silence, because no check
 fails when the code moves away from it.
 
 The one exception is a shell command that the reader runs. A quick start and a
-backup procedure need the command, so a fenced `sh` block is allowed. A fenced
-block with any other language is refused, except in a file whose status line
-says that it is superseded. That content is frozen, so no check holds it.
+backup procedure need the command, so a fenced block in `sh`, `bash` or `shell`
+is allowed. A fenced block with no language or with any other language is
+refused, also a `text` block and a `console` block. A file whose status line
+says that it is superseded is frozen, so no check holds its blocks.
+`tools/docs-fence-allow.json` names the audits that were accepted before a
+block with no language was refused, and that list only shrinks.
 
 A measured result goes stale in the same way. A decision record, a design, a
 plan and a page under `development/` hold no quantity with a unit of time, of

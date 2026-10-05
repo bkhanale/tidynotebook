@@ -8,9 +8,12 @@
  * 1. Every `.md` file under `docs/` sits in a known directory, so a reader and
  *    an agent can tell the kind of a document from its path alone.
  * 2. The code is the source of truth. A fenced block whose language is not a
- *    shell the reader runs is a copy of code, so it is refused. A document
- *    whose status line says that it is superseded is frozen, so only that one
- *    rule steps back for it.
+ *    shell the reader runs is a copy of code, so it is refused, and so is a
+ *    block with no language. A document whose status line says that it is
+ *    superseded is frozen, so only that one rule steps back for it. An audit
+ *    that `tools/docs-fence-allow.json` names was accepted before the rule
+ *    refused a block with no language, and it is never edited again, so it
+ *    keeps its blocks. That list only shrinks.
  * 3. Each kind carries its required header: the ADR template for a decision, a
  *    date and a commit for an audit, a status line for a plan and a design, and
  *    the "who this is for" sentence for a guide page. A design and a plan also
@@ -82,15 +85,17 @@ export const repositoryRoots = [
 /** How many lines one page of `development/` may hold. */
 export const maximumDevelopmentLines = 150;
 
-/** The fenced block languages that a reader runs, plus plain text. */
-export const allowedFenceLanguages = [
-  '',
-  'sh',
-  'bash',
-  'shell',
-  'console',
-  'text',
-];
+/**
+ * The fenced block languages of a shell command that the reader runs.
+ *
+ * The root rule allows one code block, a shell command. A block with no
+ * language and a text block are not shell commands, and a console block
+ * mixes a command with its output, so each of them is refused.
+ */
+export const allowedFenceLanguages = ['sh', 'bash', 'shell'];
+
+/** The accepted documents of rule 2, from the root of the checked tree. */
+export const fenceAllowFile = 'tools/docs-fence-allow.json';
 
 /** The headings that `docs/decisions/0000-template.md` states. */
 export const decisionHeadings = [
@@ -492,17 +497,14 @@ function fieldsOf(value) {
 }
 
 /**
- * The documents that may keep their measured quantities, with the reason.
- *
- * Each one was accepted before rule 9 held and is never edited again, so its
- * quantities are history. The list only shrinks: an entry whose document
- * holds no quantity fails.
+ * The documents that one list of accepted documents names, with the reason.
  *
  * @param {string} directory
+ * @param {string} file
  * @returns {Promise<Map<string, string>>}
  */
-export async function readMeasuredAllowlist(directory) {
-  const text = await readFile(join(directory, measuredAllowFile), 'utf8').catch(
+async function readAllowlist(directory, file) {
+  const text = await readFile(join(directory, file), 'utf8').catch(
     () => '{"allow":[]}',
   );
   /** @type {Map<string, string>} */
@@ -515,6 +517,46 @@ export async function readMeasuredAllowlist(directory) {
       allowed.set(file, reason);
   }
   return allowed;
+}
+
+/**
+ * The documents that may keep their measured quantities, with the reason.
+ *
+ * Each one was accepted before rule 9 held and is never edited again, so its
+ * quantities are history. The list only shrinks: an entry whose document
+ * holds no quantity fails.
+ *
+ * @param {string} directory
+ * @returns {Promise<Map<string, string>>}
+ */
+export function readMeasuredAllowlist(directory) {
+  return readAllowlist(directory, measuredAllowFile);
+}
+
+/**
+ * The documents that may keep a refused fenced block, with the reason.
+ *
+ * Each one is an audit that was accepted before rule 2 refused a block with
+ * no language, and an audit is never edited again. The list only shrinks: an
+ * entry whose document holds no refused block fails.
+ *
+ * @param {string} directory
+ * @returns {Promise<Map<string, string>>}
+ */
+export function readFenceAllowlist(directory) {
+  return readAllowlist(directory, fenceAllowFile);
+}
+
+/**
+ * The words of one refused fenced block.
+ *
+ * @param {string} language
+ * @returns {string}
+ */
+function fenceFailure(language) {
+  const block =
+    language === '' ? 'a block with no language' : `a "${language}" block`;
+  return `${block}. A document points at code and never copies it. The one allowed block is a shell command in ${allowedFenceLanguages.join(', ')}.`;
 }
 
 /**
@@ -532,6 +574,9 @@ export async function main(directory) {
   /** @type {{ path: string; text: string }[]} */
   const linked = [];
   const measuredAllowed = await readMeasuredAllowlist(directory);
+  const fenceAllowed = await readFenceAllowlist(directory);
+  /** @type {Set<string>} */
+  const fenceHistory = new Set();
   /** @type {Set<string>} */
   const measuredHistory = new Set();
   for (const path of documents) {
@@ -589,12 +634,20 @@ export async function main(directory) {
             `${path}:${String(found.line)}: "${found.quantity}" is a measured result or a configured value. A document never copies one: say what it shows in words, and link the audit or name the code by path.`,
           );
     }
-    for (const fence of fenceLanguages(text))
-      if (!allowedFenceLanguages.includes(fence.language))
-        failures.push(
-          `${path}:${fence.line}: a "${fence.language}" block. A document points at code and never copies it.`,
-        );
+    const refused = fenceLanguages(text).filter(
+      (fence) => !allowedFenceLanguages.includes(fence.language),
+    );
+    if (fenceAllowed.has(path) && kind === 'audits') {
+      if (refused.length > 0) fenceHistory.add(path);
+    } else
+      for (const fence of refused)
+        failures.push(`${path}:${fence.line}: ${fenceFailure(fence.language)}`);
   }
+  for (const file of fenceAllowed.keys())
+    if (!fenceHistory.has(file))
+      failures.push(
+        `${fenceAllowFile}: ${file} holds no refused block now, or it is not an audit. Remove its entry.`,
+      );
   for (const file of measuredAllowed.keys())
     if (!measuredHistory.has(file))
       failures.push(
