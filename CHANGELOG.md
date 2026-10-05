@@ -5,6 +5,56 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.0 - 2026-10-05
+
+This minor release gives the operator of an installation controls for each
+account, an interface for a separate account service, monthly limits on
+transfer, and storage in an S3 compatible store. The source is now licensed
+under AGPL-3.0-only.
+
+### Added
+
+- **Account controls.** An administrator can lock an account, set its storage,
+  text, published transfer and download limits, and turn teams and
+  collaboration on or off for it.
+- A locked account signs in to one screen. It can export its notes, remove the
+  account, and open the account portal when the installation names one.
+- A locked account is removed after its removal time. The account receives a
+  mail 30 days and 7 days before the removal.
+- **An operator interface.** A separate service of the operator can find an
+  account, read and change its controls, remove it, read the account events,
+  and read the totals of a month. The interface uses one secret and is off
+  when no secret is set.
+- Settings opens the account portal for any account when the installation
+  names one. A portal can link a person back to a page of the portal through
+  the application, and sign-in returns the person there.
+- **Monthly limits.** An installation can limit the published transfer, the
+  downloads, and the calls to the object store in each calendar month. Past a
+  limit, a published page closes and a download waits for the next month.
+- **S3 compatible storage.** Uploads, images and imports can live in R2, MinIO
+  or Amazon S3. An import goes up in parts, so a large archive passes a proxy
+  that limits the size of a request.
+- The image takes the commands `migrate` and `serve`, so a replica that serves
+  holds no migration secret.
+- The environment can name the registration policy. The setting is then
+  locked on the accounts page.
+- Each secret of the image can come from an environment variable or from a
+  file.
+
+### Changed
+
+- The source is licensed under AGPL-3.0-only. A contribution needs a sign-off
+  on each commit.
+- The open sign-up no longer needs a separate origin for published pages.
+- The health probes answer on any host name, so a platform can check a
+  replica by its own name.
+
+### Fixed
+
+- A start that fails on a wrong setting now names the setting.
+- The container image no longer copies the dependency folders of a local
+  checkout.
+
 ## 0.14.1 - 2026-10-04
 
 This patch release gives the container image that 0.14.0 did not build.
