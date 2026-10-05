@@ -31,8 +31,10 @@ interface of a library.
   address with a single-use token, and the portal redeems the token through
   the operator API. A locked account keeps it
   ([record 0201](../decisions/0201-a-locked-account-keeps-a-fixed-list-of-operations.md)).
-  The application opens the portal path that `apps/web/src/lib/locked.ts`
-  names. No route of the application links into the portal by itself.
+  Settings and the locked screen open the portal. The route `/portal` of the
+  application takes a portal path in its query, signs the person in when
+  needed, and opens the portal at that path, so a service can link a person
+  back through the handoff. `apps/web/src/lib/portal.ts` decides the path.
 - **The account controls and their revision.** The limits, the standing and
   the feature switches of an account, and the revision that guards each write
   ([record 0189](../decisions/0189-an-account-carries-limits-a-standing-and-feature-switches.md)).
@@ -57,7 +59,8 @@ interface of a library.
   and an unknown command stops with a nonzero status.
 - **The settings that an operator sets.** `NOTESAPP_OPERATOR_TOKEN_FILE`,
   `NOTESAPP_ACCOUNT_PORTAL_URL`, `NOTESAPP_NEW_ACCOUNT_STANDING`,
-  `NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER`, the monthly caps, the settings of the
+  `NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER`, `NOTESAPP_REGISTRATION_POLICY`, the
+  monthly caps, the settings of the
   object store, and `NOTESAPP_TRUSTED_PROXIES`. `apps/server/src/config.ts`
   reads each one and refuses a bad value at startup, and
   `docs/guide/configuration.md` states each one for the operator.
