@@ -7,7 +7,7 @@
  * value, so a range fails wherever a person writes it.
  */
 import { glob, readFile } from 'node:fs/promises';
-import { join, matchesGlob, posix, resolve, sep } from 'node:path';
+import { join, matchesGlob, posix, relative, resolve, sep } from 'node:path';
 import { readJson, record, root, workspaces } from './workspace.mjs';
 
 /** A manifest states this, or the catalog states it for the manifest. */
@@ -201,17 +201,21 @@ export function patchFiles(text) {
 }
 
 /**
- * The failures of the install step of a Dockerfile against the patch files.
+ * The failures of the install step of a Dockerfile against the files that
+ * the install reads.
  *
- * `pnpm install --frozen-lockfile` reads each patch file, so a `COPY` line
- * before the first install must bring the file or a folder that holds it.
- * Without it the image build fails only after a tag is pushed.
+ * `pnpm install --frozen-lockfile` reads each patch file and each workspace
+ * manifest, so a `COPY` line before the first install must bring the file or
+ * a folder that holds it. Without a patch the image build fails only after a
+ * tag is pushed. Without a manifest pnpm still installs that project from the
+ * lockfile, but it cannot compare the manifest with the lockfile, so a
+ * manifest that drifted from the lockfile still builds an image.
  *
  * @param {string} dockerfile
- * @param {string[]} patches
+ * @param {string[]} files
  * @returns {string[]}
  */
-export function patchCopyFailures(dockerfile, patches) {
+export function installCopyFailures(dockerfile, files) {
   const lines = dockerfile.split('\n');
   const install = lines.findIndex((line) =>
     /^\s*RUN\s+pnpm\s+install\b/i.test(line),
@@ -225,7 +229,7 @@ export function patchCopyFailures(dockerfile, patches) {
     for (const word of words.slice(0, -1))
       sources.push(word.replace(/^\.\//, '').replace(/\/$/, ''));
   }
-  return patches
+  return files
     .filter(
       (file) =>
         !sources.some(
@@ -350,9 +354,22 @@ export async function versionPolicy(directory = root) {
     'utf8',
   ).catch(() => '');
   failures.push(...imageFailures(dockerfile, serviceScript(manifest), runtime));
-  failures.push(...patchCopyFailures(dockerfile, patchFiles(workspaceText)));
   const ignore = await readFile(join(directory, '.dockerignore'), 'utf8').catch(
     () => '',
+  );
+  const members = await workspaces(directory);
+  const manifests = [
+    'package.json',
+    ...members.map(
+      (item) =>
+        `${relative(directory, item.path).split(sep).join('/')}/package.json`,
+    ),
+  ].filter((file) => !outsideContext(ignore, file));
+  failures.push(
+    ...installCopyFailures(dockerfile, [
+      ...patchFiles(workspaceText),
+      ...manifests,
+    ]),
   );
   failures.push(
     ...contextImportFailures(ignore, await typeCheckedFiles(directory)),
@@ -363,10 +380,7 @@ export async function versionPolicy(directory = root) {
     failures.push(
       `engines.pnpm is ${String(engines.pnpm)}; packageManager says ${expectedManager}.`,
     );
-  const packages = [
-    { path: directory, manifest },
-    ...(await workspaces(directory)),
-  ];
+  const packages = [{ path: directory, manifest }, ...members];
   for (const item of packages) {
     for (const group of [
       'dependencies',

@@ -9,11 +9,12 @@ import {
   baseImages,
   contextImportFailures,
   imageFailures,
+  installCopyFailures,
   outsideContext,
   parseCatalogs,
-  patchCopyFailures,
   patchFiles,
   resolveVersion,
+  versionPolicy,
 } from './check-versions.mjs';
 
 // The fixtures below are disposable trees under the system temporary
@@ -59,6 +60,14 @@ const digest = `sha256:${'a'.repeat(64)}`;
 /** The one base image of the fixture, at the release of `.node-version`. */
 const image = `node:2.3.4-bookworm-slim@${digest}`;
 
+/** The lines that copy each manifest of the fixture before the install. */
+const manifestCopies = [
+  'COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./',
+  'COPY packages/core/package.json ./packages/core/',
+  'COPY packages/storage-server/package.json ./packages/storage-server/',
+  'COPY tools/sdk-codegen/package.json ./tools/sdk-codegen/',
+];
+
 /**
  * A Dockerfile of two stages over the given base images.
  *
@@ -70,6 +79,8 @@ function dockerfile(build, run = build) {
   return [
     `FROM ${build} AS base`,
     'FROM base AS builder',
+    ...manifestCopies,
+    'RUN pnpm install --frozen-lockfile',
     'RUN pnpm build',
     `FROM ${run} AS runner`,
     'COPY --from=builder /app /app',
@@ -378,7 +389,7 @@ await test('a Dockerfile that installs before it copies a patch is refused', () 
     'RUN pnpm install --frozen-lockfile',
     'COPY patches ./patches',
   ].join('\n');
-  assert.deepEqual(patchCopyFailures(before, [patch]), [
+  assert.deepEqual(installCopyFailures(before, [patch]), [
     `Dockerfile installs before it copies ${patch}; copy it before pnpm install.`,
   ]);
   const after = [
@@ -386,8 +397,8 @@ await test('a Dockerfile that installs before it copies a patch is refused', () 
     'COPY patches ./patches',
     'RUN pnpm install --frozen-lockfile',
   ].join('\n');
-  assert.deepEqual(patchCopyFailures(after, [patch]), []);
-  assert.deepEqual(patchCopyFailures(before, []), []);
+  assert.deepEqual(installCopyFailures(after, [patch]), []);
+  assert.deepEqual(installCopyFailures(before, []), []);
 });
 
 await test('the build context follows the rules of .dockerignore', () => {
@@ -439,5 +450,51 @@ await test('the checker refuses a tree whose image build cannot read an import',
   assert.match(
     result.output,
     /tools\/a\.mjs imports apps\/docs\/src\/site\.ts/,
+  );
+});
+
+// Regression: the Dockerfile did not copy the manifests of packages/logging
+// and packages/note-document before pnpm install, so the frozen install could
+// not compare them with the lockfile, and a manifest that drifted from the
+// lockfile still built an image.
+await test('a Dockerfile that installs before it copies a manifest is refused', () => {
+  const result = check({
+    Dockerfile: dockerfile(image).replace(
+      'COPY packages/storage-server/package.json ./packages/storage-server/\n',
+      '',
+    ),
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(
+    result.output,
+    /Dockerfile installs before it copies packages\/storage-server\/package\.json/,
+  );
+});
+
+await test('a manifest that the build context leaves out needs no copy', () => {
+  const result = check({
+    '.dockerignore': 'apps/docs\n',
+    'apps/docs/package.json': manifest('docs', {
+      typescript: 'catalog:toolchain',
+    }),
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('a manifest that the build context keeps needs a copy', () => {
+  const result = check({
+    'apps/web/package.json': manifest('web', {
+      typescript: 'catalog:toolchain',
+    }),
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /copies apps\/web\/package\.json/);
+});
+
+await test('the Dockerfile of this repository copies each manifest before the install', async () => {
+  const { failures } = await versionPolicy();
+  assert.deepEqual(
+    failures.filter((failure) => failure.includes('installs before')),
+    [],
   );
 });
