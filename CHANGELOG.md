@@ -5,6 +5,21 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.15.1 - 2026-10-06
+
+This patch release keeps notes in sync after a connection failure and on a
+slow connection. The format row on a phone gives more space to its tools.
+
+### Fixed
+
+- A queued save tries again after a connection failure. The offline notice
+  clears when the connection works again.
+- A save on a slow connection has time to reach the server.
+- A large note keeps downloading while data arrives on a slow connection.
+  An interrupted download tries again.
+- The format row on a phone has no scroll arrows. Swipe the row to reach its
+  tools.
+
 ## 0.15.0 - 2026-10-05
 
 This minor release gives the operator of an installation controls for each
