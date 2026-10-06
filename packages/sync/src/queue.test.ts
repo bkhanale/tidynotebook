@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueueEntry } from './local-port.ts';
-import { recoveredNotePath, takeBatchable } from './queue.ts';
+import {
+  isRetryableStatus,
+  recoveredNotePath,
+  sendWithRetry,
+  takeBatchable,
+  type SyncContext,
+} from './queue.ts';
 
 const workspaceId = 'w0000000-0000-4000-8000-000000000001';
 
@@ -97,4 +103,108 @@ await test('a recovered note avoids every held path in any case', () => {
     recoveredNotePath('notes/plan.md', ['notes/plan.md']),
     'notes/plan (recovered).md',
   );
+});
+
+/** One retry run with immediate backoff and a real cancellation signal. */
+function retryContext(signal: AbortSignal, delays: number[] = []): SyncContext {
+  return {
+    signal,
+    sleep: (ms) => {
+      delays.push(ms);
+      return Promise.resolve();
+    },
+    random: () => 0,
+    id: () => 'retry-test',
+    announce: () => {},
+  };
+}
+
+await test('only a transport failure and a temporary server answer retry', () => {
+  for (const status of [0, 408, 429, 500, 503, 599])
+    assert.equal(isRetryableStatus(status), true);
+  for (const status of [400, 401, 403, 404, 409, 410, 412, 413, 423, 600])
+    assert.equal(isRetryableStatus(status), false);
+});
+
+await test('a stalled sync request times out and the next attempt recovers', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  const delays: number[] = [];
+  const result = sendWithRetry(
+    retryContext(controller.signal, delays),
+    (signal) => {
+      signals.push(signal);
+      return signals.length === 1
+        ? new Promise(() => {})
+        : Promise.resolve({ ok: true as const, value: 'saved' });
+    },
+  );
+  try {
+    assert.equal(signals.length, 1);
+    t.mock.timers.tick(29_999);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 1, 'a slow request gets the whole bound');
+    t.mock.timers.tick(1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 2, 'a stalled adapter cannot hold the queue');
+    assert.equal(signals[0]?.aborted, true);
+    assert.equal(controller.signal.aborted, false);
+    assert.deepEqual(await result, { ok: true, value: 'saved' });
+    assert.deepEqual(delays, [500]);
+  } finally {
+    controller.abort();
+  }
+});
+
+await test('a slow answer inside the bound succeeds and clears its timer', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  let answer: (() => void) | undefined;
+  let attemptSignal: AbortSignal | undefined;
+  const result = sendWithRetry<string>(
+    retryContext(controller.signal),
+    (signal) => {
+      attemptSignal = signal;
+      return new Promise((resolve) => {
+        answer = () => resolve({ ok: true, value: 'saved' });
+      });
+    },
+  );
+  t.mock.timers.tick(29_999);
+  assert.equal(attemptSignal?.aborted, false);
+  assert.ok(answer !== undefined);
+  answer();
+  assert.deepEqual(await result, { ok: true, value: 'saved' });
+  t.mock.timers.tick(30_000);
+  assert.equal(
+    attemptSignal?.aborted,
+    false,
+    'the completed attempt has no timer',
+  );
+});
+
+await test('stopping a stalled adapter ends the run without another attempt', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const result = sendWithRetry(retryContext(controller.signal), () => {
+    calls += 1;
+    return new Promise(() => {});
+  });
+  controller.abort();
+  await assert.rejects(result, { name: 'AbortError' });
+  assert.equal(calls, 1);
+});
+
+await test('an abort error with a live run signal is a retryable request failure', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const result = await sendWithRetry(retryContext(controller.signal), () => {
+    calls += 1;
+    return calls === 1
+      ? Promise.reject(new DOMException('The connection ended.', 'AbortError'))
+      : Promise.resolve({ ok: true as const, value: 'saved' });
+  });
+  assert.deepEqual(result, { ok: true, value: 'saved' });
+  assert.equal(calls, 2);
 });

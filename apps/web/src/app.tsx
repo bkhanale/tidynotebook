@@ -85,6 +85,7 @@ import {
 } from './lib/problem-text.ts';
 import {
   noticeReadsQueue,
+  noticeRechecksAccount,
   startingSyncState,
   syncQueueOf,
   syncStateOfNotice,
@@ -1083,9 +1084,9 @@ export function useWorkspaceSync(
       // A paused session cannot send for this account. The lease goes to a
       // tab that can, so a tab of another account is not kept waiting.
       if (notice.kind === 'paused') void notices.suspend();
-      // A save refused for a locked account reads the account again, so the
-      // locked screen shows at once (record 0201).
-      if (notice.kind === 'account-locked') recheckAccount();
+      // A recovered connection clears the account banner of an offline
+      // start. A locked refusal also reads the account (record 0201).
+      if (noticeRechecksAccount(notice)) recheckAccount();
       const next = syncStateOfNotice(notice);
       if (next !== null) {
         setState(queue === null ? next : syncStateOfQueue(next, queue));

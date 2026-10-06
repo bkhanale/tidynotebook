@@ -108,6 +108,8 @@ export type SyncNotice =
   | { readonly kind: 'snapshot-restart'; readonly reason: string }
   | { readonly kind: 'snapshot-activated'; readonly count: number }
   | { readonly kind: 'changes-applied'; readonly count: number }
+  /** A complete pass proves the connection at start or after a retry. */
+  | { readonly kind: 'connected' }
   /**
    * Sync waits for the person of this engine. `session` means the session
    * ended. `other-account` means another account signed in on this browser,
@@ -224,6 +226,9 @@ export const backoffCapMs = 8000;
 /** How many times one service call is attempted before a cycle gives up. */
 export const maxAttempts = 4;
 
+/** The longest one sync request may hold the queue, in milliseconds. */
+export const requestTimeoutMs = 30_000;
+
 /**
  * One bounded exponential backoff delay with jitter.
  *
@@ -238,12 +243,50 @@ export function backoffDelay(attempt: number, random: () => number): number {
 
 /** Whether an HTTP status is worth retrying within one run. */
 export function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+  return (
+    status === 0 ||
+    status === 408 ||
+    status === 429 ||
+    (status >= 500 && status <= 599)
+  );
 }
 
-/** Whether a thrown failure is a caller cancellation. */
-function isCancellation(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+/**
+ * Bounds one attempt and stops its transport when the bound or caller ends.
+ *
+ * The race also ends an adapter that does not settle after an abort. A lost
+ * answer can still mean an accepted save, so the caller retries its frozen
+ * body. Only the run signal cancels the caller, not a request's error name.
+ */
+async function requestWithinBound<T>(
+  signal: AbortSignal,
+  run: (signal: AbortSignal) => Promise<ServiceOutcome<T>>,
+): Promise<ServiceOutcome<T>> {
+  signal.throwIfAborted();
+  const attempt = new AbortController();
+  const cancel = (): void => {
+    attempt.abort(signal.reason);
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  const timer = setTimeout(() => {
+    attempt.abort(
+      new DOMException('The sync request did not answer.', 'TimeoutError'),
+    );
+  }, requestTimeoutMs);
+  let onAbort: () => void = () => {};
+  const ended = new Promise<never>((_resolve, reject) => {
+    onAbort = (): void => {
+      reject(attempt.signal.reason);
+    };
+    attempt.signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([run(attempt.signal), ended]);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', cancel);
+    attempt.signal.removeEventListener('abort', onAbort);
+  }
 }
 
 /**
@@ -261,9 +304,9 @@ export async function sendWithRetry<T>(
   for (let attempt = 0; ; attempt += 1) {
     let outcome: ServiceOutcome<T>;
     try {
-      outcome = await run(ctx.signal);
+      outcome = await requestWithinBound(ctx.signal, run);
     } catch (error: unknown) {
-      if (ctx.signal.aborted || isCancellation(error)) throw error;
+      if (ctx.signal.aborted) throw error;
       if (attempt + 1 >= maxAttempts) return null;
       const delayMs = backoffDelay(attempt, ctx.random);
       ctx.announce({ kind: 'retry', attempt: attempt + 1, delayMs });

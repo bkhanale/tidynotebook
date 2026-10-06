@@ -75,6 +75,8 @@ import { createDisposableDatabase, openSession } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
 import { markdownLimits } from '@notesapp/markdown';
 import { freeNotePath } from '../../apps/web/src/lib/new-note-draft.ts';
+import { createAccountRecheck } from '../../apps/web/src/lib/locked.ts';
+import { noticeRechecksAccount } from '../../apps/web/src/lib/sync-state.ts';
 import { parkedSaves } from '../../apps/web/src/lib/parked-saves.ts';
 import {
   discardParked,
@@ -160,6 +162,15 @@ const adapter = createIdentityAdapter({
   identity,
   servedOrigins: config.servedOrigins,
 });
+
+/** A connection fault of one device, while the other clients still work. */
+let connectionFault: {
+  path: RegExp;
+  remaining: number;
+  afterCommit: boolean;
+} | null = null;
+const faultRequestId = 'sync-network-recovery';
+
 const server = await startTestServer({
   environment: environment(),
   handlers: (value) =>
@@ -170,6 +181,38 @@ const server = await startTestServer({
     }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
+  onApp: (app) => {
+    app.addHook('onRequest', async (request, reply) => {
+      const fault = connectionFault;
+      if (
+        fault === null ||
+        fault.afterCommit ||
+        fault.remaining === 0 ||
+        request.headers['x-request-id'] !== faultRequestId ||
+        !fault.path.test(request.url)
+      )
+        return;
+      fault.remaining -= 1;
+      reply.hijack();
+      request.raw.destroy();
+    });
+    app.addHook('onSend', async (request, reply, payload) => {
+      const fault = connectionFault;
+      if (
+        fault !== null &&
+        fault.afterCommit &&
+        fault.remaining > 0 &&
+        request.headers['x-request-id'] === faultRequestId &&
+        fault.path.test(request.url) &&
+        reply.statusCode === 200
+      ) {
+        fault.remaining -= 1;
+        reply.hijack();
+        request.raw.destroy();
+      }
+      return payload;
+    });
+  },
 });
 configureClient(server.baseUrl, undefined);
 
@@ -364,6 +407,167 @@ async function waitFor(
 async function queuedOf(store: LocalStore, account = ownerAccountId) {
   return store.pending(account, workspaceId);
 }
+
+for (const [read, path] of [
+  ['session', /\/api\/account$/],
+  ['protocol', /\/api\/sync\/protocol$/],
+  ['commit', /\/changesets$/],
+  ['snapshot', /\/sync\/snapshots$/],
+  ['snapshot page', /\/sync\/snapshots\/[^/]+(?:\?|$)/],
+  ['revision', /\/revisions\/[^/]+$/],
+  ['changes', /\/sync\/changes(?:\?|$)/],
+] as const) {
+  await test(`the default engine recovers after repeated ${read} connection failures with no wake`, async () => {
+    const store = await openStore(`network-${read}`, `device-${read}`);
+    const fileId = randomUUID();
+    const text = `# Network recovery ${read}\n`;
+    if (read === 'commit' || read === 'changes')
+      await syncPull(store, ownerCookie, `pull-${read}`);
+    await createNote(
+      store,
+      draftOf(
+        ownerAccountId,
+        randomUUID(),
+        fileId,
+        null,
+        text,
+        `recovery/${read}.md`,
+        1,
+      ),
+    );
+    const notices: SyncNotice[] = [];
+    let recheckedAccount: string | null = null;
+    const recheckAccount = createAccountRecheck<{ readonly accountId: string }>(
+      {
+        read: async () => {
+          const read = await getAccount({ headers: browser(ownerCookie) });
+          return { status: read.response?.status ?? 0, account: read.data };
+        },
+        epoch: () => 1,
+        adopt: (account) => {
+          recheckedAccount = account.accountId;
+        },
+        signOut: () => {
+          throw new Error('The connection fault cannot end the session.');
+        },
+      },
+    );
+    const fault = { path, remaining: 6, afterCommit: false };
+    connectionFault = fault;
+    const controller = new AbortController();
+    const engine = createSyncEngine(store, ownerAccountId, workspaceId, {
+      headers: () => ({
+        ...browser(ownerCookie),
+        'x-request-id': faultRequestId,
+      }),
+      pollIntervalMs: 50,
+      interval: () => 300_000,
+      // The tab's keeper holds the lease through the connection fault.
+      lease: {
+        hold: () => Promise.resolve(true),
+        release: () => Promise.resolve(),
+      },
+      random: () => 0,
+      announce: (notice) => {
+        notices.push(notice);
+        if (noticeRechecksAccount(notice)) recheckAccount();
+      },
+    });
+    const running = engine.run(controller.signal);
+    try {
+      await waitFor(
+        () => fault.remaining < 6,
+        `${read} to meet the connection fault`,
+      );
+      const other = await getAccount({ headers: browser(ownerCookie) });
+      assert.equal(
+        other.data?.accountId,
+        ownerAccountId,
+        'a new device still reaches the server',
+      );
+      await waitFor(
+        async () =>
+          fault.remaining === 0 &&
+          (await queuedOf(store)).length === 0 &&
+          (await store.readCursor(ownerAccountId, workspaceId)) !== null &&
+          notices.some((notice) => notice.kind === 'connected'),
+        `${read} to recover without an online or focus event`,
+      );
+      assert.equal(
+        (await store.recover(ownerAccountId, workspaceId)).length,
+        0,
+      );
+      assert.ok(!notices.some((notice) => notice.kind === 'access-lost'));
+      await waitFor(
+        () => recheckedAccount === ownerAccountId,
+        'the account banner to read the recovered server',
+      );
+      const saved = await getFile({
+        headers: browser(ownerCookie),
+        path: { workspaceId, fileId },
+      });
+      assert.equal(saved.data?.head?.text, text);
+    } finally {
+      connectionFault = null;
+      controller.abort();
+      engine.stop();
+      await running;
+      await store.close();
+    }
+  });
+}
+
+await test('a lost commit answer retries the accepted save and makes one server version', async () => {
+  const store = await openStore('lost-answer', 'device-lost-answer');
+  const fileId = randomUUID();
+  await syncPull(store, ownerCookie, 'pull-lost-answer');
+  await createNote(
+    store,
+    draftOf(
+      ownerAccountId,
+      randomUUID(),
+      fileId,
+      null,
+      '# Kept after a lost answer\n',
+      'recovery/lost-answer.md',
+      1,
+    ),
+  );
+  const queued = await queuedOf(store);
+  connectionFault = { path: /\/changesets$/, remaining: 1, afterCommit: true };
+  const engine = createSyncEngine(store, ownerAccountId, workspaceId, {
+    headers: () => ({
+      ...browser(ownerCookie),
+      'x-request-id': faultRequestId,
+    }),
+    pollIntervalMs: 50,
+    random: () => 0,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  try {
+    await waitFor(
+      async () => (await queuedOf(store)).length === 0,
+      'the accepted save to be acknowledged after its lost answer',
+    );
+    assert.equal(connectionFault.remaining, 0);
+    const history = await listHistory({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId },
+    });
+    assert.equal(history.data?.revisions.length, 1);
+    assert.equal(
+      history.data?.revisions[0]?.revisionId,
+      queued[0]?.input.revisions[0]?.id,
+    );
+  } finally {
+    connectionFault = null;
+    controller.abort();
+    engine.stop();
+    await running;
+    await store.close();
+  }
+});
 
 await test('a note that a device makes reaches the server with no edit', async () => {
   const store = await openStore('create', 'device-create');

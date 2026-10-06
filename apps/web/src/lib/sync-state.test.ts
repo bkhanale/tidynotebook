@@ -7,6 +7,7 @@ import {
 } from '@notesapp/sync';
 import {
   noticeReadsQueue,
+  noticeRechecksAccount,
   noticeStartsOver,
   startingSyncState,
   syncDot,
@@ -43,6 +44,7 @@ const notices: readonly SyncNotice[] = [
   { kind: 'snapshot-restart', reason: 'cursor' },
   { kind: 'snapshot-activated', count: 12 },
   { kind: 'changes-applied', count: 3 },
+  { kind: 'connected' },
   { kind: 'paused', reason: 'session' },
   { kind: 'paused', reason: 'other-account' },
   { kind: 'access-lost' },
@@ -93,9 +95,19 @@ await test('every notice that changes the queue reads the queue', () => {
     'preserved',
     'snapshot-activated',
     'changes-applied',
+    'connected',
     'resumed',
     'protocol',
   ]);
+});
+
+await test('a recovered connection rechecks the account without polling it on every change', () => {
+  assert.equal(noticeRechecksAccount({ kind: 'account-locked' }), true);
+  assert.equal(noticeRechecksAccount({ kind: 'connected' }), true);
+  for (const notice of notices) {
+    if (notice.kind !== 'connected')
+      assert.equal(noticeRechecksAccount(notice), false);
+  }
 });
 
 const states: readonly SyncState[] = [

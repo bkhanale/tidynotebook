@@ -62,12 +62,14 @@ export const startingSyncState: SyncState = { kind: 'starting' };
 /**
  * Whether one notice proves only that sync can run again.
  *
- * A fit after a misfit, and a session that serves the engine again after a
- * pause, say nothing about the queue. The state starts over, and the caller
- * reads the queue at once, because nothing else may announce for a while.
+ * A connection proof, a fit after a misfit, and a session that serves the
+ * engine again after a pause say nothing about the queue. The state starts
+ * over, and the caller reads the queue at once, because nothing else may
+ * announce for a while.
  */
 export function noticeStartsOver(notice: SyncNotice): boolean {
   return (
+    notice.kind === 'connected' ||
     notice.kind === 'resumed' ||
     (notice.kind === 'protocol' && notice.fit === 'compatible')
   );
@@ -90,6 +92,15 @@ export function noticeReadsQueue(notice: SyncNotice): boolean {
     notice.kind === 'snapshot-activated' ||
     notice.kind === 'changes-applied'
   );
+}
+
+/**
+ * A connection proof also clears an account read kept from an offline start.
+ * Ordinary feed notices cost no account read. A locked refusal still reads
+ * the account at once, so the locked screen keeps its existing rule.
+ */
+export function noticeRechecksAccount(notice: SyncNotice): boolean {
+  return notice.kind === 'account-locked' || notice.kind === 'connected';
 }
 
 /**
