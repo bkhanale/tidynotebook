@@ -226,8 +226,14 @@ export const backoffCapMs = 8000;
 /** How many times one service call is attempted before a cycle gives up. */
 export const maxAttempts = 4;
 
-/** The longest one sync request may hold the queue, in milliseconds. */
-export const requestTimeoutMs = 30_000;
+/**
+ * The longest one sync request may hold the queue, in milliseconds.
+ *
+ * A request can use the server's default minute to receive its body. Leave
+ * another minute for processing and receiving the answer, rather than
+ * repeatedly aborting a valid large save on a slow connection.
+ */
+export const requestTimeoutMs = 120_000;
 
 /**
  * One bounded exponential backoff delay with jitter.

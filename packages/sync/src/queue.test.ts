@@ -142,7 +142,7 @@ await test('a stalled sync request times out and the next attempt recovers', asy
   );
   try {
     assert.equal(signals.length, 1);
-    t.mock.timers.tick(29_999);
+    t.mock.timers.tick(119_999);
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(signals.length, 1, 'a slow request gets the whole bound');
     t.mock.timers.tick(1);
@@ -171,17 +171,46 @@ await test('a slow answer inside the bound succeeds and clears its timer', async
       });
     },
   );
-  t.mock.timers.tick(29_999);
+  t.mock.timers.tick(119_999);
   assert.equal(attemptSignal?.aborted, false);
   assert.ok(answer !== undefined);
   answer();
   assert.deepEqual(await result, { ok: true, value: 'saved' });
-  t.mock.timers.tick(30_000);
+  t.mock.timers.tick(120_000);
   assert.equal(
     attemptSignal?.aborted,
     false,
     'the completed attempt has no timer',
   );
+});
+
+await test('a valid slow sync answer past thirty seconds completes the same attempt', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let answer: (() => void) | undefined;
+  const result = sendWithRetry<string>(
+    retryContext(controller.signal),
+    (signal) => {
+      signals.push(signal);
+      return new Promise((resolve) => {
+        answer = () => resolve({ ok: true, value: 'saved' });
+      });
+    },
+  );
+  try {
+    // The server's default receive window allows this whole slow request.
+    t.mock.timers.tick(59_999);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 1, 'the slow transfer is not restarted');
+    assert.equal(signals[0]?.aborted, false);
+    assert.ok(answer !== undefined);
+    answer();
+    assert.deepEqual(await result, { ok: true, value: 'saved' });
+  } finally {
+    controller.abort();
+    await result.catch(() => {});
+  }
 });
 
 await test('stopping a stalled adapter ends the run without another attempt', async () => {
