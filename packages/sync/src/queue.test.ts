@@ -225,6 +225,50 @@ await test('stopping a stalled adapter ends the run without another attempt', as
   assert.equal(calls, 1);
 });
 
+await test('a download that keeps receiving data can outlast the request limit', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let progress = (): void => {};
+  let answer: (() => void) | undefined;
+  let removed = 0;
+  const ctx = {
+    ...retryContext(controller.signal),
+    watchResponse: (_signal: AbortSignal, received: () => void) => {
+      progress = received;
+      return () => {
+        removed += 1;
+      };
+    },
+  };
+  const result = sendWithRetry<string>(ctx, (signal) => {
+    signals.push(signal);
+    return new Promise((resolve) => {
+      answer = () => resolve({ ok: true, value: 'downloaded' });
+    });
+  });
+  try {
+    // Every chunk arrives before the idle bound. Total time exceeds it.
+    for (let chunk = 0; chunk < 4; chunk += 1) {
+      t.mock.timers.tick(100_000);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      assert.equal(signals.length, 1, 'a live download is not restarted');
+      assert.equal(signals[0]?.aborted, false);
+      progress();
+    }
+    assert.ok(answer !== undefined);
+    answer();
+    assert.deepEqual(await result, { ok: true, value: 'downloaded' });
+    assert.equal(removed, 1);
+    progress();
+    t.mock.timers.tick(120_000);
+    assert.equal(signals[0]?.aborted, false, 'late progress starts no timer');
+  } finally {
+    controller.abort();
+    await result.catch(() => {});
+  }
+});
+
 await test('an abort error with a live run signal is a retryable request failure', async () => {
   const controller = new AbortController();
   let calls = 0;
@@ -236,4 +280,41 @@ await test('an abort error with a live run signal is a retryable request failure
   });
   assert.deepEqual(result, { ok: true, value: 'saved' });
   assert.equal(calls, 2);
+});
+
+await test('a download that stops receiving data retries after the last chunk', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let progress = (): void => {};
+  const result = sendWithRetry(
+    {
+      ...retryContext(controller.signal),
+      watchResponse: (_signal: AbortSignal, received: () => void) => {
+        progress = received;
+        return () => {};
+      },
+    },
+    (signal) => {
+      signals.push(signal);
+      return signals.length === 1
+        ? new Promise(() => {})
+        : Promise.resolve({ ok: true as const, value: 'complete' });
+    },
+  );
+  try {
+    t.mock.timers.tick(100_000);
+    progress();
+    t.mock.timers.tick(119_999);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 1);
+    t.mock.timers.tick(1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 2);
+    assert.equal(signals[0]?.aborted, true);
+    assert.deepEqual(await result, { ok: true, value: 'complete' });
+  } finally {
+    controller.abort();
+    await result.catch(() => {});
+  }
 });

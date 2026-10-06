@@ -144,6 +144,11 @@ export type SyncContext = {
    */
   readonly owner?: string | undefined;
   readonly signal: AbortSignal;
+  /** The transport reports headers and body chunks, never a timing policy. */
+  readonly watchResponse?: (
+    signal: AbortSignal,
+    received: () => void,
+  ) => () => void;
   readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly random: () => number;
   readonly id: () => string;
@@ -227,13 +232,13 @@ export const backoffCapMs = 8000;
 export const maxAttempts = 4;
 
 /**
- * The longest one sync request may hold the queue, in milliseconds.
+ * The longest gap without a sync response, in milliseconds.
  *
- * A request can use the server's default minute to receive its body. Leave
- * another minute for processing and receiving the answer, rather than
- * repeatedly aborting a valid large save on a slow connection.
+ * Before headers, allow the server's default receive window and its answer.
+ * After headers, each received chunk starts the bound again. A large slow
+ * download can take as long as it needs while data continues to arrive.
  */
-export const requestTimeoutMs = 120_000;
+export const requestIdleTimeoutMs = 120_000;
 
 /**
  * One bounded exponential backoff delay with jitter.
@@ -258,27 +263,36 @@ export function isRetryableStatus(status: number): boolean {
 }
 
 /**
- * Bounds one attempt and stops its transport when the bound or caller ends.
+ * Bounds inactivity and stops the transport when the bound or caller ends.
  *
  * The race also ends an adapter that does not settle after an abort. A lost
  * answer can still mean an accepted save, so the caller retries its frozen
  * body. Only the run signal cancels the caller, not a request's error name.
  */
 async function requestWithinBound<T>(
-  signal: AbortSignal,
+  ctx: SyncContext,
   run: (signal: AbortSignal) => Promise<ServiceOutcome<T>>,
 ): Promise<ServiceOutcome<T>> {
+  const { signal } = ctx;
   signal.throwIfAborted();
   const attempt = new AbortController();
   const cancel = (): void => {
     attempt.abort(signal.reason);
   };
   signal.addEventListener('abort', cancel, { once: true });
-  const timer = setTimeout(() => {
+  const timeout = (): void => {
     attempt.abort(
       new DOMException('The sync request did not answer.', 'TimeoutError'),
     );
-  }, requestTimeoutMs);
+  };
+  let active = true;
+  let timer = setTimeout(timeout, requestIdleTimeoutMs);
+  const received = (): void => {
+    if (!active) return;
+    clearTimeout(timer);
+    timer = setTimeout(timeout, requestIdleTimeoutMs);
+  };
+  let unwatch: (() => void) | undefined;
   let onAbort: () => void = () => {};
   const ended = new Promise<never>((_resolve, reject) => {
     onAbort = (): void => {
@@ -287,9 +301,12 @@ async function requestWithinBound<T>(
     attempt.signal.addEventListener('abort', onAbort, { once: true });
   });
   try {
+    unwatch = ctx.watchResponse?.(attempt.signal, received);
     return await Promise.race([run(attempt.signal), ended]);
   } finally {
+    active = false;
     clearTimeout(timer);
+    unwatch?.();
     signal.removeEventListener('abort', cancel);
     attempt.signal.removeEventListener('abort', onAbort);
   }
@@ -310,7 +327,7 @@ export async function sendWithRetry<T>(
   for (let attempt = 0; ; attempt += 1) {
     let outcome: ServiceOutcome<T>;
     try {
-      outcome = await requestWithinBound(ctx.signal, run);
+      outcome = await requestWithinBound(ctx, run);
     } catch (error: unknown) {
       if (ctx.signal.aborted) throw error;
       if (attempt + 1 >= maxAttempts) return null;

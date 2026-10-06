@@ -28,6 +28,7 @@ import {
   getAccount,
   getFile,
   getRevision,
+  observeResponseProgress,
   listHistory,
   listWorkspaces,
   purgeFiles,
@@ -66,6 +67,7 @@ import {
   createNote,
   createSyncEngine,
   parkRefusedSave,
+  sendWithRetry,
   type Draft,
   type LocalStore,
   type SyncEngine,
@@ -170,6 +172,10 @@ let connectionFault: {
   afterCommit: boolean;
 } | null = null;
 const faultRequestId = 'sync-network-recovery';
+let downloadFault: {
+  remaining: number;
+  readonly release: Promise<void>;
+} | null = null;
 
 const server = await startTestServer({
   environment: environment(),
@@ -197,6 +203,26 @@ const server = await startTestServer({
       request.raw.destroy();
     });
     app.addHook('onSend', async (request, reply, payload) => {
+      const download = downloadFault;
+      if (
+        download !== null &&
+        download.remaining > 0 &&
+        request.headers['x-request-id'] === faultRequestId &&
+        /\/revisions\/[^/]+$/.test(request.url) &&
+        reply.statusCode === 200
+      ) {
+        download.remaining -= 1;
+        reply.hijack();
+        reply.raw.writeHead(200, { 'content-type': 'application/json' });
+        if (typeof payload === 'string' || Buffer.isBuffer(payload))
+          reply.raw.write(payload.slice(0, 64));
+        else throw new Error('The revision must have a serialized body.');
+        // The client confirms that it received a body chunk before the
+        // fault closes this socket. No timer stands in for that handshake.
+        await download.release;
+        reply.raw.destroy();
+        return payload;
+      }
       const fault = connectionFault;
       if (
         fault !== null &&
@@ -566,6 +592,70 @@ await test('a lost commit answer retries the accepted save and makes one server 
     engine.stop();
     await running;
     await store.close();
+  }
+});
+
+await test('a revision download retries a lost body after successful response headers', async () => {
+  const text = '# A complete revision after a lost body\n';
+  const file = await newFile('recovery/partial-download.md', text);
+  let release = (): void => {};
+  const fault = {
+    remaining: 1,
+    release: new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  };
+  downloadFault = fault;
+  const controller = new AbortController();
+  let progress = 0;
+  let attempts = 0;
+  try {
+    const result = await sendWithRetry(
+      {
+        signal: controller.signal,
+        sleep: () => Promise.resolve(),
+        random: () => 0,
+        id: () => 'partial-download',
+        announce: () => {},
+        watchResponse: (signal, received) =>
+          observeResponseProgress(signal, () => {
+            received();
+            progress += 1;
+            if (progress === 2) release();
+          }),
+      },
+      async (signal) => {
+        attempts += 1;
+        const read = await getRevision({
+          headers: { ...browser(ownerCookie), 'x-request-id': faultRequestId },
+          path: { workspaceId, revisionId: file.revisionId },
+          signal,
+        });
+        if (read.data !== undefined)
+          return { ok: true as const, value: read.data };
+        return {
+          ok: false as const,
+          problem: {
+            status: read.error?.status ?? 0,
+            code: read.error?.code ?? 'transport_failed',
+            fileIds: [],
+          },
+        };
+      },
+    );
+    assert.equal(
+      attempts,
+      2,
+      'a lost body after 200 is still a transport failure',
+    );
+    assert.equal(fault.remaining, 0);
+    assert.ok(progress >= 4, 'both attempts report headers and body data');
+    assert.equal(result?.ok, true);
+    assert.equal(result?.ok ? result.value.text : null, text);
+  } finally {
+    downloadFault = null;
+    release();
+    controller.abort();
   }
 });
 

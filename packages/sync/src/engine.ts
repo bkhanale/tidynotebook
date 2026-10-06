@@ -40,6 +40,7 @@ import {
   getSnapshotPage,
   getSyncProtocol,
   startSnapshot,
+  observeResponseProgress,
   type AcceptedChangeset as GeneratedAccepted,
 } from '@notesapp/api-client';
 import {
@@ -310,7 +311,14 @@ export function createSyncEngine(
     let outcome: ServiceOutcome<{ readonly accountId: string }> | null;
     try {
       outcome = await sendWithRetry(
-        { signal, sleep, random, id: newId, announce: report },
+        {
+          signal,
+          sleep,
+          random,
+          id: newId,
+          announce: report,
+          watchResponse: observeResponseProgress,
+        },
         (attempt) => operations.verifySession(attempt),
       );
     } catch (error: unknown) {
@@ -522,6 +530,7 @@ export function createSyncEngine(
             random,
             id: newId,
             announce: report,
+            watchResponse: observeResponseProgress,
           };
           // The session and the protocol are read at the same time, which
           // saves one round trip before a save (record 0176). Nothing is
