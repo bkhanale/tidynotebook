@@ -1,0 +1,7 @@
+type: http
+scheme: bearer
+bearerFormat: Personal API key
+description: >-
+  A personal API key gives full access to its enabled account through the
+  Authorization header. Use HTTPS. Keys expire and can be revoked at once.
+  Never put a key in a URL. An invalid bearer never falls back to a cookie.

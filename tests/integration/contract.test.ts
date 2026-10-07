@@ -544,7 +544,7 @@ await test('every operation outside the open list names a security scheme', () =
   assert.deepEqual(open, [...openOperations, ...readers].sort());
 });
 
-await test('the owner operations of a published link keep the session', () => {
+await test('the owner operations of a published link accept the shared account credentials', () => {
   for (const id of [
     'createPublishedLink',
     'listPublishedLinks',
@@ -552,7 +552,11 @@ await test('the owner operations of a published link keep the session', () => {
   ]) {
     const operation = operations.find((entry) => entry.id === id);
     assert.ok(operation !== undefined, id);
-    assert.deepEqual(operation.security, [{ sessionCookie: [] }], id);
+    assert.deepEqual(
+      operation.security,
+      [{ sessionCookie: [] }, { personalApiKey: [] }],
+      id,
+    );
   }
 });
 

@@ -69,11 +69,6 @@ const bodyFailures: Json = {
   '415': problem('The request media type is not supported.'),
 };
 
-/** The refusal of a locked account, with the code `account_locked`. */
-const lockedFailure: Json = problem(
-  'The account is locked, and a locked account keeps only a fixed list of operations (record 0201). The code is account_locked. Nothing changed.',
-);
-
 const operation = (input: {
   readonly id: string;
   readonly summary: string;
@@ -81,12 +76,6 @@ const operation = (input: {
   readonly requestBody?: Json;
   readonly success: Json;
   readonly successStatus?: string;
-  /**
-   * Whether a locked account is refused this endpoint (record 0201). The
-   * protocol adapter answers 423 for such an account, so the endpoint
-   * declares it.
-   */
-  readonly refusesLocked?: boolean;
 }): Json => ({
   operationId: input.id,
   summary: input.summary,
@@ -103,7 +92,6 @@ const operation = (input: {
   responses: {
     [input.successStatus ?? '200']: input.success,
     ...(input.requestBody === undefined ? protocolFailures : bodyFailures),
-    ...(input.refusesLocked === true ? { '423': lockedFailure } : {}),
   },
 });
 
@@ -273,21 +261,6 @@ export function authContractSchemas(): Json {
       additionalProperties: false,
       properties: {},
     },
-    AuthProfileUpdate: {
-      type: 'object',
-      description: 'The display name of the signed in account.',
-      additionalProperties: false,
-      required: ['name'],
-      properties: {
-        name: {
-          type: 'string',
-          description: 'Display name of the account.',
-          minLength: 1,
-          maxLength: 256,
-          pattern: '^\\S(?:[\\s\\S]*\\S)?$',
-        },
-      },
-    },
     AuthPasswordResetRequest: {
       type: 'object',
       description: 'The address that asks for a password reset message.',
@@ -358,20 +331,6 @@ export function authContractPaths(): Json {
         }),
         success: json('The session ended.', {
           $ref: '#/components/schemas/AuthSignOutResult',
-        }),
-      }),
-    },
-    '/api/auth/update-user': {
-      post: operation({
-        id: 'updateProfile',
-        summary: 'Change the display name of the signed in account.',
-        description: 'Stores the display name of the account.',
-        refusesLocked: true,
-        requestBody: body('The new display name.', {
-          $ref: '#/components/schemas/AuthProfileUpdate',
-        }),
-        success: json('The account profile was updated.', {
-          $ref: '#/components/schemas/AuthOutcome',
         }),
       }),
     },

@@ -80,43 +80,45 @@ on each rule below.
 
 ## Key files
 
-| File                                          | Purpose                            |
-| --------------------------------------------- | ---------------------------------- |
-| `src/app.tsx`                                 | Application shell and stores       |
-| `src/router.tsx`                              | Routes and the two boundaries      |
-| `src/lib/route-error.ts`                      | What a boundary says (0161)        |
-| `src/tailwind.css`                            | CSS source and the named scales    |
-| `src/shell/shell.tsx`                         | Frame, sidebar, sidebar size       |
-| `src/lib/frame-content.ts`                    | The notices and page of the frame  |
-| `src/shell/tree.tsx`                          | The tree, its selection and menu   |
-| `src/lib/tree-rows.ts`                        | The visible rows of the tree       |
-| `src/shell/row-window.ts`                     | The window of a long list          |
-| `src/lib/row-window.ts`                       | The rule of the window of a list   |
-| `src/shell/header-slot.tsx`                   | Where a route fills the header     |
-| `src/lib/note-menu.ts`                        | The rows of the note menu          |
-| `src/lib/note-name-field.ts`                  | The name field of the open note    |
-| `src/lib/note-auto-name.ts`                   | The name a heading gives (0163)    |
-| `src/shell/action-icons.tsx`                  | The one glyph of every action      |
-| `src/shell/workspaces.tsx`                    | The workspace switcher             |
-| `src/shell/sidebar-view-bar.tsx`              | The view bar of the sidebar        |
-| `src/lib/workspace-choice.ts`                 | Which workspace opens              |
-| `src/lib/breadcrumb.ts`                       | Where a person is, as parts        |
-| `src/features/editor/note-editor.tsx`         | The editor host and editor view    |
-| `src/features/editor/note-work.ts`            | When a key reaches storage (0175)  |
-| `src/features/editor/note-loader.tsx`         | The read that opens one note       |
-| `src/features/editor/device-note.ts`          | The open read a navigation awaits  |
-| `src/features/editor/note-header-actions.tsx` | The actions of the note route      |
-| `src/lib/format-toolbar.ts`                   | The formatting tools and rows      |
-| `src/features/daily-notes/daily-notes.tsx`    | The one way to open a date (0099)  |
-| `src/lib/daily-note.ts`                       | The daily note rules of a device   |
-| `src/features/templates/templates.tsx`        | The template folder (0149)         |
-| `src/lib/templates.ts`                        | The template rules of a device     |
-| `src/shell/member-settings.ts`                | The one hook of a member setting   |
-| `vite.config.ts`                              | Build, theme, icons, worker        |
-| `src/start-failure.ts`                        | The screen of a failed start       |
-| `src/published/page.ts`                       | The one script of a published page |
-| `src/pwa/icons.ts`                            | The one list of the icons          |
-| `icons/`                                      | The icon files the build names     |
-| `src/logging.ts`                              | Browser sink for log events        |
-| `src/features/accounts/portal.tsx`            | The route of the portal (0190)     |
-| `src/lib/sign-in-return.ts`                   | Where sign-in goes back to         |
+| File                                          | Purpose                             |
+| --------------------------------------------- | ----------------------------------- |
+| `src/app.tsx`                                 | Application shell and stores        |
+| `src/router.tsx`                              | Routes and the two boundaries       |
+| `src/lib/route-error.ts`                      | What a boundary says (0161)         |
+| `src/tailwind.css`                            | CSS source and the named scales     |
+| `src/shell/shell.tsx`                         | Frame, sidebar, sidebar size        |
+| `src/lib/frame-content.ts`                    | The notices and page of the frame   |
+| `src/shell/tree.tsx`                          | The tree, its selection and menu    |
+| `src/lib/tree-rows.ts`                        | The visible rows of the tree        |
+| `src/shell/row-window.ts`                     | The window of a long list           |
+| `src/lib/row-window.ts`                       | The rule of the window of a list    |
+| `src/shell/header-slot.tsx`                   | Where a route fills the header      |
+| `src/lib/note-menu.ts`                        | The rows of the note menu           |
+| `src/lib/note-name-field.ts`                  | The name field of the open note     |
+| `src/lib/note-auto-name.ts`                   | The name a heading gives (0163)     |
+| `src/shell/action-icons.tsx`                  | The one glyph of every action       |
+| `src/shell/workspaces.tsx`                    | The workspace switcher              |
+| `src/shell/sidebar-view-bar.tsx`              | The view bar of the sidebar         |
+| `src/lib/workspace-choice.ts`                 | Which workspace opens               |
+| `src/lib/breadcrumb.ts`                       | Where a person is, as parts         |
+| `src/features/editor/note-editor.tsx`         | The editor host and editor view     |
+| `src/features/editor/note-work.ts`            | When a key reaches storage (0175)   |
+| `src/features/editor/note-loader.tsx`         | The read that opens one note        |
+| `src/features/editor/device-note.ts`          | The open read a navigation awaits   |
+| `src/features/editor/note-header-actions.tsx` | The actions of the note route       |
+| `src/lib/format-toolbar.ts`                   | The formatting tools and rows       |
+| `src/features/daily-notes/daily-notes.tsx`    | The one way to open a date (0099)   |
+| `src/lib/daily-note.ts`                       | The daily note rules of a device    |
+| `src/features/templates/templates.tsx`        | The template folder (0149)          |
+| `src/lib/templates.ts`                        | The template rules of a device      |
+| `src/shell/member-settings.ts`                | The one hook of a member setting    |
+| `vite.config.ts`                              | Build, theme, icons, worker         |
+| `src/start-failure.ts`                        | The screen of a failed start        |
+| `src/published/page.ts`                       | The one script of a published page  |
+| `src/pwa/icons.ts`                            | The one list of the icons           |
+| `icons/`                                      | The icon files the build names      |
+| `src/logging.ts`                              | Browser sink for log events         |
+| `src/features/accounts/portal.tsx`            | The route of the portal (0190)      |
+| `src/features/accounts/api-keys.tsx`          | Personal key controls (0208)        |
+| `src/lib/api-keys.ts`                         | The key facts a person reads (0208) |
+| `src/lib/sign-in-return.ts`                   | Where sign-in goes back to          |

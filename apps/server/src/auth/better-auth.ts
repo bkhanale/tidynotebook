@@ -84,7 +84,6 @@ export const authRoutes: readonly {
 }[] = [
   { method: 'POST', path: `${authBasePath}/sign-in/email` },
   { method: 'POST', path: `${authBasePath}/sign-out` },
-  { method: 'POST', path: `${authBasePath}/update-user` },
   { method: 'GET', path: `${authBasePath}/get-session` },
   { method: 'POST', path: `${authBasePath}/request-password-reset` },
   // The reset link of a message opens the reset page of the application with

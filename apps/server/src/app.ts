@@ -543,6 +543,19 @@ export async function createAppWithHandlers(
     const status = contractStatus(id, classified.status);
     const code =
       status === classified.status ? classified.code : 'internal_error';
+    if (
+      status === 401 &&
+      id !== undefined &&
+      findOperation(id)?.security.some(
+        (requirement) => 'personalApiKey' in requirement,
+      )
+    )
+      reply.header(
+        'www-authenticate',
+        request.headers.authorization === undefined
+          ? 'Bearer realm="tidy notebook"'
+          : 'Bearer realm="tidy notebook", error="invalid_token"',
+      );
     // `setErrorHandler` replaces Fastify's own error logging, so a fault that
     // the client never sees in detail would otherwise leave no trace at all.
     // Every answer that classifies as an unexpected server error is logged

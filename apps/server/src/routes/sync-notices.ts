@@ -13,7 +13,7 @@
  */
 import type { FastifyRequest } from 'fastify';
 import { findChannel } from '@notesapp/api-contract';
-import { requireActor } from '../auth/actor.ts';
+import { requireSessionActor } from '../auth/actor.ts';
 import type { NoticeGateway } from '../notices/gateway.ts';
 import type {
   ProtocolAdapter,
@@ -113,7 +113,7 @@ export function createSyncNoticesProtocol(notices?: {
               'A notice stream must come from a page of this deployment.',
             ),
           };
-        const resolved = requireActor(request);
+        const resolved = requireSessionActor(request);
         const decision = await gateway.admit({
           accountId: resolved.actor.accountId,
           sessionId: resolved.sessionId,

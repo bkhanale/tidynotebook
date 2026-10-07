@@ -1,0 +1,12 @@
+type: object
+description: The name of the account.
+additionalProperties: false
+required: [name]
+properties:
+  name:
+    type: string
+    writeOnly: true
+    description: Display name of the account.
+    minLength: 1
+    maxLength: 256
+    pattern: '^\S(?:[\s\S]*\S)?$'

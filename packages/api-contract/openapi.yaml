@@ -59,7 +59,14 @@ tags:
       link.
 security:
   - sessionCookie: []
+  - personalApiKey: []
 paths:
+  /api/account/keys:
+    $ref: './paths/api_account_keys.yaml'
+  /api/account/keys/{keyId}:
+    $ref: './paths/api_account_keys_keyId.yaml'
+  /api/auth/update-user:
+    $ref: './paths/api_auth_update-user.yaml'
   /health:
     $ref: './paths/health.yaml'
   /ready:
@@ -212,6 +219,8 @@ paths:
     $ref: './paths/published_token_attachments_fileId_revisionId.yaml'
 components:
   securitySchemes:
+    personalApiKey:
+      $ref: './components/securitySchemes/personalApiKey.yaml'
     sessionCookie:
       $ref: './components/securitySchemes/sessionCookie.yaml'
     operatorToken:
@@ -550,6 +559,18 @@ components:
     PortalAddress:
       $ref: './components/responses/PortalAddress.yaml'
   schemas:
+    ApiKey:
+      $ref: './components/schemas/ApiKey.yaml'
+    ApiKeyCreateInput:
+      $ref: './components/schemas/ApiKeyCreateInput.yaml'
+    ApiKeyCreated:
+      $ref: './components/schemas/ApiKeyCreated.yaml'
+    ApiKeyList:
+      $ref: './components/schemas/ApiKeyList.yaml'
+    ProfileUpdateInput:
+      $ref: './components/schemas/ProfileUpdateInput.yaml'
+    ProfileUpdated:
+      $ref: './components/schemas/ProfileUpdated.yaml'
     HealthReport:
       $ref: './components/schemas/HealthReport.yaml'
     ReadinessReport:

@@ -4,6 +4,8 @@ delete:
   description: >-
     Signs the account out on every other device. The session that makes the
     request stays.
+  security:
+    - sessionCookie: []
   tags:
     - accounts
   parameters:

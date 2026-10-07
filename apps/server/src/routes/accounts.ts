@@ -18,6 +18,11 @@ import type {
 } from '@notesapp/core';
 import {
   acceptLegalDocuments,
+  createApiKey,
+  defaultApiKeyDays,
+  listApiKeys,
+  revokeApiKey,
+  updateProfile,
   consentRequired,
   openAccountPortal,
   deleteTheme,
@@ -30,7 +35,8 @@ import {
   revokeSession,
   updatePreferences,
 } from '@notesapp/core';
-import { requireActor } from '../auth/actor.ts';
+import { requireActor, requireSessionActor } from '../auth/actor.ts';
+import { newApiKeySecret } from '../auth/api-key-secrets.ts';
 import {
   newPublishedSecret,
   secretDigest,
@@ -163,6 +169,54 @@ export function createAccountHandlers(
   usage: Pick<UsageMeter, 'accountMonth'>,
 ): HandlerMap {
   return {
+    listApiKeys: async (request): Promise<HandlerResult> => ({
+      status: 200,
+      mediaType: jsonMediaType,
+      headers: [['cache-control', 'no-store']],
+      body: {
+        keys: unwrapDomain(
+          await listApiKeys(store, requireActor(request).actor),
+        ),
+      },
+    }),
+    createApiKey: async (request): Promise<HandlerResult> => {
+      const token = newApiKeySecret();
+      const days = readProperty(request.body, 'expiresInDays');
+      const key = unwrapDomain(
+        await createApiKey(store, requireActor(request).actor, {
+          keyId: randomUUID(),
+          name: readString(request.body, 'name'),
+          tokenDigest: secretDigest.digest(token),
+          expiresInDays: typeof days === 'number' ? days : defaultApiKeyDays,
+        }),
+      );
+      return {
+        status: 201,
+        mediaType: jsonMediaType,
+        headers: [['cache-control', 'no-store']],
+        body: { key, token },
+      };
+    },
+    revokeApiKey: async (request): Promise<HandlerResult> => {
+      unwrapDomain(
+        await revokeApiKey(
+          store,
+          requireActor(request).actor,
+          readParameter(request, 'keyId'),
+        ),
+      );
+      return { status: 200, mediaType: jsonMediaType, body: { removed: true } };
+    },
+    updateProfile: async (request): Promise<HandlerResult> => {
+      unwrapDomain(
+        await updateProfile(
+          store,
+          requireActor(request).actor,
+          readString(request.body, 'name'),
+        ),
+      );
+      return { status: 200, mediaType: jsonMediaType, body: { status: true } };
+    },
     openAccountPortal: async (request): Promise<HandlerResult> => {
       const resolved = requireActor(request);
       // The token travels once, in the address, and only its digest is at
@@ -270,7 +324,7 @@ export function createAccountHandlers(
     },
 
     revokeOtherSessions: async (request): Promise<HandlerResult> => {
-      const resolved = requireActor(request);
+      const resolved = requireSessionActor(request);
       const revoked = unwrap(
         await revokeOtherSessions(store, resolved.actor, resolved.sessionId),
       );

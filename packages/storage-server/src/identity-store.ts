@@ -19,6 +19,7 @@
  * after it.
  */
 import { randomUUID } from 'node:crypto';
+import { apiKeyOf, type ApiKeyRow } from './api-key-row.ts';
 import {
   installationSettingsOf,
   type InstallationSettingsRow,
@@ -335,6 +336,8 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
      * resolver reads it, so a locked account keeps only its list.
      */
     sessionStanding(authUserId: string): Promise<SessionStanding | null>;
+    /** Resolve one unexpired key of an enabled account. No secret is returned. */
+    apiKeyIdentity(tokenDigest: string): Promise<ApiKeyIdentity | null>;
     /**
      * The workspaces that one notice stream may still hear about, or `null`
      * when its session ended or expired, or no longer serves an enabled
@@ -398,6 +401,12 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
 export type SessionStanding = {
   readonly accountId: string;
   readonly standing: ControlStanding;
+};
+
+export type ApiKeyIdentity = SessionStanding & {
+  readonly authUserId: string;
+  readonly email: string;
+  readonly name: string;
 };
 
 /** Options of one identity store pool. */
@@ -528,6 +537,30 @@ export function openIdentityStore(
     accountId: string,
   ): AccountTransaction {
     return {
+      async apiKeys() {
+        const rows = await client.query<ApiKeyRow>(
+          'select * from notesapp_account_keys()',
+        );
+        return rows.rows.map(apiKeyOf);
+      },
+      async createApiKey(input) {
+        const rows = await client.query<ApiKeyRow>(
+          'select * from notesapp_create_api_key($1, $2, $3, $4)',
+          [input.keyId, input.name, input.tokenDigest, input.expiresInDays],
+        );
+        const row = rows.rows[0];
+        return row === undefined ? null : apiKeyOf(row);
+      },
+      async revokeApiKey(keyId) {
+        const rows = await client.query<{ revoked: boolean }>(
+          'select notesapp_revoke_api_key($1) as revoked',
+          [keyId],
+        );
+        return rows.rows[0]?.revoked ?? false;
+      },
+      async setProfileName(name) {
+        await client.query('select notesapp_set_profile_name($1)', [name]);
+      },
       async workspaces(): Promise<readonly WorkspaceSummary[]> {
         const rows = await client.query<{
           id: string;
@@ -1392,6 +1425,28 @@ export function openIdentityStore(
           [authUserId],
         );
         return rows.rows[0]?.account ?? null;
+      });
+    },
+
+    async apiKeyIdentity(tokenDigest: string): Promise<ApiKeyIdentity | null> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{
+          account_id: string;
+          auth_user_id: string;
+          standing: string;
+          email: string;
+          name: string;
+        }>('select * from notesapp_api_key_identity($1)', [tokenDigest]);
+        const row = rows.rows[0];
+        return row === undefined
+          ? null
+          : {
+              accountId: row.account_id,
+              authUserId: row.auth_user_id,
+              standing: storedStanding(row.standing),
+              email: row.email,
+              name: row.name,
+            };
       });
     },
 

@@ -1,5 +1,6 @@
 # Personal API keys
-Status: active
+
+Status: complete
 
 The [GitHub project board](https://github.com/users/bkhanale/projects/2) holds
 the work. [Design 025](../design/025-personal-api-keys.md) states the options.
@@ -10,9 +11,9 @@ the work. [Design 025](../design/025-personal-api-keys.md) states the options.
 
 ## Work
 
-| Item | Work | Issue |
-| --- | --- | --- |
-| 1 | Contract, domain and credential storage; shared bearer resolver; account controls; unit, served API and browser proof | [293](https://github.com/tidynotebook/tidynotebook/issues/293) |
+| Item | Work                                                                                                                  | Issue                                                          |
+| ---- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 1    | Contract, domain and credential storage; shared bearer resolver; account controls; unit, served API and browser proof | [293](https://github.com/tidynotebook/tidynotebook/issues/293) |
 
 Finish with the full gate, the PR and its review, the release gates, and the
 deployment update in Galaxy. Keep the future CLI and MCP adapters out of this

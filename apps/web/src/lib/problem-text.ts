@@ -9,6 +9,8 @@
 
 /** A sentence for one known problem code. */
 const sentences: Readonly<Record<string, string>> = {
+  api_key_limit:
+    'Your account has 25 API keys. Revoke a key before you create another.',
   account_exists: 'An account already uses this address.',
   account_locked:
     'Your account is locked. Your notes are safe. Open the account page to unlock it.',

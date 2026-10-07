@@ -233,7 +233,6 @@ const protocolWrites = [
   'resetPassword',
   'signInWithPassword',
   'signOut',
-  'updateProfile',
 ];
 
 /**
@@ -258,6 +257,7 @@ const pathValues: Readonly<Record<string, string>> = {
   accountId: randomUUID(),
   invitationId: randomUUID(),
   sessionId: randomUUID(),
+  keyId: randomUUID(),
   themeId: randomUUID(),
   reportId: randomUUID(),
   importId: randomUUID(),

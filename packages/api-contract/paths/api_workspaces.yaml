@@ -29,6 +29,7 @@ post:
     - workspaces
   security:
     - sessionCookie: []
+    - personalApiKey: []
   parameters:
     - $ref: '../components/parameters/RequestId.yaml'
   requestBody:

@@ -1,0 +1,34 @@
+delete:
+  operationId: revokeApiKey
+  summary: Revoke an API key.
+  description: >-
+    Removes one key of this account. The next request with it is refused. Another account cannot revoke this key.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - name: keyId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the key to revoke.
+      schema:
+        $ref: '../components/schemas/Uuid.yaml'
+  responses:
+    '200':
+      description: Revoke an API key.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/Removed.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

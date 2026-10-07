@@ -1696,3 +1696,36 @@ export const templateSettings = pgTable(
     ),
   ],
 );
+
+/** Personal credentials hold only a digest and public metadata (0208). */
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    tokenDigest: text('token_digest').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('api_keys_account_idx').on(table.accountId),
+    check(
+      'api_keys_digest_check',
+      sql`${table.tokenDigest} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'api_keys_name_check',
+      sql`char_length(${table.name}) between 1 and 80 and ${table.name} = btrim(${table.name})`,
+    ),
+    check(
+      'api_keys_expiry_check',
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+  ],
+);

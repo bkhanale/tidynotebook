@@ -59,6 +59,10 @@ function storeWith(sessions: SessionRecord[]): WorkspaceAdminStore & {
     account: (_actor, run) =>
       run({
         ...tx,
+        apiKeys: fail,
+        createApiKey: fail,
+        revokeApiKey: fail,
+        setProfileName: fail,
         workspaces: fail,
         memberships: fail,
         preferences: fail,
@@ -126,4 +130,14 @@ await test('every other session ends and the current one stays', async () => {
     store.held.map((entry) => entry.sessionId),
     ['mine'],
   );
+});
+
+await test('a key has no current browser session', async () => {
+  const result = await listSessions(
+    storeWith([session('browser', '2026-09-27T09:00:00.000Z')]),
+    actor,
+    null,
+  );
+  assert.ok(result.ok);
+  assert.equal(result.value[0]?.current, false);
 });

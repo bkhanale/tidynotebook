@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client/index.js';
-import type { AbortWorkspaceImportData, AbortWorkspaceImportErrors, AbortWorkspaceImportResponses, AcceptLegalDocumentsData, AcceptLegalDocumentsErrors, AcceptLegalDocumentsResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CompleteWorkspaceImportData, CompleteWorkspaceImportErrors, CompleteWorkspaceImportResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteThemeData, DeleteThemeErrors, DeleteThemeResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, DismissReportData, DismissReportErrors, DismissReportResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, FindOperatorAccountData, FindOperatorAccountErrors, FindOperatorAccountResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetLegalDocumentData, GetLegalDocumentErrors, GetLegalDocumentResponses, GetLegalDocumentSettingsData, GetLegalDocumentSettingsErrors, GetLegalDocumentSettingsResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetReportPageData, GetReportPageErrors, GetReportPageResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSignUpChallengeData, GetSignUpChallengeErrors, GetSignUpChallengeResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, GetTemplateSettingsData, GetTemplateSettingsErrors, GetTemplateSettingsResponses, ImportThemeData, ImportThemeErrors, ImportThemeResponses, InspectWorkspaceExportData, InspectWorkspaceExportErrors, InspectWorkspaceExportResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListOperatorAccountEventsData, ListOperatorAccountEventsErrors, ListOperatorAccountEventsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListReportsData, ListReportsErrors, ListReportsResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenAccountPortalData, OpenAccountPortalErrors, OpenAccountPortalResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, OpenSyncNoticesData, OpenSyncNoticesErrors, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, ReadOperatorAccountData, ReadOperatorAccountErrors, ReadOperatorAccountResponses, ReadOperatorTotalsData, ReadOperatorTotalsErrors, ReadOperatorTotalsResponses, RedeemAccountHandoffData, RedeemAccountHandoffErrors, RedeemAccountHandoffResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveLegalDocumentData, RemoveLegalDocumentErrors, RemoveLegalDocumentResponses, RemoveMailSettingsData, RemoveMailSettingsErrors, RemoveMailSettingsResponses, RemoveOperatorAccountData, RemoveOperatorAccountErrors, RemoveOperatorAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, ReportPublishedLinkData, ReportPublishedLinkErrors, ReportPublishedLinkResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokeOtherSessionsData, RevokeOtherSessionsErrors, RevokeOtherSessionsResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, RevokeSessionData, RevokeSessionErrors, RevokeSessionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SendTestMessageData, SendTestMessageErrors, SendTestMessageResponses, SendWorkspaceImportPartData, SendWorkspaceImportPartErrors, SendWorkspaceImportPartResponses, SetOperatorAccountControlsData, SetOperatorAccountControlsErrors, SetOperatorAccountControlsResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, SignUpAccountData, SignUpAccountErrors, SignUpAccountResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, StartWorkspaceImportData, StartWorkspaceImportErrors, StartWorkspaceImportResponses, TakeDownReportedLinkData, TakeDownReportedLinkErrors, TakeDownReportedLinkResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdateLegalDocumentData, UpdateLegalDocumentErrors, UpdateLegalDocumentResponses, UpdateMailSettingsData, UpdateMailSettingsErrors, UpdateMailSettingsResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpdateTemplateSettingsData, UpdateTemplateSettingsErrors, UpdateTemplateSettingsResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses, VerifyAddressData, VerifyAddressErrors, VerifyAddressResponses } from './types.gen.js';
+import type { AbortWorkspaceImportData, AbortWorkspaceImportErrors, AbortWorkspaceImportResponses, AcceptLegalDocumentsData, AcceptLegalDocumentsErrors, AcceptLegalDocumentsResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CompleteWorkspaceImportData, CompleteWorkspaceImportErrors, CompleteWorkspaceImportResponses, CreateApiKeyData, CreateApiKeyErrors, CreateApiKeyResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteThemeData, DeleteThemeErrors, DeleteThemeResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, DismissReportData, DismissReportErrors, DismissReportResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, FindOperatorAccountData, FindOperatorAccountErrors, FindOperatorAccountResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetLegalDocumentData, GetLegalDocumentErrors, GetLegalDocumentResponses, GetLegalDocumentSettingsData, GetLegalDocumentSettingsErrors, GetLegalDocumentSettingsResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetReportPageData, GetReportPageErrors, GetReportPageResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSignUpChallengeData, GetSignUpChallengeErrors, GetSignUpChallengeResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, GetTemplateSettingsData, GetTemplateSettingsErrors, GetTemplateSettingsResponses, ImportThemeData, ImportThemeErrors, ImportThemeResponses, InspectWorkspaceExportData, InspectWorkspaceExportErrors, InspectWorkspaceExportResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListApiKeysData, ListApiKeysErrors, ListApiKeysResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListOperatorAccountEventsData, ListOperatorAccountEventsErrors, ListOperatorAccountEventsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListReportsData, ListReportsErrors, ListReportsResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenAccountPortalData, OpenAccountPortalErrors, OpenAccountPortalResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, OpenSyncNoticesData, OpenSyncNoticesErrors, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, ReadOperatorAccountData, ReadOperatorAccountErrors, ReadOperatorAccountResponses, ReadOperatorTotalsData, ReadOperatorTotalsErrors, ReadOperatorTotalsResponses, RedeemAccountHandoffData, RedeemAccountHandoffErrors, RedeemAccountHandoffResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveLegalDocumentData, RemoveLegalDocumentErrors, RemoveLegalDocumentResponses, RemoveMailSettingsData, RemoveMailSettingsErrors, RemoveMailSettingsResponses, RemoveOperatorAccountData, RemoveOperatorAccountErrors, RemoveOperatorAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, ReportPublishedLinkData, ReportPublishedLinkErrors, ReportPublishedLinkResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeApiKeyData, RevokeApiKeyErrors, RevokeApiKeyResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokeOtherSessionsData, RevokeOtherSessionsErrors, RevokeOtherSessionsResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, RevokeSessionData, RevokeSessionErrors, RevokeSessionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SendTestMessageData, SendTestMessageErrors, SendTestMessageResponses, SendWorkspaceImportPartData, SendWorkspaceImportPartErrors, SendWorkspaceImportPartResponses, SetOperatorAccountControlsData, SetOperatorAccountControlsErrors, SetOperatorAccountControlsResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, SignUpAccountData, SignUpAccountErrors, SignUpAccountResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, StartWorkspaceImportData, StartWorkspaceImportErrors, StartWorkspaceImportResponses, TakeDownReportedLinkData, TakeDownReportedLinkErrors, TakeDownReportedLinkResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdateLegalDocumentData, UpdateLegalDocumentErrors, UpdateLegalDocumentResponses, UpdateMailSettingsData, UpdateMailSettingsErrors, UpdateMailSettingsResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpdateTemplateSettingsData, UpdateTemplateSettingsErrors, UpdateTemplateSettingsResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses, VerifyAddressData, VerifyAddressErrors, VerifyAddressResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -28,6 +28,10 @@ export const getAccount = <ThrowOnError extends boolean = false>(options?: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account',
     ...options
@@ -43,6 +47,10 @@ export const acceptLegalDocuments = <ThrowOnError extends boolean = false>(optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/consent',
     ...options,
@@ -50,6 +58,67 @@ export const acceptLegalDocuments = <ThrowOnError extends boolean = false>(optio
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List the API keys of the account.
+ *
+ * Lists the names, creation, expiry and last use of all keys. No secret is returned.
+ */
+export const listApiKeys = <ThrowOnError extends boolean = false>(options?: Options<ListApiKeysData, ThrowOnError>): RequestResult<ListApiKeysResponses, ListApiKeysErrors, ThrowOnError> => (options?.client ?? client).get<ListApiKeysResponses, ListApiKeysErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/account/keys',
+    ...options
+});
+
+/**
+ * Create an API key.
+ *
+ * Makes one key with full access to the account and current rights. The secret appears in this answer only. The account keeps at most 25 keys. Create a replacement before revoking an old key to rotate it.
+ */
+export const createApiKey = <ThrowOnError extends boolean = false>(options: Options<CreateApiKeyData, ThrowOnError>): RequestResult<CreateApiKeyResponses, CreateApiKeyErrors, ThrowOnError> => (options.client ?? client).post<CreateApiKeyResponses, CreateApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/account/keys',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke an API key.
+ *
+ * Removes one key of this account. The next request with it is refused. Another account cannot revoke this key.
+ */
+export const revokeApiKey = <ThrowOnError extends boolean = false>(options: Options<RevokeApiKeyData, ThrowOnError>): RequestResult<RevokeApiKeyResponses, RevokeApiKeyErrors, ThrowOnError> => (options.client ?? client).delete<RevokeApiKeyResponses, RevokeApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
+        }],
+    url: '/api/account/keys/{keyId}',
+    ...options
 });
 
 /**
@@ -62,6 +131,10 @@ export const openAccountPortal = <ThrowOnError extends boolean = false>(options:
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/portal',
     ...options,
@@ -81,6 +154,10 @@ export const updatePreferences = <ThrowOnError extends boolean = false>(options:
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/preferences',
     ...options,
@@ -100,6 +177,10 @@ export const removeOwnAccount = <ThrowOnError extends boolean = false>(options: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/removal',
     ...options,
@@ -119,6 +200,10 @@ export const listSessions = <ThrowOnError extends boolean = false>(options?: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/sessions',
     ...options
@@ -149,6 +234,10 @@ export const revokeSession = <ThrowOnError extends boolean = false>(options: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/sessions/{sessionId}',
     ...options
@@ -164,6 +253,10 @@ export const importTheme = <ThrowOnError extends boolean = false>(options: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/themes',
     ...options,
@@ -183,6 +276,10 @@ export const deleteTheme = <ThrowOnError extends boolean = false>(options: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/account/themes/{themeId}',
     ...options
@@ -198,6 +295,10 @@ export const listAccounts = <ThrowOnError extends boolean = false>(options?: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/accounts',
     ...options
@@ -213,6 +314,10 @@ export const removeAccount = <ThrowOnError extends boolean = false>(options: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/accounts/{accountId}',
     ...options
@@ -228,6 +333,10 @@ export const updateAccount = <ThrowOnError extends boolean = false>(options: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/accounts/{accountId}',
     ...options,
@@ -301,11 +410,20 @@ export const signOut = <ThrowOnError extends boolean = false>(options: Options<S
 });
 
 /**
- * Change the display name of the signed in account.
+ * Change the display name of the account.
  *
- * Stores the display name of the account.
+ * Stores the name of the authenticated account for either a session or an API key.
  */
 export const updateProfile = <ThrowOnError extends boolean = false>(options: Options<UpdateProfileData, ThrowOnError>): RequestResult<UpdateProfileResponses, UpdateProfileErrors, ThrowOnError> => (options.client ?? client).post<UpdateProfileResponses, UpdateProfileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/auth/update-user',
     ...options,
     headers: {
@@ -331,6 +449,10 @@ export const getInstallation = <ThrowOnError extends boolean = false>(options?: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation',
     ...options
@@ -346,6 +468,10 @@ export const updateInstallation = <ThrowOnError extends boolean = false>(options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation',
     ...options,
@@ -365,6 +491,10 @@ export const removeLegalDocument = <ThrowOnError extends boolean = false>(option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation/legal/{document}',
     ...options
@@ -380,6 +510,10 @@ export const getLegalDocumentSettings = <ThrowOnError extends boolean = false>(o
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation/legal/{document}',
     ...options
@@ -395,6 +529,10 @@ export const updateLegalDocument = <ThrowOnError extends boolean = false>(option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation/legal/{document}',
     ...options,
@@ -414,6 +552,10 @@ export const removeMailSettings = <ThrowOnError extends boolean = false>(options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation/mail',
     ...options
@@ -429,6 +571,10 @@ export const updateMailSettings = <ThrowOnError extends boolean = false>(options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation/mail',
     ...options,
@@ -448,6 +594,10 @@ export const sendTestMessage = <ThrowOnError extends boolean = false>(options?: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/installation/mail/test',
     ...options
@@ -463,6 +613,10 @@ export const listInvitations = <ThrowOnError extends boolean = false>(options?: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/invitations',
     ...options
@@ -478,6 +632,10 @@ export const createInvitation = <ThrowOnError extends boolean = false>(options: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/invitations',
     ...options,
@@ -497,6 +655,10 @@ export const revokeInvitation = <ThrowOnError extends boolean = false>(options: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/invitations/{invitationId}',
     ...options
@@ -508,7 +670,11 @@ export const revokeInvitation = <ThrowOnError extends boolean = false>(options: 
  * A service of the operator finds an account by its address and reads its controls with their revision and its usage (record 0190). The answer holds no note, no workspace and no published link.
  */
 export const findOperatorAccount = <ThrowOnError extends boolean = false>(options: Options<FindOperatorAccountData, ThrowOnError>): RequestResult<FindOperatorAccountResponses, FindOperatorAccountErrors, ThrowOnError> => (options.client ?? client).get<FindOperatorAccountResponses, FindOperatorAccountErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/accounts',
     ...options
 });
@@ -519,7 +685,11 @@ export const findOperatorAccount = <ThrowOnError extends boolean = false>(option
  * A service of the operator removes one account through the one removal of record 0111. The account, its workspaces, its sessions and its settings go, and a tombstone stays. The removal of the last enabled administrator is refused.
  */
 export const removeOperatorAccount = <ThrowOnError extends boolean = false>(options: Options<RemoveOperatorAccountData, ThrowOnError>): RequestResult<RemoveOperatorAccountResponses, RemoveOperatorAccountErrors, ThrowOnError> => (options.client ?? client).delete<RemoveOperatorAccountResponses, RemoveOperatorAccountErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/accounts/{accountId}',
     ...options
 });
@@ -530,7 +700,11 @@ export const removeOperatorAccount = <ThrowOnError extends boolean = false>(opti
  * A service of the operator reads the controls of one account with their revision, and its usage (record 0190). A later write of the controls names that revision.
  */
 export const readOperatorAccount = <ThrowOnError extends boolean = false>(options: Options<ReadOperatorAccountData, ThrowOnError>): RequestResult<ReadOperatorAccountResponses, ReadOperatorAccountErrors, ThrowOnError> => (options.client ?? client).get<ReadOperatorAccountResponses, ReadOperatorAccountErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/accounts/{accountId}',
     ...options
 });
@@ -541,7 +715,11 @@ export const readOperatorAccount = <ThrowOnError extends boolean = false>(option
  * A service of the operator changes the controls of one account with the revision that it read (record 0189). A write that names an old revision answers 409 with the code controls_changed and changes nothing, so a write that was made from an old state cannot replace a newer one.
  */
 export const setOperatorAccountControls = <ThrowOnError extends boolean = false>(options: Options<SetOperatorAccountControlsData, ThrowOnError>): RequestResult<SetOperatorAccountControlsResponses, SetOperatorAccountControlsErrors, ThrowOnError> => (options.client ?? client).patch<SetOperatorAccountControlsResponses, SetOperatorAccountControlsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/accounts/{accountId}/controls',
     ...options,
     headers: {
@@ -556,7 +734,11 @@ export const setOperatorAccountControls = <ThrowOnError extends boolean = false>
  * A service of the operator reads the events of the accounts after its own cursor, oldest first: an account was made, its address was verified, or it was removed (record 0190). The core sends nothing out, so the service asks. The positions follow the order of the commits, so a reader that continues after the last position misses no event.
  */
 export const listOperatorAccountEvents = <ThrowOnError extends boolean = false>(options?: Options<ListOperatorAccountEventsData, ThrowOnError>): RequestResult<ListOperatorAccountEventsResponses, ListOperatorAccountEventsErrors, ThrowOnError> => (options?.client ?? client).get<ListOperatorAccountEventsResponses, ListOperatorAccountEventsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/events',
     ...options
 });
@@ -567,7 +749,11 @@ export const listOperatorAccountEvents = <ThrowOnError extends boolean = false>(
  * The account portal of the operator redeems the token that it received and learns the account and its address (record 0190). A token works once and for 60 seconds. A used, an expired and an unknown token all answer 404 with the code not_found.
  */
 export const redeemAccountHandoff = <ThrowOnError extends boolean = false>(options: Options<RedeemAccountHandoffData, ThrowOnError>): RequestResult<RedeemAccountHandoffResponses, RedeemAccountHandoffErrors, ThrowOnError> => (options.client ?? client).post<RedeemAccountHandoffResponses, RedeemAccountHandoffErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/handoffs',
     ...options,
     headers: {
@@ -582,7 +768,11 @@ export const redeemAccountHandoff = <ThrowOnError extends boolean = false>(optio
  * A service of the operator reads the totals of the whole installation for one calendar month in UTC: the published transfer, the downloads, and the calls to the object store (record 0193). A month with no count answers zero for each total.
  */
 export const readOperatorTotals = <ThrowOnError extends boolean = false>(options?: Options<ReadOperatorTotalsData, ThrowOnError>): RequestResult<ReadOperatorTotalsResponses, ReadOperatorTotalsErrors, ThrowOnError> => (options?.client ?? client).get<ReadOperatorTotalsResponses, ReadOperatorTotalsErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
+    security: [{
+            key: 'operatorToken',
+            scheme: 'bearer',
+            type: 'http'
+        }],
     url: '/api/operator/totals',
     ...options
 });
@@ -667,6 +857,10 @@ export const listReports = <ThrowOnError extends boolean = false>(options?: Opti
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/reports',
     ...options
@@ -682,6 +876,10 @@ export const dismissReport = <ThrowOnError extends boolean = false>(options: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/reports/{reportId}',
     ...options
@@ -697,6 +895,10 @@ export const takeDownReportedLink = <ThrowOnError extends boolean = false>(optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/reports/{reportId}/takedown',
     ...options
@@ -755,6 +957,10 @@ export const listWorkspaces = <ThrowOnError extends boolean = false>(options?: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces',
     ...options
@@ -770,6 +976,10 @@ export const createWorkspace = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces',
     ...options,
@@ -789,6 +999,10 @@ export const deleteWorkspace = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}',
     ...options
@@ -804,6 +1018,10 @@ export const updateWorkspace = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}',
     ...options,
@@ -824,6 +1042,10 @@ export const uploadAttachment = <ThrowOnError extends boolean = false>(options: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/attachments',
     ...options,
@@ -843,6 +1065,10 @@ export const finalizeAttachment = <ThrowOnError extends boolean = false>(options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/attachments/{objectId}/finalize',
     ...options,
@@ -862,6 +1088,10 @@ export const getAttachmentRevision = <ThrowOnError extends boolean = false>(opti
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/attachments/{revisionId}',
     ...options
@@ -877,6 +1107,10 @@ export const commitChangeset = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/changesets',
     ...options,
@@ -896,6 +1130,10 @@ export const getDailyNoteSettings = <ThrowOnError extends boolean = false>(optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/daily-note-settings',
     ...options
@@ -911,6 +1149,10 @@ export const updateDailyNoteSettings = <ThrowOnError extends boolean = false>(op
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/daily-note-settings',
     ...options,
@@ -930,6 +1172,10 @@ export const exportWorkspace = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/export',
     ...options
@@ -945,6 +1191,10 @@ export const inspectWorkspaceExport = <ThrowOnError extends boolean = false>(opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/export',
     ...options
@@ -960,6 +1210,10 @@ export const listFiles = <ThrowOnError extends boolean = false>(options: Options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files',
     ...options
@@ -975,6 +1229,10 @@ export const createFile = <ThrowOnError extends boolean = false>(options: Option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files',
     ...options,
@@ -994,6 +1252,10 @@ export const deleteFile = <ThrowOnError extends boolean = false>(options: Option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}',
     ...options,
@@ -1013,6 +1275,10 @@ export const getFile = <ThrowOnError extends boolean = false>(options: Options<G
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}',
     ...options
@@ -1028,6 +1294,10 @@ export const updateFile = <ThrowOnError extends boolean = false>(options: Option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}',
     ...options,
@@ -1047,6 +1317,10 @@ export const listBacklinks = <ThrowOnError extends boolean = false>(options: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}/backlinks',
     ...options
@@ -1062,6 +1336,10 @@ export const exportNote = <ThrowOnError extends boolean = false>(options: Option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}/export',
     ...options
@@ -1077,6 +1355,10 @@ export const listHistory = <ThrowOnError extends boolean = false>(options: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}/history',
     ...options
@@ -1092,6 +1374,10 @@ export const restoreRevision = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/files/{fileId}/restore',
     ...options,
@@ -1111,6 +1397,10 @@ export const startWorkspaceImport = <ThrowOnError extends boolean = false>(optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/imports',
     ...options,
@@ -1130,6 +1420,10 @@ export const abortWorkspaceImport = <ThrowOnError extends boolean = false>(optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/imports/{importId}',
     ...options
@@ -1145,6 +1439,10 @@ export const completeWorkspaceImport = <ThrowOnError extends boolean = false>(op
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/imports/{importId}/complete',
     ...options
@@ -1161,6 +1459,10 @@ export const sendWorkspaceImportPart = <ThrowOnError extends boolean = false>(op
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/imports/{importId}/parts/{partNumber}',
     ...options,
@@ -1180,6 +1482,10 @@ export const getMutationReceipt = <ThrowOnError extends boolean = false>(options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/mutations/{mutationId}',
     ...options
@@ -1195,6 +1501,10 @@ export const listPublishedLinks = <ThrowOnError extends boolean = false>(options
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/publications',
     ...options
@@ -1210,6 +1520,10 @@ export const createPublishedLink = <ThrowOnError extends boolean = false>(option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/publications',
     ...options,
@@ -1229,6 +1543,10 @@ export const revokePublishedLink = <ThrowOnError extends boolean = false>(option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/publications/{publicationId}',
     ...options
@@ -1244,6 +1562,10 @@ export const purgeFiles = <ThrowOnError extends boolean = false>(options: Option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/purge',
     ...options,
@@ -1263,6 +1585,10 @@ export const previewPurge = <ThrowOnError extends boolean = false>(options: Opti
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/purge/preview',
     ...options,
@@ -1282,6 +1608,10 @@ export const getRevision = <ThrowOnError extends boolean = false>(options: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/revisions/{revisionId}',
     ...options
@@ -1297,6 +1627,10 @@ export const searchFiles = <ThrowOnError extends boolean = false>(options: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/search',
     ...options
@@ -1312,6 +1646,10 @@ export const getChanges = <ThrowOnError extends boolean = false>(options: Option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/sync/changes',
     ...options
@@ -1327,6 +1665,10 @@ export const startSnapshot = <ThrowOnError extends boolean = false>(options: Opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/sync/snapshots',
     ...options,
@@ -1346,6 +1688,10 @@ export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: O
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/sync/snapshots/{token}',
     ...options
@@ -1361,6 +1707,10 @@ export const getTemplateSettings = <ThrowOnError extends boolean = false>(option
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/template-settings',
     ...options
@@ -1376,6 +1726,10 @@ export const updateTemplateSettings = <ThrowOnError extends boolean = false>(opt
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/template-settings',
     ...options,
@@ -1395,6 +1749,10 @@ export const listDeletedFiles = <ThrowOnError extends boolean = false>(options: 
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/trash',
     ...options
@@ -1410,6 +1768,10 @@ export const restoreFile = <ThrowOnError extends boolean = false>(options: Optio
             in: 'cookie',
             name: 'notesapp_session',
             type: 'apiKey'
+        }, {
+            key: 'personalApiKey',
+            scheme: 'bearer',
+            type: 'http'
         }],
     url: '/api/workspaces/{workspaceId}/trash/{fileId}/restore',
     ...options,

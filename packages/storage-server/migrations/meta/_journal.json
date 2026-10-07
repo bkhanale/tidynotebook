@@ -232,6 +232,13 @@
       "when": 1791164948810,
       "tag": "0032_environment_registration_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791378948414,
+      "tag": "0033_personal_api_keys",
+      "breakpoints": true
     }
   ]
 }

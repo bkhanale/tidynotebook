@@ -23,6 +23,19 @@ export type {
 } from './identity/actor.ts';
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
+export type { ApiKeyRecord, NewApiKey } from './identity/api-keys.ts';
+export {
+  apiKeyDaysHold,
+  apiKeyNameProblem,
+  createApiKey,
+  defaultApiKeyDays,
+  listApiKeys,
+  maxApiKeyDays,
+  maxApiKeyNameLength,
+  maxApiKeys,
+  revokeApiKey,
+  updateProfile,
+} from './identity/api-keys.ts';
 export type { PasswordProblem } from './identity/password.ts';
 export type { SessionView } from './identity/sessions.ts';
 export {

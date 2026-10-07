@@ -28,17 +28,19 @@ import {
   type AttemptCounter,
 } from '../plugins/attempt-store.ts';
 import { toRequestHeaders, type NotesappAuth } from './better-auth.ts';
+import { isApiKeySecret } from './api-key-secrets.ts';
+import { secretDigest } from './publication-secrets.ts';
 import { applicationOrigins, type ServedOrigin } from '../served-origins.ts';
 
-/** A verified actor and what the session knows about it. */
+/** A verified actor and the account facts of its credential. */
 export type ResolvedActor = {
   readonly actor: Actor;
   /** Whether the account uses every operation or the list of record 0201. */
   readonly standing: ControlStanding;
-  /** The identity user of the session, which a password check names. */
+  /** The identity user of the account, which a password check names. */
   readonly authUserId: string;
-  /** The identifier of the session, which is not its token (record 0122). */
-  readonly sessionId: string;
+  /** The browser session identifier, or null for a personal key (0208). */
+  readonly sessionId: string | null;
   /** Sign-in address of the account. */
   readonly email: string | null;
   /** Display name of the account. */
@@ -47,6 +49,7 @@ export type ResolvedActor = {
 
 /** The security scheme name that the session transport satisfies. */
 const sessionScheme = 'sessionCookie';
+export const apiKeyScheme = 'personalApiKey';
 
 /** The security scheme of the operator API (record 0190). */
 export const operatorScheme = 'operatorToken';
@@ -82,6 +85,16 @@ export function requireActor(request: FastifyRequest): ResolvedActor {
   return resolved;
 }
 
+/** An operation that refers to the current browser session must have one. */
+export function requireSessionActor(
+  request: FastifyRequest,
+): ResolvedActor & { readonly sessionId: string } {
+  const resolved = requireActor(request);
+  if (resolved.sessionId === null)
+    throw new UnauthenticatedError('This operation needs a browser session.');
+  return { ...resolved, sessionId: resolved.sessionId };
+}
+
 /**
  * The operator token and the bound of its failures (record 0190).
  *
@@ -110,7 +123,7 @@ export type IdentityDependencies = {
 /** The bearer token of an `Authorization` header, or `null`. */
 export function bearerToken(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const match = /^Bearer ([\x21-\x7e]{1,512})$/.exec(value);
+  const match = /^Bearer +([\x21-\x7e]{1,512})$/i.exec(value);
   return match?.[1] ?? null;
 }
 
@@ -271,6 +284,24 @@ function headerValue(value: unknown): string | undefined {
 export function createIdentityAdapter(
   dependencies: IdentityDependencies,
 ): IdentityAdapter {
+  /** Both credentials read the same current membership and build the same actor. */
+  async function withAccount(
+    input: Omit<ResolvedActor, 'actor'> & { readonly accountId: string },
+  ): Promise<ResolvedActor | null> {
+    const memberships = await dependencies.identity.memberships(
+      input.accountId,
+    );
+    const verified = verifyActor(input.accountId, sessionGrants(memberships));
+    if (!verified.ok) return null;
+    return {
+      actor: verified.value,
+      standing: input.standing,
+      authUserId: input.authUserId,
+      sessionId: input.sessionId,
+      email: input.email,
+      name: input.name,
+    };
+  }
   /** Resolves a browser session cookie. */
   async function fromSession(
     request: FastifyRequest,
@@ -283,28 +314,29 @@ export function createIdentityAdapter(
     // A session resolves to its enabled account and never makes one.
     const served = await dependencies.identity.sessionStanding(user.id);
     if (served === null) return null;
-    const linked = served.accountId;
-    const memberships = await dependencies.identity.memberships(linked);
-    const verified = verifyActor(linked, sessionGrants(memberships));
-    if (!verified.ok) return null;
-    return {
-      actor: verified.value,
+    return withAccount({
+      accountId: served.accountId,
       standing: served.standing,
       authUserId: user.id,
       sessionId: user.sessionId,
       email: user.email === '' ? null : user.email,
       name: user.name === '' ? null : user.name,
-    };
+    });
   }
 
   async function resolveActor(
     request: FastifyRequest,
   ): Promise<ResolvedActor | null> {
-    // The session cookie is the only credential this deployment accepts. A
-    // request that presents an `Authorization` header meant to be
-    // authenticated by that credential, so it is refused instead of falling
-    // back to the cookie and being authenticated as somebody else.
-    if (request.headers.authorization !== undefined) return null;
+    // An explicit credential always wins. Its failure never uses a cookie.
+    if (request.headers.authorization !== undefined) {
+      const token = bearerToken(request.headers.authorization);
+      if (token === null || !isApiKeySecret(token)) return null;
+      const identity = await dependencies.identity.apiKeyIdentity(
+        secretDigest.digest(token),
+      );
+      if (identity === null) return null;
+      return withAccount({ ...identity, sessionId: null });
+    }
     return fromSession(request);
   }
 
@@ -345,16 +377,18 @@ export function createIdentityAdapter(
     const resolved = await resolveActor(request);
     if (resolved === null)
       throw new UnauthenticatedError(
-        'This operation needs a valid session cookie.',
+        'This operation needs a valid session or API key.',
       );
-    const accepted = operation.security.flatMap((requirement) =>
-      Object.keys(requirement),
-    );
-    if (!accepted.includes(sessionScheme))
+    if (
+      !schemes.includes(
+        resolved.sessionId === null ? apiKeyScheme : sessionScheme,
+      )
+    )
       throw new UnauthenticatedError(
         'This operation does not accept the supplied credential.',
       );
-    requireWriteOrigin(dependencies.servedOrigins, request);
+    if (resolved.sessionId !== null)
+      requireWriteOrigin(dependencies.servedOrigins, request);
     refuseLocked(resolved.standing, operation.id);
     actors.set(request, resolved);
   };

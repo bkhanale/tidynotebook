@@ -521,6 +521,67 @@ export type AddressVerified = {
 };
 
 /**
+ * One key of the account. No secret or digest is included.
+ */
+export type ApiKey = {
+    /**
+     * Identifier used to revoke the key. It is not the secret.
+     */
+    readonly keyId: Uuid;
+    /**
+     * Name of the program that uses the key.
+     */
+    readonly name: string;
+    /**
+     * Time when the key was made.
+     */
+    readonly createdAt: string;
+    /**
+     * Time after which the key is refused.
+     */
+    readonly expiresAt: string;
+    /**
+     * Last use of the key, or null when it has not been used.
+     */
+    readonly lastUsedAt: string | null;
+};
+
+/**
+ * The name and lifetime of a full account key.
+ */
+export type ApiKeyCreateInput = {
+    /**
+     * Name of the program. Use no leading or trailing space.
+     */
+    name: string;
+    /**
+     * Lifetime in whole days. The default is 90 days.
+     */
+    expiresInDays?: number;
+};
+
+/**
+ * A new key. Copy the token now. The server never shows it again.
+ */
+export type ApiKeyCreated = {
+    key: ApiKey;
+    /**
+     * The one secret. Send it as a bearer header through HTTPS.
+     */
+    readonly token: string;
+};
+
+/**
+ * The keys of the account, including expired keys. No token is included.
+ */
+export type ApiKeyList = {
+    /**
+     * Keys of the account, newest first.
+     */
+    readonly keys: Array<ApiKey>;
+};
+
+/**
  * Appearance choice. The value system follows the device preference between the light and the dark variant of the chosen theme family.
  */
 export type Appearance = 'system' | 'light' | 'dark';
@@ -637,16 +698,6 @@ export type AuthPasswordSignIn = {
      * Address to open after a completed sign-in.
      */
     callbackURL?: string;
-};
-
-/**
- * The display name of the signed in account.
- */
-export type AuthProfileUpdate = {
-    /**
-     * Display name of the account.
-     */
-    name: string;
 };
 
 /**
@@ -1821,6 +1872,26 @@ export type ProblemDetails = {
      */
     readonly limit?: UsageLimit;
     [key: string]: unknown;
+};
+
+/**
+ * The name of the account.
+ */
+export type ProfileUpdateInput = {
+    /**
+     * Display name of the account.
+     */
+    name: string;
+};
+
+/**
+ * The profile name was stored.
+ */
+export type ProfileUpdated = {
+    /**
+     * True when the name was stored.
+     */
+    readonly status: true;
 };
 
 /**
@@ -3068,6 +3139,13 @@ export type AccountUpdateInputWritable = {
 };
 
 /**
+ * A new key. Copy the token now. The server never shows it again.
+ */
+export type ApiKeyCreatedWritable = {
+    [key: string]: never;
+};
+
+/**
  * The current session, or null when there is none.
  */
 export type AuthCurrentSessionWritable = {
@@ -3838,6 +3916,163 @@ export type AcceptLegalDocumentsResponses = {
 };
 
 export type AcceptLegalDocumentsResponse = AcceptLegalDocumentsResponses[keyof AcceptLegalDocumentsResponses];
+
+export type ListApiKeysData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/keys';
+};
+
+export type ListApiKeysErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListApiKeysError = ListApiKeysErrors[keyof ListApiKeysErrors];
+
+export type ListApiKeysResponses = {
+    /**
+     * List the API keys of the account.
+     */
+    200: ApiKeyList;
+};
+
+export type ListApiKeysResponse = ListApiKeysResponses[keyof ListApiKeysResponses];
+
+export type CreateApiKeyData = {
+    /**
+     * Create an API key.
+     */
+    body: ApiKeyCreateInput;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/keys';
+};
+
+export type CreateApiKeyErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The account is locked, and a locked account keeps only a fixed list of operations (record 0201). The code is account_locked. Nothing changed.
+     */
+    423: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateApiKeyError = CreateApiKeyErrors[keyof CreateApiKeyErrors];
+
+export type CreateApiKeyResponses = {
+    /**
+     * Create an API key.
+     */
+    201: ApiKeyCreated;
+};
+
+export type CreateApiKeyResponse = CreateApiKeyResponses[keyof CreateApiKeyResponses];
+
+export type RevokeApiKeyData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the key to revoke.
+         */
+        keyId: Uuid;
+    };
+    query?: never;
+    url: '/api/account/keys/{keyId}';
+};
+
+export type RevokeApiKeyErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeApiKeyError = RevokeApiKeyErrors[keyof RevokeApiKeyErrors];
+
+export type RevokeApiKeyResponses = {
+    /**
+     * Revoke an API key.
+     */
+    200: Removed;
+};
+
+export type RevokeApiKeyResponse = RevokeApiKeyResponses[keyof RevokeApiKeyResponses];
 
 export type OpenAccountPortalData = {
     /**
@@ -4722,9 +4957,15 @@ export type SignOutResponse = SignOutResponses[keyof SignOutResponses];
 
 export type UpdateProfileData = {
     /**
-     * The new display name.
+     * Change the display name of the account.
      */
-    body: AuthProfileUpdate;
+    body: ProfileUpdateInput;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/auth/update-user';
@@ -4732,23 +4973,19 @@ export type UpdateProfileData = {
 
 export type UpdateProfileErrors = {
     /**
-     * The request did not match the endpoint.
+     * The request did not match the contract.
      */
     400: ProblemDetails;
     /**
-     * The credential was refused.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
-     * The request did not come from the configured origin.
+     * The actor may not perform this operation.
      */
     403: ProblemDetails;
     /**
-     * The named record does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -4760,10 +4997,6 @@ export type UpdateProfileErrors = {
      */
     423: ProblemDetails;
     /**
-     * Too many attempts. Try again later.
-     */
-    429: ProblemDetails;
-    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
@@ -4773,9 +5006,9 @@ export type UpdateProfileError = UpdateProfileErrors[keyof UpdateProfileErrors];
 
 export type UpdateProfileResponses = {
     /**
-     * The account profile was updated.
+     * Change the display name of the account.
      */
-    200: AuthOutcome;
+    200: ProfileUpdated;
 };
 
 export type UpdateProfileResponse = UpdateProfileResponses[keyof UpdateProfileResponses];

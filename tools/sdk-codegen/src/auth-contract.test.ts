@@ -22,11 +22,8 @@ function statusesOf(id: string): string[] {
   throw new Error(`The fragment holds no operation ${id}.`);
 }
 
-await test('only the change of a profile refuses a locked account', () => {
-  // A locked account keeps the identity operations and nothing else
-  // (record 0201). The change of a display name is not one of them, so the
-  // adapter answers it with 423 and the fragment declares that answer.
-  assert.ok(statusesOf('updateProfile').includes('423'));
+await test('the fragment holds only session lifecycle operations', () => {
+  assert.equal('/api/auth/update-user' in authContractPaths(), false);
   for (const kept of [
     'signInWithPassword',
     'signOut',

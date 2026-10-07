@@ -20,6 +20,7 @@ export const settingsSections = [
   { key: 'export', id: 'export-heading', title: 'Export' },
   { key: 'import', id: 'import-heading', title: 'Import' },
   { key: 'account', id: 'account-heading', title: 'Account' },
+  { key: 'api-keys', id: 'api-keys-heading', title: 'API keys' },
   { key: 'sessions', id: 'sessions-heading', title: 'Sessions' },
   { key: 'sign-out', id: 'signout-heading', title: 'Sign out' },
   {

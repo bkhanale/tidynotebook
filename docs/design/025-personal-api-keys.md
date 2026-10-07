@@ -1,5 +1,6 @@
 # Personal API keys
-Status: active
+
+Status: complete
 
 A person must be able to use a program to read and change the same account
 that they use in the browser. A future command line client and an agent tool

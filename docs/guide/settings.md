@@ -105,6 +105,12 @@ An administrator also sees **Manage accounts**, which opens the accounts page.
 See [Accounts and invitations](accounts.md). When the installation has terms
 and a privacy notice, this section links them.
 
+## API keys
+
+Create a separate key for each program that needs your account. Each key has
+all your current access and stops at its expiry. A new key appears once.
+Select **Revoke** to stop a program at once. See [API keys and programs](api.md).
+
 ## Sessions
 
 Each device that is signed in to your account has one row, with its browser,

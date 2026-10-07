@@ -8,6 +8,8 @@ get:
     the HTTP operations, and a device that cannot open the stream reads the
     feed on its own schedule. `asyncapi.yaml` states every message of the
     stream.
+  security:
+    - sessionCookie: []
   tags:
     - files
   x-notesapp-protocol: sync-notices

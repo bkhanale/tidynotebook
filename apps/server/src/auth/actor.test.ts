@@ -32,7 +32,8 @@ await test('the operator token is read from a bearer header and nothing else', (
   assert.equal(bearerToken(undefined), null);
   assert.equal(bearerToken(['Bearer abc']), null);
   assert.equal(bearerToken('Basic abc'), null);
-  assert.equal(bearerToken('bearer abc'), null);
+  assert.equal(bearerToken('bearer abc'), 'abc');
+  assert.equal(bearerToken('BEARER  abc'), 'abc');
   assert.equal(bearerToken('Bearer a b'), null);
   assert.equal(bearerToken('Bearer '), null);
 });

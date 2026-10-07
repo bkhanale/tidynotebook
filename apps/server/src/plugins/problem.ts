@@ -27,6 +27,7 @@ export const problemMediaType = 'application/problem+json';
 
 /** Stable application error codes. Add a code, never reuse one. */
 export type ProblemCode =
+  | 'api_key_limit'
   | 'invalid_request'
   | 'host_not_allowed'
   | 'payload_too_large'
@@ -119,6 +120,7 @@ export type Problem = {
 };
 
 const titles: Readonly<Record<ProblemCode, string>> = {
+  api_key_limit: 'The account keeps as many API keys as it may.',
   invalid_request: 'The request did not match the contract.',
   host_not_allowed: 'The Host header is not served by this deployment.',
   payload_too_large: 'The request body is larger than the configured limit.',
@@ -534,6 +536,7 @@ const domainStatus: Readonly<
   // sign-up gave no consent (record 0120).
   consent_required: { status: 409, code: 'consent_required' },
   // The account keeps as many imported themes as it may (record 0143).
+  api_key_limit: { status: 409, code: 'api_key_limit' },
   theme_limit: { status: 409, code: 'theme_limit' },
   // A group that the environment sets, and a part that open registration
   // needs, do not change in the application (record 0148).
@@ -552,6 +555,8 @@ const domainStatus: Readonly<
 
 /** The explanation of one domain failure. It names no path and no content. */
 const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
+  api_key_limit:
+    'The account keeps 25 API keys. Revoke one before you create another.',
   forbidden: 'The actor may not perform this operation.',
   not_found: 'The requested resource does not exist.',
   stale_head:

@@ -24,7 +24,7 @@ export type SessionView = SessionRecord & { readonly current: boolean };
 export function listSessions(
   store: WorkspaceAdminStore,
   actor: Actor,
-  currentSessionId: string,
+  currentSessionId: string | null,
 ): Promise<Result<readonly SessionView[]>> {
   return store.account(actor, async (tx) => {
     const sessions = (await tx.sessions()).map((session) => ({

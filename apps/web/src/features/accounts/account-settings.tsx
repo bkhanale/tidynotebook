@@ -82,6 +82,7 @@ import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx'
 import { TemplateSettingsFields } from '../templates/template-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { SettingsSection } from './settings-section.tsx';
+import { ApiKeySettings } from './api-keys.tsx';
 import { ThemeSettings } from './theme-settings.tsx';
 import {
   sectionOf,
@@ -824,6 +825,7 @@ export function AccountSettingsPage(): ReactNode {
         )}
       </SettingsSection>
     ),
+    'api-keys': <ApiKeySettings />,
     sessions: <SessionsSettings />,
     'sign-out': (
       <SettingsSection

@@ -128,6 +128,10 @@ function createFakeStore(): FakeStore {
     run: (tx: AccountTransaction) => Promise<T>,
   ): Promise<T> => {
     const tx: AccountTransaction = {
+      apiKeys: () => Promise.resolve([]),
+      createApiKey: () => Promise.resolve(null),
+      revokeApiKey: () => Promise.resolve(false),
+      setProfileName: () => Promise.resolve(),
       workspaces: (): Promise<readonly WorkspaceSummary[]> =>
         Promise.resolve(
           memberships(actor.accountId).map((entry) => ({

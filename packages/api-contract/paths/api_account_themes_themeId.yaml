@@ -9,6 +9,7 @@ delete:
     - accounts
   security:
     - sessionCookie: []
+    - personalApiKey: []
   parameters:
     - $ref: '../components/parameters/RequestId.yaml'
     - $ref: '../components/parameters/ThemeId.yaml'
