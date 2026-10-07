@@ -1,6 +1,7 @@
 /** Personal keys exercise the same served API and current account rules (0208). */
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { setImmediate } from 'node:timers/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -466,6 +467,94 @@ await test('expiry, disable, and password change permanently stop existing keys'
     (await listApiKeys({ headers: other.headers })).data?.keys.length,
     0,
   );
+});
+
+await test('password reset waits for an open key creation and removes its key', async () => {
+  const person = await newPerson();
+  await keyFor(person.headers, 'Earlier key');
+  const token = `tnk_${randomBytes(32).toString('base64url')}`;
+  const creator = await openSession(database.runtimeUrl, person.accountId);
+  const resetter = await openSession(database.authUrl);
+  const observer = await openSession(database.migrationUrl);
+  let resetFinished = false;
+  let reset: Promise<unknown> | undefined;
+  try {
+    const creatorPid = (
+      await creator.query<{ pid: number }>('select pg_backend_pid() as pid')
+    )[0]?.pid;
+    const resetterPid = (
+      await resetter.query<{ pid: number }>('select pg_backend_pid() as pid')
+    )[0]?.pid;
+    assert.ok(creatorPid !== undefined && resetterPid !== undefined);
+    const identity = await observer.query<{ auth_user_id: string }>(
+      'select auth_user_id from account_identities where account_id = $1',
+      [person.accountId],
+    );
+    assert.ok(identity[0]);
+    // Use the runtime function in an open transaction, as the server does.
+    await creator.query('begin');
+    await creator.query(
+      'select * from notesapp_create_api_key($1, $2, $3, $4)',
+      [
+        randomUUID(),
+        'Concurrent key',
+        createHash('sha256').update(token).digest('hex'),
+        90,
+      ],
+    );
+    // The real authentication role must run the trigger, without table rights
+    // on account or key rows. Keep any failure for the final assertion.
+    reset = resetter
+      .query(
+        "update auth_account set password = password || 'reset' where user_id = $1",
+        [identity[0].auth_user_id],
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+      .then((result) => {
+        resetFinished = true;
+        return result;
+      });
+    const deadline = Date.now() + 10000;
+    for (;;) {
+      const blocked = await observer.query<{ waiting: boolean }>(
+        'select $1::integer = any(pg_blocking_pids($2::integer)) as waiting',
+        [creatorPid, resetterPid],
+      );
+      if (blocked[0]?.waiting === true) break;
+      assert.equal(
+        resetFinished,
+        false,
+        'password reset passed an open key creation',
+      );
+      assert.ok(
+        Date.now() < deadline,
+        'password reset did not wait on the account lock',
+      );
+      await setImmediate();
+    }
+    await creator.query('commit');
+    assert.equal(await reset, null);
+    assert.equal(
+      responseOf(
+        (await getAccount({ headers: { authorization: `Bearer ${token}` } }))
+          .response,
+      ).status,
+      401,
+    );
+    assert.equal(
+      (await listApiKeys({ headers: person.headers })).data?.keys.length,
+      0,
+    );
+  } finally {
+    await creator.query('rollback');
+    await reset;
+    await creator.close();
+    await resetter.close();
+    await observer.close();
+  }
 });
 
 await test('a key follows current installation rights and locked accounts retain revoke', async () => {

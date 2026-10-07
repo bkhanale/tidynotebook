@@ -239,6 +239,13 @@
       "when": 1791378948414,
       "tag": "0033_personal_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791383427342,
+      "tag": "0034_api_key_password_lock",
+      "breakpoints": true
     }
   ]
 }
