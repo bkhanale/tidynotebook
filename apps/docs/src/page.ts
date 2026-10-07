@@ -112,6 +112,10 @@ export type PageView = {
   readonly markdown: string;
   readonly previous: PageLink | null;
   readonly next: PageLink | null;
+  /** Generated pages name their contract, instead of a guide edit address. */
+  readonly sourceHref?: string;
+  /** Long API pages list operations or schemas, without their repeated parts. */
+  readonly outlineDepth?: 2 | 3;
 };
 
 /** The frame of the document. It matches the shell of the application. */
@@ -210,7 +214,7 @@ export const footLinkClasses =
   'rounded-sm text-muted underline underline-offset-2 hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 /** The side region that lists the headings of the page. */
-const sideClasses = `${pageSideClassName()} sticky top-0 self-start pb-6 pt-6`;
+const sideClasses = `${pageSideClassName()} sticky top-0 max-h-96 self-start overflow-y-auto pb-6 pt-6`;
 
 /** The full screen layer of the search dialog, with the scrim behind it. */
 export const searchDialogClasses =
@@ -375,8 +379,8 @@ function contents(
 }
 
 /** The list of the headings of a page, in the side region. */
-function outline(page: GuidePage): string {
-  const headings = page.headings.filter((heading) => heading.depth <= 3);
+function outline(page: GuidePage, depth: 2 | 3 = 3): string {
+  const headings = page.headings.filter((heading) => heading.depth <= depth);
   if (headings.length < 2) return `<div class="${pageSideClassName()}"></div>`;
   const rows = headings.map(
     (heading) =>
@@ -474,11 +478,11 @@ ${view.html}
             </article>
             ${pager(view)}
             <footer class="${footClasses}">
-              <a class="${footLinkClasses}" href="${escapeAttribute(editHref(page.file))}" rel="noopener noreferrer">${words.editPage}</a>
+              <a class="${footLinkClasses}" href="${escapeAttribute(view.sourceHref ?? editHref(page.file))}" rel="noopener noreferrer">${view.sourceHref === undefined ? words.editPage : words.source}</a>
               <a class="${footLinkClasses}" href="${escapeAttribute(`${settings.base}llms.txt`)}">${words.forAgents}</a>
             </footer>
           </div>
-          ${outline(page)}
+          ${outline(page, view.outlineDepth)}
         </div>
       </main>
     </div>

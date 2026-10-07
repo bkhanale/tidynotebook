@@ -4,21 +4,24 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
 [design guide](../../docs/development/design.md) and
 [docs/README.md](../../docs/README.md). This package builds the guide in
 `docs/guide/` into a static documentation site that is hosted apart from the
-application (records 0152 and 0153).
+application (records 0152 and 0153). The API reference comes from the generated
+client contract (record 0209).
 
 ## What lives here and what does not
 
-- The text lives in `docs/guide/`, never here. `docs/guide/README.md` is the
+- Guide text lives in `docs/guide/`, never here. `docs/guide/README.md` is the
   home page, and its groups are the contents and the reading order. A new
   page is a guide file and one row of that index, and the build refuses a page
-  that the index does not list.
+  that the index does not list. `src/api-reference.ts` generates the API pages
+  from the merged OpenAPI JSON. No API reference text lives in the guide.
 - `src/guide.ts`, `src/links.ts`, `src/prose.ts`, `src/page.ts`,
   `src/agents.ts`, `src/assets.ts` and `src/site.ts` are pure: they read text
   and answer text. `src/build.ts` is the one module that reads and writes
   files. `src/serve.ts` serves a build on this machine.
 - `renderMarkdown` of `packages/markdown` renders every page, after
   `joinSoftBreaks` reads the wrapped guide the way GitHub does. No second
-  renderer, no front matter, no copy of the text.
+  renderer, no front matter, no copy of the text. Generated pages join the same
+  navigation, search and agent files, and link the contract as their source.
 - The page loads the one built stylesheet of `apps/web` and its fonts.
   `apps/web/src/tailwind.css` registers `src/page.ts` as a source, so a class
   of a page lives in that file and nowhere else here.
@@ -64,6 +67,7 @@ the files for agents, and the reference pages against the lists of the code.
 
 | File                         | Purpose                                        |
 | ---------------------------- | ---------------------------------------------- |
+| `src/api-reference.ts`       | The pure generated API reference               |
 | `src/build.ts`               | The build of the site and `pnpm docs:build`    |
 | `src/guide.ts`               | The contents and the pages of the guide        |
 | `src/links.ts`               | The address of every link                      |

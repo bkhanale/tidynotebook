@@ -51,6 +51,33 @@ const view: PageView = {
   next: null,
 };
 
+await test('a generated page names the contract as its source', () => {
+  const html = pageDocument({
+    ...view,
+    sourceHref: 'https://example.com/openapi.yaml',
+  });
+  assert.match(
+    html,
+    /href="https:\/\/example\.com\/openapi\.yaml" rel="noopener noreferrer">Source on GitHub<\/a>/,
+  );
+  assert.doesNotMatch(html, /edit\/main\/docs\/guide/);
+});
+
+await test('a long reference can list its main sections alone', () => {
+  const html = pageDocument({ ...view, outlineDepth: 2 });
+  const outline = html.split('<aside')[1]?.split('</aside>')[0] ?? '';
+  assert.ok(outline.includes('#user-content-mail'));
+  assert.ok(outline.includes('#user-content-logs'));
+  assert.ok(!outline.includes('#user-content-port-587'));
+});
+
+await test('a long outline has its own bounded scroller', () => {
+  const html = pageDocument(view);
+  const outline = html.split('<aside')[1]?.split('</aside>')[0] ?? '';
+  assert.match(outline, /max-h-96/);
+  assert.match(outline, /overflow-y-auto/);
+});
+
 await test('text and attributes lose every markup character', () => {
   assert.equal(escapeText('a <b> & c'), 'a &lt;b&gt; &amp; c');
   assert.equal(escapeAttribute(`"it's"`), '&quot;it&#39;s&quot;');

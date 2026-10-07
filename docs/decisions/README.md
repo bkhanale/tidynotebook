@@ -240,6 +240,7 @@ and needs no record.
 | [0206](0206-the-environment-can-name-the-registration-policy.md)                      | The environment can name the registration policy                                |
 | [0207](0207-every-secret-of-the-image-has-an-environment-form.md)                     | Every secret of the image has an environment form                               |
 | [0208](0208-personal-keys-resolve-to-the-shared-actor.md)                             | Personal keys resolve to the shared actor                                       |
+| [0209](0209-generated-api-reference.md)                                               | The API reference comes from the client contract                                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

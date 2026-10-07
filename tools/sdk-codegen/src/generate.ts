@@ -170,6 +170,13 @@ async function generateFrom(
 
   await rm(directories.contract, { recursive: true, force: true });
   await mkdir(directories.contract, { recursive: true });
+  // This is the same merged source that Hey API reads below. The docs build
+  // consumes it without another bundle, fragment, or list of operations.
+  await writeFile(
+    resolve(directories.contract, 'openapi.json'),
+    `${JSON.stringify(merged, null, 2)}\n`,
+    'utf8',
+  );
   await writeFile(
     resolve(directories.contract, 'contract.ts'),
     emitContractModule(shared),

@@ -15,6 +15,9 @@ the HTTP boundary instead of using it.
 
 - `src/generate.ts` is the entry point of `pnpm generate`.
   `src/check-generated.ts` is the entry point of `pnpm generated:check`.
+- The merged client document also reaches `src/generated/openapi.json` of
+  the contract package. The docs build reads it (0209), and the byte check
+  covers it with the rest of the generated output.
 - `src/auth-contract.ts` holds the authentication protocol fragment that
   `openapi.yaml` does not describe. `src/contract-index.ts`,
   `src/definitions.ts`, `src/emit.ts`, and `src/paths.ts` write the output.

@@ -70,6 +70,12 @@ function contents(): void {
   const button = element('data-docs-menu');
   const panel = element('data-docs-contents');
   if (button === null || panel === null) return;
+  const current = panel.querySelector('[aria-current="page"]');
+  const revealCurrent = (): void => {
+    if (current instanceof HTMLElement)
+      current.scrollIntoView({ block: 'nearest' });
+  };
+  revealCurrent();
   const openWords = button.getAttribute('aria-label') ?? '';
   const closeWords = button.dataset['docsCloseLabel'] ?? openWords;
   const set = (open: boolean): void => {
@@ -77,6 +83,7 @@ function contents(): void {
     button.setAttribute('aria-expanded', String(open));
     button.setAttribute('aria-label', open ? closeWords : openWords);
     button.setAttribute('title', open ? closeWords : openWords);
+    if (open) revealCurrent();
   };
   button.addEventListener('click', () => {
     set(!panel.hasAttribute('data-open'));

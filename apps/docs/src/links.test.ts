@@ -8,6 +8,8 @@ import {
   markdownDestination,
   markdownHref,
   pageHref,
+  apiContractSource,
+  apiDocumentFile,
 } from './links.ts';
 
 const root = { base: '/', origin: null };
@@ -112,4 +114,31 @@ await test('a link out of the guide to no file of the repository stops the build
       htmlDestination(hosted, files, target, (path) => known.has(path)),
   });
   assert.match(html, /blob\/main\/SECURITY\.md/);
+});
+
+await test('contract source links open the generated reference and bundle download under the base', () => {
+  assert.equal(
+    htmlDestination(hosted, files, {
+      id: null,
+      path: apiContractSource,
+      fragment: '',
+    }),
+    '/notesapp/api-reference/',
+  );
+  assert.equal(
+    htmlDestination(hosted, files, {
+      id: null,
+      path: apiDocumentFile,
+      fragment: '',
+    }),
+    '/notesapp/api/openapi.json',
+  );
+  assert.equal(
+    markdownDestination(hosted, files, apiContractSource, ''),
+    'https://docs.bhu.sh/notesapp/api-reference.md',
+  );
+  assert.equal(
+    markdownDestination(root, files, apiDocumentFile, ''),
+    '/api/openapi.json',
+  );
 });

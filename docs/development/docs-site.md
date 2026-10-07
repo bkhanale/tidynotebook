@@ -5,7 +5,8 @@ a contributor builds, checks and hosts it.
 
 ## What it is
 
-`apps/docs` builds `docs/guide/` into a folder of static files (record 0152).
+`apps/docs` builds `docs/guide/` into a folder of static files (record 0152). The API reference comes from the
+merged client contract (record 0209).
 The site has no server and no account. Search runs in the browser of the
 reader against an index that the build writes, and the build writes the files
 for agents next to the pages (record 0153). The site is hosted apart from the
@@ -13,10 +14,17 @@ application, at `https://docs.bhu.sh/notesapp/` for this project.
 
 ## Invariants
 
-- **One source of the text.** A page of the site is a file of `docs/guide/`,
+- **One source of guide text.** A guide page is a file of `docs/guide/`,
   and `docs/guide/README.md` is its contents and its reading order. The build
   refuses a guide file that the index does not list and a link to a page that
   does not exist.
+- **One API contract.** `apps/docs/src/api-reference.ts` generates the API
+  pages from `packages/api-contract/src/generated/openapi.json`, which the
+  client generator emits after the authentication merge. Security comes from
+  the effective requirement of each operation. The build publishes the same
+  bundle for download and adds the pages to every site index. API reference
+  content is never written by hand. The site sends no API request and stores
+  no credential. See [record 0209](../decisions/0209-generated-api-reference.md).
 - **One renderer.** `renderMarkdown` renders every page. `joinSoftBreaks` in
   `apps/docs/src/prose.ts` first joins the lines of a wrapped paragraph, the
   way GitHub reads the same file, because the renderer shows a new line of a

@@ -35,7 +35,7 @@ import {
   readingOrder,
   type GuidePage,
 } from './guide.ts';
-import { htmlDestination, pageHref } from './links.ts';
+import { htmlDestination, pageHref, repositoryHref } from './links.ts';
 import { joinSoftBreaks } from './prose.ts';
 import {
   missingDocument,
@@ -44,6 +44,12 @@ import {
   type SiteAssets,
 } from './page.ts';
 import { readSiteSettings, type SiteSettings } from './site.ts';
+import {
+  apiDocumentFile,
+  apiDownload,
+  apiReference,
+  apiContractSource,
+} from './api-reference.ts';
 
 /** The folder of this package. */
 const packageDirectory = resolve(fileURLToPath(import.meta.url), '../..');
@@ -129,16 +135,27 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
     name.endsWith('.md'),
   );
   const index = await readFile(join(input.guide, indexFile), 'utf8');
-  const groups = readGuideIndex(index);
-  const problems = indexProblems(names, groups);
+  const guideGroups = readGuideIndex(index);
+  const problems = indexProblems(names, guideGroups);
   if (problems.length > 0) throw new Error(problems.join('\n'));
-  const order = readingOrder(groups);
-  const pages = await Promise.all(
+  const order = readingOrder(guideGroups);
+  const guidePages = await Promise.all(
     order.map(async (file) =>
       readGuidePage(file, await readFile(join(input.guide, file), 'utf8')),
     ),
   );
-  const files = new Set(order);
+  const apiSource = await readFile(
+    join(input.repository, apiDocumentFile),
+    'utf8',
+  );
+  const apiValue: unknown = JSON.parse(apiSource);
+  const api = apiReference(apiValue);
+  const groups = [...guideGroups, api.group];
+  const generated = new Set(api.pages.map((page) => page.file));
+  if (order.some((file) => generated.has(file)))
+    throw new Error('A guide page uses the name of a generated API page.');
+  const pages = [...guidePages, ...api.pages];
+  const files = new Set(pages.map((page) => page.file));
   const groupOf = new Map(
     groups.flatMap((group) =>
       group.pages.map((entry) => [entry.file, group.title]),
@@ -151,6 +168,7 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
 
   await rm(input.output, { recursive: true, force: true });
   await mkdir(input.output, { recursive: true });
+  await write(join(input.output, apiDownload), apiSource);
   const script = await compileClient(input.output);
   const assets = await copyAssets(input, script);
 
@@ -181,6 +199,14 @@ export async function buildSite(input: BuildInput): Promise<BuildResult> {
         markdown,
         previous: linkOf(pages[at - 1]),
         next: linkOf(pages[at + 1]),
+        ...(generated.has(page.file)
+          ? {
+              sourceHref: repositoryHref(apiContractSource),
+              ...(page.file === 'api-reference.md'
+                ? {}
+                : { outlineDepth: 2 as const }),
+            }
+          : {}),
       });
       const folder =
         page.slug === '' ? input.output : join(input.output, page.slug);
