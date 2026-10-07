@@ -5,6 +5,27 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.1 - 2026-10-08
+
+This patch release adds a generated API reference to the documentation site.
+It shows the authentication rules for personal API keys and browser sessions.
+
+### Added
+
+- The API reference shows each operation, request, response, and schema from
+  the OpenAPI contract. You can download the same contract.
+- Search and page links include the API reference.
+
+### Changed
+
+- The API key guide links to the generated reference for API details.
+- The reference explains how to set the address of your own installation.
+
+### Fixed
+
+- Long section lists scroll so you can reach every operation and schema.
+- The contents menu shows the current page on a small screen.
+
 ## 0.16.0 - 2026-10-07
 
 This minor release lets you use a personal API key to read and change your
