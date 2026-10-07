@@ -101,6 +101,30 @@ const accounts = reference.pages.find(
 );
 if (accounts === undefined) throw new Error('No account page.');
 
+await test('the overview renders server guidance and variables from the contract', () => {
+  const input = fixture();
+  Object.assign(input, {
+    servers: [
+      {
+        url: 'https://{host}',
+        description: 'Use the HTTPS origin of your own installation.',
+        variables: { host: { default: 'notes.invalid' } },
+      },
+      { url: '/api' },
+    ],
+  });
+  const overview = apiReference(input).pages[0];
+  assert.ok(overview);
+  assert.match(overview.source, /## Server address/);
+  assert.match(
+    overview.source,
+    /Use the HTTPS origin of your own installation/,
+  );
+  assert.match(overview.source, /"url": "https:\/\/{host}"/);
+  assert.match(overview.source, /"default": "notes.invalid"/);
+  assert.match(overview.source, /"url": "\/api"/);
+});
+
 await test('the reference inherits security and keeps explicit public and session requirements', () => {
   const inherited =
     accounts.source.split('## getAccount')[1]?.split('## writeAccount')[0] ??

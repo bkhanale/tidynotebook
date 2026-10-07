@@ -18,9 +18,10 @@ jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 servers:
   - url: https://notes.invalid
     description: >-
-      Documentation placeholder origin. Every deployment sets its real origin
-      through the client configuration, so no generated call depends on this
-      value.
+      This is a placeholder address. Use the HTTPS origin of your own
+      installation in your client or API tool. Replace the placeholder before
+      you send a request. The generated client takes the address from its
+      configuration.
 tags:
   - name: service
     description: Service state operations used by operators and load balancers.

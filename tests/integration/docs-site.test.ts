@@ -163,6 +163,15 @@ await test('the built documentation site', async (t) => {
       );
       assert.ok(overview);
       assert.ok(overview.html.includes(`${base}${apiDownload}`));
+      assert.match(
+        overview.html,
+        /Use the HTTPS origin of your own installation/,
+      );
+      assert.match(
+        overview.html,
+        /Replace the placeholder before you send a request/,
+      );
+      assert.match(overview.html, /notes\.invalid/);
       assert.match(overview.html, /Authorization: Bearer/);
       assert.match(overview.html, /Keys expire and can be revoked at once/);
       for (const { html } of pages.filter(

@@ -295,9 +295,24 @@ export function apiReference(value: unknown): ApiReference {
   const schemeEntries = Object.entries(
     record(components.securitySchemes ?? {}, 'security schemes'),
   );
+  const servers = list(document.servers ?? [], 'servers');
   const overview = page('api-reference.md', 'API reference', [
     text(record(document.info, 'info').description, 'API description'),
     `[Download OpenAPI JSON](../../${apiDocumentFile}).`,
+    ...(servers.length === 0
+      ? []
+      : [
+          '## Server address',
+          ...servers.flatMap((raw) => {
+            const server = record(raw, 'server');
+            return [
+              ...(server.description === undefined
+                ? []
+                : [text(server.description, 'server description')]),
+              code(server),
+            ];
+          }),
+        ]),
     '## Authentication',
     ...schemeEntries.flatMap(([name, raw]) => {
       const scheme = target(document, raw);
