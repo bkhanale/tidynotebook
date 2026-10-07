@@ -5,6 +5,23 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.0 - 2026-10-07
+
+This minor release lets you use a personal API key to read and change your
+notes from a program.
+
+### Added
+
+- Settings lets you create, name, and revoke API keys.
+- An API key gives a program the same account access as the web application.
+- The API guide explains how to use a key and save a note.
+
+### Security
+
+- Each key has an expiry date. The application shows its secret only once.
+- A password change, account disable, or account removal revokes all API keys.
+- A password reset waits for a key creation in progress and revokes that key.
+
 ## 0.15.1 - 2026-10-06
 
 This patch release keeps notes in sync after a connection failure and on a
