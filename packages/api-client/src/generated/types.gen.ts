@@ -1703,6 +1703,10 @@ export type OperatorAccount = {
      */
     readonly email: string | null;
     /**
+     * The role that decides which account controls can apply.
+     */
+    readonly role: InstallationRole;
+    /**
      * Whether the account can sign in.
      */
     readonly state: AccountState;

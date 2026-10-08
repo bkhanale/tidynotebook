@@ -210,6 +210,7 @@ await test('the operator finds an account and reads its controls and usage', asy
     'controls',
     'createdAt',
     'email',
+    'role',
     'state',
     'usage',
   ]);
@@ -219,6 +220,43 @@ await test('the operator finds an account and reads its controls and usage', asy
   });
   assert.equal(responseOf(missing.response).status, 404);
   assert.equal(codeOf(missing.error), 'not_found');
+});
+
+await test('find, read and control writes answer the installation role', async () => {
+  const someone = await member();
+  const owner = await getAccount({ headers: admin });
+  for (const account of [
+    { accountId: someone.accountId, email: someone.email, role: 'member' },
+    {
+      accountId: owner.data?.accountId ?? '',
+      email: 'owner@notes.invalid',
+      role: 'administrator',
+    },
+  ]) {
+    const found = await findOperatorAccount({
+      headers: operator,
+      query: { address: account.email },
+    });
+    assert.equal(found.error, undefined, JSON.stringify(found.error));
+    assert.equal(found.data?.role, account.role);
+    const read = await readOperatorAccount({
+      headers: operator,
+      path: { accountId: account.accountId },
+    });
+    assert.equal(read.error, undefined, JSON.stringify(read.error));
+    assert.equal(read.data?.role, account.role);
+    const written = await setOperatorAccountControls({
+      headers: operator,
+      path: { accountId: account.accountId },
+      body: {
+        revision: read.data?.controls.revision ?? 0,
+        features: { teams: true, collaboration: true },
+      },
+    });
+    assert.equal(written.error, undefined, JSON.stringify(written.error));
+    assert.equal(written.data?.role, account.role);
+    assert.equal(written.data?.controls.standing, 'active');
+  }
 });
 
 await test('a control write with an old revision answers controls_changed and changes nothing', async () => {
@@ -272,6 +310,14 @@ await test('an administrator is never locked', async () => {
     body: { revision: read.data?.controls.revision ?? 0, standing: 'locked' },
   });
   assert.equal(responseOf(refused.response).status, 403);
+  assert.equal(codeOf(refused.error), 'forbidden');
+  const after = await readOperatorAccount({
+    headers: operator,
+    path: { accountId },
+  });
+  assert.equal(after.error, undefined, JSON.stringify(after.error));
+  assert.deepEqual(after.data?.controls, read.data?.controls);
+  assert.equal(after.data?.controls.standing, 'active');
   // The last administrator is not removed either.
   const removal = await removeOperatorAccount({
     headers: operator,

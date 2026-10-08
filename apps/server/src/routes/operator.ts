@@ -43,6 +43,7 @@ function operatorAccountBody(
   return {
     accountId: record.accountId,
     email: record.email,
+    role: record.role,
     state: record.state,
     createdAt: record.createdAt,
     controls: controlsBody(record.controls),

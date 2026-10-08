@@ -6,6 +6,7 @@ additionalProperties: false
 required:
   - accountId
   - email
+  - role
   - state
   - createdAt
   - controls
@@ -23,6 +24,11 @@ properties:
     readOnly: true
     description: Sign-in address of the account.
     maxLength: 320
+  role:
+    allOf:
+      - $ref: './InstallationRole.yaml'
+    readOnly: true
+    description: The role that decides which account controls can apply.
   state:
     allOf:
       - $ref: './AccountState.yaml'

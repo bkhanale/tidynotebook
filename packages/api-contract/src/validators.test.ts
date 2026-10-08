@@ -479,6 +479,57 @@ await test('a handoff is redeemed with its token alone', () => {
   assert.equal(validate({ token: 'a'.repeat(43), accountId: 'x' }), false);
 });
 
+await test('operator account answers include the existing installation role', () => {
+  const account = {
+    accountId: '00000000-0000-4000-8000-000000000000',
+    email: 'member@notes.invalid',
+    state: 'enabled',
+    createdAt: '2026-10-08T00:00:00.000Z',
+    controls: {
+      revision: 1,
+      standing: 'active',
+      removalAt: null,
+      limitBytes: 1,
+      textLimitBytes: null,
+      publishedTransferLimitBytes: null,
+      downloadLimitBytes: null,
+      features: { teams: true, collaboration: true },
+    },
+    usage: {
+      usedBytes: 0,
+      textBytes: 0,
+      month: '2026-10',
+      publishedTransferBytes: 0,
+      downloadBytes: 0,
+    },
+  };
+  for (const id of [
+    'findOperatorAccount',
+    'readOperatorAccount',
+    'setOperatorAccountControls',
+  ] as const) {
+    const validate = responseValidator(id, 200, 'application/json');
+    assert.ok(validate !== undefined, id);
+    assert.equal(validate({ ...account, role: 'member' }), true, id);
+    assert.equal(validate({ ...account, role: 'administrator' }), true, id);
+    assert.equal(validate(account), false, id);
+    assert.equal(validate({ ...account, role: 'owner' }), false, id);
+    assert.equal(validate({ ...account, role: null }), false, id);
+    assert.equal(
+      validate({ ...account, role: 'member', workspaceId: account.accountId }),
+      false,
+      id,
+    );
+  }
+  const write = requestValidator('setOperatorAccountControls', 'body');
+  assert.ok(write !== undefined);
+  assert.equal(write({ revision: 1, standing: 'active' }), true);
+  assert.equal(
+    write({ revision: 1, standing: 'active', role: 'administrator' }),
+    false,
+  );
+});
+
 await test('every operator operation takes the operator token alone', () => {
   const operator = operations.filter((operation) =>
     operation.path.startsWith('/api/operator/'),

@@ -38,6 +38,8 @@ interface of a library.
 - **The account controls and their revision.** The limits, the standing and
   the feature switches of an account, and the revision that guards each write
   ([record 0189](../decisions/0189-an-account-carries-limits-a-standing-and-feature-switches.md)).
+  The account answer also states its installation role. This role decides
+  which controls can apply. An administrator cannot be locked.
   A write that names an old revision changes nothing.
   `apps/server/src/routes/account-controls.ts` keeps one shape for the
   account, the administrator and the operator, and

@@ -10633,6 +10633,7 @@
         "required": [
           "accountId",
           "email",
+          "role",
           "state",
           "createdAt",
           "controls",
@@ -10656,6 +10657,15 @@
             "readOnly": true,
             "description": "Sign-in address of the account.",
             "maxLength": 320
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstallationRole"
+              }
+            ],
+            "readOnly": true,
+            "description": "The role that decides which account controls can apply."
           },
           "state": {
             "allOf": [
