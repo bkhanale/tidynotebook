@@ -5,6 +5,20 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.16.2 - 2026-10-08
+
+This patch release makes the account role visible to a service of the
+operator.
+
+### Changed
+
+- The deployment plan uses Railway Pro within the compute budget.
+
+### Fixed
+
+- The operator account interface includes the installation role. A service
+  can check which account controls apply.
+
 ## 0.16.1 - 2026-10-08
 
 This patch release adds a generated API reference to the documentation site.
