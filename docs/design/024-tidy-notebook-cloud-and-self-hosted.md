@@ -420,11 +420,13 @@ clear that its database user can make the roles of the core.
 for the money, but the owner runs PostgreSQL, its upgrades and its backups.
 
 **Option E. Railway behind Cloudflare.** Railway charges for what the services
-use. Its Hobby plan runs several replicas of a service, its PostgreSQL gives a
+use. Its Pro plan runs several replicas of a service, its PostgreSQL gives a
 superuser that makes the roles of the core, and it keeps point-in-time
 recovery for weeks. A hard usage limit stops the services at a fixed amount.
 
-Option E is the choice, in the EU West region. Cloudflare on its free plan
+Option E is the choice, on Pro in the EU West region.
+[Record 0210](../decisions/0210-railway-pro-keeps-private-images-within-the-compute-budget.md)
+keeps private images and the compute budget. Cloudflare on its free plan
 holds DNS, the proxy, TLS, the rate rule, R2, the static sites and the
 forwarding of the support address. Resend sends the mail on its free plan.
 The database has no standby, and that is the cost of the budget: a failure of
@@ -458,11 +460,12 @@ sanitized renderer, so the risk is the block list and not a script.
 Each line of the bill has a limit that holds it, and an alarm that tells the
 owner.
 
-- **The whole Railway bill** has a usage alert at `$20` and a hard limit at
-  `$30`. The hard limit trades an outage for a bounded bill.
+- **Railway compute** keeps the usage alert and hard limit of record 0200.
+  Record 0210 states how the Pro minimum and its included usage fit that
+  budget. Production and staging share one compute limit.
 - **Compute** is two replicas of the core and one of the billing service.
-- **The database volume** is bounded by the text limit of each plan. The Hobby
-  plan caps a volume, and the owner moves to the Pro plan of Railway before it.
+- **The database volume** is bounded by the text limit of each plan. Pro
+  gives more volume space, but it does not raise a limit of an account.
 - **Object storage** is bounded by the storage limit of each plan.
 - **Object operations** cost money on a bill of their own, and an account can
   write and delete again and again below its storage limit. The core makes
@@ -560,5 +563,6 @@ In the private repository:
 - [0200. Every cost of the cloud has a limit](../decisions/0200-every-cost-of-the-cloud-has-a-limit.md)
 - [0201. A locked account keeps a fixed list of operations](../decisions/0201-a-locked-account-keeps-a-fixed-list-of-operations.md)
 - [0202. The image takes a migrate and a serve command](../decisions/0202-the-image-takes-a-migrate-and-a-serve-command.md)
+- [0210. Railway Pro keeps private images within the compute budget](../decisions/0210-railway-pro-keeps-private-images-within-the-compute-budget.md)
 
 [Plan 019](../plans/019-tidy-notebook-cloud.md) orders the work.

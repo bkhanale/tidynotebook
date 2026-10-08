@@ -241,6 +241,7 @@ and needs no record.
 | [0207](0207-every-secret-of-the-image-has-an-environment-form.md)                     | Every secret of the image has an environment form                               |
 | [0208](0208-personal-keys-resolve-to-the-shared-actor.md)                             | Personal keys resolve to the shared actor                                       |
 | [0209](0209-generated-api-reference.md)                                               | The API reference comes from the client contract                                |
+| [0210](0210-railway-pro-keeps-private-images-within-the-compute-budget.md)            | Railway Pro keeps private images within the compute budget                      |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -841,3 +842,6 @@ code needs no step in a browser.
 Record 0207 gives each secret of the image a variable form beside its file,
 never both, so the image runs on a platform that mounts no file. It refines
 records 0190, 0192 and 0202.
+
+Record 0210 replaces Railway Hobby with Pro from the first deploy. It keeps
+the image publication policy and the compute limits of records 0199 and 0200.
