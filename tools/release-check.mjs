@@ -14,7 +14,7 @@
  * Usage: `node tools/release-check.mjs <before|after> <version>`
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,11 +27,21 @@ import {
 import { productName } from '../packages/core/src/product.ts';
 import { root } from './workspace.mjs';
 import {
+  digest,
+  git,
   readState,
   snapshot,
   stateDirectory,
   validProof,
 } from './lifecycle-state.mjs';
+
+import {
+  attestationArguments,
+  publishedRelease,
+  generateOperatorContract,
+  createReleaseManifest,
+} from './release-manifest.mjs';
+import { githubRepository } from './pr-screenshots.mjs';
 
 /** One result of the gate. */
 /** @typedef {{ name: string; status: 'ok' | 'failed' | 'skipped'; detail: string }} Check */
@@ -92,6 +102,7 @@ export function compareVersions(left, right) {
  * @typedef {{
  *   version: string;
  *   today: string;
+ *   releaseDate?: string;
  *   changelog: string;
  *   readme: string;
  *   headSha: string;
@@ -160,11 +171,11 @@ export function beforeChecks(state) {
         `the newest entry is ${newest.version}. Write the ${version} entry above it.`,
       ),
     );
-  else if (newest.date !== state.today)
+  else if (newest.date !== (state.releaseDate ?? state.today))
     checks.push(
       failed(
         'the changelog entry',
-        `the entry is dated ${newest.date}. Today is ${state.today}.`,
+        `the entry is dated ${newest.date}. The fixed release date is ${state.releaseDate ?? state.today}.`,
       ),
     );
   else checks.push(ok('the changelog entry', `${version} - ${newest.date}`));
@@ -333,6 +344,7 @@ export function buildImage(directory, revision = 'HEAD') {
  *   imageDigest: string;
  *   imageRevision: string;
  *   imageProvenance: boolean;
+ *   assetsError: string;
  *   releaseName: string;
  *   releaseTag: string;
  *   releaseDraft: boolean;
@@ -442,6 +454,17 @@ export function afterChecks(state) {
       : failed(
           'the image identity',
           'The image digest, source, or provenance cannot be proved.',
+        ),
+  );
+  checks.push(
+    state.assetsError === ''
+      ? ok(
+          'the release assets',
+          'the manifest and operator contract match the fixed source and proof',
+        )
+      : failed(
+          'the release assets',
+          state.assetsError || 'The release asset proof is missing.',
         ),
   );
   // A tag with no image gets no release. Its next patch carries the release.
@@ -589,9 +612,18 @@ async function readBefore(version, directory) {
     readFile(join(directory, 'CHANGELOG.md'), 'utf8').catch(() => ''),
     readFile(join(directory, 'README.md'), 'utf8').catch(() => ''),
   ]);
+  const releaseState = readState(
+    join(stateDirectory(directory), 'release.json'),
+  );
+  const head = run('git', ['rev-parse', 'HEAD'], directory).out;
   return {
     version,
     today: isoDate(new Date()),
+    ...(releaseState.version === version &&
+    releaseState.prepareCommit === head &&
+    typeof releaseState.date === 'string'
+      ? { releaseDate: releaseState.date }
+      : {}),
     changelog,
     readme,
     headSha: run('git', ['rev-parse', 'HEAD'], directory).out,
@@ -749,27 +781,73 @@ async function readAfter(version, directory) {
           directory,
         ).out
       : '';
+  const repository = githubRepository(
+    git(directory, ['config', '--get', 'remote.origin.url']),
+  );
   const imageProvenance =
     imageDigest !== '' &&
     run(
       'gh',
-      [
-        'attestation',
-        'verify',
-        `oci://${imageReference}@${imageDigest}`,
-        '--repo',
-        `${imageName.owner}/${imageName.name}`,
-        '--signer-workflow',
-        `${imageName.owner}/${imageName.name}/.github/workflows/release.yml`,
-      ],
+      attestationArguments(
+        repository,
+        localTagSha,
+        tag,
+        `${imageReference}@${imageDigest}`,
+      ),
       directory,
     ).status === 0;
+  let assetsError = '';
+  try {
+    const input = snapshot(directory),
+      proof = readState(join(stateDirectory(directory), 'proof.json'));
+    if (
+      input.commit !== localTagSha ||
+      !validProof(proof, input, ['verify', 'test:image'], directory)
+    )
+      throw new Error(
+        'The fixed release source and current gate proof are required.',
+      );
+    const observed = publishedRelease(directory, tag);
+    if (!observed.release) throw new Error('The published release is missing.');
+    const contract = observed.assets.get('operator-contract.json'),
+      manifest = observed.assets.get('release-manifest.json');
+    if (!contract || !manifest)
+      throw new Error('The published release asset is missing.');
+    const parent = stateDirectory(directory);
+    mkdirSync(parent, { recursive: true });
+    const temporary = mkdtempSync(join(parent, 'asset-read-'));
+    try {
+      const contractFile = join(temporary, 'operator-contract.json');
+      generateOperatorContract(directory, contractFile);
+      const expected = await createReleaseManifest(
+        directory,
+        repository,
+        version,
+        imageReference,
+        imageDigest,
+        contractFile,
+        proof,
+      );
+      if (
+        digest(contract) !== expected.operator.contractDigest ||
+        digest(manifest) !== digest(JSON.stringify(expected, null, 2) + '\n')
+      )
+        throw new Error(
+          'The published release asset differs from the fixed source, image, or proof.',
+        );
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  } catch (error) {
+    assetsError = error instanceof Error ? error.message : String(error);
+  }
   return {
     version,
     changelog,
     imageDigest,
     imageRevision,
     imageProvenance,
+    assetsError,
     tagKind: run('git', ['cat-file', '-t', tag], directory).out,
     tagSigned: run('git', ['verify-tag', tag], directory).status === 0,
     tagSubject: run(

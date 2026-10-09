@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { diffImpact } from './agent-context.mjs';
 import {
   command,
@@ -96,7 +97,10 @@ export function prove(cwd, gates = ['verify']) {
         cwd,
         encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
-        env: { ...process.env, ...(image ? { NOTESAPP_IMAGE: image } : {}) },
+        env: {
+          ...process.env,
+          ...(imageId ? { NOTESAPP_IMAGE: imageId } : {}),
+        },
       });
       writeFileSync(logFile, (result.stdout ?? '') + (result.stderr ?? ''), {
         mode: 0o600,
@@ -423,18 +427,39 @@ export function land(cwd, pr, execute) {
     )
       throw new Error('Current verify proof is required.');
     command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main']);
-    if (git(cwd, ['merge-base', '--is-ancestor', 'origin/main', 'HEAD']) !== '')
-      throw new Error('Rebase onto the current main.');
-    const pull = readPull(cwd, pr);
-    if (pull.state !== 'MERGED') reviewGate(pull, input.commit);
-    else if (pull.headRefOid !== input.commit)
-      throw new Error('The merged PR head differs.');
+    const pull = readPull(cwd, pr),
+      file = join(stateDirectory(cwd), 'land.json');
+    let validatedReview;
+    if (pull.state === 'MERGED') {
+      const attempt = readState(file);
+      if (
+        !['merge-write', 'landed'].includes(String(attempt.stage)) ||
+        attempt.pr !== pr ||
+        attempt.inputDigest !== input.inputDigest ||
+        attempt.commit !== input.commit ||
+        attempt.reviewDigest !== digest(JSON.stringify(attempt.validatedReview))
+      )
+        throw new Error(
+          'The merged PR has no validated merge attempt for this source.',
+        );
+      reviewGate(attempt.validatedReview, input.commit);
+      validatedReview = attempt.validatedReview;
+      if (pull.headRefOid !== input.commit)
+        throw new Error('The merged PR head differs.');
+      git(cwd, ['merge-base', '--is-ancestor', input.commit, 'origin/main']);
+    } else {
+      git(cwd, ['merge-base', '--is-ancestor', 'origin/main', 'HEAD']);
+      reviewGate(pull, input.commit);
+      validatedReview = pull;
+    }
     if (execute && pull.state !== 'MERGED') {
-      save(join(stateDirectory(cwd), 'land.json'), {
+      save(file, {
         schemaVersion: 1,
         ...input,
         stage: 'merge-write',
         pr,
+        validatedReview,
+        reviewDigest: digest(JSON.stringify(validatedReview)),
       });
       command(cwd, 'git', [
         'push',
@@ -459,7 +484,7 @@ export function land(cwd, pr, execute) {
       execute &&
       (merged.state !== 'MERGED' ||
         merged.headRefOid !== input.commit ||
-        typeof record(merged.mergeCommit).oid !== 'string')
+        record(merged.mergeCommit).oid !== input.commit)
     )
       throw new Error(
         'The merge result is pending or differs. Read the PR before another write.',
@@ -480,44 +505,120 @@ export function land(cwd, pr, execute) {
       ...input,
       stage: execute ? 'landed' : 'ready',
       pr,
+      validatedReview,
+      reviewDigest: digest(JSON.stringify(validatedReview)),
       mergedCommit: record(merged.mergeCommit).oid,
       prUrl: merged.url,
     };
-    save(join(stateDirectory(cwd), 'land.json'), result);
+    if (execute) save(join(stateDirectory(cwd), 'land.json'), result);
     return result;
   } finally {
     releaseLock();
   }
 }
 
+/** Reject extra arguments before a unit can write.
+ * @param {string[]} args @param {string} cwd
+ */
+export function parseLifecycle(args, cwd) {
+  const [unit, ...rest] = args;
+  /** @type {Record<string, import('node:util').ParseArgsOptionsConfig>} */
+  const definitions = {
+    prove: { image: { type: 'boolean' } },
+    land: { execute: { type: 'boolean' } },
+    'review-status': {},
+    status: {},
+    review: {
+      execute: { type: 'boolean' },
+      'title-file': { type: 'string' },
+      'summary-file': { type: 'string' },
+      'compatibility-file': { type: 'string' },
+      'release-type': { type: 'string' },
+      'release-note-file': { type: 'string' },
+      screenshot: { type: 'string', multiple: true },
+    },
+  };
+  if (!unit || !Object.hasOwn(definitions, unit))
+    throw new Error('Use prove, review, review-status, land, or status.');
+  const options = definitions[unit];
+  const parsed = parseArgs({
+    args: rest,
+    allowPositionals: true,
+    options,
+  });
+  const values = record(parsed.values),
+    positionals = parsed.positionals;
+  const prUnit = unit === 'land' || unit === 'review-status';
+  if (
+    positionals.length !== (prUnit ? 1 : 0) ||
+    (prUnit && !/^[1-9]\d*$/.test(positionals[0] ?? ''))
+  )
+    throw new Error(
+      prUnit
+        ? 'Give one PR number.'
+        : 'This unit takes no positional arguments.',
+    );
+  if (unit !== 'review')
+    return {
+      unit,
+      pr: positionals[0] ?? '',
+      execute: values.execute === true,
+      image: values.image === true,
+    };
+  /** @param {string} name */
+  const text = (name) => {
+    const value = values[name];
+    if (typeof value !== 'string' || !value || value.startsWith('--'))
+      throw new Error(`Give --${name} and its file.`);
+    return readFileSync(resolve(cwd, value), 'utf8').trim();
+  };
+  const releaseType = values['release-type'];
+  if (
+    typeof releaseType !== 'string' ||
+    !['none', 'patch', 'minor', 'major'].includes(releaseType)
+  )
+    throw new Error('Give --release-type and its value.');
+  const screenshots = values.screenshot;
+  return {
+    unit,
+    pr: '',
+    execute: values.execute === true,
+    image: false,
+    review: {
+      title: text('title-file'),
+      summary: text('summary-file'),
+      compatibility: text('compatibility-file'),
+      releaseType,
+      releaseNote: text('release-note-file'),
+      screenshots: Array.isArray(screenshots)
+        ? screenshots
+            .filter((file) => typeof file === 'string')
+            .map((file) => resolve(cwd, file))
+        : [],
+      execute: values.execute === true,
+    },
+  };
+}
 if (import.meta.main) {
-  const [unit, ...args] = process.argv.slice(2),
-    cwd = resolve(root);
+  const cwd = resolve(root);
   try {
+    const options = parseLifecycle(process.argv.slice(2), cwd);
     const value =
-      unit === 'prove'
-        ? prove(
-            cwd,
-            args.includes('--image') ? ['verify', 'test:image'] : ['verify'],
-          )
-        : unit === 'land'
-          ? land(cwd, args[0] ?? '', args.includes('--execute'))
-          : unit === 'review-status'
-            ? readPull(cwd, args[0] ?? '')
-            : unit === 'status'
+      options.unit === 'prove'
+        ? prove(cwd, options.image ? ['verify', 'test:image'] : ['verify'])
+        : options.unit === 'land'
+          ? land(cwd, options.pr, options.execute)
+          : options.unit === 'review-status'
+            ? readPull(cwd, options.pr)
+            : options.unit === 'status'
               ? {
                   input: snapshot(cwd),
                   proof: readState(join(stateDirectory(cwd), 'proof.json')),
                   land: readState(join(stateDirectory(cwd), 'land.json')),
                 }
-              : unit === 'review'
-                ? await prepareReview(cwd, {
-                    ...parseReview(args),
-                    execute: args.includes('--execute'),
-                  })
-                : (() => {
-                    throw new Error('Use prove, review, land, or status.');
-                  })();
+              : options.review
+                ? await prepareReview(cwd, options.review)
+                : {};
     process.stdout.write(JSON.stringify(value, null, 2) + '\n');
   } catch (error) {
     process.stderr.write(
@@ -525,31 +626,4 @@ if (import.meta.main) {
     );
     process.exitCode = 1;
   }
-}
-/** @param {string[]} args */
-function parseReview(args) {
-  /** @param {string} key */
-  const text = (key) => {
-    const index = args.indexOf(key);
-    return index < 0
-      ? ''
-      : readFileSync(resolve(root, args[index + 1] ?? ''), 'utf8').trim();
-  };
-  const typeIndex = args.indexOf('--release-type');
-  if (
-    typeIndex < 0 ||
-    !args[typeIndex + 1] ||
-    args[typeIndex + 1]?.startsWith('--')
-  )
-    throw new Error('Give --release-type and its value.');
-  return {
-    title: text('--title-file'),
-    summary: text('--summary-file'),
-    compatibility: text('--compatibility-file'),
-    releaseType: args[typeIndex + 1] ?? '',
-    releaseNote: text('--release-note-file'),
-    screenshots: args.flatMap((arg, index) =>
-      arg === '--screenshot' ? [resolve(root, args[index + 1] ?? '')] : [],
-    ),
-  };
 }

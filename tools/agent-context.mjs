@@ -90,7 +90,7 @@ export const operatorInterface = {
 export function operatorSurfacePath(path) {
   return (
     operatorInterface.files.includes(path) ||
-    /^(?:packages\/core\/src\/|packages\/storage-server\/|apps\/server\/src\/(?:identity|routes|services)\/|docker\/|Dockerfile$|compose\.yaml$|pnpm-lock\.yaml$|\.github\/workflows\/release\.yml$)/.test(
+    /^(?:packages\/core\/src\/|packages\/storage-server\/|apps\/server\/src\/(?:identity|routes|services)\/|docker\/|Dockerfile$|compose\.yaml$|docker-compose\.yml$|\.dockerignore$|package\.json$|pnpm-lock\.yaml$|\.github\/workflows\/release\.yml$)/.test(
       path,
     )
   );
@@ -113,12 +113,14 @@ export function classifyImpact(paths, contract = new Set()) {
       ),
     ),
     image: paths.some((path) =>
-      /^(?:Dockerfile|docker\/|compose\.yaml|pnpm-lock\.yaml|\.github\/workflows\/release\.yml)/.test(
+      /^(?:Dockerfile|docker\/|compose\.yaml|docker-compose\.yml|\.dockerignore|package\.json|pnpm-lock\.yaml|\.github\/workflows\/release\.yml)/.test(
         path,
       ),
     ),
     ui: paths.some((path) =>
-      /^(?:apps\/(?:web|docs)\/|packages\/(?:ui|editor)\/)/.test(path),
+      /^(?:apps\/(?:web|docs)\/|packages\/(?:ui|editor|markdown)\/|apps\/server\/src\/routes\/(?:published(?:-[\w-]+)?|legal(?:-[\w-]+)?)\.ts$)/.test(
+        path,
+      ),
     ),
   };
 }

@@ -59,6 +59,8 @@ export async function prepare(options) {
         '--internal',
         '--task',
         options.task,
+        '--phase',
+        options.phase,
         ...options.paths.flatMap((path) => ['--core-path', path]),
       ]),
     );

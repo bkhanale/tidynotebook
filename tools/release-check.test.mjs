@@ -62,6 +62,7 @@ const after = {
   imageDigest: 'sha256:' + 'a'.repeat(64),
   imageRevision: 'abc123',
   imageProvenance: true,
+  assetsError: '',
   runStatus: 'completed',
   runConclusion: 'success',
   runUrl: 'https://example.test/run/1',
@@ -333,4 +334,21 @@ await test('the image job and published artifact bind the signed source', () => 
   assert.deepEqual(failures(afterChecks({ ...after, imageTags: ['latest'] })), [
     'the image tags',
   ]);
+});
+
+await test('a fixed release date stays valid after midnight without a new prepare commit', () => {
+  assert.deepEqual(
+    failures(
+      beforeChecks({
+        ...before,
+        today: '2026-10-02',
+        releaseDate: '2026-10-01',
+      }),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    failures(beforeChecks({ ...before, releaseDate: '2026-09-30' })),
+    ['the changelog entry'],
+  );
 });

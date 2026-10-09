@@ -22,9 +22,12 @@ import {
   stateDirectory,
 } from './lifecycle-state.mjs';
 import {
-  operatorDigests,
-  parseManifest,
-  migrationMetadata,
+  createReleaseManifest,
+  generateOperatorContract,
+  attestationArguments,
+  releasePreflight,
+  publishedRelease,
+  checkReleaseAssets,
 } from './release-manifest.mjs';
 import { githubRepository } from './pr-screenshots.mjs';
 import { record, root } from './workspace.mjs';
@@ -142,6 +145,7 @@ export async function release(options) {
       throw new Error(
         'An unfinished release exists. Read its status, then resume it.',
       );
+    if (options.execute) releasePreflight(cwd);
     if (!options.resume) {
       const input = snapshot(cwd);
       command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main', '--tags']);
@@ -314,7 +318,9 @@ export async function release(options) {
           ]),
         ),
       );
-      if (pr.state !== 'MERGED') land(cwd, String(pr.number), true);
+      if (snapshot(cwd).commit !== state.prepareCommit)
+        throw new Error('The prepare source changes.');
+      land(cwd, String(pr.number), true);
       command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main']);
       const merged = record(
         JSON.parse(
@@ -328,7 +334,7 @@ export async function release(options) {
         ),
       );
       const commit = record(merged.mergeCommit).oid;
-      if (merged.state !== 'MERGED' || typeof commit !== 'string')
+      if (merged.state !== 'MERGED' || commit !== state.prepareCommit)
         throw new Error(
           'The prepare merge is not yet proved. Resume after a read.',
         );
@@ -470,15 +476,16 @@ export async function release(options) {
       )
         throw new Error('The published image source cannot be proved.');
       const repository = githubRepository(String(state.origin));
-      command(cwd, 'gh', [
-        'attestation',
-        'verify',
-        `oci://${reference}`,
-        '--repo',
-        repository,
-        '--signer-workflow',
-        `${repository}/.github/workflows/release.yml`,
-      ]);
+      command(
+        cwd,
+        'gh',
+        attestationArguments(
+          repository,
+          String(state.releaseCommit),
+          tag,
+          reference,
+        ),
+      );
       const proof = record(state.proof);
       const contractFile = join(
         directory,
@@ -487,58 +494,16 @@ export async function release(options) {
         'operator-contract.json',
       );
       save(contractFile, {});
-      command(cwd, join(cwd, 'tools/sdk-codegen/node_modules/.bin/redocly'), [
-        'bundle',
-        'packages/api-contract/openapi.yaml',
-        '--config',
-        'packages/api-contract/redocly.yaml',
-        '--dereferenced',
-        '--output',
-        contractFile,
-      ]);
-      const bundled = record(JSON.parse(readFileSync(contractFile, 'utf8')));
-      const paths = Object.fromEntries(
-        Object.entries(record(bundled.paths)).flatMap(([path, value]) => {
-          const operations = Object.fromEntries(
-            Object.entries(record(value)).filter(([, operation]) => {
-              const item = record(operation);
-              return (
-                (Array.isArray(item.tags) && item.tags.includes('operator')) ||
-                item.operationId === 'openAccountPortal'
-              );
-            }),
-          );
-          return Object.keys(operations).length ? [[path, operations]] : [];
-        }),
-      );
-      save(contractFile, {
-        openapi: bundled.openapi,
-        info: bundled.info,
-        paths,
-        components: {
-          securitySchemes: record(bundled.components).securitySchemes,
-        },
-      });
-      const manifest = parseManifest({
-        schemaVersion: 1,
+      generateOperatorContract(cwd, contractFile);
+      const manifest = await createReleaseManifest(
+        cwd,
         repository,
         version,
-        tag,
-        source: { commit: state.releaseCommit, tree: snapshot(cwd).tree },
-        image: { reference: image, digest: reference.split('@')[1] },
-        operator: {
-          ...(await operatorDigests(cwd)),
-          contractDigest: digest(readFileSync(contractFile)),
-        },
-        migration: migrationMetadata(cwd),
-        verification: {
-          commit: state.releaseCommit,
-          inputDigest: proof.inputDigest,
-          gates: proof.gates,
-          runtime: proof.runtime,
-          toolDigest: proof.toolDigest,
-        },
-      });
+        image,
+        reference.split('@')[1] ?? '',
+        contractFile,
+        proof,
+      );
       const manifestFile = join(
         directory,
         'releases',
@@ -550,6 +515,10 @@ export async function release(options) {
         manifestFile,
         contractFile,
         imageDigest: manifest.image.digest,
+        assetDigests: {
+          'release-manifest.json': digest(readFileSync(manifestFile)),
+          'operator-contract.json': digest(readFileSync(contractFile)),
+        },
         run: run.databaseId,
       });
     }
@@ -561,15 +530,15 @@ export async function release(options) {
       if (notes === null) throw new Error('The release notes are missing.');
       const notesFile = join(directory, 'releases', version, 'notes.md');
       writeFileSync(notesFile, notes);
-      const releases = JSON.parse(
-        command(cwd, 'gh', [
-          'api',
-          'repos/{owner}/{repo}/releases?per_page=100',
-        ]),
-      );
-      const existing = Array.isArray(releases)
-        ? releases.map(record).find((release) => release.tag_name === tag)
-        : undefined;
+      const files = {
+        'release-manifest.json': String(state.manifestFile),
+        'operator-contract.json': String(state.contractFile),
+      };
+      for (const [name, file] of Object.entries(files))
+        if (digest(readFileSync(file)) !== record(state.assetDigests)[name])
+          throw new Error('The fixed release asset differs.');
+      const observed = publishedRelease(cwd, tag),
+        existing = observed.release;
       if (!existing) {
         const attempts =
           typeof state.publishAttempts === 'number' ? state.publishAttempts : 0;
@@ -591,8 +560,8 @@ export async function release(options) {
           releaseTitle(version),
           '--notes-file',
           notesFile,
-          String(state.manifestFile),
-          String(state.contractFile),
+          files['release-manifest.json'],
+          files['operator-contract.json'],
         ]);
       } else {
         if (
@@ -602,43 +571,40 @@ export async function release(options) {
           existing.prerelease !== false
         )
           throw new Error('The published release identity differs.');
-        const assets = Array.isArray(existing.assets)
-          ? existing.assets.map(record)
-          : [];
-        for (const name of [
-          'release-manifest.json',
-          'operator-contract.json',
-        ]) {
-          const asset = assets.find((asset) => asset.name === name);
-          if (!asset) {
-            command(cwd, 'gh', [
-              'release',
-              'upload',
-              tag,
-              name === 'release-manifest.json'
-                ? String(state.manifestFile)
-                : String(state.contractFile),
-            ]);
-            continue;
-          }
-          if (typeof asset.url !== 'string')
-            throw new Error('The release asset identity is invalid.');
-          const downloaded = command(cwd, 'gh', [
-            'api',
-            asset.url,
-            '-H',
-            'Accept: application/octet-stream',
-          ]);
-          const expected = readFileSync(
-            name === 'release-manifest.json'
-              ? String(state.manifestFile)
-              : String(state.contractFile),
-            'utf8',
-          ).trim();
-          if (downloaded !== expected)
+        // Validate every existing asset before filling a missing asset.
+        for (const [name, file] of Object.entries(files)) {
+          const bytes = observed.assets.get(name);
+          if (bytes && !bytes.equals(readFileSync(file)))
             throw new Error('The published release asset differs.');
         }
+        for (const [name, file] of Object.entries(files)) {
+          if (observed.assets.has(name)) continue;
+          const attempts = record(state.assetAttempts),
+            count = typeof attempts[name] === 'number' ? attempts[name] : 0;
+          if (count >= 2)
+            throw new Error(
+              'The asset write remains absent after bounded recovery. Inspect publication.',
+            );
+          advance('publish', {
+            uncertain: true,
+            assetAttempts: { ...attempts, [name]: count + 1 },
+            absenceRead: true,
+          });
+          command(cwd, 'gh', ['release', 'upload', tag, file]);
+        }
       }
+      const readback = publishedRelease(cwd, tag);
+      if (
+        !readback.release ||
+        readback.release.name !== releaseTitle(version) ||
+        String(readback.release.body).trim() !== notes.trim() ||
+        readback.release.draft !== false ||
+        readback.release.prerelease !== false
+      )
+        throw new Error(
+          'The publication result is missing or differs. Read it before another write.',
+        );
+      checkReleaseAssets(readback.assets, files);
       advance('milestone', { uncertain: false });
     }
     if (state.stage === 'milestone') {

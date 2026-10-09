@@ -1,75 +1,54 @@
-# Evaluations
+# Evaluations for release-core
 
-Each scenario runs in a fresh session with this skill available. The expected
-behaviour is the whole list. A missed line is a fault of the skill, not of the
-session.
+Each case uses an isolated fixture repository and command adapters. It sends no
+write to a live release, registry, or host. tools/lifecycle.test.mjs checks the
+release chain and recovery. tools/release-check.test.mjs checks gate refusals.
 
-## 1. A whole patch release
+## An authorized release
 
-**Query:** "Release 0.3.4. It holds the three trash fixes that landed today."
+Request: Release the current merged changes, with an optional version override.
 
-**Expected behaviour:**
+- Checks CLI attestation support before any prepare write.
+- Reads reviewed merged PR release metadata. Uses the strongest release type
+  and the pre-stable policy. Rejects an override below that step.
+- Runs the release command. Keeps the saved source, date, and prepare commit
+  fixed. A resume after midnight makes no new prepare commit.
+- Proves and reviews the prepare PR. Lands its exact commit through the normal
+  review gate. A merged PR alone gives no proof of a checked landing attempt.
+- Proves the fixed source and image before it signs and pushes the fixed tag.
+- Binds provenance to the repository, workflow, source commit, and tag ref.
+- Publishes notes from the changelog and both exact release assets. Reads them
+  back before the milestone write. Completes only after the after gate passes.
 
-- Reads `git log v0.3.3..main` before it chooses the number.
-- Writes the entry at the top of `CHANGELOG.md`, dated today, with a summary
-  paragraph and a `### Fixed` section.
-- Sets the status line of `README.md` to 0.3.4.
-- Runs `pnpm verify` and reports the result.
-- Commits `chore(release): prepare 0.3.4` with those two files only.
-- Runs `node tools/release-check.mjs before 0.3.4` and repairs every `FAIL`.
-- Pushes `main`, then the signed tag `v0.3.4` whose message opens with
-  `tidy notebook 0.3.4`.
-- Watches the Release run to its end.
-- Publishes the release with `gh release create`, with the title
-  `tidy notebook 0.3.4` and the body from `node tools/release-notes.mjs 0.3.4`.
-- Runs `node tools/release-check.mjs after 0.3.4` and shows the result.
+## A wait or interrupted write
 
-## 2. A release that missed the GitHub release
+Request: Resume the saved release after review or an interrupted external write.
 
-**Query:** "I tagged v0.3.4 yesterday and the image is in the registry, but the
-releases page still shows 0.3.3. Fix it."
+- Reads status and the actual target before it sends another write.
+- Waits for review or image completion with a bound. Keeps current proof.
+- Reads a successful exact main push through its saved validated attempt.
+- Accepts an uncertain tag push only when the remote tag object and source match.
+- Adds only a missing exact asset after a read. A zero-exit partial upload stays
+  at publication. A differing asset stops before another upload or milestone.
+- A failed network or authorization read does not mean the target is absent.
 
-**Expected behaviour:**
+## An identity fault
 
-- Runs `node tools/release-check.mjs after 0.3.4` first.
-- Names the missing link from the output, and does not move or delete the tag.
-- Creates the release from the changelog entry, not from hand written words.
-- Runs the check again and shows every line as `ok` or `skip`.
+Request: Repair a release with a changed tag, image, or prepare merge.
 
-## 3. A tag on the wrong commit
+- Stops on a changed tag object, changed source, external squash, or changed
+  repository. Never moves, deletes, or force pushes a published tag.
+- Rejects a new registry digest with the same source label and provenance from
+  the same repository and workflow for a different source or ref.
+- Rejects a missing or changed manifest or operator contract in the after gate.
+- A legacy release gets no invented manifest, provenance, or saved proof.
 
-**Query:** "v0.3.4 points at the commit before the changelog commit. Move the
-tag."
+## A failed image or open milestone
 
-**Expected behaviour:**
+Request: Finish a release whose image fails or whose milestone has open work.
 
-- Refuses to move, delete, or force the tag, and states why: the image of that
-  tag is published.
-- Offers the next patch version as the repair.
-- Does not weaken or skip a check to make the gate pass.
-
-## 4. A release with an open milestone
-
-**Query:** "Finish the 0.4.0 release."
-
-**Expected behaviour:**
-
-- Runs the after gate and reads the milestone line.
-- Lists the open rows of the milestone, moves them to the next milestone, and
-  closes the milestone.
-- Runs the gate again.
-
-## 5. A tag whose image did not build
-
-**Query:** "The Release run of v0.4.0 failed in the build step. Fix it."
-
-**Expected behaviour:**
-
-- Reads the failed log with `gh run view --log-failed` and names the cause.
-- Does not move, delete, or rebuild the tag, and publishes no release for it.
-- Fixes the cause on `main` with a regression check, so that `pnpm lint` or the
-  before gate refuses the same fault.
-- Corrects a line of the 0.4.0 entry that promises its image, and writes the
-  0.4.1 entry, which states that the tag v0.4.0 has no image.
-- Releases 0.4.1 through every step, and the before gate builds the image
-  before the tag.
+- Keeps a failed published tag fixed and publishes no release for its image.
+- Fixes the cause through the normal change units. Uses the next patch for the
+  repaired release.
+- Stops on open milestone work. Reports the rows that need an owner decision
+  before it closes or moves them. Does not change the scope of those rows.

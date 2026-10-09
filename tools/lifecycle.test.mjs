@@ -10,7 +10,14 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { prove, reviewGate, cleanReviewBody } from './lifecycle.mjs';
+import {
+  prove,
+  reviewGate,
+  cleanReviewBody,
+  land,
+  prepareReview,
+  parseLifecycle,
+} from './lifecycle.mjs';
 import {
   digest,
   git,
@@ -35,6 +42,7 @@ import {
 import { diffImpact } from './agent-context.mjs';
 import { prepare } from './task-prepare.mjs';
 import { root } from './workspace.mjs';
+import { main as releaseCheck } from './release-check.mjs';
 
 /** A real Git repository with isolated command executables, not a fake Git API. */
 function fixture() {
@@ -62,6 +70,7 @@ function fixture() {
 let n=0;try{n=Number(readFileSync('.tooling/count','utf8'));}catch{}
 writeFileSync('.tooling/count',String(n+1));
 console.log('The fixture gate runs.');
+if(process.env.NOTESAPP_IMAGE)writeFileSync('.tooling/tested-image',process.env.NOTESAPP_IMAGE);
 if(process.env.NOTESAPP_TEST_GATE_MODE==='fail')process.exit(1);
 if(process.env.NOTESAPP_TEST_GATE_MODE==='mutate')writeFileSync('source.txt','changed');
 `,
@@ -181,6 +190,10 @@ await test('image proof builds the exact archived commit and uses its image', ()
       'build\n',
     );
     assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), '2');
+    assert.equal(
+      readFileSync(join(f.cwd, '.tooling/tested-image'), 'utf8'),
+      'sha256:' + 'b'.repeat(64),
+    );
     prove(f.cwd, ['verify', 'test:image']);
     assert.equal(
       readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
@@ -560,25 +573,27 @@ const head=git('rev-parse','HEAD');let version='0.2.0';try{version=JSON.parse(re
 const store=()=>writeFileSync('.tooling/service.json',JSON.stringify(s));
 const json=v=>console.log(JSON.stringify(v));
 const write=kind=>{s.writes.push(kind);store();if(s.interrupt===kind){s.interrupt=null;store();process.exit(7);}};
-const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:prepared}};};
-if(a[0]==='pr'&&a[1]==='list')json(s.created?[{number:41}]:[]);
+const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:s.mergedCommit??prepared}};};
+if(a[0]==='attestation'&&a.includes('--help')){if(s.unsupportedAttestation)process.exit(1);console.log(s.missingSourceFlag?'--repo --signer-workflow --source-ref':'--repo --signer-workflow --source-digest --source-ref');}
+else if(a[0]==='pr'&&a[1]==='list')json(s.created?[{number:41}]:[]);
 else if(a[0]==='pr'&&a[1]==='create'){s.created=true;s.prepared=head;write('pr-create');console.log(pr().url);}
 else if(a[0]==='pr'&&a[1]==='edit'){}
 else if(a[0]==='pr'&&a[1]==='view')json(pr());
 else if(a[0]==='pr'&&a[1]==='comment'){s.comments.push({id:s.comments.length+1,user:{login:'owner'},body:a.at(-1)});write('review-request');}
 else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/core/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
-else if(a[0]==='attestation'){if(s.badProvenance)process.exit(1);console.log('{}');}
-else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',url:'asset:release-manifest.json',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');s.assets.push({name:'operator-contract.json',url:'asset:operator-contract.json',bytes:readFileSync(a.at(-1),'utf8')});store();}
-else if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);s.assets.push({name,url:'asset:'+name,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
+else if(a[0]==='attestation'){if(s.badProvenance||(s.provenanceSource&&a.includes('--source-digest')&&a[a.indexOf('--source-digest')+1]!==s.provenanceSource)||(s.provenanceRef&&a.includes('--source-ref')&&a[a.indexOf('--source-ref')+1]!==s.provenanceRef))process.exit(1);console.log('{}');}
+else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/core/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/core/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
+else if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
 else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];if(fields==='body')process.stdout.write(s.notes);else console.log(s.releaseName+'\\tv'+version+'\\tfalse\\tfalse');}
-else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:[],pageInfo:{hasNextPage:false}}}}}});
+else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:s.unresolved?[{isResolved:false}]:[],pageInfo:{hasNextPage:false}}}}}});
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
-else if(a[0]==='api'&&a[1].startsWith('asset:')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
+else if(a[0]==='api'&&a[1].startsWith('https://api.github.com/repos/example/core/releases/assets/')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
 else if(a[0]==='api'&&a[1].includes('/commits/'))json([{number:40,merged_at:'2026-10-09',base:{ref:'main'},body:'Release-Type: minor\\nRelease-Note: Read a new note.'}]);
 else if(a[0]==='api'&&a[1].includes('/reviews'))json(s.cleanReview?[{user:{login:'chatgpt-codex-connector[bot]'},commit_id:s.prepared,state:'COMMENTED',body:"Didn't find any major issues."}]:[]);
 else if(a[0]==='api'&&a[1].includes('/comments'))json(s.comments);
 else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
 else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
+else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:false,prerelease:false,assets:s.assets});}
 else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:false,prerelease:false,assets:s.assets}]:[]);
 else if(a[0]==='api'&&a[1].includes('/releases/latest'))console.log('v'+version);
 else if(a[0]==='api'&&a.includes('POST')){s.milestone=true;write('milestone-create');json({number:1,state:'closed'});}
@@ -596,9 +611,9 @@ const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json',
 if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');}
 else if(a[0]==='pull'){}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
-else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+'c'.repeat(64));
+else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
 else if(a.some(v=>v.includes('org.opencontainers.image.revision')))console.log(s.prepared);
-else if(a[0]==='image')console.log(JSON.stringify([{RepoDigests:['ghcr.io/example/core@sha256:'+'c'.repeat(64)],Config:{Labels:{'org.opencontainers.image.revision':s.prepared}}}]));
+else if(a[0]==='image')console.log(JSON.stringify([{RepoDigests:['ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64))],Config:{Labels:{'org.opencontainers.image.revision':s.prepared}}}]));
 else console.log('fixture-runtime');
 `,
     { mode: 0o700 },
@@ -846,7 +861,7 @@ await test('a changed prepared source or origin cannot resume a release', async 
     git(f.cwd, ['commit', '-m', 'fix: change source']);
     await assert.rejects(
       release({ cwd: f.cwd, resume: true, execute: true }),
-      /proof is required/,
+      /prepare source changes/,
     );
   } finally {
     f.cleanup();
@@ -871,6 +886,364 @@ await test('migration metadata binds SQL and journal bytes and refuses a count d
     assert.notEqual(migrationMetadata(f.cwd).digest, before.digest);
     writeFileSync(journal, JSON.stringify({ entries: [] }));
     assert.throws(() => migrationMetadata(f.cwd), /journal differ/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('a zero-exit partial release upload stays at publish until both exact assets are read back', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), partialCreate: true });
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /asset|publication/,
+    );
+    assert.equal(
+      readState(join(stateDirectory(f.cwd), 'release.json')).stage,
+      'publish',
+    );
+    assert.equal(readState(file).milestone, undefined);
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.deepEqual(readState(file).writes, [
+      'pr-create',
+      'review-request',
+      'release-create',
+      'asset-upload',
+      'milestone-create',
+    ]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('the after gate refuses missing or changed assets and a new image digest with the same source label', async () => {
+  const f = releaseFixture();
+  try {
+    await release({ cwd: f.cwd, execute: true });
+    const file = join(f.cwd, '.tooling/service.json'),
+      initial = readState(file);
+    const assets = Array.isArray(initial.assets) ? initial.assets : [];
+    save(file, {
+      ...initial,
+      assets: assets.filter((asset) => asset.name !== 'operator-contract.json'),
+    });
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 1);
+    for (const name of ['operator-contract.json', 'release-manifest.json']) {
+      save(file, {
+        ...initial,
+        assets: assets.map((asset) =>
+          asset.name === name
+            ? { ...asset, bytes: asset.bytes + 'changed' }
+            : asset,
+        ),
+      });
+      assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 1);
+    }
+    save(file, { ...initial, imageDigest: 'd'.repeat(64) });
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('resume refuses a differing release asset before the milestone write', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), interrupt: 'release-create' });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }));
+    const service = readState(file),
+      assets = Array.isArray(service.assets) ? service.assets : [];
+    save(file, {
+      ...service,
+      assets: assets.map((asset) => ({ ...asset, bytes: 'different' })),
+    });
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /asset differs/,
+    );
+    assert.equal(readState(file).milestone, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('same repository and workflow provenance must hold the fixed source and tag ref', async () => {
+  for (const mismatch of [
+    { provenanceSource: 'f'.repeat(40) },
+    { provenanceRef: 'refs/heads/main' },
+  ]) {
+    const f = releaseFixture();
+    try {
+      const file = join(f.cwd, '.tooling/service.json');
+      save(file, { ...readState(file), ...mismatch });
+      await assert.rejects(release({ cwd: f.cwd, execute: true }));
+      assert.equal(
+        readState(join(stateDirectory(f.cwd), 'release.json')).stage,
+        'image',
+      );
+      assert.equal(readState(file).release, undefined);
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+await test('missing attestation command or source policy stops before prepare writes', async () => {
+  for (const capability of [
+    { unsupportedAttestation: true },
+    { missingSourceFlag: true },
+  ]) {
+    const f = releaseFixture();
+    try {
+      const head = git(f.cwd, ['rev-parse', 'HEAD']),
+        file = join(f.cwd, '.tooling/service.json');
+      save(file, { ...readState(file), ...capability });
+      await assert.rejects(
+        release({ cwd: f.cwd, execute: true }),
+        /attestation/,
+      );
+      assert.equal(git(f.cwd, ['rev-parse', 'HEAD']), head);
+      assert.deepEqual(readState(file).writes, []);
+      assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+await test('an external merge cannot bypass review or accept a different prepare commit', async () => {
+  for (const mode of ['review', 'threads', 'commit']) {
+    const f = releaseFixture();
+    try {
+      const file = join(f.cwd, '.tooling/service.json');
+      save(file, { ...readState(file), cleanReview: false });
+      await assert.rejects(
+        release({ cwd: f.cwd, execute: true }),
+        /completed review/,
+      );
+      const head = git(f.cwd, ['rev-parse', 'HEAD']);
+      git(f.cwd, ['push', 'origin', head + ':refs/heads/main']);
+      save(file, {
+        ...readState(file),
+        cleanReview: mode !== 'review',
+        unresolved: mode === 'threads',
+        ...(mode === 'commit'
+          ? { mergedCommit: git(f.cwd, ['rev-parse', 'HEAD^']) }
+          : {}),
+      });
+      await assert.rejects(
+        release({ cwd: f.cwd, resume: true, execute: true }),
+        /review|thread|merged.*differs|merge.*attempt/,
+      );
+      assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+await test('a lost exact main push result resumes with its recorded validated attempt', async () => {
+  const f = releaseFixture();
+  try {
+    interruptGit(f.cwd, 'push');
+    // The branch push precedes the main push. Begin with the review wait first.
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), gitInterrupt: null, cleanReview: false });
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /completed review/,
+    );
+    save(file, { ...readState(file), cleanReview: true, gitInterrupt: 'push' });
+    await assert.rejects(release({ cwd: f.cwd, resume: true, execute: true }));
+    const before = readState(join(stateDirectory(f.cwd), 'land.json'));
+    assert.equal(before.stage, 'merge-write');
+    assert.equal(land(f.cwd, '41', false).stage, 'ready');
+    assert.deepEqual(
+      readState(join(stateDirectory(f.cwd), 'land.json')),
+      before,
+    );
+    save(file, { ...readState(file), cleanReview: false });
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.equal(result.releaseCommit, before.commit);
+    const landed = readState(join(stateDirectory(f.cwd), 'land.json'));
+    assert.equal(land(f.cwd, '41', false).stage, 'ready');
+    assert.deepEqual(
+      readState(join(stateDirectory(f.cwd), 'land.json')),
+      landed,
+    );
+    assert.equal(land(f.cwd, '41', true).stage, 'landed');
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('published page review requires both light and dark evidence', async () => {
+  const f = releaseFixture();
+  try {
+    git(f.cwd, ['fetch', 'origin', 'main']);
+    git(f.cwd, ['switch', '-c', 'page']);
+    mkdirSync(join(f.cwd, 'apps/server/src/routes'), { recursive: true });
+    writeFileSync(
+      join(f.cwd, 'apps/server/src/routes/published-document.ts'),
+      'export {};',
+    );
+    git(f.cwd, ['add', '.']);
+    git(f.cwd, ['commit', '-m', 'fix: page']);
+    assert.equal((await diffImpact(f.cwd, 'origin/main')).ui, true);
+    prove(f.cwd);
+    const options = {
+      title: 'fix: page',
+      summary: 'Read the page.',
+      compatibility: 'No operator change.',
+      releaseType: 'patch',
+      releaseNote: 'Read the page.',
+      execute: false,
+    };
+    await assert.rejects(
+      prepareReview(f.cwd, { ...options, screenshots: [] }),
+      /light and dark/,
+    );
+    await assert.rejects(
+      prepareReview(f.cwd, { ...options, screenshots: ['page-light.png'] }),
+      /light and dark/,
+    );
+    assert.equal(
+      (
+        await prepareReview(f.cwd, {
+          ...options,
+          screenshots: ['page-light.png', 'page-dark.png'],
+        })
+      ).impact.ui,
+      true,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('lifecycle parsing rejects unknown flags and wrong arity before a write', () => {
+  for (const args of [
+    ['prove', '--execute'],
+    ['prove', 'extra'],
+    ['land', '41', '--typo'],
+    ['land'],
+    ['land', '41', '42'],
+    ['review-status', '--execute'],
+    ['status', 'extra'],
+    ['review', '--release-type', 'patch', '--title-file'],
+  ])
+    assert.throws(() => parseLifecycle(args, root));
+  assert.equal(parseLifecycle(['land', '41', '--execute'], root).pr, '41');
+  assert.equal(parseLifecycle(['prove', '--image'], root).image, true);
+});
+
+await test('internal task routing preserves the requested phase and core paths', async () => {
+  const f = fixture();
+  try {
+    const owner = join(f.cwd, '.tooling/cloud');
+    mkdirSync(join(owner, 'tools'), { recursive: true });
+    writeFileSync(
+      join(owner, 'tools/task-prepare.mjs'),
+      `console.log(JSON.stringify({args:process.argv.slice(2)}));`,
+    );
+    const result = await prepare({
+      cwd: f.cwd,
+      task: 'internal-task',
+      phase: 'review',
+      paths: ['source.txt', 'tools/lifecycle.mjs'],
+      internal: true,
+      cloudRoot: owner,
+    });
+    assert.deepEqual(result.args, [
+      '--cloud-root',
+      owner,
+      '--core-root',
+      f.cwd,
+      '--internal',
+      '--task',
+      'internal-task',
+      '--phase',
+      'review',
+      '--core-path',
+      'source.txt',
+      '--core-path',
+      'tools/lifecycle.mjs',
+    ]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('release recovery does not treat a failed exact-target read as absence', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), releaseReadFailure: true });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }));
+    const writes = readState(file).writes;
+    assert.ok(Array.isArray(writes) && !writes.includes('release-create'));
+    assert.equal(
+      readState(join(stateDirectory(f.cwd), 'release.json')).stage,
+      'publish',
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('a saved prepare resumes on a later day without a new commit', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json'),
+      stateFile = join(stateDirectory(f.cwd), 'release.json');
+    const planned = await release({ cwd: f.cwd, execute: false });
+    save(stateFile, { ...planned, date: '2026-01-02' });
+    save(file, { ...readState(file), cleanReview: false });
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /completed review/,
+    );
+    const prepared = readState(stateFile).prepareCommit;
+    assert.ok(
+      readFileSync(join(f.cwd, 'CHANGELOG.md'), 'utf8').includes(
+        '0.2.0 - 2026-01-02',
+      ),
+    );
+    save(file, { ...readState(file), cleanReview: true });
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.equal(result.prepareCommit, prepared);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('a recorded exact main push cannot recover with an external merge commit', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), cleanReview: false });
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /completed review/,
+    );
+    interruptGit(f.cwd, 'push');
+    save(file, { ...readState(file), cleanReview: true });
+    await assert.rejects(release({ cwd: f.cwd, resume: true, execute: true }));
+    save(file, {
+      ...readState(file),
+      mergedCommit: git(f.cwd, ['rev-parse', 'HEAD^']),
+    });
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /merge result.*differs/,
+    );
+    assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
   } finally {
     f.cleanup();
   }

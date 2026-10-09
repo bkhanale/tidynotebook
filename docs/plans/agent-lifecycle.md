@@ -1,6 +1,6 @@
 # Agent lifecycle plan
 
-Status: active
+Status: complete
 
 The [project board](https://github.com/users/bkhanale/projects/2) owns the work.
 See [the design](../design/agent-lifecycle.md).

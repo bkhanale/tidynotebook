@@ -288,6 +288,9 @@ await test('semantic, storage, migration, and image changes load operator contex
     'packages/storage-server/migrations/0001.sql',
     'docker/healthcheck.mjs',
     'Dockerfile',
+    '.dockerignore',
+    'docker-compose.yml',
+    'package.json',
   ]) {
     assert.equal(operatorSurfacePath(path), true, path);
     const result = run({}, [path]);
@@ -305,4 +308,20 @@ await test('semantic, storage, migration, and image changes load operator contex
   assert.equal(impact.operator, true);
   assert.equal(impact.migration, true);
   assert.equal(impact.ui, true);
+});
+
+await test('published HTML and shared Markdown changes require screen evidence', () => {
+  for (const path of [
+    'apps/server/src/routes/published-document.ts',
+    'packages/markdown/src/render.ts',
+  ])
+    assert.equal(classifyImpact([path]).ui, true, path);
+});
+
+await test('image ignore, deployment, and package inputs carry image and operator impact', () => {
+  for (const path of ['.dockerignore', 'docker-compose.yml', 'package.json']) {
+    const impact = classifyImpact([path]);
+    assert.equal(impact.image, true, path);
+    assert.equal(impact.operator, true, path);
+  }
 });

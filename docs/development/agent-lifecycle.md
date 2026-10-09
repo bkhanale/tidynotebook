@@ -68,7 +68,9 @@ type and note, and light and dark screen evidence. Screenshots go through
 `tools/pr-screenshots.mjs`. Codex completion must belong to the final head.
 Every thread must be resolved. All observed checks must pass. A fast-forward
 push of the exact head refuses unseen main work. A rejected push never grants
-permission to bypass protection. The merged tree must match proved source.
+permission to bypass protection. The merged commit and tree must match proved source. A saved validated write
+attempt permits recovery of a successful push whose result was lost. A dry run
+keeps that attempt unchanged.
 
 ## Release and consumers
 
@@ -76,13 +78,16 @@ permission to bypass protection. The merged tree must match proved source.
 It derives notes and the version from merged PR metadata. The strongest release
 type wins. A mixed feature and fix takes the feature step. Before stability, a
 breaking change takes the next minor step. The command saves each stage.
-The prepare commit stays fixed even when later work lands on main.
+The prepare commit and date stay fixed even when later work lands on main.
+The command checks the required attestation CLI flags before a release write.
 
 `tools/release-check.mjs` proves the before and after chain. The after gate reads
 the cryptographic tag result, image job source, immutable version digest, image
-revision, and provenance. A later latest alias does not invalidate that release.
+revision, and provenance for the exact source commit and tag ref. A later latest alias does not invalidate that release.
 `tools/release-manifest.mjs` validates the public asset. The release publishes
-its manifest and operator contract. Migration and operator digests bind source.
+its manifest and operator contract. It reads both exact asset byte streams before the next write. The after gate
+compares the assets with the fixed source, image, operator, migration, and proof.
+Migration and operator digests bind source.
 The workflow attests the published image in `.github/workflows/release.yml`.
 A consumer reads the published digest. It never rebuilds a released artifact.
 

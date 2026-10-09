@@ -1,6 +1,6 @@
 # Agent lifecycle
 
-Status: active
+Status: complete
 
 A build request gives an agent a problem. It does not give permission to publish
 an image or change a live service. Today the agent must join many manual steps.
