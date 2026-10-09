@@ -102,6 +102,7 @@ export function parseManifest(value) {
     migration.requiredSchemaVersion < 0 ||
     !matches(migration.digest, /^sha256:[a-f0-9]{64}$/) ||
     !matches(root.repository, /^[\w.-]+\/[\w.-]+$/) ||
+    typeof root.version !== 'string' ||
     !matches(root.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/) ||
     root.tag !== `v${root.version}` ||
     !matches(source.commit, /^[a-f0-9]{40}$/) ||
@@ -282,6 +283,7 @@ export function publishedRelease(cwd, tag) {
   }
   if (release && release.tag_name !== tag)
     throw new Error('The published release tag differs.');
+  /** @type {Map<string, Buffer>} */
   const assets = new Map();
   if (release) {
     if (!Array.isArray(release.assets))
@@ -297,9 +299,11 @@ export function publishedRelease(cwd, tag) {
         typeof asset.name !== 'string' ||
         typeof asset.url !== 'string' ||
         assets.has(asset.name) ||
+        typeof asset.id !== 'number' ||
+        !Number.isSafeInteger(asset.id) ||
+        asset.id <= 0 ||
         asset.url !==
-          `https://api.github.com/repos/${repository}/releases/assets/${asset.id}` ||
-        typeof asset.id !== 'number'
+          `https://api.github.com/repos/${repository}/releases/assets/${asset.id}`
       )
         throw new Error('The release asset identity is invalid.');
       const bytes = execFileSync(

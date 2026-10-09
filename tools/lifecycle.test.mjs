@@ -13,6 +13,7 @@ import test from 'node:test';
 import {
   prove,
   reviewGate,
+  readPull,
   cleanReviewBody,
   land,
   prepareReview,
@@ -38,10 +39,11 @@ import {
   parseManifest,
   operatorDigests,
   migrationMetadata,
+  publishedRelease,
 } from './release-manifest.mjs';
-import { diffImpact } from './agent-context.mjs';
+import { coreReadingList, diffImpact } from './agent-context.mjs';
 import { prepare } from './task-prepare.mjs';
-import { root } from './workspace.mjs';
+import { record, root } from './workspace.mjs';
 import { main as releaseCheck } from './release-check.mjs';
 
 /** A real Git repository with isolated command executables, not a fake Git API. */
@@ -127,7 +129,7 @@ await test('proof runs real subprocesses, caches exact input, and rejects a chan
     assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), '1');
     const results = Array.isArray(first.gateResults) ? first.gateResults : [];
     assert.equal(results.length, 1);
-    const entry = results[0];
+    const entry = record(results[0]);
     assert.equal(typeof entry, 'object');
     writeFileSync(
       join(
@@ -573,7 +575,7 @@ const head=git('rev-parse','HEAD');let version='0.2.0';try{version=JSON.parse(re
 const store=()=>writeFileSync('.tooling/service.json',JSON.stringify(s));
 const json=v=>console.log(JSON.stringify(v));
 const write=kind=>{s.writes.push(kind);store();if(s.interrupt===kind){s.interrupt=null;store();process.exit(7);}};
-const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:s.mergedCommit??prepared}};};
+const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:s.prNumber??41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:s.mergedCommit??prepared}};};
 if(a[0]==='attestation'&&a.includes('--help')){if(s.unsupportedAttestation)process.exit(1);console.log(s.missingSourceFlag?'--repo --signer-workflow --source-ref':'--repo --signer-workflow --source-digest --source-ref');}
 else if(a[0]==='pr'&&a[1]==='list')json(s.created?[{number:41}]:[]);
 else if(a[0]==='pr'&&a[1]==='create'){s.created=true;s.prepared=head;write('pr-create');console.log(pr().url);}
@@ -1324,16 +1326,23 @@ await test('the historical after gate accepts a fresh checkout and a new runtime
     const assets = Array.isArray(service.assets) ? service.assets : [];
     save(serviceFile, {
       ...service,
-      assets: assets.map((asset) => {
+      assets: assets.map((value) => {
+        const asset = record(value);
         if (asset.name !== 'release-manifest.json') return asset;
-        const manifest = JSON.parse(asset.bytes);
+        assert.equal(typeof asset.bytes, 'string');
+        if (typeof asset.bytes !== 'string')
+          throw new Error('The fixture asset bytes are missing.');
+        const manifest = record(JSON.parse(asset.bytes));
         return {
           ...asset,
           bytes:
             JSON.stringify(
               {
                 ...manifest,
-                verification: { ...manifest.verification, runtime: 'v99.1.1' },
+                verification: {
+                  ...record(manifest.verification),
+                  runtime: 'v99.1.1',
+                },
               },
               null,
               2,
@@ -1342,6 +1351,187 @@ await test('the historical after gate accepts a fresh checkout and a new runtime
       }),
     });
     assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('private task context rejects a non-object response', async () => {
+  const f = fixture();
+  try {
+    const owner = join(f.cwd, '.tooling/cloud');
+    mkdirSync(join(owner, 'tools'), { recursive: true });
+    writeFileSync(
+      join(owner, 'tools/task-prepare.mjs'),
+      'console.log("null");',
+    );
+    await assert.rejects(
+      prepare({
+        cwd: f.cwd,
+        task: 'internal-task',
+        phase: 'review',
+        paths: [],
+        internal: true,
+        cloudRoot: owner,
+      }),
+      /private task context is invalid/,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('remote PR and release asset identities require positive numeric IDs', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), prNumber: '41' });
+    assert.throws(() => readPull(f.cwd, '41'), /PR number is invalid/);
+    save(file, { ...readState(file), prNumber: 41 });
+    await release({ cwd: f.cwd, execute: true });
+    const service = readState(file);
+    const assets = Array.isArray(service.assets)
+      ? service.assets.map(record)
+      : [];
+    save(file, {
+      ...service,
+      assets: assets.map((asset) =>
+        asset.name === 'operator-contract.json'
+          ? {
+              ...asset,
+              id: -1,
+              url: 'https://api.github.com/repos/example/core/releases/assets/-1',
+            }
+          : asset,
+      ),
+    });
+    assert.throws(
+      () => publishedRelease(f.cwd, 'v0.2.0'),
+      /asset identity is invalid/,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('saved release notes reject a non-string before prepare writes', async () => {
+  const f = releaseFixture();
+  try {
+    const plan = await release({ cwd: f.cwd });
+    save(join(stateDirectory(f.cwd), 'release.json'), {
+      ...plan,
+      changes: [{ type: 'minor', note: {} }],
+    });
+    const before = git(f.cwd, ['rev-parse', 'HEAD']);
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /saved release metadata is invalid/,
+    );
+    assert.equal(git(f.cwd, ['rev-parse', 'HEAD']), before);
+    const writes = readState(join(f.cwd, '.tooling/service.json')).writes;
+    assert.deepEqual(writes, []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('core task resume keeps saved scope and notes while refreshing code inputs', async () => {
+  const f = fixture();
+  try {
+    for (const [name] of coreReadingList) {
+      mkdirSync(join(f.cwd, name, '..'), { recursive: true });
+      writeFileSync(join(f.cwd, name), '# Fixture guide\n');
+    }
+    git(f.cwd, ['add', '.']);
+    git(f.cwd, ['commit', '-m', 'docs: fixture guides']);
+    const first = await prepare({
+      cwd: f.cwd,
+      task: 'public-task',
+      phase: 'review',
+      paths: ['source.txt'],
+    });
+    const file = join(stateDirectory(f.cwd), 'tasks/public-task/context.json');
+    save(file, {
+      ...first,
+      userContext: 'Approved fix only.',
+      dependencies: ['issue-301'],
+      remaining: ['Read current review.'],
+    });
+    writeFileSync(join(f.cwd, 'source.txt'), 'next source');
+    git(f.cwd, ['add', 'source.txt']);
+    git(f.cwd, ['commit', '-m', 'fix: next source']);
+    const resumed = record(
+      JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            join(root, 'tools/task-prepare.mjs'),
+            '--core-root',
+            f.cwd,
+            '--task',
+            'public-task',
+          ],
+          { cwd: f.cwd, encoding: 'utf8' },
+        ),
+      ),
+    );
+    assert.equal(resumed.phase, 'review');
+    assert.deepEqual(resumed.paths, ['source.txt']);
+    assert.equal(resumed.userContext, 'Approved fix only.');
+    assert.deepEqual(resumed.dependencies, ['issue-301']);
+    assert.deepEqual(resumed.remaining, ['Read current review.']);
+    assert.notEqual(resumed.commit, first.commit);
+    assert.equal(resumed.commit, git(f.cwd, ['rev-parse', 'HEAD']));
+    const explicit = await prepare({
+      cwd: f.cwd,
+      task: 'public-task',
+      phase: 'build',
+      paths: [],
+    });
+    assert.equal(explicit.phase, 'build');
+    assert.deepEqual(explicit.paths, []);
+    assert.equal(explicit.userContext, 'Approved fix only.');
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('internal task resume leaves omitted phase and paths to the private owner', async () => {
+  const f = fixture();
+  try {
+    const owner = join(f.cwd, '.tooling/cloud');
+    mkdirSync(join(owner, 'tools'), { recursive: true });
+    writeFileSync(
+      join(owner, 'tools/task-prepare.mjs'),
+      'console.log(JSON.stringify({args:process.argv.slice(2)}));',
+    );
+    const resumed = record(
+      JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            join(root, 'tools/task-prepare.mjs'),
+            '--core-root',
+            f.cwd,
+            '--task',
+            'internal-task',
+            '--internal',
+            '--cloud-root',
+            owner,
+          ],
+          { cwd: f.cwd, encoding: 'utf8' },
+        ),
+      ),
+    );
+    assert.deepEqual(resumed.args, [
+      '--cloud-root',
+      owner,
+      '--core-root',
+      f.cwd,
+      '--internal',
+      '--task',
+      'internal-task',
+    ]);
   } finally {
     f.cleanup();
   }

@@ -7,6 +7,7 @@
  * pool open their pool there, so this file drives each of them too.
  */
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import pg from 'pg';
 import { createAuthPool, loadServerConfig } from '@notesapp/server';
@@ -76,7 +77,6 @@ await test('a pool keeps working after the database ends an idle connection', as
 
 await test('every pool of the server survives the end of its idle connections', async (context) => {
   const closed: Promise<void>[] = [];
-  const emit = pg.Pool.prototype.emit;
   // Observe the real clients of all three stores without replacing a query.
   context.mock.method(
     pg.Pool.prototype,
@@ -85,7 +85,7 @@ await test('every pool of the server survives the end of its idle connections', 
       const client = values[0];
       if (event === 'connect' && client instanceof pg.Client)
         closed.push(closeOf(client));
-      return emit.call(this, event, ...values);
+      return EventEmitter.prototype.emit.call(this, event, ...values);
     },
   );
   const identity = openIdentityStore(database.runtimeUrl, { poolSize: 2 });

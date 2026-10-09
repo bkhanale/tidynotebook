@@ -46,6 +46,10 @@ The cleanup skill remains owner-only. No unit invokes it.
 ## Context and ownership
 
 `tools/task-prepare.mjs` saves the public context and the current actual diff.
+A repeated task keeps its saved phase and paths when the caller omits them.
+It keeps user context, dependencies, and remaining work. The explicit context
+command refreshes the current commit and guide inputs. Internal resume leaves
+omitted phase and paths to the private owner. This context grants no new permission.
 `tools/agent-context.mjs` covers wire, domain, storage, migration, configuration,
 and image effects. Its conservative impact result means read the operator guide
 and state the consumer effect. It does not claim every flagged change breaks it.

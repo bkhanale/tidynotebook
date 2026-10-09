@@ -13,6 +13,10 @@ the records, the board row, and the proof. Stop on a real rule conflict.
 pnpm task:prepare --task task-name --phase build --path tools/lifecycle.mjs
 ```
 
+To resume, give the saved task name. Omit phase and paths to keep their saved
+values. Read the saved user context, dependencies, and remaining work. The
+command refreshes the current code and guides. It gives no new permission.
+
 Use `--internal` only for an explicitly internal task. Set
 `TIDYNOTEBOOK_CLOUD_DIR` to its private checkout. Missing private context blocks
 internal work. Standalone core work needs no private checkout.

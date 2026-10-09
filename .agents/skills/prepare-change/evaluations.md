@@ -14,6 +14,16 @@ Request: Add a rename control in the web application.
 - Selects build-change when preparation is complete. It gives no new write
   permission and does not start a release or live deploy.
 
+## A saved task
+
+Request: Resume a saved task without a new phase or path list.
+
+- Keeps the saved phase, paths, user context, dependencies, and remaining work.
+- Refreshes the current commit and public guides. It does not reuse old proof.
+- Uses a new phase or path list only when the caller supplies it.
+- Leaves omitted internal phase and paths to the private owner.
+- Gives no new permission from the saved context.
+
 ## A report with a stale path
 
 Request: Fix the save defect at the path and line in an issue.

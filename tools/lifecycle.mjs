@@ -36,7 +36,7 @@ export function prove(cwd, gates = ['verify']) {
         ? previous.gates.filter((value) => typeof value === 'string')
         : [];
     const gateResults = Array.isArray(previous.gateResults)
-      ? [...previous.gateResults]
+      ? previous.gateResults.map(record)
       : [];
     for (const gate of gates) {
       if (!['verify', 'test:image'].includes(gate))
@@ -219,6 +219,12 @@ export function readPull(cwd, pr) {
       ]),
     ),
   );
+  if (
+    typeof view.number !== 'number' ||
+    !Number.isSafeInteger(view.number) ||
+    view.number <= 0
+  )
+    throw new Error('The PR number is invalid.');
   const repository = githubRepository(
     git(cwd, ['config', '--get', 'remote.origin.url']),
   );
@@ -244,12 +250,14 @@ export function readPull(cwd, pr) {
   );
   if (record(connection.pageInfo).hasNextPage === true)
     throw new Error('The PR has more review threads than this gate can read.');
+  /** @type {unknown} */
   const reviews = JSON.parse(
     command(cwd, 'gh', [
       'api',
       `repos/${repository}/pulls/${view.number}/reviews?per_page=100`,
     ]),
   );
+  /** @type {unknown} */
   const comments = JSON.parse(
     command(cwd, 'gh', [
       'api',
@@ -313,6 +321,7 @@ export async function prepareReview(cwd, options) {
   const impact = await diffImpact(cwd, 'origin/main');
   let screenshots = 'No screen changes.';
   if (impact.ui) {
+    /** @type {Map<string, Set<string>>} */
     const pairs = new Map();
     for (const file of options.screenshots) {
       const item = screenshotScheme(basename(file));
@@ -349,6 +358,7 @@ export async function prepareReview(cwd, options) {
       '--json',
       'number',
     ]);
+    /** @type {unknown} */
     const list = JSON.parse(existing);
     if (!Array.isArray(list)) throw new Error('The PR list is invalid.');
     const first = record(list[0]);
@@ -380,10 +390,17 @@ export async function prepareReview(cwd, options) {
         command(cwd, 'gh', ['pr', 'view', '--json', 'number,url,headRefOid']),
       ),
     );
-    if (pull.headRefOid !== input.commit || typeof pull.url !== 'string')
+    if (
+      pull.headRefOid !== input.commit ||
+      typeof pull.url !== 'string' ||
+      typeof pull.number !== 'number' ||
+      !Number.isSafeInteger(pull.number) ||
+      pull.number <= 0
+    )
       throw new Error('The published PR head differs.');
     prUrl = pull.url;
     const repository = githubRepository(input.origin);
+    /** @type {unknown} */
     const comments = JSON.parse(
       command(cwd, 'gh', [
         'api',

@@ -62,6 +62,16 @@ export function releaseChange(body) {
     throw new Error('The merged PR needs reviewed release metadata.');
   return { type, note };
 }
+
+/** @param {unknown} value */
+function savedReleaseChange(value) {
+  const change = record(value);
+  if (typeof change.type !== 'string' || typeof change.note !== 'string')
+    throw new Error('The saved release metadata is invalid.');
+  return releaseChange(
+    `Release-Type: ${change.type}\nRelease-Note: ${change.note}`,
+  );
+}
 /** @param {string} cwd @param {string} previous */
 export function changesSince(cwd, previous) {
   const repository = githubRepository(
@@ -73,6 +83,7 @@ export function changesSince(cwd, previous) {
   const seen = new Set();
   const changes = [];
   for (const commit of commits) {
+    /** @type {unknown} */
     const result = JSON.parse(
       command(cwd, 'gh', [
         'api',
@@ -209,11 +220,7 @@ export async function release(options) {
       const source = String(state.sourceCommit),
         branch = `release/${version}`;
       const changes = Array.isArray(state.changes)
-        ? state.changes.map((value) =>
-            releaseChange(
-              `Release-Type: ${record(value).type}\nRelease-Note: ${record(value).note}`,
-            ),
-          )
+        ? state.changes.map((value) => savedReleaseChange(value))
         : [];
       const originalChangelog =
         git(cwd, ['show', `${source}:CHANGELOG.md`]) + '\n';
@@ -342,7 +349,8 @@ export async function release(options) {
       git(cwd, ['switch', '--detach', commit]);
       advance('landed', { releaseCommit: commit });
     }
-    if (snapshot(cwd).commit !== state.releaseCommit)
+    const releaseCommit = snapshot(cwd).commit;
+    if (releaseCommit !== state.releaseCommit)
       throw new Error('The release source changes.');
     const tag = `v${version}`;
     if (state.stage === 'landed') {
@@ -385,8 +393,7 @@ export async function release(options) {
           .split('\n')
           .some(
             (line) =>
-              line.startsWith(`${state.releaseCommit}\t`) &&
-              line.endsWith('^{}'),
+              line.startsWith(releaseCommit + '\t') && line.endsWith('^{}'),
           )
       )
         throw new Error('The remote tag identity differs.');
@@ -394,8 +401,9 @@ export async function release(options) {
     }
     if (state.stage === 'tag-write') {
       git(cwd, ['verify-tag', tag]);
+      const tagObject = git(cwd, ['rev-parse', tag]);
       if (
-        git(cwd, ['rev-parse', tag]) !== state.tagObject ||
+        tagObject !== state.tagObject ||
         git(cwd, ['rev-parse', `${tag}^{commit}`]) !== state.releaseCommit
       )
         throw new Error('The fixed local tag identity changes.');
@@ -419,15 +427,14 @@ export async function release(options) {
         });
         git(cwd, ['push', 'origin', `refs/tags/${tag}`]);
       } else if (
-        !remote.split('\n').includes(`${state.tagObject}\trefs/tags/${tag}`) ||
-        !remote
-          .split('\n')
-          .includes(`${state.releaseCommit}\trefs/tags/${tag}^{}`)
+        !remote.split('\n').includes(`${tagObject}\trefs/tags/${tag}`) ||
+        !remote.split('\n').includes(`${releaseCommit}\trefs/tags/${tag}^{}`)
       )
         throw new Error('The remote tag object or source differs.');
       advance('image', { uncertain: false });
     }
     if (state.stage === 'image') {
+      /** @type {unknown} */
       const runs = JSON.parse(
         command(cwd, 'gh', [
           'run',
@@ -458,12 +465,14 @@ export async function release(options) {
       const image = /^\s*IMAGE:\s*(\S+)\s*$/m.exec(workflow)?.[1];
       if (!image) throw new Error('The image path is missing.');
       command(cwd, 'docker', ['pull', `${image}:${version}`]);
+      /** @type {unknown} */
       const inspection = JSON.parse(
         command(cwd, 'docker', ['image', 'inspect', `${image}:${version}`]),
       );
       const inspected = Array.isArray(inspection) ? record(inspection[0]) : {};
       const labels = record(record(inspected.Config).Labels);
       const digests = inspected.RepoDigests;
+      /** @type {unknown} */
       const reference = Array.isArray(digests)
         ? digests.find(
             (value) =>
@@ -579,8 +588,9 @@ export async function release(options) {
         }
         for (const [name, file] of Object.entries(files)) {
           if (observed.assets.has(name)) continue;
-          const attempts = record(state.assetAttempts),
-            count = typeof attempts[name] === 'number' ? attempts[name] : 0;
+          const attempts = record(state.assetAttempts);
+          const savedCount = attempts[name];
+          const count = typeof savedCount === 'number' ? savedCount : 0;
           if (count >= 2)
             throw new Error(
               'The asset write remains absent after bounded recovery. Inspect publication.',
@@ -608,6 +618,7 @@ export async function release(options) {
       advance('milestone', { uncertain: false });
     }
     if (state.stage === 'milestone') {
+      /** @type {unknown} */
       const milestones = JSON.parse(
         command(cwd, 'gh', [
           'api',
@@ -645,15 +656,19 @@ export async function release(options) {
         throw new Error(
           'The release milestone has open work. Close or move it, then resume.',
         );
-      if (milestone && milestone.state !== 'closed')
+      if (milestone && milestone.state !== 'closed') {
+        const number = milestone.number;
+        if (typeof number !== 'number')
+          throw new Error('The milestone identity is invalid.');
         command(cwd, 'gh', [
           'api',
           '--method',
           'PATCH',
-          `repos/{owner}/{repo}/milestones/${milestone.number}`,
+          `repos/{owner}/{repo}/milestones/${number}`,
           '-f',
           'state=closed',
         ]);
+      }
       advance('after');
     }
     if (state.stage === 'after') {
