@@ -8,7 +8,7 @@ release chain and recovery. tools/release-check.test.mjs checks gate refusals.
 
 Request: Release the current merged changes, with an optional version override.
 
-- Checks CLI attestation support before any prepare write.
+- Publishes without a GitHub attestation capability.
 - Reads reviewed merged PR release metadata. Uses the strongest release type
   and the pre-stable policy. Rejects an override below that step.
 - Runs the release command. Keeps the saved source, date, and prepare commit
@@ -16,7 +16,7 @@ Request: Release the current merged changes, with an optional version override.
 - Proves and reviews the prepare PR. Lands its exact commit through the normal
   review gate. A merged PR alone gives no proof of a checked landing attempt.
 - Proves the fixed source and image before it signs and pushes the fixed tag.
-- Binds provenance to the repository, workflow, source commit, and tag ref.
+- Publishes the tested image ID and binds the registry source to the signed tag.
 - Publishes notes from the changelog and both exact release assets. Reads them
   back before the milestone write. Completes only after the after gate passes.
 
@@ -25,7 +25,7 @@ Request: Release the current merged changes, with an optional version override.
 Request: Resume the saved release after review or an interrupted external write.
 
 - Reads status and the actual target before it sends another write.
-- Waits for review or image completion with a bound. Keeps current proof.
+- Waits for review completion. Keeps current proof.
 - Reads a successful exact main push through its saved validated attempt.
 - Accepts an uncertain tag push only when the remote tag object and source match.
 - Adds only a missing exact asset after a read. A zero-exit partial upload stays
@@ -38,7 +38,7 @@ Request: Repair a release with a changed tag, image, or prepare merge.
 
 - Stops on a changed tag object, changed source, external squash, or changed
   repository. Never moves, deletes, or force pushes a published tag.
-- Rejects a new registry digest with the same source label and provenance from
+- Rejects a new registry digest with the same source label and identity from
   the same repository and workflow for a different source or ref.
 - Rejects a missing or changed manifest or operator contract in the after gate.
 - Historical after checks work in a fresh checkout. They bind original proof
@@ -50,7 +50,7 @@ Request: Repair a release with a changed tag, image, or prepare merge.
 
 Request: Finish a release whose image fails or whose milestone has open work.
 
-- Keeps a failed published tag fixed and publishes no release for its image.
+- Keeps a published tag fixed. Resumes an absent image write after a registry read.
 - Fixes the cause through the normal change units. Uses the next patch for the
   repaired release.
 - Stops on open milestone work. Reports the rows that need an owner decision

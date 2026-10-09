@@ -2,7 +2,7 @@
  * The gate of one release.
  *
  * A release is a chain: the prepare commit, the signed tag, the pushed tag,
- * the image that the tag builds, the GitHub release, and the milestone that
+ * the tested image, the GitHub release, and the milestone that
  * the release closes. Every link is a place where a step is forgotten, and a
  * forgotten step is silent. This check reads the real state of each link and
  * names the one that is missing.
@@ -36,7 +36,6 @@ import {
 } from './lifecycle-state.mjs';
 
 import {
-  attestationArguments,
   publishedRelease,
   generateOperatorContract,
   parseManifest,
@@ -339,13 +338,8 @@ export function buildImage(directory, revision = 'HEAD') {
  *   localTagSha: string;
  *   remoteTagSha: string;
  *   mainHoldsTagCommit: boolean;
- *   runStatus: string;
- *   runConclusion: string;
- *   runUrl: string;
- *   runSha: string;
  *   imageDigest: string;
  *   imageRevision: string;
- *   imageProvenance: boolean;
  *   assetsError: string;
  *   releaseName: string;
  *   releaseTag: string;
@@ -423,39 +417,12 @@ export function afterChecks(state) {
         ),
   );
   checks.push(
-    state.runStatus === ''
-      ? failed(
-          'the image build',
-          `no Release run for ${tag}. The tag push starts it.`,
-        )
-      : state.runStatus !== 'completed'
-        ? failed(
-            'the image build',
-            `the run is ${state.runStatus}. ${state.runUrl}`,
-          )
-        : state.runConclusion === 'success'
-          ? ok('the image build', state.runUrl)
-          : failed(
-              'the image build',
-              `the run ended in ${state.runConclusion}. ${state.runUrl}`,
-            ),
-  );
-  checks.push(
-    state.runSha === state.localTagSha
-      ? ok('the image source', state.runSha)
-      : failed(
-          'the image source',
-          'The image job does not build the signed tag commit.',
-        ),
-  );
-  checks.push(
     /^sha256:[a-f0-9]{64}$/.test(state.imageDigest) &&
-      state.imageRevision === state.localTagSha &&
-      state.imageProvenance
+      state.imageRevision === state.localTagSha
       ? ok('the image identity', state.imageDigest)
       : failed(
           'the image identity',
-          'The image digest, source, or provenance cannot be proved.',
+          'The image digest or source cannot be proved.',
         ),
   );
   checks.push(
@@ -469,16 +436,11 @@ export function afterChecks(state) {
           state.assetsError || 'The release asset proof is missing.',
         ),
   );
-  // A tag with no image gets no release. Its next patch carries the release.
-  const noImage =
-    state.runStatus === 'completed' && state.runConclusion !== 'success';
   if (state.releaseTag === '')
     checks.push(
       failed(
         'the GitHub release',
-        noImage
-          ? `no release for ${tag}, and it gets none: its image did not build. Release the next patch.`
-          : `no release for ${tag}. A pushed tag does not publish one. Create it.`,
+        `no release for ${tag}. A pushed tag does not publish one. Create it.`,
       ),
     );
   else {
@@ -524,7 +486,7 @@ export function afterChecks(state) {
     checks.push(
       failed(
         'the image tags',
-        `GitHub names no account "${state.imageOwner}". Check IMAGE in .github/workflows/release.yml.`,
+        `GitHub names no account "${state.imageOwner}". Check the repository origin.`,
       ),
     );
   else if (state.imageTags === null)
@@ -716,25 +678,6 @@ async function readAfter(version, directory) {
   );
   const [releaseName = '', releaseTag = '', draft = '', prerelease = ''] =
     release.status === 0 ? release.out.split('\t') : [];
-  const runLine = run(
-    'gh',
-    [
-      'run',
-      'list',
-      '--workflow=release.yml',
-      '--branch',
-      tag,
-      '--limit',
-      '1',
-      '--json',
-      'status,conclusion,url,headSha',
-      '--jq',
-      '.[0] | [.status, .conclusion, .url, .headSha] | @tsv',
-    ],
-    directory,
-  );
-  const [runStatus = '', runConclusion = '', runUrl = '', runSha = ''] =
-    runLine.out.split('\t');
   const milestone = run(
     'gh',
     [
@@ -746,7 +689,10 @@ async function readAfter(version, directory) {
     directory,
   );
   const [milestoneState = '', openIssues = '0'] = milestone.out.split('\t');
-  const imageName = imagePackage(workflow);
+  const imageName = imagePackage(
+    workflow ||
+      `IMAGE: ghcr.io/${githubRepository(git(directory, ['config', '--get', 'remote.origin.url'])).toLowerCase()}`,
+  );
   const ownerType = run(
     'gh',
     ['api', `users/${imageName.owner}`, '--jq', '.type'],
@@ -799,18 +745,6 @@ async function readAfter(version, directory) {
   const repository = githubRepository(
     git(directory, ['config', '--get', 'remote.origin.url']),
   );
-  const imageProvenance =
-    imageDigest !== '' &&
-    run(
-      'gh',
-      attestationArguments(
-        repository,
-        localTagSha,
-        tag,
-        `${imageReference}@${imageDigest}`,
-      ),
-      directory,
-    ).status === 0;
   let assetsError = '';
   try {
     const observed = publishedRelease(directory, tag);
@@ -891,7 +825,6 @@ async function readAfter(version, directory) {
     changelog,
     imageDigest,
     imageRevision,
-    imageProvenance,
     assetsError,
     tagKind: run('git', ['cat-file', '-t', tag], directory).out,
     tagSigned: run('git', ['verify-tag', tag], directory).status === 0,
@@ -913,10 +846,6 @@ async function readAfter(version, directory) {
         ['merge-base', '--is-ancestor', localTagSha, 'FETCH_HEAD'],
         directory,
       ).status === 0,
-    runStatus,
-    runSha,
-    runConclusion,
-    runUrl,
     releaseName,
     releaseTag,
     releaseDraft: draft === 'true',

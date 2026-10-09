@@ -1,5 +1,6 @@
 /** Explicit, locked, resumable core release. Remote writes are read before retry. */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { join } from 'node:path';
 import {
@@ -24,8 +25,6 @@ import {
 import {
   createReleaseManifest,
   generateOperatorContract,
-  attestationArguments,
-  releasePreflight,
   publishedRelease,
   checkReleaseAssets,
 } from './release-manifest.mjs';
@@ -156,7 +155,6 @@ export async function release(options) {
       throw new Error(
         'An unfinished release exists. Read its status, then resume it.',
       );
-    if (options.execute) releasePreflight(cwd);
     if (!options.resume) {
       const input = snapshot(cwd);
       command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main', '--tags']);
@@ -434,40 +432,43 @@ export async function release(options) {
       advance('image', { uncertain: false });
     }
     if (state.stage === 'image') {
-      /** @type {unknown} */
-      const runs = JSON.parse(
-        command(cwd, 'gh', [
-          'run',
-          'list',
-          '--workflow',
-          'release.yml',
-          '--branch',
-          tag,
-          '--json',
-          'databaseId,headSha,status,conclusion',
-        ]),
-      );
-      const run = Array.isArray(runs)
-        ? runs.map(record).find((run) => run.headSha === state.releaseCommit)
-        : undefined;
-      if (!run || run.status !== 'completed')
-        throw new Error(
-          'The release image is pending. Resume when the image job completes.',
-        );
-      if (run.conclusion !== 'success')
-        throw new Error(
-          'The image job fails. The tag stays fixed. Release the next patch.',
-        );
-      const workflow = readFileSync(
-        join(cwd, '.github/workflows/release.yml'),
-        'utf8',
-      );
-      const image = /^\s*IMAGE:\s*(\S+)\s*$/m.exec(workflow)?.[1];
-      if (!image) throw new Error('The image path is missing.');
-      command(cwd, 'docker', ['pull', `${image}:${version}`]);
+      const repository = githubRepository(String(state.origin));
+      const image = `ghcr.io/${repository.toLowerCase()}`;
+      const target = `${image}:${version}`;
+      const proofImage = record(record(state.proof).image);
+      if (
+        typeof proofImage.id !== 'string' ||
+        proofImage.commit !== state.releaseCommit
+      )
+        throw new Error('The tested image proof is missing.');
+      // A failed registry read is not evidence that an immutable tag is absent.
+      const pull = spawnSync('docker', ['pull', target], {
+        cwd,
+        encoding: 'utf8',
+      });
+      if (pull.status !== 0) {
+        if (
+          !/manifest unknown|manifest.*not found|not found.*manifest/i.test(
+            pull.stderr ?? '',
+          )
+        )
+          throw new Error(
+            'The registry image cannot be read. Check registry access.',
+          );
+        const attempts =
+          typeof state.imageAttempts === 'number' ? state.imageAttempts : 0;
+        if (attempts >= 2)
+          throw new Error(
+            'The image write remains absent after bounded recovery.',
+          );
+        command(cwd, 'docker', ['tag', proofImage.id, target]);
+        advance('image', { imageAttempts: attempts + 1, uncertain: true });
+        command(cwd, 'docker', ['push', target]);
+        command(cwd, 'docker', ['pull', target]);
+      }
       /** @type {unknown} */
       const inspection = JSON.parse(
-        command(cwd, 'docker', ['image', 'inspect', `${image}:${version}`]),
+        command(cwd, 'docker', ['image', 'inspect', target]),
       );
       const inspected = Array.isArray(inspection) ? record(inspection[0]) : {};
       const labels = record(record(inspected.Config).Labels);
@@ -480,21 +481,55 @@ export async function release(options) {
           )
         : undefined;
       if (
+        inspected.Id !== proofImage.id ||
         labels['org.opencontainers.image.revision'] !== state.releaseCommit ||
         typeof reference !== 'string'
       )
-        throw new Error('The published image source cannot be proved.');
-      const repository = githubRepository(String(state.origin));
-      command(
-        cwd,
-        'gh',
-        attestationArguments(
-          repository,
-          String(state.releaseCommit),
-          tag,
-          reference,
-        ),
-      );
+        throw new Error('The published image differs from the tested image.');
+      // The latest alias can move. The fixed version tag cannot move.
+      if (state.latestPublished !== true) {
+        const latest = `${image}:latest`;
+        const observed = spawnSync('docker', ['pull', latest], {
+          cwd,
+          encoding: 'utf8',
+        });
+        if (
+          observed.status !== 0 &&
+          !/manifest unknown|manifest.*not found|not found.*manifest/i.test(
+            observed.stderr ?? '',
+          )
+        )
+          throw new Error(
+            'The latest image cannot be read. Check registry access.',
+          );
+        const currentId =
+          observed.status === 0
+            ? command(cwd, 'docker', [
+                'image',
+                'inspect',
+                '--format',
+                '{{.Id}}',
+                latest,
+              ])
+            : '';
+        if (currentId !== proofImage.id) {
+          command(cwd, 'docker', ['tag', proofImage.id, latest]);
+          advance('image', { uncertain: true });
+          command(cwd, 'docker', ['push', latest]);
+          command(cwd, 'docker', ['pull', latest]);
+          if (
+            command(cwd, 'docker', [
+              'image',
+              'inspect',
+              '--format',
+              '{{.Id}}',
+              latest,
+            ]) !== proofImage.id
+          )
+            throw new Error('The latest alias differs from the tested image.');
+        }
+        advance('image', { latestPublished: true, uncertain: false });
+      }
       const proof = record(state.proof);
       const contractFile = join(
         directory,
@@ -528,7 +563,7 @@ export async function release(options) {
           'release-manifest.json': digest(readFileSync(manifestFile)),
           'operator-contract.json': digest(readFileSync(contractFile)),
         },
-        run: run.databaseId,
+        uncertain: false,
       });
     }
     if (state.stage === 'publish') {

@@ -135,43 +135,6 @@ export function parseManifest(value) {
   };
 }
 
-/** The CLI enforces source identity from the signed certificate.
- * @param {string} repository @param {string} source @param {string} tag @param {string} image
- */
-export function attestationArguments(repository, source, tag, image) {
-  return [
-    'attestation',
-    'verify',
-    `oci://${image}`,
-    '--repo',
-    repository,
-    '--signer-workflow',
-    `${repository}/.github/workflows/release.yml`,
-    '--source-digest',
-    source,
-    '--source-ref',
-    `refs/tags/${tag}`,
-  ];
-}
-/** Refuse unsupported verification before any release write. @param {string} cwd */
-export function releasePreflight(cwd) {
-  let help;
-  try {
-    help = command(cwd, 'gh', ['attestation', 'verify', '--help']);
-  } catch {
-    throw new Error(
-      'GitHub CLI needs attestation verify support before release.',
-    );
-  }
-  if (
-    !['--repo', '--signer-workflow', '--source-digest', '--source-ref'].every(
-      (flag) => help.includes(flag),
-    )
-  )
-    throw new Error(
-      'GitHub CLI needs all attestation source policy flags before release.',
-    );
-}
 /** Bundle the operator contract from the fixed source. @param {string} cwd @param {string} file @param {string} [sourceDirectory] */
 export function generateOperatorContract(cwd, file, sourceDirectory = cwd) {
   command(

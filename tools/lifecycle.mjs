@@ -67,6 +67,8 @@ export function prove(cwd, gates = ['verify']) {
               image,
               '--label',
               `org.opencontainers.image.revision=${input.commit}`,
+              '--label',
+              `org.opencontainers.image.source=https://github.com/${githubRepository(input.origin)}`,
               context,
             ],
             { cwd, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },

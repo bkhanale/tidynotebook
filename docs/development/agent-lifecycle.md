@@ -2,7 +2,8 @@
 
 This page owns phase routing, saved proof, and the public lifecycle boundary.
 
-[Record 0212](../decisions/0212-agent-lifecycle-proof.md) sets the choice.
+[Record 0212](../decisions/0212-agent-lifecycle-proof.md) sets the lifecycle.
+[Record 0213](../decisions/0213-build-and-publish-one-release-image.md) sets image publication.
 Commands perform repeated operations. Skills make the choices of a unit.
 Each skill has one start state and one end state. The catalog below routes work.
 It does not repeat the instructions of a unit.
@@ -83,23 +84,24 @@ It derives notes and the version from merged PR metadata. The strongest release
 type wins. A mixed feature and fix takes the feature step. Before stability, a
 breaking change takes the next minor step. The command saves each stage.
 The prepare commit and date stay fixed even when later work lands on main.
-The command checks the required attestation CLI flags before a release write.
+The command publishes the exact local image that passes the image gate.
+It reads the registry before a retry and refuses a different image.
 
 `tools/release-check.mjs` proves the before and after chain. The after gate reads
-the cryptographic tag result, image job source, immutable version digest, image
-revision, and provenance for the exact source commit and tag ref. A later latest alias does not invalidate that release.
+the cryptographic tag result, immutable version digest, and image
+revision for the exact source commit. A later latest alias does not invalidate that release.
 `tools/release-manifest.mjs` validates the public asset. The release publishes
 its manifest and operator contract. It reads both exact asset byte streams before the next write. The after gate
 compares the assets with the fixed source, image, operator, migration, and proof.
 Migration and operator digests bind source. Historical checks read the tagged
 Git source and original public proof metadata. They need no current machine
 receipt. Saved publication digests also hold the original asset bytes.
-The workflow attests the published image in `.github/workflows/release.yml`.
+GitHub attestation is not a release requirement.
 A consumer reads the published digest. It never rebuilds a released artifact.
 
 A legacy release has no new manifest. A consumer keeps its existing pin under
 its existing verification policy. Moving to this lifecycle requires a new
-release with the manifest and provenance. A missing legacy asset is not filled
+release with the manifest and exact published image. A missing legacy asset is not filled
 with invented proof. The lifecycle change takes a feature release classification.
 
 ## Host procedures

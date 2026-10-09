@@ -809,14 +809,14 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
   writeFileSync(
     join(cwd, '.tooling/bin/docker'),
     `#!/usr/bin/env node
-import {readFileSync,appendFileSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
 if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');}
-else if(a[0]==='pull'){}
+else if(a[0]==='pull'){if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
 else if(a.some(v=>v.includes('org.opencontainers.image.revision')))console.log(s.prepared);
-else if(a[0]==='image')console.log(JSON.stringify([{RepoDigests:['ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64))],Config:{Labels:{'org.opencontainers.image.revision':s.prepared}}}]));
+else if(a[0]==='image')console.log(JSON.stringify([{Id:s.publishedId??'sha256:'+'b'.repeat(64),RepoDigests:['ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64))],Config:{Labels:{'org.opencontainers.image.revision':s.prepared}}}]));
 else console.log('fixture-runtime');
 `,
     { mode: 0o700 },
@@ -1174,47 +1174,66 @@ await test('resume refuses a differing release asset before the milestone write'
   }
 });
 
-await test('same repository and workflow provenance must hold the fixed source and tag ref', async () => {
-  for (const mismatch of [
-    { provenanceSource: 'f'.repeat(40) },
-    { provenanceRef: 'refs/heads/main' },
-  ]) {
-    const f = releaseFixture();
-    try {
-      const file = join(f.cwd, '.tooling/service.json');
-      save(file, { ...readState(file), ...mismatch });
-      await assert.rejects(release({ cwd: f.cwd, execute: true }));
-      assert.equal(
-        readState(join(stateDirectory(f.cwd), 'release.json')).stage,
-        'image',
-      );
-      assert.equal(readState(file).release, undefined);
-    } finally {
-      f.cleanup();
-    }
+await test('release needs no attestation support and publishes the tested image once', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, {
+      ...readState(file),
+      unsupportedAttestation: true,
+      badProvenance: true,
+    });
+    const result = await release({ cwd: f.cwd, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.deepEqual(readState(file).imageWrites, [
+      'ghcr.io/example/core:0.2.0',
+      'ghcr.io/example/core:latest',
+    ]);
+    assert.equal(
+      readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
+      'build\n',
+    );
+    await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.deepEqual(readState(file).imageWrites, [
+      'ghcr.io/example/core:0.2.0',
+      'ghcr.io/example/core:latest',
+    ]);
+  } finally {
+    f.cleanup();
   }
 });
 
-await test('missing attestation command or source policy stops before prepare writes', async () => {
-  for (const capability of [
-    { unsupportedAttestation: true },
-    { missingSourceFlag: true },
-  ]) {
-    const f = releaseFixture();
-    try {
-      const head = git(f.cwd, ['rev-parse', 'HEAD']),
-        file = join(f.cwd, '.tooling/service.json');
-      save(file, { ...readState(file), ...capability });
-      await assert.rejects(
-        release({ cwd: f.cwd, execute: true }),
-        /attestation/,
-      );
-      assert.equal(git(f.cwd, ['rev-parse', 'HEAD']), head);
-      assert.deepEqual(readState(file).writes, []);
-      assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
-    } finally {
-      f.cleanup();
-    }
+await test('an uncertain image push resumes from the registry without another push', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), interruptImagePush: true });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }));
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.deepEqual(readState(file).imageWrites, [
+      'ghcr.io/example/core:0.2.0',
+      'ghcr.io/example/core:latest',
+    ]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('a different registry image is never replaced with the tested image', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, {
+      ...readState(file),
+      publishedImage: true,
+      publishedId: 'sha256:' + 'd'.repeat(64),
+    });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }), /image/);
+    assert.equal(readState(file).release, undefined);
+    assert.equal(readState(file).imageWrites, undefined);
+  } finally {
+    f.cleanup();
   }
 });
 

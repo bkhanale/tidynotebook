@@ -19,12 +19,12 @@ pnpm release --resume
 An optional positional version can raise the derived step. Use `--dry-run` to
 inspect the plan. The default command performs the authorized release chain.
 When it waits for prepare review, apply [review-change](../review-change/SKILL.md)
-to the prepare PR, then resume. When it waits for the image job, read the event
-and resume after completion. Do not poll without a bound.
+to the prepare PR, then resume.
 
 The command owns notes, prepare landing, exact proof, signed fixed tag, published
-image provenance, release assets, milestone, and after proof. It saves each stage.
+tested image, release assets, milestone, and after proof. It saves each stage.
 Missing exact assets can be added after a read. Differing assets or tags stop.
-A failed image after tag publication needs the next patch. Never move a tag.
+An absent image write resumes after a registry read. A different image is a stop.
+Never move a tag.
 Read [release recovery](reference/recovery.md) only for a failed or uncertain
 stage. End when status says complete and names the fixed source and image.

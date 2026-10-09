@@ -58,14 +58,9 @@ const after = {
   localTagSha: 'abc123',
   remoteTagSha: 'abc123',
   mainHoldsTagCommit: true,
-  runSha: 'abc123',
   imageDigest: 'sha256:' + 'a'.repeat(64),
   imageRevision: 'abc123',
-  imageProvenance: true,
   assetsError: '',
-  runStatus: 'completed',
-  runConclusion: 'success',
-  runUrl: 'https://example.test/run/1',
   releaseName: 'tidy notebook 0.4.0',
   releaseTag: 'v0.4.0',
   releaseDraft: false,
@@ -216,16 +211,6 @@ await test('the after gate names each missing step', () => {
     ['the pushed commit'],
   );
   assert.deepEqual(
-    failures(
-      afterChecks({
-        ...after,
-        runStatus: 'completed',
-        runConclusion: 'failure',
-      }),
-    ),
-    ['the image build'],
-  );
-  assert.deepEqual(
     failures(afterChecks({ ...after, releaseTag: '', releaseName: '' })),
     ['the GitHub release'],
   );
@@ -259,23 +244,10 @@ await test('the after gate names each missing step', () => {
   );
 });
 
-// The tag v0.14.0 has no image. The gate told the person to create its
-// release, against the recovery guide, which gives such a tag none.
-await test('a tag whose image did not build is not sent to get a release', () => {
-  const checks = afterChecks({
-    ...after,
-    runConclusion: 'failure',
-    releaseTag: '',
-    releaseName: '',
-  });
-  const release = checks.find((check) => check.name === 'the GitHub release');
-  assert.equal(release?.status, 'failed');
-  assert.match(release?.detail ?? '', /gets none: its image did not build/);
-  const missing = afterChecks({ ...after, releaseTag: '', releaseName: '' });
-  assert.match(
-    missing.find((check) => check.name === 'the GitHub release')?.detail ?? '',
-    /Create it\./,
-  );
+await test('a missing registry image cannot pass the release check', () => {
+  assert.deepEqual(failures(afterChecks({ ...after, imageDigest: '' })), [
+    'the image identity',
+  ]);
 });
 
 await test('a release needs a milestone and registry scope', () => {
@@ -319,18 +291,12 @@ await test('the date of a release is the local day', () => {
   assert.equal(isoDate(new Date(2026, 0, 5)), '2026-01-05');
 });
 
-await test('the image job and published artifact bind the signed source', () => {
-  assert.deepEqual(failures(afterChecks({ ...after, runSha: 'another' })), [
-    'the image source',
-  ]);
+await test('the published artifact binds the signed source', () => {
   assert.deepEqual(
     failures(afterChecks({ ...after, imageRevision: 'another' })),
     ['the image identity'],
   );
-  assert.deepEqual(
-    failures(afterChecks({ ...after, imageProvenance: false })),
-    ['the image identity'],
-  );
+
   assert.deepEqual(failures(afterChecks({ ...after, imageTags: ['latest'] })), [
     'the image tags',
   ]);

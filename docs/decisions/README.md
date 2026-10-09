@@ -244,6 +244,7 @@ and needs no record.
 | [0210](0210-railway-pro-keeps-private-images-within-the-compute-budget.md)            | Railway Pro keeps private images within the compute budget                      |
 | [0211](0211-the-application-names-the-account-portal-billing.md)                      | The application names the account portal Billing                                |
 | [0212](0212-agent-lifecycle-proof.md)                                                 | Agent lifecycle uses exact input proof                                          |
+| [0213](0213-build-and-publish-one-release-image.md)                                   | Build and publish one release image                                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
