@@ -2,13 +2,14 @@
  * The links to the terms and the privacy notice of the installation (record
  * 0120), and the one read of them that a screen makes.
  *
- * Sign in, the sign-up form, the invitation form, the consent step and
- * Settings all show the two links through this module, so every screen names
- * the documents with the same words in the same order.
+ * Sign in, the consent step and Settings show the two links on a line of
+ * their own. The sign-up form and the invitation form put them in the
+ * sentence of the consent box. Every screen reads them from this module, so
+ * each names the documents with the same words in the same order.
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { getSetupStatus, type LegalDocuments } from '@notesapp/api-client';
-import { legalLinks } from '../../lib/legal.ts';
+import { consentParts, legalLinks } from '../../lib/legal.ts';
 
 /**
  * The terms and the privacy notice of the installation, or `null` while they
@@ -27,6 +28,9 @@ export function useLegalDocuments(): LegalDocuments | null {
   }, []);
   return documents;
 }
+
+/** The class of a link to a document. */
+const linkClassName = 'text-accent underline';
 
 /**
  * The links to the terms and the privacy notice (record 0120).
@@ -47,7 +51,7 @@ export function LegalLinks({
       {legalLinks(documents).map((link) => (
         <a
           key={link.label}
-          className="text-accent underline"
+          className={linkClassName}
           href={link.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -56,5 +60,36 @@ export function LegalLinks({
         </a>
       ))}
     </p>
+  );
+}
+
+/**
+ * The words of the consent box, with a link to each document in them.
+ *
+ * Each link opens in a new tab, and a click on it does not change the box.
+ */
+export function ConsentLabel({
+  documents,
+}: {
+  readonly documents: LegalDocuments;
+}): ReactNode {
+  return (
+    <>
+      {consentParts(documents).map((part) =>
+        part.kind === 'text' ? (
+          part.text
+        ) : (
+          <a
+            key={part.text}
+            className={linkClassName}
+            href={part.href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {part.text}
+          </a>
+        ),
+      )}
+    </>
   );
 }

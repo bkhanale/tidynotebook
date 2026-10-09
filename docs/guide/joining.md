@@ -13,8 +13,10 @@ An administrator of the installation sends you a link, by mail or in a message.
    empty.
 3. Enter a password of at least 15 characters, and type it again. A password
    that a list of leaked passwords holds is refused.
-4. When the installation names its terms and its privacy notice, the page links
-   both. Read them, and select **I accept the terms and the privacy notice**.
+4. When the installation names its terms and its privacy notice, the page asks
+   you to accept them. The words **terms** and **privacy notice** in that line
+   are links. Read them, and select **I accept the terms and the privacy
+   notice**.
 5. Select **Make account**.
 
 Your account opens at once, with its own workspace and one note, **Welcome to
@@ -31,8 +33,9 @@ Some installations let anybody make an account. The sign-in screen then shows
 
 1. Select **Create an account**.
 2. Enter your email address and a password of at least 15 characters.
-3. Read the terms and the privacy notice, and select **I accept the terms and
-   the privacy notice**.
+3. Open the **terms** and the **privacy notice** links in the line of the
+   check box, and read them. Then select **I accept the terms and the privacy
+   notice**.
 4. Select **Create account**. The browser does a short check, and a message
    goes to your address.
 5. Open the link in the message within the time that it states. The page says

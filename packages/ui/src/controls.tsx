@@ -431,7 +431,8 @@ export function Checkbox({
   disabled = false,
 }: {
   readonly id: string;
-  readonly label: string;
+  /** The words of the choice. A link in them opens without a change of the box. */
+  readonly label: ReactNode;
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;
   readonly describedBy?: string | undefined;
