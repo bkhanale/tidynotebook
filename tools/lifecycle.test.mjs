@@ -262,14 +262,18 @@ await test('a demonstrably dead lock owner is recovered and a live owner refuses
 await test('a proof ignores pnpm invocation metadata but binds real configuration', () => {
   const f = fixture();
   const oldName = process.env.PNPM_PACKAGE_NAME;
+  const oldScript = process.env.PNPM_SCRIPT_SRC_DIR;
   const oldStore = process.env.PNPM_STORE_DIR;
   try {
     delete process.env.PNPM_PACKAGE_NAME;
+    delete process.env.PNPM_SCRIPT_SRC_DIR;
     const direct = snapshot(f.cwd);
     process.env.PNPM_PACKAGE_NAME = 'notesapp';
+    process.env.PNPM_SCRIPT_SRC_DIR = f.cwd;
     const invoked = prove(f.cwd, ['verify', 'test:image']);
     assert.equal(invoked.inputDigest, direct.inputDigest);
     delete process.env.PNPM_PACKAGE_NAME;
+    delete process.env.PNPM_SCRIPT_SRC_DIR;
     assert.equal(
       validProof(invoked, snapshot(f.cwd), ['verify', 'test:image'], f.cwd),
       true,
@@ -284,6 +288,8 @@ await test('a proof ignores pnpm invocation metadata but binds real configuratio
   } finally {
     if (oldName === undefined) delete process.env.PNPM_PACKAGE_NAME;
     else process.env.PNPM_PACKAGE_NAME = oldName;
+    if (oldScript === undefined) delete process.env.PNPM_SCRIPT_SRC_DIR;
+    else process.env.PNPM_SCRIPT_SRC_DIR = oldScript;
     if (oldStore === undefined) delete process.env.PNPM_STORE_DIR;
     else process.env.PNPM_STORE_DIR = oldStore;
     f.cleanup();

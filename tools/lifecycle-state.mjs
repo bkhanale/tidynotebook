@@ -78,6 +78,7 @@ export function snapshot(cwd) {
     .filter(
       ([key]) =>
         key !== 'PNPM_PACKAGE_NAME' &&
+        key !== 'PNPM_SCRIPT_SRC_DIR' &&
         /^(?:NOTESAPP_|PG|DOCKER_|CI$|TZ$|NODE_OPTIONS$|PNPM_)/.test(key),
     )
     .sort(([a], [b]) => a.localeCompare(b))
