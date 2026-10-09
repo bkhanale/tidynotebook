@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type pg from 'pg';
+import pg from 'pg';
 import { createAuthPool, loadServerConfig } from '@notesapp/server';
 import {
   createDocumentService,
@@ -38,7 +38,7 @@ async function endEverySession(): Promise<void> {
 }
 
 /** Resolves when one client of a pool has closed its connection. */
-function closeOf(client: pg.PoolClient): Promise<void> {
+function closeOf(client: pg.Client): Promise<void> {
   return new Promise((resolve) => client.once('end', () => resolve()));
 }
 
@@ -74,7 +74,20 @@ await test('a pool keeps working after the database ends an idle connection', as
   }
 });
 
-await test('every pool of the server survives the end of its idle connections', async () => {
+await test('every pool of the server survives the end of its idle connections', async (context) => {
+  const closed: Promise<void>[] = [];
+  const emit = pg.Pool.prototype.emit;
+  // Observe the real clients of all three stores without replacing a query.
+  context.mock.method(
+    pg.Pool.prototype,
+    'emit',
+    function (this: pg.Pool, event: string | symbol, ...values: unknown[]) {
+      const client = values[0];
+      if (event === 'connect' && client instanceof pg.Client)
+        closed.push(closeOf(client));
+      return emit.call(this, event, ...values);
+    },
+  );
   const identity = openIdentityStore(database.runtimeUrl, { poolSize: 2 });
   const content = openWorkspaceStore(
     database.runtimeUrl,
@@ -98,7 +111,10 @@ await test('every pool of the server survives the end of its idle connections', 
     await identity.hasAccount();
     assert.equal((await content.probeDatabase()).reachable, true);
     await auth.query('select 1');
+    assert.equal(closed.length, 3, 'Each store opens its real client.');
+    const gone = Promise.all(closed);
     await endEverySession();
+    await gone;
     // Each read takes a new connection, and the process is still here.
     assert.equal(await identity.hasAccount(), false);
     assert.equal((await content.probeDatabase()).reachable, true);
