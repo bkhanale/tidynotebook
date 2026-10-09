@@ -99,14 +99,39 @@ export function transferLines(
     'publishedTransferLimitBytes' | 'downloadLimitBytes'
   >,
 ): readonly string[] {
-  const lines: string[] = [];
+  return transferUsage(month, controls).map((usage) => usage.text);
+}
+
+/** The text and the numbers of one known transfer limit. */
+export type TransferUsage = {
+  readonly label: string;
+  readonly value: number;
+  readonly max: number;
+  readonly text: string;
+};
+
+/** Each transfer line and its meter read the same use and limit. */
+export function transferUsage(
+  month: AccountMonth,
+  controls: Pick<
+    Account['controls'],
+    'publishedTransferLimitBytes' | 'downloadLimitBytes'
+  >,
+): readonly TransferUsage[] {
+  const lines: TransferUsage[] = [];
   if (controls.publishedTransferLimitBytes !== null)
-    lines.push(
-      `This month: ${formatBytes(month.publishedTransferBytes)} of ${formatBytes(controls.publishedTransferLimitBytes)} sent by published pages`,
-    );
+    lines.push({
+      label: 'Published pages transfer this month',
+      value: month.publishedTransferBytes,
+      max: controls.publishedTransferLimitBytes,
+      text: `This month: ${formatBytes(month.publishedTransferBytes)} of ${formatBytes(controls.publishedTransferLimitBytes)} sent by published pages`,
+    });
   if (controls.downloadLimitBytes !== null)
-    lines.push(
-      `This month: ${formatBytes(month.downloadBytes)} of ${formatBytes(controls.downloadLimitBytes)} downloaded`,
-    );
+    lines.push({
+      label: 'Downloads this month',
+      value: month.downloadBytes,
+      max: controls.downloadLimitBytes,
+      text: `This month: ${formatBytes(month.downloadBytes)} of ${formatBytes(controls.downloadLimitBytes)} downloaded`,
+    });
   return lines;
 }

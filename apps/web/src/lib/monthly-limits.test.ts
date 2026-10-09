@@ -5,6 +5,7 @@ import {
   monthNotices,
   openMonth,
   transferLines,
+  transferUsage,
 } from './monthly-limits.ts';
 import {
   hasProblemSentence,
@@ -13,6 +14,52 @@ import {
 } from './problem-text.ts';
 
 const october = openMonth(new Date('2026-10-04T10:00:00.000Z'));
+
+await test('each transfer meter keeps the name, text, use and limit of its line', () => {
+  const month = { ...october, publishedTransferBytes: 89, downloadBytes: 90 };
+  const controls = {
+    publishedTransferLimitBytes: 100,
+    downloadLimitBytes: 100,
+  };
+  assert.deepEqual(transferUsage(month, controls), [
+    {
+      label: 'Published pages transfer this month',
+      value: 89,
+      max: 100,
+      text: 'This month: 89 bytes of 100 bytes sent by published pages',
+    },
+    {
+      label: 'Downloads this month',
+      value: 90,
+      max: 100,
+      text: 'This month: 90 bytes of 100 bytes downloaded',
+    },
+  ]);
+  assert.deepEqual(
+    transferUsage(month, {
+      publishedTransferLimitBytes: null,
+      downloadLimitBytes: null,
+    }),
+    [],
+  );
+  assert.deepEqual(
+    transferUsage(month, {
+      ...controls,
+      publishedTransferLimitBytes: null,
+    }).map((usage) => usage.label),
+    ['Downloads this month'],
+  );
+  assert.deepEqual(
+    transferUsage(month, { ...controls, downloadLimitBytes: null }).map(
+      (usage) => usage.label,
+    ),
+    ['Published pages transfer this month'],
+  );
+  assert.deepEqual(
+    transferLines(month, controls),
+    transferUsage(month, controls).map((usage) => usage.text),
+  );
+});
 
 await test('an account that nothing stopped has no notice', () => {
   assert.deepEqual(october, {

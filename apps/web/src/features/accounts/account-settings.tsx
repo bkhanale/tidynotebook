@@ -39,6 +39,7 @@ import {
   DownloadIcon,
   ExternalLinkIcon,
   LoadingState,
+  Meter,
   Notice,
   Page,
   PageHeader,
@@ -60,7 +61,7 @@ import {
 } from '../../app.tsx';
 
 import { profileNameProblem, storageLine } from '../../lib/accounts.ts';
-import { monthNotices, transferLines } from '../../lib/monthly-limits.ts';
+import { monthNotices, transferUsage } from '../../lib/monthly-limits.ts';
 
 import { LegalLinks, useLegalDocuments } from './legal-links.tsx';
 import {
@@ -778,14 +779,19 @@ export function AccountSettingsPage(): ReactNode {
           <Notice key={notice} className="mb-3" tone="info" message={notice} />
         ))}
         {storageLine(account.storage) === '' ? null : (
-          <p className="mb-0 mt-1 text-control text-muted">
-            {storageLine(account.storage)}
-          </p>
+          <div className="mt-3">
+            <Meter
+              label="Storage"
+              value={account.storage.usedBytes}
+              max={account.storage.limitBytes}
+              text={storageLine(account.storage)}
+            />
+          </div>
         )}
-        {transferLines(account.month, account.controls).map((line) => (
-          <p key={line} className="mb-0 mt-1 text-control text-muted">
-            {line}
-          </p>
+        {transferUsage(account.month, account.controls).map((usage) => (
+          <div key={usage.label} className="mt-3">
+            <Meter {...usage} />
+          </div>
         ))}
         {account.installationRole === 'administrator' &&
         workspaceId !== null ? (

@@ -31,6 +31,9 @@ import {
   menuSurfaceClassName,
   menuSurfaceStyle,
   menuSurfaceValues,
+  meterAlmostFull,
+  meterClassNames,
+  meterWidthClassName,
   rowClassName,
   selectClassName,
   inlineFieldClassName,
@@ -56,6 +59,52 @@ const variants: readonly ButtonVariant[] = [
   'danger',
 ];
 
+for (const [value, width, almostFull] of [
+  [0, 'w-0', false],
+  [1, 'w-1/12', false],
+  [89, 'w-11/12', false],
+  [90, 'w-11/12', true],
+  [100, 'w-full', true],
+  [125, 'w-full', true],
+] as const)
+  await test(`a meter at ${String(value)} of 100 has the correct width and warning`, () => {
+    assert.equal(meterWidthClassName(value, 100), width);
+    assert.equal(meterAlmostFull(value, 100), almostFull);
+    const classes = meterClassNames(value, 100);
+    assert.ok(classes.fill.split(' ').includes(width));
+    assert.ok(
+      classes.fill.includes(almostFull ? 'bg-danger-fill' : 'bg-accent-fill'),
+    );
+    assert.ok(
+      !classes.fill.includes(almostFull ? 'bg-accent-fill' : 'bg-danger-fill'),
+    );
+    for (const part of [classes.track, classes.fill]) {
+      assert.ok(part.includes('h-1.5'));
+      assert.ok(part.includes('rounded-sm'));
+      assert.ok(!part.includes('rounded-full'));
+    }
+    assert.ok(classes.track.includes('bg-hover'));
+  });
+
+await test('a meter keeps the last incomplete step below its maximum', () => {
+  assert.equal(meterWidthClassName(99, 100), 'w-11/12');
+  for (let step = 1; step < 12; step += 1)
+    assert.equal(meterWidthClassName(step, 12), `w-${String(step)}/12`);
+});
+
+await test('a meter refuses numbers that cannot state a value against a maximum', () => {
+  for (const [value, max] of [
+    [-1, 100],
+    [NaN, 100],
+    [Infinity, 100],
+    [0, 0],
+    [0, -1],
+    [0, NaN],
+    [0, Infinity],
+  ])
+    assert.throws(() => meterWidthClassName(value ?? 0, max ?? 0), RangeError);
+});
+
 /** Every button size. */
 const sizes: readonly ButtonSize[] = ['sm', 'md'];
 
@@ -76,6 +125,9 @@ const recipes: readonly (readonly [string, string])[] = [
     }),
   ],
   ['row', rowClassName()],
+  ['meter track', meterClassNames(0, 100).track],
+  ['meter fill', meterClassNames(1, 100).fill],
+  ['meter warning fill', meterClassNames(90, 100).fill],
   ['selected row', rowClassName({ selected: true })],
   ['current row', rowClassName({ current: true })],
   ['container row', rowClassName({ interactive: false })],

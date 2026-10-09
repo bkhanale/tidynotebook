@@ -93,7 +93,7 @@ holds the built page, the editor and the stylesheet fallbacks to one registry.
 | `src/motion.ts`           | The named transitions of the application                |
 | `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow             |
 | `src/layout-classes.ts`   | The row, column and side region of a page               |
-| `src/controls.tsx`        | Buttons, inputs and their wrappers                      |
+| `src/controls.tsx`        | Buttons, inputs, a static meter and their wrappers      |
 | `src/copy-action.ts`      | The words of a copy control (0174)                      |
 | `src/code-figure.ts`      | The one recipe of a rendered code figure                |
 | `THIRD_PARTY_LICENSES.md` | The source and licence of every palette                 |

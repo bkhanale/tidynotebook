@@ -105,6 +105,9 @@ export {
   menuSurfaceClassName,
   menuSurfaceStyle,
   menuSurfaceValues,
+  meterAlmostFull,
+  meterClassNames,
+  meterWidthClassName,
   rowClassName,
   touchFieldText,
 } from './control-classes.ts';
@@ -129,6 +132,7 @@ export {
   Button,
   Checkbox,
   CollapsibleSection,
+  Meter,
   ReadOnlyField,
   SelectField,
   StatusRegion,
