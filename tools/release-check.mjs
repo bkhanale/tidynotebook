@@ -618,6 +618,22 @@ async function readBefore(version, directory) {
     join(stateDirectory(directory), 'release.json'),
   );
   const head = run('git', ['rev-parse', 'HEAD'], directory).out;
+  let imageBuild;
+  try {
+    imageBuild = validProof(
+      readState(join(stateDirectory(directory), 'proof.json')),
+      snapshot(directory),
+      ['verify', 'test:image'],
+      directory,
+    )
+      ? ''
+      : buildImage(directory);
+  } catch (error) {
+    imageBuild =
+      error instanceof Error
+        ? error.message
+        : 'The proof inputs cannot be checked.';
+  }
   return {
     version,
     today: isoDate(new Date()),
@@ -653,14 +669,7 @@ async function readBefore(version, directory) {
       ).out !== '',
     signsTags:
       run('git', ['config', '--get', 'tag.gpgsign'], directory).out === 'true',
-    imageBuild: validProof(
-      readState(join(stateDirectory(directory), 'proof.json')),
-      snapshot(directory),
-      ['verify', 'test:image'],
-      directory,
-    )
-      ? ''
-      : buildImage(directory),
+    imageBuild,
   };
 }
 

@@ -1,5 +1,5 @@
 /** Exact input proof and exclusive state for lifecycle commands. */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -7,8 +7,8 @@ import {
   writeFileSync,
   renameSync,
   rmSync,
-  openSync,
-  closeSync,
+  linkSync,
+  existsSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { record } from './workspace.mjs';
@@ -75,8 +75,10 @@ export function snapshot(cwd) {
     ),
   );
   const environment = Object.entries(process.env)
-    .filter(([key]) =>
-      /^(?:NOTESAPP_|PG|DOCKER_|CI$|TZ$|NODE_OPTIONS$|PNPM_)/.test(key),
+    .filter(
+      ([key]) =>
+        key !== 'PNPM_PACKAGE_NAME' &&
+        /^(?:NOTESAPP_|PG|DOCKER_|CI$|TZ$|NODE_OPTIONS$|PNPM_)/.test(key),
     )
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => [
@@ -87,9 +89,16 @@ export function snapshot(cwd) {
         : null,
     ]);
   const environmentDigest = digest(JSON.stringify(environment));
-  const containerRuntimeDigest = digest(
-    command(cwd, 'docker', ['version', '--format', '{{json .}}']),
-  );
+  let containerRuntimeDigest;
+  try {
+    containerRuntimeDigest = digest(
+      command(cwd, 'docker', ['version', '--format', '{{json .}}']),
+    );
+  } catch {
+    throw new Error(
+      'Docker cannot be checked. Start Docker, then run proof again.',
+    );
+  }
   const inputs = {
     commit,
     tree,
@@ -153,26 +162,85 @@ export function validProof(value, input, gates, cwd) {
 }
 /** @param {string} cwd @param {string} name @returns {() => void} */
 export function lock(cwd, name) {
-  const common = resolve(cwd, git(cwd, ['rev-parse', '--git-common-dir']));
-  const file = join(common, `lifecycle-${name}.lock`);
-  let descriptor;
+  const directory = resolve(
+    cwd,
+    git(cwd, [
+      'rev-parse',
+      name === 'proof' ? '--git-dir' : '--git-common-dir',
+    ]),
+  );
+  return acquireLock(join(directory, `lifecycle-${name}.lock`), cwd, name);
+}
+
+/** Recover only an owner whose process is demonstrably absent.
+ * @param {unknown} value
+ */
+function deadOwner(value) {
+  const owner = record(value);
+  if (
+    !Number.isSafeInteger(owner.pid) ||
+    typeof owner.pid !== 'number' ||
+    owner.pid <= 0
+  )
+    return false;
   try {
-    descriptor = openSync(file, 'wx', 0o600);
+    process.kill(owner.pid, 0);
+    return false;
   } catch (error) {
-    if (record(error).code === 'EEXIST')
-      throw new Error(
-        `The ${name} lock exists. Check its process before recovery.`,
-      );
-    throw error;
+    return record(error).code === 'ESRCH';
   }
+}
+
+/** Publish a complete owner record. Recovery is serialized for that owner,
+ * then rechecks identity so it cannot remove a replacement owner's lock.
+ * @param {string} file @param {string} cwd @param {string} name
+ * @returns {() => void}
+ */
+function acquireLock(file, cwd, name) {
+  const token = randomUUID();
+  const candidate = `${file}.${token}.tmp`;
   writeFileSync(
-    descriptor,
+    candidate,
     JSON.stringify({
+      token,
       pid: process.pid,
       cwd,
       startedAt: new Date().toISOString(),
     }),
+    { mode: 0o600, flag: 'wx' },
   );
-  closeSync(descriptor);
-  return () => rmSync(file);
+  try {
+    while (true) {
+      try {
+        linkSync(candidate, file);
+        return () => {
+          if (readState(file).token === token) rmSync(file);
+        };
+      } catch (error) {
+        if (record(error).code !== 'EEXIST') throw error;
+      }
+      const owner = readState(file);
+      if (Object.keys(owner).length === 0 && !existsSync(file)) continue;
+      if (!deadOwner(owner))
+        throw new Error(
+          `The ${name} lock exists. Its process must stop before recovery.`,
+        );
+      // Older receipts have no token. A digest binds their complete owner record.
+      const identity = digest(JSON.stringify(owner));
+      const recovery = acquireLock(
+        `${file}.recover-${identity.slice(7)}`,
+        cwd,
+        name,
+      );
+      try {
+        const current = readState(file);
+        if (digest(JSON.stringify(current)) === identity && deadOwner(current))
+          rmSync(file);
+      } finally {
+        recovery();
+      }
+    }
+  } finally {
+    rmSync(candidate, { force: true });
+  }
 }

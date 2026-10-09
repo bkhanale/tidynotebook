@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -214,6 +215,200 @@ await test('one repository lock excludes another worktree and is not removed by 
     assert.throws(() => lock(other, 'release'), /lock exists/);
     unlock();
     lock(other, 'release')();
+  } finally {
+    f.cleanup();
+  }
+});
+await test('proof locks allow independent worktrees while landing stays shared', () => {
+  const f = fixture();
+  const other = join(f.cwd, '.tooling/other');
+  try {
+    git(f.cwd, ['worktree', 'add', '-b', 'change', other]);
+    const first = lock(f.cwd, 'proof');
+    try {
+      lock(other, 'proof')();
+      assert.throws(() => lock(f.cwd, 'proof'), /lock exists/);
+    } finally {
+      first();
+    }
+    const landing = lock(f.cwd, 'land');
+    try {
+      assert.throws(() => lock(other, 'land'), /lock exists/);
+    } finally {
+      landing();
+    }
+  } finally {
+    f.cleanup();
+  }
+});
+await test('a demonstrably dead lock owner is recovered and a live owner refuses recovery', () => {
+  const f = fixture();
+  try {
+    execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `import {lock} from ${JSON.stringify(new URL('./lifecycle-state.mjs', import.meta.url).href)};lock(${JSON.stringify(f.cwd)},'release');`,
+    ]);
+    const unlock = lock(f.cwd, 'release');
+    try {
+      assert.throws(() => lock(f.cwd, 'release'), /lock exists/);
+    } finally {
+      unlock();
+    }
+  } finally {
+    f.cleanup();
+  }
+});
+await test('a proof ignores pnpm invocation metadata but binds real configuration', () => {
+  const f = fixture();
+  const oldName = process.env.PNPM_PACKAGE_NAME;
+  const oldStore = process.env.PNPM_STORE_DIR;
+  try {
+    delete process.env.PNPM_PACKAGE_NAME;
+    const direct = snapshot(f.cwd);
+    process.env.PNPM_PACKAGE_NAME = 'notesapp';
+    const invoked = prove(f.cwd, ['verify', 'test:image']);
+    assert.equal(invoked.inputDigest, direct.inputDigest);
+    delete process.env.PNPM_PACKAGE_NAME;
+    assert.equal(
+      validProof(invoked, snapshot(f.cwd), ['verify', 'test:image'], f.cwd),
+      true,
+    );
+    prove(f.cwd, ['verify', 'test:image']);
+    assert.equal(
+      readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
+      'build\n',
+    );
+    process.env.PNPM_STORE_DIR = '/different/store';
+    assert.notEqual(snapshot(f.cwd).inputDigest, direct.inputDigest);
+  } finally {
+    if (oldName === undefined) delete process.env.PNPM_PACKAGE_NAME;
+    else process.env.PNPM_PACKAGE_NAME = oldName;
+    if (oldStore === undefined) delete process.env.PNPM_STORE_DIR;
+    else process.env.PNPM_STORE_DIR = oldStore;
+    f.cleanup();
+  }
+});
+await test('clean reviews accept the known sentence with a variable same-line ending', () => {
+  for (const ending of [
+    'Swish!',
+    'Breezy!',
+    'What shall we delve into next?',
+  ]) {
+    assert.equal(
+      cleanReviewBody(`Didn't find any major issues. ${ending}`),
+      true,
+    );
+  }
+  assert.equal(cleanReviewBody('Completed summary with a thumbs up.'), false);
+  assert.equal(
+    cleanReviewBody("Didn't find any major issues. P2: stale data"),
+    false,
+  );
+});
+await test('the release before gate reports unsafe proof inputs without a build fallback', () => {
+  for (const mode of ['dirty', 'docker']) {
+    const f = fixture();
+    try {
+      if (mode === 'dirty') writeFileSync(join(f.cwd, 'source.txt'), 'pending');
+      else
+        writeFileSync(
+          join(f.cwd, '.tooling/bin/docker'),
+          '#!/bin/sh\nexit 1\n',
+          { mode: 0o700 },
+        );
+      const result = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `import {main} from ${JSON.stringify(new URL('./release-check.mjs', import.meta.url).href)};process.exitCode=await main('before','0.4.0',${JSON.stringify(f.cwd)});`,
+        ],
+        { cwd: f.cwd, encoding: 'utf8' },
+      );
+      assert.equal(result.status, 1);
+      assert.equal(result.stderr, '');
+      assert.match(
+        result.stdout,
+        mode === 'dirty'
+          ? /Commit the pending files/
+          : /Docker cannot be checked/,
+      );
+      assert.equal(existsSync(join(f.cwd, '.tooling/builds')), false);
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+await test('concurrent dead-owner recovery cannot remove the new lock', async () => {
+  const f = fixture();
+  const module = JSON.stringify(
+    new URL('./lifecycle-state.mjs', import.meta.url).href,
+  );
+  /** @type {import('node:child_process').ChildProcess[]} */
+  const children = [];
+  try {
+    execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `import {lock} from ${module};lock(${JSON.stringify(f.cwd)},'release');`,
+    ]);
+    const contenders = [0, 1].map(() => {
+      const child = spawn(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `import {lock} from ${module};
+process.send('ready');process.once('message',()=>{
+try{const unlock=lock(process.argv[1],'release');process.send('acquired');process.once('message',()=>{unlock();process.disconnect();});}
+catch{process.send('busy');process.disconnect();}});`,
+          f.cwd,
+        ],
+        { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] },
+      );
+      children.push(child);
+      const ready = new Promise((resolve, reject) => {
+        child.once('message', resolve);
+        child.once('error', reject);
+      });
+      const result = new Promise((resolve, reject) => {
+        child.on('message', (message) => {
+          if (message !== 'ready') resolve(message);
+        });
+        child.once('error', reject);
+      });
+      const closed = new Promise((resolve) => child.once('exit', resolve));
+      return { child, ready, result, closed };
+    });
+    await Promise.all(contenders.map((contender) => contender.ready));
+    contenders.forEach(({ child }) => child.send('go'));
+    assert.deepEqual(
+      (await Promise.all(contenders.map(({ result }) => result))).sort((a, b) =>
+        String(a).localeCompare(String(b)),
+      ),
+      ['acquired', 'busy'],
+    );
+    assert.throws(() => lock(f.cwd, 'release'), /lock exists/);
+    contenders.forEach(({ child }) => {
+      if (child.connected) child.send('release');
+    });
+    await Promise.all(contenders.map(({ closed }) => closed));
+    lock(f.cwd, 'release')();
+  } finally {
+    children.forEach((child) => child.kill());
+    f.cleanup();
+  }
+});
+await test('a previous unlock never removes a replacement lock', () => {
+  const f = fixture();
+  try {
+    const oldUnlock = lock(f.cwd, 'release');
+    rmSync(join(f.cwd, '.git/lifecycle-release.lock'));
+    const currentUnlock = lock(f.cwd, 'release');
+    oldUnlock();
+    assert.throws(() => lock(f.cwd, 'release'), /lock exists/);
+    currentUnlock();
   } finally {
     f.cleanup();
   }

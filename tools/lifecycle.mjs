@@ -199,7 +199,7 @@ export function reviewGate(value, head) {
 export function cleanReviewBody(value) {
   return (
     typeof value === 'string' &&
-    /(?:^|\n)\s*(?:Codex Review:\s*)?(?:Didn't find any major issues\.|Did not find any issues\.|No findings\.)(?: Keep them coming!)?\s*(?:\n|$)/i.test(
+    /(?:^|\n)[\t ]*(?:Codex Review:[\t ]*)?(?:Didn't find any major issues\.|Did not find any issues\.|No findings\.)(?:[\t ]+[^\r\n]*)?[\t ]*(?:\r?\n|$)/i.test(
       value,
     ) &&
     !/\bP[0-3]\b|(?:^|\n)\s*(?:findings?|issues?)\s*:/i.test(value)

@@ -22,8 +22,12 @@ Then use `watch_pull_request`. End the turn while review is pending so its
 event can resume work. Use `unwatch_pull_request` before final handback.
 A portable session reads status with a bound. It needs no new credential.
 
-Read feedback with `pnpm lifecycle review-status <PR>`. Fix all findings. A
+Read feedback with `pnpm lifecycle review-status <PR>`. Fix each accepted finding. A
 rejected finding needs evidence in its thread. Resolve a thread only after its
 cause is fixed or its conclusion is supported. Prove the new commit and request
 a new review. Wait for its event or use a bounded read, then continue. End when
 Codex completes review of the final head and all threads are resolved.
+Completion needs an explicit clean result from the bot for the exact head.
+A completed summary or a reaction alone is not this proof. If it is missing,
+request `@codex review` once for that head, then wait for the result. Do not
+repeat a request while that review is pending.

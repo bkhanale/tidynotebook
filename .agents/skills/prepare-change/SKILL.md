@@ -17,6 +17,14 @@ To resume, give the saved task name. Omit phase and paths to keep their saved
 values. Read the saved user context, dependencies, and remaining work. The
 command refreshes the current code and guides. It gives no new permission.
 
+Save public task facts in the `contextFile` that the command returns:
+`.tooling/lifecycle/tasks/<task-name>/context.json` in the owned worktree.
+Update `userContext` with the approved scope and decisions, `dependencies`
+with the inputs still needed, and `remaining` with the next work. Keep these
+fields as one string and two lists of strings. Keep other fields unchanged.
+Save these facts before handback or an interruption. Run the command again
+to refresh the code facts. Never put private context or secrets in this file.
+
 Use `--internal` only for an explicitly internal task. Set
 `TIDYNOTEBOOK_CLOUD_DIR` to its private checkout. Missing private context blocks
 internal work. Standalone core work needs no private checkout.
