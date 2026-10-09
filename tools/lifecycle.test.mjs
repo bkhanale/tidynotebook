@@ -806,8 +806,9 @@ else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{revi
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
 else if(a[0]==='api'&&a[1].startsWith('https://api.github.com/repos/example/core/releases/assets/')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
 else if(a[0]==='api'&&a[1].includes('/commits/'))json([{number:40,merged_at:'2026-10-09',base:{ref:'main'},body:'Release-Type: minor\\nRelease-Note: Read a new note.'}]);
+else if(a[0]==='api'&&a[1].includes('/reactions'))json(s.automaticClean?[{user:{login:'chatgpt-codex-connector[bot]'},content:'+1',created_at:'2026-10-09T15:46:56Z'}]:[]);
 else if(a[0]==='api'&&a[1].includes('/reviews'))json(s.cleanReview?[{user:{login:'chatgpt-codex-connector[bot]'},commit_id:s.prepared,state:'COMMENTED',body:"Didn't find any major issues."}]:[]);
-else if(a[0]==='api'&&a[1].includes('/comments'))json(s.comments);
+else if(a[0]==='api'&&a[1].includes('/comments'))json(s.automaticClean?[...s.comments,{user:{login:'chatgpt-codex-connector[bot]'},body:'<!-- codex-pull-request-review-summary -->\\n\\n| Review | Status | Commit | Review trigger |\\n| --- | --- | --- | --- |\\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-09T15:46:52.440214Z">time</relative-time> | \`'+s.prepared.slice(0,7)+'\` | PR opened |'}]:s.comments);
 else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
 else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
 else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:false,prerelease:false,assets:s.assets});}
@@ -905,7 +906,12 @@ await test('automatic review starts once and survives a lost PR creation respons
     const f = releaseFixture();
     try {
       const file = join(f.cwd, '.tooling/service.json');
-      if (interrupt) save(file, { ...readState(file), interrupt: 'pr-create' });
+      save(file, {
+        ...readState(file),
+        cleanReview: false,
+        automaticClean: true,
+        ...(interrupt ? { interrupt: 'pr-create' } : {}),
+      });
       const options = { cwd: f.cwd, execute: true, autoReviewOnReady: true };
       if (interrupt) await assert.rejects(release(options));
       const result = await release(
@@ -1829,6 +1835,131 @@ await test('internal task resume leaves omitted phase and paths to the private o
       '--task',
       'internal-task',
     ]);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('automatic review requires the exact completed summary and a later bot approval', () => {
+  const head = 'a'.repeat(40);
+  const summary =
+    '<!-- codex-pull-request-review-summary -->\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-09T15:46:52.440214Z">time</relative-time> | `aaaaaaa` | PR opened |';
+  const comment = {
+    user: { login: 'chatgpt-codex-connector[bot]' },
+    reviewedCommit: head,
+    body: summary,
+  };
+  const approval = {
+    user: { login: 'chatgpt-codex-connector[bot]' },
+    content: '+1',
+    created_at: '2026-10-09T15:46:56Z',
+  };
+  const status = {
+    headRefOid: head,
+    baseRefName: 'main',
+    state: 'OPEN',
+    isDraft: false,
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+    statusCheckRollup: [{ conclusion: 'SUCCESS' }],
+    reviews: [],
+    threads: [],
+    comments: [comment],
+    reactions: [approval],
+  };
+  assert.equal(reviewGate(status, head), true);
+  for (const changed of [
+    { comments: [] },
+    { reactions: [] },
+    { comments: [{ ...comment, reviewedCommit: 'b'.repeat(40) }] },
+    { comments: [{ ...comment, body: summary.replace('aaaaaaa', 'bbbbbbb') }] },
+    {
+      comments: [
+        {
+          ...comment,
+          body: summary.replace('✅ **Completed**', '🔄 **Running**'),
+        },
+      ],
+    },
+    {
+      comments: [
+        {
+          ...comment,
+          body: summary.replace('2026-10-09T15:46:52.440214Z', 'invalid'),
+        },
+      ],
+    },
+    {
+      comments: [
+        {
+          ...comment,
+          body: summary.replace(
+            '<!-- codex-pull-request-review-summary -->',
+            '',
+          ),
+        },
+      ],
+    },
+    { comments: [{ ...comment, user: { login: 'someone' } }] },
+    { reactions: [{ ...approval, user: { login: 'someone' } }] },
+    { reactions: [{ ...approval, content: 'eyes' }] },
+    { reactions: [{ ...approval, created_at: '2026-10-09T15:45:00Z' }] },
+    { reactions: [{ ...approval, created_at: 'invalid' }] },
+  ])
+    assert.throws(
+      () => reviewGate({ ...status, ...changed }, head),
+      /completed review/,
+    );
+  assert.throws(
+    () => reviewGate({ ...status, threads: [{ isResolved: false }] }, head),
+    /thread/,
+  );
+  assert.throws(
+    () =>
+      reviewGate(
+        { ...status, statusCheckRollup: [{ conclusion: 'FAILURE' }] },
+        head,
+      ),
+    /checks/,
+  );
+});
+
+await test('a new release selection preserves an occupied old prepare branch', async () => {
+  const f = releaseFixture();
+  try {
+    const source = git(f.cwd, ['rev-parse', 'HEAD']);
+    git(f.cwd, ['branch', 'release/0.2.0', 'HEAD^']);
+    const oldBranch = git(f.cwd, ['rev-parse', 'release/0.2.0']);
+    const result = await release({ cwd: f.cwd, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.equal(result.sourceCommit, source);
+    const prepared = result.prepareCommit;
+    if (typeof prepared !== 'string')
+      throw new Error('Missing prepare commit.');
+    assert.equal(git(f.cwd, ['rev-parse', `${prepared}^`]), source);
+    assert.equal(git(f.cwd, ['rev-parse', 'release/0.2.0']), oldBranch);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('an occupied source prepare branch refuses before edits or external writes', async () => {
+  const f = releaseFixture();
+  try {
+    const source = git(f.cwd, ['rev-parse', 'HEAD']);
+    const branch = `release/0.2.0-${source}`;
+    git(f.cwd, ['branch', branch, 'HEAD^']);
+    const oldBranch = git(f.cwd, ['rev-parse', branch]);
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /prepare branch holds another commit/,
+    );
+    assert.equal(git(f.cwd, ['rev-parse', branch]), oldBranch);
+    assert.equal(git(f.cwd, ['status', '--porcelain']), '');
+    assert.deepEqual(
+      readState(join(f.cwd, '.tooling/service.json')).writes,
+      [],
+    );
   } finally {
     f.cleanup();
   }

@@ -217,7 +217,7 @@ export async function release(options) {
     };
     if (state.stage === 'planned') {
       const source = String(state.sourceCommit),
-        branch = `release/${version}`;
+        branch = `release/${version}-${source}`;
       const changes = Array.isArray(state.changes)
         ? state.changes.map((value) => savedReleaseChange(value))
         : [];
@@ -280,9 +280,13 @@ export async function release(options) {
         }
         const currentBranch = git(cwd, ['branch', '--show-current']);
         if (currentBranch !== branch) {
-          if (git(cwd, ['branch', '--list', branch]))
+          if (git(cwd, ['branch', '--list', branch])) {
+            if (git(cwd, ['rev-parse', branch]) !== source)
+              throw new Error(
+                'The prepare branch holds another commit. Read its saved release before a new selection.',
+              );
             git(cwd, ['switch', branch]);
-          else git(cwd, ['switch', '-c', branch, source]);
+          } else git(cwd, ['switch', '-c', branch, source]);
         }
         for (const [name, bytes] of Object.entries(expected))
           writeFileSync(join(cwd, name), bytes);

@@ -31,7 +31,9 @@ rejected finding needs evidence in its thread. Resolve a thread only after its
 cause is fixed or its conclusion is supported. Prove the new commit and request
 a new review. Wait for its event or use a bounded read, then continue. End when
 Codex completes review of the final head and all threads are resolved.
-Completion needs an explicit clean result from the bot for the exact head.
-A completed summary or a reaction alone is not this proof. If it is missing,
-request `@codex review` once for that head, then wait for the result. Do not
-repeat a request while that review is pending.
+Completion uses the bot's exact-head clean result, or its completed automatic
+Code Review row for the exact head with a later approval reaction on the PR.
+A summary alone or a reaction alone is not proof. The reader checks the saved
+review time, current checks and resolved threads (record 0214).
+Do not request a second review when the completed automatic result is valid.
+Request `@codex review` once only when no review starts for that head.

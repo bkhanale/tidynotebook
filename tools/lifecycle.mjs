@@ -187,7 +187,26 @@ export function reviewGate(value, head) {
       comment.reviewedCommit === head &&
       cleanReviewBody(comment.body),
   );
-  if (!clean && !cleanComment)
+  const reactions = Array.isArray(status.reactions)
+    ? status.reactions.map(record)
+    : [];
+  const automatic = comments.some((comment) => {
+    const completed = automaticReviewBody(comment.body);
+    return (
+      record(comment.user).login === 'chatgpt-codex-connector[bot]' &&
+      comment.reviewedCommit === head &&
+      completed !== null &&
+      head.startsWith(completed.reference) &&
+      reactions.some(
+        (reaction) =>
+          record(reaction.user).login === 'chatgpt-codex-connector[bot]' &&
+          reaction.content === '+1' &&
+          typeof reaction.created_at === 'string' &&
+          Date.parse(reaction.created_at) > completed.time,
+      )
+    );
+  });
+  if (!clean && !cleanComment && !automatic)
     throw new Error(
       'Codex has no clear completed review for this head. Request @codex review and read its feedback.',
     );
@@ -197,6 +216,29 @@ export function reviewGate(value, head) {
   )
     throw new Error('Resolve each review thread before landing.');
   return true;
+}
+
+/** A known completed row binds automatic approval to one reviewed commit. @param {unknown} value */
+export function automaticReviewBody(value) {
+  if (
+    typeof value !== 'string' ||
+    !value.startsWith('<!-- codex-pull-request-review-summary -->')
+  )
+    return null;
+  const rows = value
+    .split(/\r?\n/)
+    .filter((line) => /^\|[^|]*\*\*Code Review\*\*[^|]*\|/.test(line));
+  if (rows.length !== 1) return null;
+  const row = rows[0] ?? '';
+  const match =
+    /^\|[^|]*\*\*Code Review\*\*[^|]*\|\s*✅\s*\*\*Completed\*\*\s+<relative-time datetime="(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z)">[^<]*<\/relative-time>\s*\|\s*`([a-f0-9]{7,40})`\s*\|[^|]*\|\s*$/.exec(
+      row,
+    );
+  const date = match?.[1],
+    reference = match?.[2];
+  if (!date || !reference) return null;
+  const time = Date.parse(date);
+  return Number.isFinite(time) ? { reference, time } : null;
 }
 
 /** @param {unknown} value */
@@ -268,11 +310,20 @@ export function readPull(cwd, pr) {
       `repos/${repository}/issues/${view.number}/comments?per_page=100`,
     ]),
   );
+  /** @type {unknown} */
+  const reactions = JSON.parse(
+    command(cwd, 'gh', [
+      'api',
+      `repos/${repository}/issues/${view.number}/reactions?per_page=100`,
+    ]),
+  );
   if (
     !Array.isArray(reviews) ||
     !Array.isArray(comments) ||
+    !Array.isArray(reactions) ||
     reviews.length === 100 ||
-    comments.length === 100
+    comments.length === 100 ||
+    reactions.length === 100
   )
     throw new Error(
       'The review history is incomplete. Read all pages before landing.',
@@ -283,7 +334,8 @@ export function readPull(cwd, pr) {
       body = comment.body;
     const reference =
       typeof body === 'string'
-        ? /Reviewed commit:\*{0,2}\s*`?([a-f0-9]{7,40})`?/i.exec(body)?.[1]
+        ? (/Reviewed commit:\*{0,2}\s*`?([a-f0-9]{7,40})`?/i.exec(body)?.[1] ??
+          automaticReviewBody(body)?.reference)
         : undefined;
     let reviewedCommit;
     if (reference) {
@@ -304,6 +356,7 @@ export function readPull(cwd, pr) {
     threads: connection.nodes,
     reviews,
     comments: boundComments,
+    reactions,
     actor,
   };
 }

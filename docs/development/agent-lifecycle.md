@@ -4,6 +4,7 @@ This page owns phase routing, saved proof, and the public lifecycle boundary.
 
 [Record 0212](../decisions/0212-agent-lifecycle-proof.md) sets the lifecycle.
 [Record 0213](../decisions/0213-build-and-publish-one-release-image.md) sets image publication.
+[Record 0214](../decisions/0214-read-the-completed-automatic-review.md) sets automatic review readback.
 Commands perform repeated operations. Skills make the choices of a unit.
 Each skill has one start state and one end state. The catalog below routes work.
 It does not repeat the instructions of a unit.
