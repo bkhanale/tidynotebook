@@ -1248,3 +1248,101 @@ await test('a recorded exact main push cannot recover with an external merge com
     f.cleanup();
   }
 });
+
+await test('the historical after gate accepts a fresh checkout and a new runtime receipt', async () => {
+  const f = releaseFixture();
+  try {
+    await release({ cwd: f.cwd, execute: true });
+    const proofFile = join(stateDirectory(f.cwd), 'proof.json'),
+      releaseFile = join(stateDirectory(f.cwd), 'release.json');
+    const proof = readState(proofFile),
+      saved = readState(releaseFile);
+    save(proofFile, {
+      ...proof,
+      runtime: 'v99.1.1',
+      inputDigest: digest('a new local environment'),
+    });
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 0);
+    rmSync(proofFile);
+    rmSync(releaseFile);
+    const fresh = join(f.cwd, '.tooling/fresh-checkout');
+    git(f.cwd, [
+      'clone',
+      '--branch',
+      'main',
+      join(f.cwd, '.tooling/remote'),
+      fresh,
+    ]);
+    git(fresh, [
+      'remote',
+      'set-url',
+      'origin',
+      'https://github.com/example/core',
+    ]);
+    git(fresh, [
+      'config',
+      `url.${join(f.cwd, '.tooling/remote')}.insteadOf`,
+      'https://github.com/example/core',
+    ]);
+    git(fresh, ['config', 'gpg.format', 'ssh']);
+    git(fresh, [
+      'config',
+      'gpg.ssh.allowedSignersFile',
+      join(f.cwd, '.tooling/signers'),
+    ]);
+    mkdirSync(join(fresh, '.tooling/bin'), { recursive: true });
+    mkdirSync(join(fresh, 'tools/sdk-codegen/node_modules/.bin'), {
+      recursive: true,
+    });
+    copyFileSync(
+      join(f.cwd, '.tooling/service.json'),
+      join(fresh, '.tooling/service.json'),
+    );
+    for (const name of ['gh', 'docker'])
+      copyFileSync(
+        join(f.cwd, '.tooling/bin', name),
+        join(fresh, '.tooling/bin', name),
+      );
+    copyFileSync(
+      join(f.cwd, 'tools/sdk-codegen/node_modules/.bin/redocly'),
+      join(fresh, 'tools/sdk-codegen/node_modules/.bin/redocly'),
+    );
+    assert.deepEqual(readState(join(stateDirectory(fresh), 'proof.json')), {});
+    assert.equal(await releaseCheck('after', '0.2.0', fresh), 0);
+    // A later HEAD does not change the tagged source or contract.
+    writeFileSync(
+      join(f.cwd, 'packages/storage-server/migrations/0001.sql'),
+      'later source',
+    );
+    git(f.cwd, ['add', '.']);
+    git(f.cwd, ['commit', '-m', 'feat: later main source']);
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 0);
+    // Original publication bytes remain fixed when the saved intent is available.
+    save(releaseFile, saved);
+    const serviceFile = join(f.cwd, '.tooling/service.json'),
+      service = readState(serviceFile);
+    const assets = Array.isArray(service.assets) ? service.assets : [];
+    save(serviceFile, {
+      ...service,
+      assets: assets.map((asset) => {
+        if (asset.name !== 'release-manifest.json') return asset;
+        const manifest = JSON.parse(asset.bytes);
+        return {
+          ...asset,
+          bytes:
+            JSON.stringify(
+              {
+                ...manifest,
+                verification: { ...manifest.verification, runtime: 'v99.1.1' },
+              },
+              null,
+              2,
+            ) + '\n',
+        };
+      }),
+    });
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 1);
+  } finally {
+    f.cleanup();
+  }
+});

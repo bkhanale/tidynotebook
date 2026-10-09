@@ -25,7 +25,7 @@ import {
   releaseNotes,
 } from './release-notes.mjs';
 import { productName } from '../packages/core/src/product.ts';
-import { root } from './workspace.mjs';
+import { record, root } from './workspace.mjs';
 import {
   digest,
   git,
@@ -39,7 +39,9 @@ import {
   attestationArguments,
   publishedRelease,
   generateOperatorContract,
-  createReleaseManifest,
+  parseManifest,
+  operatorDigests,
+  migrationMetadata,
 } from './release-manifest.mjs';
 import { githubRepository } from './pr-screenshots.mjs';
 
@@ -669,15 +671,19 @@ async function readBefore(version, directory) {
  */
 async function readAfter(version, directory) {
   const tag = `v${version}`;
-  const [changelog, workflow] = await Promise.all([
-    readFile(join(directory, 'CHANGELOG.md'), 'utf8').catch(() => ''),
-    readFile(join(directory, '.github/workflows/release.yml'), 'utf8').catch(
-      () => '',
-    ),
-  ]);
   const localTagSha = run(
     'git',
     ['rev-parse', `${tag}^{commit}`],
+    directory,
+  ).out;
+  const changelog = run(
+    'git',
+    ['show', `${localTagSha}:CHANGELOG.md`],
+    directory,
+  ).out;
+  const workflow = run(
+    'git',
+    ['show', `${localTagSha}:.github/workflows/release.yml`],
     directory,
   ).out;
   const remote = run(
@@ -798,15 +804,6 @@ async function readAfter(version, directory) {
     ).status === 0;
   let assetsError = '';
   try {
-    const input = snapshot(directory),
-      proof = readState(join(stateDirectory(directory), 'proof.json'));
-    if (
-      input.commit !== localTagSha ||
-      !validProof(proof, input, ['verify', 'test:image'], directory)
-    )
-      throw new Error(
-        'The fixed release source and current gate proof are required.',
-      );
     const observed = publishedRelease(directory, tag);
     if (!observed.release) throw new Error('The published release is missing.');
     const contract = observed.assets.get('operator-contract.json'),
@@ -817,24 +814,63 @@ async function readAfter(version, directory) {
     mkdirSync(parent, { recursive: true });
     const temporary = mkdtempSync(join(parent, 'asset-read-'));
     try {
-      const contractFile = join(temporary, 'operator-contract.json');
-      generateOperatorContract(directory, contractFile);
-      const expected = await createReleaseManifest(
-        directory,
-        repository,
-        version,
-        imageReference,
-        imageDigest,
-        contractFile,
-        proof,
+      const manifestValue = parseManifest(
+        JSON.parse(manifest.toString('utf8')),
       );
+      const archive = spawnSync('git', ['archive', localTagSha], {
+        cwd: directory,
+        maxBuffer: 64 * 1024 * 1024,
+      });
       if (
-        digest(contract) !== expected.operator.contractDigest ||
-        digest(manifest) !== digest(JSON.stringify(expected, null, 2) + '\n')
+        archive.status !== 0 ||
+        spawnSync('tar', ['-xf', '-', '-C', temporary], {
+          input: archive.stdout,
+        }).status !== 0
+      )
+        throw new Error('The fixed release source cannot be read.');
+      const files = git(directory, [
+        'ls-tree',
+        '-r',
+        '--name-only',
+        localTagSha,
+      ])
+        .split('\n')
+        .filter(Boolean);
+      const contractFile = join(temporary, 'operator-contract.json');
+      generateOperatorContract(directory, contractFile, temporary);
+      const operator = await operatorDigests(temporary, files),
+        migration = migrationMetadata(temporary, files);
+      if (
+        manifestValue.repository !== repository ||
+        manifestValue.version !== version ||
+        manifestValue.tag !== tag ||
+        manifestValue.source.commit !== localTagSha ||
+        manifestValue.source.tree !==
+          git(directory, ['rev-parse', `${localTagSha}^{tree}`]) ||
+        manifestValue.image.reference !== imageReference ||
+        manifestValue.image.digest !== imageDigest ||
+        digest(contract) !== manifestValue.operator.contractDigest ||
+        manifestValue.operator.contractDigest !==
+          digest(await readFile(contractFile)) ||
+        manifestValue.operator.surfaceDigest !== operator.surfaceDigest ||
+        manifestValue.migration.digest !== migration.digest ||
+        manifestValue.migration.requiredSchemaVersion !==
+          migration.requiredSchemaVersion
       )
         throw new Error(
-          'The published release asset differs from the fixed source, image, or proof.',
+          'The published release asset differs from the fixed source or image.',
         );
+      const saved = readState(join(stateDirectory(directory), 'release.json'));
+      if (saved.version === version && saved.releaseCommit === localTagSha) {
+        const expected = record(saved.assetDigests);
+        if (
+          digest(manifest) !== expected['release-manifest.json'] ||
+          digest(contract) !== expected['operator-contract.json']
+        )
+          throw new Error(
+            'The published release asset differs from its saved publication bytes.',
+          );
+      }
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }

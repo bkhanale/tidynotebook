@@ -10,10 +10,11 @@ import { command, digest, git, snapshot } from './lifecycle-state.mjs';
 import { record } from './workspace.mjs';
 import { githubRepository } from './pr-screenshots.mjs';
 
-/** @param {string} cwd */
-export async function operatorDigests(cwd) {
+/** @param {string} cwd @param {string[]} [trackedFiles] */
+export async function operatorDigests(cwd, trackedFiles) {
   const contract = await operatorContractFiles(cwd);
-  const files = git(cwd, ['ls-files', '-z']).split('\0').filter(Boolean);
+  const files =
+    trackedFiles ?? git(cwd, ['ls-files', '-z']).split('\0').filter(Boolean);
   /** @param {string[]} names */
   const hash = (names) =>
     digest(
@@ -36,8 +37,8 @@ export async function operatorDigests(cwd) {
     ),
   };
 }
-/** @param {string} cwd */
-export function migrationMetadata(cwd) {
+/** @param {string} cwd @param {string[]} [trackedFiles] */
+export function migrationMetadata(cwd, trackedFiles) {
   const source = readFileSync(
     join(cwd, 'packages/storage-server/src/migrate.ts'),
     'utf8',
@@ -59,14 +60,13 @@ export function migrationMetadata(cwd) {
     journal.entries.length !== Number(version)
   )
     throw new Error('The migration requirement and journal differ.');
-  const files = git(cwd, [
-    'ls-files',
-    '-z',
-    'packages/storage-server/migrations',
-    'packages/storage-server/src/migrate.ts',
-  ])
-    .split('\0')
-    .filter(Boolean);
+  const files = (
+    trackedFiles ?? git(cwd, ['ls-files', '-z']).split('\0').filter(Boolean)
+  ).filter(
+    (path) =>
+      path.startsWith('packages/storage-server/migrations/') ||
+      path === 'packages/storage-server/src/migrate.ts',
+  );
   return {
     requiredSchemaVersion: Number(version),
     digest: digest(
@@ -171,17 +171,21 @@ export function releasePreflight(cwd) {
       'GitHub CLI needs all attestation source policy flags before release.',
     );
 }
-/** Bundle the operator contract from the fixed source. @param {string} cwd @param {string} file */
-export function generateOperatorContract(cwd, file) {
-  command(cwd, join(cwd, 'tools/sdk-codegen/node_modules/.bin/redocly'), [
-    'bundle',
-    'packages/api-contract/openapi.yaml',
-    '--config',
-    'packages/api-contract/redocly.yaml',
-    '--dereferenced',
-    '--output',
-    file,
-  ]);
+/** Bundle the operator contract from the fixed source. @param {string} cwd @param {string} file @param {string} [sourceDirectory] */
+export function generateOperatorContract(cwd, file, sourceDirectory = cwd) {
+  command(
+    sourceDirectory,
+    join(cwd, 'tools/sdk-codegen/node_modules/.bin/redocly'),
+    [
+      'bundle',
+      'packages/api-contract/openapi.yaml',
+      '--config',
+      'packages/api-contract/redocly.yaml',
+      '--dereferenced',
+      '--output',
+      file,
+    ],
+  );
   const bundled = record(JSON.parse(readFileSync(file, 'utf8')));
   const paths = Object.fromEntries(
     Object.entries(record(bundled.paths)).flatMap(([path, value]) => {

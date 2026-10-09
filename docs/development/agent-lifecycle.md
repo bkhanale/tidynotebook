@@ -87,7 +87,9 @@ revision, and provenance for the exact source commit and tag ref. A later latest
 `tools/release-manifest.mjs` validates the public asset. The release publishes
 its manifest and operator contract. It reads both exact asset byte streams before the next write. The after gate
 compares the assets with the fixed source, image, operator, migration, and proof.
-Migration and operator digests bind source.
+Migration and operator digests bind source. Historical checks read the tagged
+Git source and original public proof metadata. They need no current machine
+receipt. Saved publication digests also hold the original asset bytes.
 The workflow attests the published image in `.github/workflows/release.yml`.
 A consumer reads the published digest. It never rebuilds a released artifact.
 

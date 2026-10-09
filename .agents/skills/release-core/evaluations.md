@@ -41,6 +41,9 @@ Request: Repair a release with a changed tag, image, or prepare merge.
 - Rejects a new registry digest with the same source label and provenance from
   the same repository and workflow for a different source or ref.
 - Rejects a missing or changed manifest or operator contract in the after gate.
+- Historical after checks work in a fresh checkout. They bind original proof
+  metadata to tagged source, rather than a new runtime receipt. A saved
+  publication intent holds the original byte digests when available.
 - A legacy release gets no invented manifest, provenance, or saved proof.
 
 ## A failed image or open milestone
