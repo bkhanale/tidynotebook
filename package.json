@@ -32,7 +32,7 @@
     "dev:app": "node tools/dev-app.mjs",
     "docs:build": "pnpm build",
     "docs:serve": "node apps/docs/src/serve.ts",
-    "verify": "pnpm contract:lint && pnpm generated:check && pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && node tools/run-tests.mjs unit && tools/test-database/ensure-postgres.sh && tools/test-database/ensure-minio.sh && node tools/run-tests.mjs integration && pnpm lint:types",
+    "verify": "pnpm contract:lint && pnpm generated:check && pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && pnpm lint:types && node tools/run-tests.mjs unit && tools/test-database/ensure-postgres.sh && tools/test-database/ensure-minio.sh && node tools/run-tests.mjs integration",
     "perf:notices": "pnpm build && tools/test-database/ensure-postgres.sh && node tools/performance/notices.ts",
     "perf:notices-proxy": "pnpm build && tools/test-database/ensure-postgres.sh && node tools/performance/notices-proxy.ts",
     "perf:reads": "pnpm build && tools/test-database/ensure-postgres.sh && node tools/performance/reads.ts",

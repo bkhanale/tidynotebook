@@ -66,11 +66,15 @@ canonical proof, saved logs, PR bodies, live review reads, and exact landing.
 A local receipt is a same-user cache. It is not an external attestation. A
 partial receipt, missing log, changed log, changed input, or failed command
 cannot permit landing. A gate must leave the checked inputs unchanged.
-Image proof builds an archive of the checked commit and tests that image.
+Image proof builds an archive of the checked commit for `linux/amd64` and tests
+that image.
 
 The PR states the result, proof, public compatibility effect, reviewed release
 type and note, and light and dark screen evidence. Screenshots go through
-`tools/pr-screenshots.mjs`. Codex completion must belong to the final head.
+`tools/pr-screenshots.mjs`. For a known automatic review integration, `--auto-review-on-ready` uses the
+new PR trigger once. A changed head on an existing ready PR uses one manual
+request. A saved automatic intent survives a lost PR creation response.
+Codex completion must belong to the final head.
 Every thread must be resolved. All observed checks must pass. A fast-forward
 push of the exact head refuses unseen main work. A rejected push never grants
 permission to bypass protection. The merged commit and tree must match proved source. A saved validated write

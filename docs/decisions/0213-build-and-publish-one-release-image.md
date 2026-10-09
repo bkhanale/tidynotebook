@@ -12,13 +12,15 @@ The owner controls the source, the release command, and the registry.
 ## Decision
 
 `tools/release.mjs` publishes the exact local image that passes image proof.
-The image carries its source label before tests run. Publication adds tags only.
+The image targets `linux/amd64` and carries its source label before tests run.
+Publication adds tags only.
 The command reads the registry before a retry and refuses a different image.
 The signed source tag and official assets bind the version, source, and digest.
 GitHub attestation and a second image build are not release requirements.
 This replaces the publication and provenance requirements of record 0212.
 The before image gate of record 0204 remains required, and exports the image.
 Verification builds the workspace once before the unit and integration tests.
+Type-aware lint follows the build and stops before those suites on a failure.
 
 ## Consequences
 

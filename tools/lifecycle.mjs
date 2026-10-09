@@ -63,6 +63,8 @@ export function prove(cwd, gates = ['verify']) {
             'docker',
             [
               'build',
+              '--platform',
+              'linux/amd64',
               '--tag',
               image,
               '--label',
@@ -306,7 +308,7 @@ export function readPull(cwd, pr) {
   };
 }
 
-/** @param {string} cwd @param {{title:string;summary:string;compatibility:string;releaseType:string;releaseNote:string;screenshots:string[];execute:boolean}} options */
+/** @param {string} cwd @param {{title:string;summary:string;compatibility:string;releaseType:string;releaseNote:string;screenshots:string[];execute:boolean;autoReviewOnReady?:boolean}} options */
 export async function prepareReview(cwd, options) {
   const input = snapshot(cwd),
     proof = readState(join(stateDirectory(cwd), 'proof.json'));
@@ -364,6 +366,7 @@ export async function prepareReview(cwd, options) {
     const list = JSON.parse(existing);
     if (!Array.isArray(list)) throw new Error('The PR list is invalid.');
     const first = record(list[0]);
+    const automaticFile = join(stateDirectory(cwd), 'automatic-review.json');
     if (typeof first.number === 'number')
       command(cwd, 'gh', [
         'pr',
@@ -374,7 +377,13 @@ export async function prepareReview(cwd, options) {
         '--body-file',
         file,
       ]);
-    else
+    else {
+      if (options.autoReviewOnReady)
+        save(automaticFile, {
+          origin: input.origin,
+          branch,
+          head: input.commit,
+        });
       command(cwd, 'gh', [
         'pr',
         'create',
@@ -387,6 +396,7 @@ export async function prepareReview(cwd, options) {
         '--body-file',
         file,
       ]);
+    }
     const pull = record(
       JSON.parse(
         command(cwd, 'gh', ['pr', 'view', '--json', 'number,url,headRefOid']),
@@ -401,32 +411,39 @@ export async function prepareReview(cwd, options) {
     )
       throw new Error('The published PR head differs.');
     prUrl = pull.url;
-    const repository = githubRepository(input.origin);
-    /** @type {unknown} */
-    const comments = JSON.parse(
-      command(cwd, 'gh', [
-        'api',
-        `repos/${repository}/issues/${pull.number}/comments?per_page=100`,
-      ]),
-    );
-    if (!Array.isArray(comments) || comments.length === 100)
-      throw new Error('The review request history is incomplete.');
+    const automatic = readState(automaticFile);
     if (
-      !comments
-        .map(record)
-        .some(
-          (comment) =>
-            typeof comment.body === 'string' &&
-            comment.body.includes(`Lifecycle review head: ${input.commit}`),
-        )
-    )
-      command(cwd, 'gh', [
-        'pr',
-        'comment',
-        String(pull.number),
-        '--body',
-        `@codex review\n\nLifecycle review head: ${input.commit}`,
-      ]);
+      automatic.origin !== input.origin ||
+      automatic.branch !== branch ||
+      automatic.head !== input.commit
+    ) {
+      const repository = githubRepository(input.origin);
+      /** @type {unknown} */
+      const comments = JSON.parse(
+        command(cwd, 'gh', [
+          'api',
+          `repos/${repository}/issues/${pull.number}/comments?per_page=100`,
+        ]),
+      );
+      if (!Array.isArray(comments) || comments.length === 100)
+        throw new Error('The review request history is incomplete.');
+      if (
+        !comments
+          .map(record)
+          .some(
+            (comment) =>
+              typeof comment.body === 'string' &&
+              comment.body.includes(`Lifecycle review head: ${input.commit}`),
+          )
+      )
+        command(cwd, 'gh', [
+          'pr',
+          'comment',
+          String(pull.number),
+          '--body',
+          `@codex review\n\nLifecycle review head: ${input.commit}`,
+        ]);
+    }
   }
   return { commit: input.commit, bodyFile: file, impact, prUrl };
 }
@@ -549,6 +566,7 @@ export function parseLifecycle(args, cwd) {
     status: {},
     review: {
       execute: { type: 'boolean' },
+      'auto-review-on-ready': { type: 'boolean' },
       'title-file': { type: 'string' },
       'summary-file': { type: 'string' },
       'compatibility-file': { type: 'string' },
@@ -604,6 +622,7 @@ export function parseLifecycle(args, cwd) {
     execute: values.execute === true,
     image: false,
     review: {
+      autoReviewOnReady: values['auto-review-on-ready'] === true,
       title: text('title-file'),
       summary: text('summary-file'),
       compatibility: text('compatibility-file'),

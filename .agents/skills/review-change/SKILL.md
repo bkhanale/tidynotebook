@@ -15,6 +15,10 @@ is minor. The pre-stable breaking step is minor. Name public consumer effects.
 pnpm lifecycle review --title-file .tooling/title.md --summary-file .tooling/summary.md --compatibility-file .tooling/compatibility.md --release-type patch --release-note-file .tooling/release-note.md --execute
 ```
 
+When the actual integration starts Codex on a new ready PR, add
+`--auto-review-on-ready`. The command saves that trigger and sends no extra
+manual request. An existing ready PR uses one manual request for its new head.
+
 For UI changes, pass each screen with `--screenshot`, once for light and once for
 dark. The command publishes them through `tools/pr-screenshots.mjs`.
 Return the PR URL at once. When `link_pull_request` is available, link the PR to this session at once.

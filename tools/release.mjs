@@ -137,7 +137,7 @@ export function releaseEntry(changelog, version, changes, date) {
   return changelog.slice(0, start) + body + '\n' + changelog.slice(start);
 }
 
-/** @typedef {{cwd:string;version?:string;execute?:boolean;resume?:boolean;status?:boolean}} ReleaseOptions */
+/** @typedef {{cwd:string;version?:string;execute?:boolean;resume?:boolean;status?:boolean;autoReviewOnReady?:boolean}} ReleaseOptions */
 /** @param {ReleaseOptions} options */
 export async function release(options) {
   const cwd = options.cwd;
@@ -188,6 +188,7 @@ export async function release(options) {
         sourceCommit: input.commit,
         origin: input.origin,
         date: new Date().toISOString().slice(0, 10),
+        autoReviewOnReady: options.autoReviewOnReady === true,
       };
       if (!options.execute) return state;
       save(file, state);
@@ -302,6 +303,7 @@ export async function release(options) {
         throw new Error('The prepare source changes.');
       prove(cwd, ['verify']);
       await prepareReview(cwd, {
+        autoReviewOnReady: state.autoReviewOnReady === true,
         title: prepareSubject(version),
         summary: 'Prepare the release notes and current status.',
         compatibility: 'The prepare change has no product effect.',
@@ -725,6 +727,7 @@ if (import.meta.main) {
       allowPositionals: true,
       options: {
         'dry-run': { type: 'boolean' },
+        'auto-review-on-ready': { type: 'boolean' },
         resume: { type: 'boolean' },
         status: { type: 'boolean' },
         execute: { type: 'boolean' },
@@ -738,6 +741,7 @@ if (import.meta.main) {
       JSON.stringify(
         await release({
           cwd: root,
+          autoReviewOnReady: values['auto-review-on-ready'] === true,
           ...(version ? { version } : {}),
           execute: !values['dry-run'] && !values.status,
           resume: values.resume ?? false,

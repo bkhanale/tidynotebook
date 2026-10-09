@@ -90,10 +90,10 @@ else process.exit(spawnSync(process.execPath,['gate.mjs'],{stdio:'inherit'}).sta
   writeFileSync(
     join(cwd, '.tooling/bin/docker'),
     `#!/usr/bin/env node
-import {appendFileSync,existsSync} from 'node:fs';
+import {appendFileSync,writeFileSync,existsSync} from 'node:fs';
 if(process.argv[2]==='build'){
 const context=process.argv.at(-1);if(!existsSync(context+'/source.txt'))process.exit(1);
-appendFileSync('.tooling/builds','build\\n');
+appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));
 }else console.log('sha256:'+'b'.repeat(64));
 `,
     { mode: 0o700 },
@@ -184,6 +184,20 @@ await test('image proof builds the exact archived commit and uses its image', ()
   const f = fixture();
   try {
     const proof = prove(f.cwd, ['verify', 'test:image']);
+    /** @type {unknown} */
+    const argumentsUsed = JSON.parse(
+      readFileSync(join(f.cwd, '.tooling/build-args'), 'utf8'),
+    );
+    if (
+      !Array.isArray(argumentsUsed) ||
+      argumentsUsed.some((value) => typeof value !== 'string')
+    )
+      throw new Error('The Docker build arguments must be strings.');
+    assert.equal(
+      argumentsUsed[argumentsUsed.indexOf('--platform') + 1],
+      'linux/amd64',
+    );
+
     assert.equal(
       validProof(proof, snapshot(f.cwd), ['verify', 'test:image'], f.cwd),
       true,
@@ -811,7 +825,7 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
     `#!/usr/bin/env node
 import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
-if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');}
+if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
 else if(a[0]==='pull'){if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
@@ -886,6 +900,69 @@ await test('an uncertain release create resumes by reading and adding only the m
     f.cleanup();
   }
 });
+await test('automatic review starts once and survives a lost PR creation response', async () => {
+  for (const interrupt of [false, true]) {
+    const f = releaseFixture();
+    try {
+      const file = join(f.cwd, '.tooling/service.json');
+      if (interrupt) save(file, { ...readState(file), interrupt: 'pr-create' });
+      const options = { cwd: f.cwd, execute: true, autoReviewOnReady: true };
+      if (interrupt) await assert.rejects(release(options));
+      const result = await release(
+        interrupt ? { cwd: f.cwd, execute: true, resume: true } : options,
+      );
+      assert.equal(result.stage, 'complete');
+      const writes = readState(file).writes;
+      assert.ok(Array.isArray(writes));
+      assert.equal(writes.filter((kind) => kind === 'pr-create').length, 1);
+      assert.equal(
+        writes.filter((kind) => kind === 'review-request').length,
+        0,
+      );
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+await test('an existing ready PR gets one manual review for its changed head', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), cleanReview: false });
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true, autoReviewOnReady: true }),
+      /completed review/,
+    );
+    writeFileSync(join(f.cwd, 'source.txt'), 'new source');
+    git(f.cwd, ['add', 'source.txt']);
+    git(f.cwd, ['commit', '-m', 'fix: review a new source head']);
+    save(file, {
+      ...readState(file),
+      prepared: git(f.cwd, ['rev-parse', 'HEAD']),
+    });
+    prove(f.cwd, ['verify']);
+    const options = {
+      title: 'fix: review a new source head',
+      summary: 'Review the new source.',
+      compatibility: 'The public interface stays compatible.',
+      releaseType: 'patch',
+      releaseNote: 'Check the new source.',
+      screenshots: [],
+      execute: true,
+      autoReviewOnReady: true,
+    };
+    await prepareReview(f.cwd, options);
+    await prepareReview(f.cwd, options);
+    const writes = readState(file).writes;
+    assert.ok(Array.isArray(writes));
+    assert.equal(writes.filter((kind) => kind === 'pr-create').length, 1);
+    assert.equal(writes.filter((kind) => kind === 'review-request').length, 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
 await test('an interrupted prepare PR creation reads the existing PR and does not create another', async () => {
   const f = releaseFixture();
   try {

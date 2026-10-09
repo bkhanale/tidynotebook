@@ -18,6 +18,8 @@ pnpm release --resume
 
 An optional positional version can raise the derived step. Use `--dry-run` to
 inspect the plan. The default command performs the authorized release chain.
+When the actual integration starts Codex on a new ready PR, use
+`--auto-review-on-ready`. The command preserves this choice on resume.
 When it waits for prepare review, apply [review-change](../review-change/SKILL.md)
 to the prepare PR, then resume.
 
