@@ -5,6 +5,28 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.17.0 - 2026-10-09
+
+This release shows account use against each limit in Settings. It also makes
+Billing and account deletion easier to find.
+
+### Added
+
+- Settings shows a meter for storage and each monthly transfer limit. Almost
+  full marks use at or above 90% of the limit.
+
+### Changed
+
+- Settings gives Billing its own section when the installation offers it.
+  Open billing opens that section.
+- Settings names account removal Delete my account. Sign out sits below the
+  account card.
+
+### Fixed
+
+- The consent line links to the terms and the privacy notice.
+- The terms and the privacy notice use Delete my account for account removal.
+
 ## 0.16.2 - 2026-10-08
 
 This patch release makes the account role visible to a service of the
