@@ -12,6 +12,7 @@
  * when a listed file is gone, so `tools/check-agents-md.mjs` runs the list
  * for every guide and fails on a stale pointer.
  */
+import { execFileSync } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { filesIn, root } from './workspace.mjs';
@@ -81,6 +82,58 @@ export const operatorInterface = {
     'apps/server/src/config.ts',
   ],
 };
+
+/** Public semantic, storage, migration, configuration, and image inputs.
+ * Conservative coverage is intentional: operator consumers depend on results.
+ * @param {string} path
+ */
+export function operatorSurfacePath(path) {
+  return (
+    operatorInterface.files.includes(path) ||
+    /^(?:packages\/core\/src\/|packages\/storage-server\/|apps\/server\/src\/(?:identity|routes|services)\/|docker\/|Dockerfile$|compose\.yaml$|pnpm-lock\.yaml$|\.github\/workflows\/release\.yml$)/.test(
+      path,
+    )
+  );
+}
+
+/** Classifies an actual diff without a private dependency.
+ * @param {string[]} paths
+ * @param {Set<string>} contract
+ */
+export function classifyImpact(paths, contract = new Set()) {
+  return {
+    paths: [...new Set(paths)].sort(),
+    operator: paths.some(
+      (path) => operatorSurfacePath(path) || contract.has(path),
+    ),
+    contract: paths.some((path) => contract.has(path)),
+    migration: paths.some((path) =>
+      /^packages\/storage-server\/(?:drizzle|migrations|src\/(?:schema|migrate))/.test(
+        path,
+      ),
+    ),
+    image: paths.some((path) =>
+      /^(?:Dockerfile|docker\/|compose\.yaml|pnpm-lock\.yaml|\.github\/workflows\/release\.yml)/.test(
+        path,
+      ),
+    ),
+    ui: paths.some((path) =>
+      /^(?:apps\/(?:web|docs)\/|packages\/(?:ui|editor)\/)/.test(path),
+    ),
+  };
+}
+
+/** @param {string} directory @param {string} base */
+export async function diffImpact(directory, base) {
+  const paths = execFileSync(
+    'git',
+    ['diff', '--name-only', '-z', `${base}...HEAD`],
+    { cwd: directory, encoding: 'utf8' },
+  )
+    .split('\0')
+    .filter(Boolean);
+  return classifyImpact(paths, await operatorContractFiles(directory));
+}
 
 /** @param {string} file @returns {Promise<boolean>} */
 async function exists(file) {
@@ -244,7 +297,7 @@ export async function readingList(directory, paths) {
     contract = await operatorContractFiles(directory);
   if (
     normalisedPaths.some(
-      (path) => operatorInterface.files.includes(path) || contract.has(path),
+      (path) => operatorSurfacePath(path) || contract.has(path),
     )
   ) {
     const [file, purpose] = operatorInterface.guide;

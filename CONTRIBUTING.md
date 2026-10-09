@@ -11,9 +11,9 @@ Run `node tools/agent-context.mjs <paths you will touch>` before your first
 edit. It prints the reading list for those paths: the rules, the documents,
 the `AGENTS.md` of each directory, and the key files that the guide names.
 Read every file that it lists, then restate the task against them. The
-`build-it-right` skill drives the same steps in Claude Code and in Codex, and
+`prepare-change` skill drives the same steps in Claude Code and in Codex, and
 it also states how to build, verify and report the change. The skill is
-`.agents/skills/build-it-right/SKILL.md`, and `.claude/skills/build-it-right`
+`.agents/skills/prepare-change/SKILL.md`, and `.claude/skills/prepare-change`
 links to it.
 
 ## Requirements
@@ -136,33 +136,11 @@ needs no sign-off, because the owner holds the copyright. The rule is in
 
 ## Workflow
 
-The owner lands work directly on `main`. A contributor opens a pull request
-from a fork, and the owner lands it after review. The steps below are the
-path of the owner.
-
-1. Create a worktree on a short-lived branch:
-
-   ```bash
-   git worktree add ../tidynotebook-wt/my-change -b my-change main
-   cd ../tidynotebook-wt/my-change
-   pnpm install --frozen-lockfile --prefer-offline
-   ```
-
-2. Do all edits, commits and untracked work inside that worktree. Never edit
-   the main checkout while a worktree is open.
-3. Run `pnpm verify`, and take a screenshot of each screen that your change
-   touches in light and in dark.
-4. Rebase and land:
-
-   ```bash
-   git rebase main
-   git -C ../../tidynotebook merge --ff-only my-change
-   git worktree remove ../tidynotebook-wt/my-change
-   git branch -d my-change
-   ```
-
-If the rebase changed anything, run the checks again before you merge. Never
-force push.
+A change uses a worktree and a short-lived branch. The
+[agent lifecycle](docs/development/agent-lifecycle.md) holds the current PR,
+proof, review, and landing procedure. The owner and contributors use reviewed
+pull requests. An authorized exact head lands by non-force fast-forward push.
+A protection refusal is a stop. Worktree cleanup remains an owner action.
 
 ## Commit style
 

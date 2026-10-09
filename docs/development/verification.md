@@ -126,7 +126,7 @@ the issue and not to a document.
 `pnpm perf:typing`, `pnpm perf:save` and `pnpm perf:start` hold no budget
 either. Each starts the built application on a disposable database, seeds
 the same workspace, and drives the headless Chromium of the
-`testing-changes-end-to-end` skill, because the repository holds no browser
+`test-application` skill, because the repository holds no browser
 dependency (record 0066). `perf:typing` states the time from a key to its
 frame and the changes of the page outside the editor, `perf:save` the time
 from Ctrl + S to the server and to a second device and the time of a move to

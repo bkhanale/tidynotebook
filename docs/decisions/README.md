@@ -243,6 +243,7 @@ and needs no record.
 | [0209](0209-generated-api-reference.md)                                               | The API reference comes from the client contract                                |
 | [0210](0210-railway-pro-keeps-private-images-within-the-compute-budget.md)            | Railway Pro keeps private images within the compute budget                      |
 | [0211](0211-the-application-names-the-account-portal-billing.md)                      | The application names the account portal Billing                                |
+| [0212](0212-agent-lifecycle-proof.md)                                                 | Agent lifecycle uses exact input proof                                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

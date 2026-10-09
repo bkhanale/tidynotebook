@@ -1,0 +1,877 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import test from 'node:test';
+import { prove, reviewGate, cleanReviewBody } from './lifecycle.mjs';
+import {
+  digest,
+  git,
+  lock,
+  readState,
+  save,
+  snapshot,
+  stateDirectory,
+  validProof,
+} from './lifecycle-state.mjs';
+import {
+  nextVersion,
+  releaseChange,
+  releaseEntry,
+  release,
+} from './release.mjs';
+import {
+  parseManifest,
+  operatorDigests,
+  migrationMetadata,
+} from './release-manifest.mjs';
+import { diffImpact } from './agent-context.mjs';
+import { prepare } from './task-prepare.mjs';
+import { root } from './workspace.mjs';
+
+/** A real Git repository with isolated command executables, not a fake Git API. */
+function fixture() {
+  mkdirSync(join(root, '.tooling'), { recursive: true });
+  const cwd = mkdtempSync(join(root, '.tooling/lifecycle-test-'));
+  mkdirSync(join(cwd, 'tools'), { recursive: true });
+  mkdirSync(join(cwd, '.tooling/bin'), { recursive: true });
+  for (const name of [
+    'lifecycle-state.mjs',
+    'lifecycle.mjs',
+    'release.mjs',
+    'release-manifest.mjs',
+  ])
+    copyFileSync(join(root, 'tools', name), join(cwd, 'tools', name));
+  writeFileSync(join(cwd, '.gitignore'), '.tooling/\n');
+  writeFileSync(
+    join(cwd, 'package.json'),
+    JSON.stringify({
+      scripts: { verify: 'node gate.mjs', 'test:image': 'node gate.mjs' },
+    }),
+  );
+  writeFileSync(
+    join(cwd, 'gate.mjs'),
+    `import {readFileSync,writeFileSync} from 'node:fs';
+let n=0;try{n=Number(readFileSync('.tooling/count','utf8'));}catch{}
+writeFileSync('.tooling/count',String(n+1));
+console.log('The fixture gate runs.');
+if(process.env.NOTESAPP_TEST_GATE_MODE==='fail')process.exit(1);
+if(process.env.NOTESAPP_TEST_GATE_MODE==='mutate')writeFileSync('source.txt','changed');
+`,
+  );
+  writeFileSync(
+    join(cwd, '.tooling/bin/pnpm'),
+    `#!/usr/bin/env node
+import {spawnSync} from 'node:child_process';
+if(process.argv[2]==='--version')console.log('12.3.4');
+else process.exit(spawnSync(process.execPath,['gate.mjs'],{stdio:'inherit'}).status??1);
+`,
+    { mode: 0o700 },
+  );
+  writeFileSync(
+    join(cwd, '.tooling/bin/docker'),
+    `#!/usr/bin/env node
+import {appendFileSync,existsSync} from 'node:fs';
+if(process.argv[2]==='build'){
+const context=process.argv.at(-1);if(!existsSync(context+'/source.txt'))process.exit(1);
+appendFileSync('.tooling/builds','build\\n');
+}else console.log('sha256:'+'b'.repeat(64));
+`,
+    { mode: 0o700 },
+  );
+  writeFileSync(join(cwd, 'source.txt'), 'original');
+  git(cwd, ['init', '-b', 'main']);
+  git(cwd, ['config', 'user.email', 'test@example.com']);
+  git(cwd, ['config', 'user.name', 'Test']);
+  git(cwd, ['config', 'commit.gpgsign', 'false']);
+  git(cwd, ['config', 'tag.gpgsign', 'false']);
+  git(cwd, ['remote', 'add', 'origin', 'https://github.com/example/core']);
+  git(cwd, ['add', '.']);
+  git(cwd, ['commit', '-m', 'feat: fixture']);
+  const oldPath = process.env.PATH;
+  process.env.PATH = join(cwd, '.tooling/bin') + ':' + oldPath;
+  return {
+    cwd,
+    cleanup() {
+      if (oldPath === undefined) delete process.env.PATH;
+      else process.env.PATH = oldPath;
+      delete process.env.NOTESAPP_TEST_GATE_MODE;
+      rmSync(cwd, { recursive: true, force: true });
+    },
+  };
+}
+
+await test('proof runs real subprocesses, caches exact input, and rejects a changed log', () => {
+  const f = fixture();
+  try {
+    const first = prove(f.cwd);
+    assert.equal(first.result, 'passed');
+    assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), '1');
+    prove(f.cwd);
+    assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), '1');
+    const results = Array.isArray(first.gateResults) ? first.gateResults : [];
+    assert.equal(results.length, 1);
+    const entry = results[0];
+    assert.equal(typeof entry, 'object');
+    writeFileSync(
+      join(
+        stateDirectory(f.cwd),
+        `verify-${git(f.cwd, ['rev-parse', 'HEAD'])}.log`,
+      ),
+      'different',
+    );
+    assert.equal(validProof(first, snapshot(f.cwd), ['verify'], f.cwd), false);
+    prove(f.cwd);
+    assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), '2');
+    git(f.cwd, [
+      'remote',
+      'set-url',
+      'origin',
+      'https://github.com/example/other',
+    ]);
+    assert.equal(validProof(first, snapshot(f.cwd), ['verify'], f.cwd), false);
+  } finally {
+    f.cleanup();
+  }
+});
+await test('failure or mutation during a gate never saves passing proof', () => {
+  for (const mode of ['fail', 'mutate']) {
+    const f = fixture();
+    try {
+      process.env.NOTESAPP_TEST_GATE_MODE = mode;
+      assert.throws(
+        () => prove(f.cwd),
+        mode === 'fail' ? /gate fails/ : /pending files|inputs change/,
+      );
+      assert.deepEqual(
+        readState(join(stateDirectory(f.cwd), 'proof.json')),
+        {},
+      );
+      assert.ok(
+        readFileSync(
+          join(
+            stateDirectory(f.cwd),
+            `verify-${git(f.cwd, ['rev-parse', 'HEAD'])}.log`,
+          ),
+          'utf8',
+        ).includes('fixture'),
+      );
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+await test('image proof builds the exact archived commit and uses its image', () => {
+  const f = fixture();
+  try {
+    const proof = prove(f.cwd, ['verify', 'test:image']);
+    assert.equal(
+      validProof(proof, snapshot(f.cwd), ['verify', 'test:image'], f.cwd),
+      true,
+    );
+    assert.equal(
+      readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
+      'build\n',
+    );
+    assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), '2');
+    prove(f.cwd, ['verify', 'test:image']);
+    assert.equal(
+      readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
+      'build\n',
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+await test('one repository lock excludes another worktree and is not removed by its caller', () => {
+  const f = fixture();
+  const other = join(f.cwd, '.tooling/other');
+  try {
+    git(f.cwd, ['worktree', 'add', '-b', 'change', other]);
+    const unlock = lock(f.cwd, 'release');
+    assert.throws(() => lock(other, 'release'), /lock exists/);
+    unlock();
+    lock(other, 'release')();
+  } finally {
+    f.cleanup();
+  }
+});
+await test('final head checks require real completed review and resolved threads', () => {
+  const head = 'a'.repeat(40);
+  const status = {
+    headRefOid: head,
+    baseRefName: 'main',
+    state: 'OPEN',
+    isDraft: false,
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+    statusCheckRollup: [{ conclusion: 'SUCCESS' }],
+    reviews: [
+      {
+        user: { login: 'chatgpt-codex-connector[bot]' },
+        commit_id: head,
+        state: 'COMMENTED',
+        body: "Didn't find any major issues.",
+      },
+    ],
+    threads: [],
+  };
+  assert.equal(reviewGate(status, head), true);
+  assert.throws(() => reviewGate(status, 'b'.repeat(40)), /head or base/);
+  assert.throws(
+    () => reviewGate({ ...status, reviews: [] }, head),
+    /completed review/,
+  );
+  assert.throws(
+    () => reviewGate({ ...status, statusCheckRollup: [] }, head),
+    /checks/,
+  );
+  assert.throws(
+    () => reviewGate({ ...status, threads: [{ isResolved: false }] }, head),
+    /thread/,
+  );
+  assert.throws(
+    () =>
+      reviewGate(
+        {
+          ...status,
+          reviews: [{ ...status.reviews[0], commit_id: 'b'.repeat(40) }],
+        },
+        head,
+      ),
+    /completed review/,
+  );
+  assert.equal(
+    reviewGate(
+      {
+        ...status,
+        reviews: [],
+        actor: 'owner',
+        comments: [
+          {
+            id: 1,
+            user: { login: 'owner' },
+            body: `@codex review\nLifecycle review head: ${head}`,
+          },
+          {
+            id: 2,
+            user: { login: 'chatgpt-codex-connector[bot]' },
+            reviewedCommit: head,
+            body: "Didn't find any major issues.",
+          },
+        ],
+      },
+      head,
+    ),
+    true,
+  );
+});
+await test('version and notes derive from reviewed metadata including mixed and pre-stable changes', () => {
+  assert.equal(nextVersion('0.3.4', ['patch', 'minor']), '0.4.0');
+  assert.equal(nextVersion('0.3.4', ['major']), '0.4.0');
+  assert.equal(nextVersion('1.3.4', ['major']), '2.0.0');
+  assert.equal(nextVersion('0.3.4', ['none', 'patch']), '0.3.5');
+  assert.throws(() => nextVersion('0.3.4', ['none']), /no release/);
+  assert.throws(
+    () => releaseChange('fix: guess the release'),
+    /reviewed release metadata/,
+  );
+  const change = releaseChange(
+    'Release-Type: patch\nRelease-Note: Save keeps the note.',
+  );
+  assert.deepEqual(change, { type: 'patch', note: 'Save keeps the note.' });
+  const entry = releaseEntry(
+    '# Changelog\n\n## 0.3.4 - 2026-01-01\n\nOld.\n',
+    '0.3.5',
+    [change],
+    '2026-10-09',
+  );
+  assert.ok(entry.indexOf('## 0.3.5') < entry.indexOf('## 0.3.4'));
+  assert.ok(entry.includes('### Fixed\n\n- Save keeps the note.'));
+});
+await test('release status reads saved uncertain state without retrying a write', async () => {
+  const f = fixture();
+  try {
+    const state = {
+      schemaVersion: 1,
+      stage: 'tag-write',
+      uncertain: true,
+      version: '0.3.5',
+    };
+    save(join(stateDirectory(f.cwd), 'release.json'), state);
+    assert.deepEqual(await release({ cwd: f.cwd, status: true }), state);
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /unfinished release/,
+    );
+    assert.deepEqual(
+      readState(join(stateDirectory(f.cwd), 'release.json')),
+      state,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+await test('actual diff impact sees a storage semantic change and excludes an unrelated UI file', async () => {
+  const f = fixture();
+  try {
+    git(f.cwd, ['switch', '-c', 'change']);
+    mkdirSync(join(f.cwd, 'packages/storage-server/src'), { recursive: true });
+    writeFileSync(
+      join(f.cwd, 'packages/storage-server/src/accounts.ts'),
+      'export {};\n',
+    );
+    git(f.cwd, ['add', '.']);
+    git(f.cwd, ['commit', '-m', 'fix: controls']);
+    const impact = await diffImpact(f.cwd, 'main');
+    assert.equal(impact.operator, true);
+    assert.equal(impact.ui, false);
+    assert.deepEqual(impact.paths, ['packages/storage-server/src/accounts.ts']);
+  } finally {
+    f.cleanup();
+  }
+});
+await test('public surface digest changes when migration SQL changes', async () => {
+  const f = fixture();
+  try {
+    mkdirSync(join(f.cwd, 'packages/storage-server/migrations'), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(f.cwd, 'packages/storage-server/migrations/0001.sql'),
+      'original',
+    );
+    git(f.cwd, ['add', '.']);
+    git(f.cwd, ['commit', '-m', 'feat: storage']);
+    const before = await operatorDigests(f.cwd);
+    writeFileSync(
+      join(f.cwd, 'packages/storage-server/migrations/0001.sql'),
+      'changed',
+    );
+    const after = await operatorDigests(f.cwd);
+    assert.notEqual(before.surfaceDigest, after.surfaceDigest);
+  } finally {
+    f.cleanup();
+  }
+});
+await test('manifest rejects image drift and missing migration or gate proof', () => {
+  const sha = 'a'.repeat(40),
+    hash = digest('fixture');
+  const input = {
+    schemaVersion: 1,
+    repository: 'example/core',
+    version: '0.3.5',
+    tag: 'v0.3.5',
+    source: { commit: sha, tree: sha },
+    image: { reference: 'ghcr.io/example/core', digest: hash },
+    operator: { contractDigest: hash, surfaceDigest: hash },
+    migration: { requiredSchemaVersion: 1, digest: hash },
+    verification: {
+      commit: sha,
+      inputDigest: hash,
+      gates: ['verify', 'test:image'],
+      runtime: process.version,
+      toolDigest: hash,
+    },
+  };
+  assert.equal(parseManifest(input).source.commit, sha);
+  assert.throws(
+    () =>
+      parseManifest({
+        ...input,
+        image: { reference: input.image.reference, digest: 'latest' },
+      }),
+    /invalid/,
+  );
+  assert.throws(() => parseManifest({ ...input, migration: {} }), /invalid/);
+  assert.throws(
+    () =>
+      parseManifest({
+        ...input,
+        verification: { ...input.verification, gates: ['verify'] },
+      }),
+    /invalid/,
+  );
+  assert.throws(
+    () =>
+      parseManifest({
+        ...input,
+        source: { ...input.source, commit: 'b'.repeat(40) },
+      }),
+    /invalid/,
+  );
+});
+await test('preparation refuses internal work without its owner and paths outside the owned tree', async () => {
+  const f = fixture();
+  try {
+    await assert.rejects(
+      prepare({
+        cwd: f.cwd,
+        task: 'task',
+        paths: ['../outside'],
+        phase: 'build',
+      }),
+      /stay in its repository/,
+    );
+    const previous = process.env.TIDYNOTEBOOK_CLOUD_DIR;
+    delete process.env.TIDYNOTEBOOK_CLOUD_DIR;
+    try {
+      await assert.rejects(
+        prepare({
+          cwd: f.cwd,
+          task: 'task',
+          paths: ['source.txt'],
+          phase: 'build',
+          internal: true,
+        }),
+        /private repository/,
+      );
+    } finally {
+      if (previous !== undefined) process.env.TIDYNOTEBOOK_CLOUD_DIR = previous;
+    }
+  } finally {
+    f.cleanup();
+  }
+});
+await test('release and lifecycle modules are importable without external writes', () => {
+  const result = execFileSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `await import(${JSON.stringify(join(root, 'tools/release.mjs'))});`,
+    ],
+    { cwd: root, encoding: 'utf8' },
+  );
+  assert.equal(result, '');
+});
+
+/** Builds a full release fixture with real signed tags and real remote Git. */
+function releaseFixture() {
+  const f = fixture(),
+    cwd = f.cwd;
+  for (const name of [
+    'release-check.mjs',
+    'release-notes.mjs',
+    'workspace.mjs',
+    'agent-context.mjs',
+    'pr-screenshots.mjs',
+  ])
+    copyFileSync(join(root, 'tools', name), join(cwd, 'tools', name));
+  mkdirSync(join(cwd, 'packages/core/src'), { recursive: true });
+  copyFileSync(
+    join(root, 'packages/core/src/product.ts'),
+    join(cwd, 'packages/core/src/product.ts'),
+  );
+  mkdirSync(join(cwd, 'packages/storage-server/migrations/meta'), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(cwd, 'packages/storage-server/src-placeholder'),
+    'fixture',
+  );
+  mkdirSync(join(cwd, 'packages/storage-server/src'), { recursive: true });
+  writeFileSync(
+    join(cwd, 'packages/storage-server/src/migrate.ts'),
+    'export const requiredSchemaVersion = 1;\n',
+  );
+  writeFileSync(
+    join(cwd, 'packages/storage-server/migrations/0001.sql'),
+    'fixture migration\n',
+  );
+  writeFileSync(
+    join(cwd, 'packages/storage-server/migrations/meta/_journal.json'),
+    JSON.stringify({ entries: [{ idx: 0 }] }),
+  );
+  mkdirSync(join(cwd, '.github/workflows'), { recursive: true });
+  writeFileSync(
+    join(cwd, '.github/workflows/release.yml'),
+    'env:\n  IMAGE: ghcr.io/example/core\n',
+  );
+  mkdirSync(join(cwd, 'tools/sdk-codegen/node_modules/.bin'), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(cwd, 'tools/sdk-codegen/node_modules/.bin/redocly'),
+    `#!/usr/bin/env node
+import {writeFileSync} from 'node:fs';
+writeFileSync(process.argv.at(-1),JSON.stringify({openapi:'3.1.0',info:{title:'Fixture',version:'1'},paths:{'/api/operator/accounts':{get:{tags:['operator'],operationId:'findAccounts',responses:{200:{description:'Found'}}}},'/api/other':{get:{operationId:'other'}}},components:{securitySchemes:{operatorToken:{type:'http',scheme:'bearer'}}}}));
+`,
+    { mode: 0o700 },
+  );
+  writeFileSync(join(cwd, '.gitignore'), '.tooling/\n**/node_modules/\n');
+  writeFileSync(
+    join(cwd, 'README.md'),
+    '# Fixture\n\n**Status:** 0.1.0 is the current release. See\n',
+  );
+  writeFileSync(
+    join(cwd, 'CHANGELOG.md'),
+    '# Changelog\n\n## 0.1.0 - 2026-01-01\n\nOld release.\n\n### Added\n\n- A note.\n',
+  );
+  git(cwd, ['add', '.']);
+  git(cwd, ['commit', '-m', 'chore: initial release']);
+  git(cwd, ['tag', 'v0.1.0']);
+  writeFileSync(join(cwd, 'source.txt'), 'feature');
+  git(cwd, ['add', '.']);
+  git(cwd, ['commit', '-m', 'feat: new feature']);
+  const remote = join(cwd, '.tooling/remote');
+  execFileSync('/usr/bin/git', ['init', '--bare', remote], { stdio: 'ignore' });
+  git(cwd, [
+    'config',
+    `url.${remote}.insteadOf`,
+    'https://github.com/example/core',
+  ]);
+  git(cwd, ['push', 'origin', 'main', '--tags']);
+  const key = join(cwd, '.tooling/key');
+  execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', key]);
+  writeFileSync(
+    join(cwd, '.tooling/signers'),
+    'test@example.com ' + readFileSync(key + '.pub', 'utf8'),
+  );
+  git(cwd, ['config', 'gpg.format', 'ssh']);
+  git(cwd, [
+    'config',
+    'gpg.ssh.allowedSignersFile',
+    join(cwd, '.tooling/signers'),
+  ]);
+  git(cwd, ['config', 'user.signingkey', key]);
+  git(cwd, ['config', 'tag.gpgsign', 'true']);
+  save(join(cwd, '.tooling/service.json'), {
+    cleanReview: true,
+    comments: [],
+    writes: [],
+    assets: [],
+  });
+  writeFileSync(
+    join(cwd, '.tooling/bin/gh'),
+    `#!/usr/bin/env node
+import {execFileSync} from 'node:child_process';
+import {readFileSync,writeFileSync} from 'node:fs';
+const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
+const git=(...args)=>execFileSync('/usr/bin/git',args,{encoding:'utf8'}).trim();
+const head=git('rev-parse','HEAD');let version='0.2.0';try{version=JSON.parse(readFileSync('.tooling/lifecycle/release.json','utf8')).version;}catch{}
+const store=()=>writeFileSync('.tooling/service.json',JSON.stringify(s));
+const json=v=>console.log(JSON.stringify(v));
+const write=kind=>{s.writes.push(kind);store();if(s.interrupt===kind){s.interrupt=null;store();process.exit(7);}};
+const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:prepared}};};
+if(a[0]==='pr'&&a[1]==='list')json(s.created?[{number:41}]:[]);
+else if(a[0]==='pr'&&a[1]==='create'){s.created=true;s.prepared=head;write('pr-create');console.log(pr().url);}
+else if(a[0]==='pr'&&a[1]==='edit'){}
+else if(a[0]==='pr'&&a[1]==='view')json(pr());
+else if(a[0]==='pr'&&a[1]==='comment'){s.comments.push({id:s.comments.length+1,user:{login:'owner'},body:a.at(-1)});write('review-request');}
+else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/core/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
+else if(a[0]==='attestation'){if(s.badProvenance)process.exit(1);console.log('{}');}
+else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',url:'asset:release-manifest.json',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');s.assets.push({name:'operator-contract.json',url:'asset:operator-contract.json',bytes:readFileSync(a.at(-1),'utf8')});store();}
+else if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);s.assets.push({name,url:'asset:'+name,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
+else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];if(fields==='body')process.stdout.write(s.notes);else console.log(s.releaseName+'\\tv'+version+'\\tfalse\\tfalse');}
+else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:[],pageInfo:{hasNextPage:false}}}}}});
+else if(a[0]==='api'&&a[1]==='user')console.log('owner');
+else if(a[0]==='api'&&a[1].startsWith('asset:')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
+else if(a[0]==='api'&&a[1].includes('/commits/'))json([{number:40,merged_at:'2026-10-09',base:{ref:'main'},body:'Release-Type: minor\\nRelease-Note: Read a new note.'}]);
+else if(a[0]==='api'&&a[1].includes('/reviews'))json(s.cleanReview?[{user:{login:'chatgpt-codex-connector[bot]'},commit_id:s.prepared,state:'COMMENTED',body:"Didn't find any major issues."}]:[]);
+else if(a[0]==='api'&&a[1].includes('/comments'))json(s.comments);
+else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
+else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
+else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:false,prerelease:false,assets:s.assets}]:[]);
+else if(a[0]==='api'&&a[1].includes('/releases/latest'))console.log('v'+version);
+else if(a[0]==='api'&&a.includes('POST')){s.milestone=true;write('milestone-create');json({number:1,state:'closed'});}
+else if(a[0]==='api'&&a.includes('PATCH')){s.milestone=true;write('milestone-close');json({number:1,state:'closed'});}
+else if(a[0]==='api'&&a[1].includes('/milestones')){if(a.includes('--jq'))console.log(s.milestone?'closed\\t0':'');else json(s.milestone?[{number:1,title:version,state:'closed',open_issues:0}]:[]);}
+else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
+`,
+    { mode: 0o700 },
+  );
+  writeFileSync(
+    join(cwd, '.tooling/bin/docker'),
+    `#!/usr/bin/env node
+import {readFileSync,appendFileSync,existsSync} from 'node:fs';
+const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
+if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');}
+else if(a[0]==='pull'){}
+else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
+else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+'c'.repeat(64));
+else if(a.some(v=>v.includes('org.opencontainers.image.revision')))console.log(s.prepared);
+else if(a[0]==='image')console.log(JSON.stringify([{RepoDigests:['ghcr.io/example/core@sha256:'+'c'.repeat(64)],Config:{Labels:{'org.opencontainers.image.revision':s.prepared}}}]));
+else console.log('fixture-runtime');
+`,
+    { mode: 0o700 },
+  );
+  return f;
+}
+
+await test('the complete release runs once, signs its tag, publishes exact assets, and closes its milestone', async () => {
+  const f = releaseFixture();
+  try {
+    const result = await release({ cwd: f.cwd, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.equal(result.version, '0.2.0');
+    const service = readState(join(f.cwd, '.tooling/service.json'));
+    assert.equal(service.milestone, true);
+    assert.deepEqual(service.writes, [
+      'pr-create',
+      'review-request',
+      'release-create',
+      'milestone-create',
+    ]);
+    assert.doesNotThrow(() => git(f.cwd, ['verify-tag', 'v0.2.0']));
+    assert.equal(
+      git(f.cwd, ['rev-parse', 'v0.2.0^{commit}']),
+      result.releaseCommit,
+    );
+    const manifestFile = result.manifestFile;
+    assert.equal(typeof manifestFile, 'string');
+    if (typeof manifestFile !== 'string')
+      throw new Error('Missing manifest file.');
+    const manifest = parseManifest(
+      JSON.parse(readFileSync(manifestFile, 'utf8')),
+    );
+    assert.equal(manifest.source.commit, result.releaseCommit);
+    const again = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(again.stage, 'complete');
+    assert.deepEqual(
+      readState(join(f.cwd, '.tooling/service.json')).writes,
+      service.writes,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+await test('an uncertain release create resumes by reading and adding only the missing exact asset', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), interrupt: 'release-create' });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }));
+    assert.equal(
+      readState(join(stateDirectory(f.cwd), 'release.json')).stage,
+      'publish',
+    );
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    const writes = readState(file).writes;
+    assert.ok(Array.isArray(writes));
+    assert.equal(
+      Array.isArray(writes)
+        ? writes.filter((value) => value === 'release-create').length
+        : 0,
+      1,
+    );
+    assert.ok(Array.isArray(writes) && writes.includes('asset-upload'));
+  } finally {
+    f.cleanup();
+  }
+});
+await test('an interrupted prepare PR creation reads the existing PR and does not create another', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), interrupt: 'pr-create' });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }));
+    assert.equal(
+      readState(join(stateDirectory(f.cwd), 'release.json')).stage,
+      'prepared',
+    );
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    const writes = readState(file).writes;
+    assert.equal(
+      Array.isArray(writes)
+        ? writes.filter((value) => value === 'pr-create').length
+        : 0,
+      1,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+await test('pending review saves its phase and resumes only after the same head receives review', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), cleanReview: false });
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /completed review/,
+    );
+    const before = readState(join(stateDirectory(f.cwd), 'release.json'));
+    assert.equal(before.stage, 'review');
+    assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
+    save(file, { ...readState(file), cleanReview: true });
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.equal(result.prepareCommit, before.prepareCommit);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('a delayed prior-head clean comment and mixed clean text never permit landing', () => {
+  const head = 'a'.repeat(40);
+  const status = {
+    headRefOid: head,
+    baseRefName: 'main',
+    state: 'OPEN',
+    isDraft: false,
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+    statusCheckRollup: [{ conclusion: 'SUCCESS' }],
+    reviews: [],
+    threads: [],
+    actor: 'owner',
+    comments: [
+      {
+        id: 3,
+        user: { login: 'owner' },
+        body: `Lifecycle review head: ${head}`,
+      },
+      {
+        id: 4,
+        user: { login: 'chatgpt-codex-connector[bot]' },
+        reviewedCommit: 'b'.repeat(40),
+        body: "Didn't find any major issues.",
+      },
+    ],
+  };
+  assert.throws(() => reviewGate(status, head), /completed review/);
+  assert.equal(
+    cleanReviewBody('Did not find any input issues, but found data loss.'),
+    false,
+  );
+  assert.equal(
+    cleanReviewBody("Didn't find any major issues.\nP2: stale data"),
+    false,
+  );
+  assert.equal(
+    cleanReviewBody(
+      "Codex Review: Didn't find any major issues. Keep them coming!\n\n**Reviewed commit:** `fbb04b9de3`",
+    ),
+    true,
+  );
+});
+
+/** Stops after a successful Git write to model a lost process result. @param {string} cwd @param {string} kind */
+function interruptGit(cwd, kind) {
+  const state = join(cwd, '.tooling/service.json');
+  save(state, { ...readState(state), gitInterrupt: kind });
+  writeFileSync(
+    join(cwd, '.tooling/bin/git'),
+    `#!/usr/bin/env node
+import {spawnSync} from 'node:child_process';import{readFileSync,writeFileSync}from'node:fs';
+const a=process.argv.slice(2),r=spawnSync('/usr/bin/git',a,{stdio:'inherit'});
+let s;try{s=JSON.parse(readFileSync('.tooling/service.json','utf8'));}catch{}
+const kind=a[0]==='push'&&a.some(v=>v.startsWith('refs/tags/'))?'push-tag':a[0];
+if(r.status===0&&s&&s.gitInterrupt===kind){s.gitInterrupt=null;s.gitInterrupted=kind;writeFileSync('.tooling/service.json',JSON.stringify(s));process.exit(7);}process.exit(r.status??1);
+`,
+    { mode: 0o700 },
+  );
+}
+await test('prepare resumes after each successful local write without a second prepare commit', async () => {
+  for (const kind of ['switch', 'add', 'commit']) {
+    const f = releaseFixture();
+    try {
+      interruptGit(f.cwd, kind);
+      await assert.rejects(release({ cwd: f.cwd, execute: true }));
+      const interrupted = readState(
+        join(stateDirectory(f.cwd), 'release.json'),
+      );
+      assert.equal(interrupted.stage, 'planned');
+      assert.equal(
+        readState(join(f.cwd, '.tooling/service.json')).gitInterrupted,
+        kind,
+      );
+      const result = await release({ cwd: f.cwd, resume: true, execute: true });
+      assert.equal(result.stage, 'complete');
+      assert.equal(
+        git(f.cwd, ['log', '--all', '--format=%s'])
+          .split('\n')
+          .filter((subject) => subject === 'chore(release): prepare 0.2.0')
+          .length,
+        1,
+      );
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+await test('a lost tag push result resumes from the remote fixed tag without another push', async () => {
+  const f = releaseFixture();
+  try {
+    interruptGit(f.cwd, 'push-tag');
+    await assert.rejects(release({ cwd: f.cwd, execute: true }));
+    const before = readState(join(stateDirectory(f.cwd), 'release.json'));
+    assert.equal(before.stage, 'tag-write');
+    assert.equal(before.uncertain, true);
+    const tagObject = git(f.cwd, ['rev-parse', 'v0.2.0']);
+    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    assert.equal(result.stage, 'complete');
+    assert.equal(git(f.cwd, ['rev-parse', 'v0.2.0']), tagObject);
+  } finally {
+    f.cleanup();
+  }
+});
+await test('a changed prepared source or origin cannot resume a release', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), cleanReview: false });
+    await assert.rejects(
+      release({ cwd: f.cwd, execute: true }),
+      /completed review/,
+    );
+    git(f.cwd, [
+      'remote',
+      'set-url',
+      'origin',
+      'https://github.com/example/other',
+    ]);
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /identity changes/,
+    );
+    git(f.cwd, [
+      'remote',
+      'set-url',
+      'origin',
+      'https://github.com/example/core',
+    ]);
+    writeFileSync(join(f.cwd, 'source.txt'), 'changed source');
+    git(f.cwd, ['add', '.']);
+    git(f.cwd, ['commit', '-m', 'fix: change source']);
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /proof is required/,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('migration metadata binds SQL and journal bytes and refuses a count drift', () => {
+  const f = releaseFixture();
+  try {
+    const before = migrationMetadata(f.cwd);
+    const sql = join(f.cwd, 'packages/storage-server/migrations/0001.sql');
+    writeFileSync(sql, 'different migration');
+    assert.notEqual(migrationMetadata(f.cwd).digest, before.digest);
+    const journal = join(
+      f.cwd,
+      'packages/storage-server/migrations/meta/_journal.json',
+    );
+    writeFileSync(
+      journal,
+      JSON.stringify({ entries: [{ idx: 0, tag: 'different' }] }),
+    );
+    assert.notEqual(migrationMetadata(f.cwd).digest, before.digest);
+    writeFileSync(journal, JSON.stringify({ entries: [] }));
+    assert.throws(() => migrationMetadata(f.cwd), /journal differ/);
+  } finally {
+    f.cleanup();
+  }
+});

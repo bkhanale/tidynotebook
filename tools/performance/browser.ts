@@ -5,7 +5,7 @@
  * (`tests/integration/support/dev-app.ts`), seeds the corpus of the audit of
  * 2026-10-02 through the generated client, and drives a headless Chromium.
  * The repository holds no browser dependency (record 0066), so Chromium comes
- * from the Playwright that the `testing-changes-end-to-end` skill installs
+ * from the Playwright that the `test-application` skill installs
  * into `.local-app/`. The part of Playwright that the tools use is typed
  * below, and the module is checked against it when it loads.
  *
@@ -227,7 +227,7 @@ export async function launchChromium(): Promise<Browser> {
   const manifest = join(root, '.local-app/package.json');
   if (!existsSync(join(root, '.local-app/node_modules/playwright')))
     throw new Error(
-      'Playwright is not installed. Run node .agents/skills/testing-changes-end-to-end/scripts/browser.mjs first.',
+      'Playwright is not installed. Run node .agents/skills/test-application/scripts/browser.mjs first.',
     );
   // The Playwright of `.local-app/` resolves from its own manifest, which a
   // static import of this file cannot name.

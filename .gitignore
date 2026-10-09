@@ -1,6 +1,6 @@
 node_modules/
 # The application, the browser and the drive scripts of one worktree, from
-# the testing-changes-end-to-end skill.
+# the test-application skill.
 .local-app/
 .tooling/
 dist/

@@ -3,7 +3,7 @@
  * and the changes of the page outside the editor that each key causes.
  *
  * Usage: `pnpm perf:typing`, which builds, installs the browser of the
- * `testing-changes-end-to-end` skill and runs this file. Pass `--keys <n>` to
+ * `test-application` skill and runs this file. Pass `--keys <n>` to
  * type another number of keys per case, and `--cases <names>` with names such
  * as `2 KB,500 KB` to run some cases only.
  *

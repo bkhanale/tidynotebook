@@ -12,6 +12,6 @@ pnpm dev:app
 
 Press Ctrl+C to stop the server and remove this run's database and file storage. The shared PostgreSQL service stays up for tests. Each new run creates a new owner and fresh storage. Use `pnpm dev:app --port <port>` when the normal local port is busy.
 
-An agent starts, drives and stops the application of its worktree with the skill in `.agents/skills/testing-changes-end-to-end/`, which picks a free port and keeps its state in `.local-app/`.
+An agent starts, drives and stops the application of its worktree with the skill in `.agents/skills/test-application/`, which picks a free port and keeps its state in `.local-app/`.
 
 The owner removes the worktrees, the branches, the test database and the unused Docker data of the machine with the skill in `.agents/skills/cleaning-up-after-a-task/`. An agent never runs it on its own.

@@ -25,7 +25,7 @@ under test, the query, and the expected behaviour as a list of checks.
     ]
   },
   {
-    "skills": ["build-it-right", "cleaning-up-after-a-task"],
+    "skills": ["prepare-change", "cleaning-up-after-a-task"],
     "query": "Fix the sort order of the note list, land it, and finish the task.",
     "expected_behavior": [
       "Removes only its own worktree and branch, as the feature workflow states",

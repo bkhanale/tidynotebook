@@ -26,6 +26,12 @@ import {
 } from './release-notes.mjs';
 import { productName } from '../packages/core/src/product.ts';
 import { root } from './workspace.mjs';
+import {
+  readState,
+  snapshot,
+  stateDirectory,
+  validProof,
+} from './lifecycle-state.mjs';
 
 /** One result of the gate. */
 /** @typedef {{ name: string; status: 'ok' | 'failed' | 'skipped'; detail: string }} Check */
@@ -121,18 +127,10 @@ export function beforeChecks(state) {
   // worktree, and `git push origin main` pushes the local main (record 0204).
   checks.push(
     state.mainSha === ''
-      ? failed('the branch', 'there is no local main.')
-      : state.headSha !== state.mainSha
-        ? failed(
-            'the branch',
-            'HEAD is not the tip of main. Land the prepare commit on main.',
-          )
-        : state.holdsOriginMain
-          ? ok('the branch', 'HEAD is the tip of main')
-          : failed(
-              'the branch',
-              'main does not hold origin/main. Rebase onto origin/main.',
-            ),
+      ? failed('the branch', 'there is no published main.')
+      : !state.holdsOriginMain
+        ? failed('the branch', 'The release source is not in published main.')
+        : ok('the branch', 'published main holds the release source'),
   );
   checks.push(
     state.pending.trim() === ''
@@ -331,6 +329,10 @@ export function buildImage(directory, revision = 'HEAD') {
  *   runStatus: string;
  *   runConclusion: string;
  *   runUrl: string;
+ *   runSha: string;
+ *   imageDigest: string;
+ *   imageRevision: string;
+ *   imageProvenance: boolean;
  *   releaseName: string;
  *   releaseTag: string;
  *   releaseDraft: boolean;
@@ -424,6 +426,24 @@ export function afterChecks(state) {
               `the run ended in ${state.runConclusion}. ${state.runUrl}`,
             ),
   );
+  checks.push(
+    state.runSha === state.localTagSha
+      ? ok('the image source', state.runSha)
+      : failed(
+          'the image source',
+          'The image job does not build the signed tag commit.',
+        ),
+  );
+  checks.push(
+    /^sha256:[a-f0-9]{64}$/.test(state.imageDigest) &&
+      state.imageRevision === state.localTagSha &&
+      state.imageProvenance
+      ? ok('the image identity', state.imageDigest)
+      : failed(
+          'the image identity',
+          'The image digest, source, or provenance cannot be proved.',
+        ),
+  );
   // A tag with no image gets no release. Its next patch carries the release.
   const noImage =
     state.runStatus === 'completed' && state.runConclusion !== 'success';
@@ -462,18 +482,10 @@ export function afterChecks(state) {
             `they differ from the changelog entry. Run node tools/release-notes.mjs ${version} and edit the release.`,
           ),
     );
-    checks.push(
-      state.latestTag === tag
-        ? ok('the latest release', tag)
-        : failed(
-            'the latest release',
-            `GitHub calls ${state.latestTag} the latest.`,
-          ),
-    );
   }
   checks.push(
     state.milestoneState === ''
-      ? skipped('the milestone', `no milestone is named ${version}.`)
+      ? failed('the milestone', `no milestone is named ${version}.`)
       : state.milestoneOpenIssues > 0
         ? failed(
             'the milestone',
@@ -492,18 +504,18 @@ export function afterChecks(state) {
     );
   else if (state.imageTags === null)
     checks.push(
-      skipped(
+      failed(
         'the image tags',
         'the GitHub token cannot read packages. Run gh auth refresh -s read:packages.',
       ),
     );
   else {
-    const missing = [version, 'latest'].filter(
+    const missing = [version].filter(
       (name) => !(state.imageTags ?? []).includes(name),
     );
     checks.push(
       missing.length === 0
-        ? ok('the image tags', `${version} and latest`)
+        ? ok('the image tags', version)
         : failed(
             'the image tags',
             `the registry has no ${missing.join(' and no ')}.`,
@@ -583,14 +595,17 @@ async function readBefore(version, directory) {
     changelog,
     readme,
     headSha: run('git', ['rev-parse', 'HEAD'], directory).out,
-    mainSha: run('git', ['rev-parse', '--verify', 'refs/heads/main'], directory)
-      .out,
+    mainSha: run(
+      'git',
+      ['rev-parse', '--verify', 'refs/remotes/origin/main'],
+      directory,
+    ).out,
     holdsOriginMain:
       run('git', ['fetch', '--quiet', 'origin', 'main'], directory).status ===
         0 &&
       run(
         'git',
-        ['merge-base', '--is-ancestor', 'FETCH_HEAD', 'HEAD'],
+        ['merge-base', '--is-ancestor', 'HEAD', 'FETCH_HEAD'],
         directory,
       ).status === 0,
     headSubject: run('git', ['log', '-1', '--pretty=%s'], directory).out,
@@ -604,7 +619,14 @@ async function readBefore(version, directory) {
       ).out !== '',
     signsTags:
       run('git', ['config', '--get', 'tag.gpgsign'], directory).out === 'true',
-    imageBuild: buildImage(directory),
+    imageBuild: validProof(
+      readState(join(stateDirectory(directory), 'proof.json')),
+      snapshot(directory),
+      ['verify', 'test:image'],
+      directory,
+    )
+      ? ''
+      : buildImage(directory),
   };
 }
 
@@ -658,13 +680,13 @@ async function readAfter(version, directory) {
       '--limit',
       '1',
       '--json',
-      'status,conclusion,url',
+      'status,conclusion,url,headSha',
       '--jq',
-      '.[0] | [.status, .conclusion, .url] | @tsv',
+      '.[0] | [.status, .conclusion, .url, .headSha] | @tsv',
     ],
     directory,
   );
-  const [runStatus = '', runConclusion = '', runUrl = ''] =
+  const [runStatus = '', runConclusion = '', runUrl = '', runSha = ''] =
     runLine.out.split('\t');
   const milestone = run(
     'gh',
@@ -689,20 +711,67 @@ async function readAfter(version, directory) {
       'api',
       packageVersionsPath(imageName, ownerType),
       '--jq',
-      '.[].metadata.container.tags[]',
+      `.[] | select(.metadata.container.tags | index("${version}")) | .metadata.container.tags[]`,
     ],
     directory,
   );
+  const imageReference = `ghcr.io/${imageName.owner}/${imageName.name}`;
+  const pull = run(
+    'docker',
+    ['pull', `${imageReference}:${version}`],
+    directory,
+  );
+  const imageDigest =
+    pull.status === 0
+      ? (run(
+          'docker',
+          [
+            'image',
+            'inspect',
+            '--format',
+            '{{index .RepoDigests 0}}',
+            `${imageReference}:${version}`,
+          ],
+          directory,
+        ).out.split('@')[1] ?? '')
+      : '';
+  const imageRevision =
+    pull.status === 0
+      ? run(
+          'docker',
+          [
+            'image',
+            'inspect',
+            '--format',
+            '{{index .Config.Labels "org.opencontainers.image.revision"}}',
+            `${imageReference}:${version}`,
+          ],
+          directory,
+        ).out
+      : '';
+  const imageProvenance =
+    imageDigest !== '' &&
+    run(
+      'gh',
+      [
+        'attestation',
+        'verify',
+        `oci://${imageReference}@${imageDigest}`,
+        '--repo',
+        `${imageName.owner}/${imageName.name}`,
+        '--signer-workflow',
+        `${imageName.owner}/${imageName.name}/.github/workflows/release.yml`,
+      ],
+      directory,
+    ).status === 0;
   return {
     version,
     changelog,
+    imageDigest,
+    imageRevision,
+    imageProvenance,
     tagKind: run('git', ['cat-file', '-t', tag], directory).out,
-    tagSigned:
-      run(
-        'git',
-        ['tag', '--list', tag, '--format=%(contents:signature)'],
-        directory,
-      ).out !== '',
+    tagSigned: run('git', ['verify-tag', tag], directory).status === 0,
     tagSubject: run(
       'git',
       ['tag', '--list', tag, '--format=%(contents:subject)'],
@@ -722,6 +791,7 @@ async function readAfter(version, directory) {
         directory,
       ).status === 0,
     runStatus,
+    runSha,
     runConclusion,
     runUrl,
     releaseName,

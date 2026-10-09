@@ -11,6 +11,8 @@ import {
   coreReadingList,
   keyFiles,
   operatorInterface,
+  classifyImpact,
+  operatorSurfacePath,
 } from './agent-context.mjs';
 
 // The fixtures below are disposable trees under the system temporary
@@ -115,6 +117,7 @@ await test('a path lists the core files, its guide, then the key files', () => {
     .map((line) => line.replace(/^ {2}\d+\. /, '').split(':')[0]);
   assert.deepEqual(listed, [
     ...coreReadingList.map(([file]) => file),
+    operatorInterface.guide[0],
     'packages/core/AGENTS.md',
     'packages/core/src/index.ts',
     'packages/core/src/model.ts',
@@ -275,4 +278,31 @@ await test('a missing page of the operator interface fails', () => {
   const result = run({ [operatorInterface.guide[0]]: '' }, [operatorPath]);
   assert.equal(result.status, 1);
   assert.match(result.output, /docs\/development\/operator-api\.md/);
+});
+
+await test('semantic, storage, migration, and image changes load operator context', () => {
+  for (const path of [
+    'packages/core/src/identity/controls.ts',
+    'packages/core/src/workspaces/usage.ts',
+    'packages/storage-server/src/stores/accounts.ts',
+    'packages/storage-server/migrations/0001.sql',
+    'docker/healthcheck.mjs',
+    'Dockerfile',
+  ]) {
+    assert.equal(operatorSurfacePath(path), true, path);
+    const result = run({}, [path]);
+    assert.equal(result.status, 0, result.output);
+    assert.ok(
+      listedFiles(result.output).includes(operatorInterface.guide[0]),
+      path,
+    );
+  }
+  assert.equal(operatorSurfacePath('apps/web/src/features/note.tsx'), false);
+  const impact = classifyImpact([
+    'packages/storage-server/migrations/0001.sql',
+    'apps/web/src/features/note.tsx',
+  ]);
+  assert.equal(impact.operator, true);
+  assert.equal(impact.migration, true);
+  assert.equal(impact.ui, true);
 });

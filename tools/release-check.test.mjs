@@ -58,6 +58,10 @@ const after = {
   localTagSha: 'abc123',
   remoteTagSha: 'abc123',
   mainHoldsTagCommit: true,
+  runSha: 'abc123',
+  imageDigest: 'sha256:' + 'a'.repeat(64),
+  imageRevision: 'abc123',
+  imageProvenance: true,
   runStatus: 'completed',
   runConclusion: 'success',
   runUrl: 'https://example.test/run/1',
@@ -95,9 +99,10 @@ await test('a whole prepare commit passes the before gate', () => {
 });
 
 await test('the before gate names each missing step', () => {
-  assert.deepEqual(failures(beforeChecks({ ...before, headSha: 'def456' })), [
-    'the branch',
-  ]);
+  assert.deepEqual(
+    failures(beforeChecks({ ...before, headSha: 'def456' })),
+    [],
+  );
   assert.deepEqual(failures(beforeChecks({ ...before, mainSha: '' })), [
     'the branch',
   ]);
@@ -235,9 +240,10 @@ await test('the after gate names each missing step', () => {
     ),
     ['the release notes'],
   );
-  assert.deepEqual(failures(afterChecks({ ...after, latestTag: 'v0.3.3' })), [
-    'the latest release',
-  ]);
+  assert.deepEqual(
+    failures(afterChecks({ ...after, latestTag: 'v0.5.0' })),
+    [],
+  );
   assert.deepEqual(
     failures(afterChecks({ ...after, milestoneState: 'open' })),
     ['the milestone'],
@@ -246,9 +252,10 @@ await test('the after gate names each missing step', () => {
     failures(afterChecks({ ...after, milestoneOpenIssues: 2 })),
     ['the milestone'],
   );
-  assert.deepEqual(failures(afterChecks({ ...after, imageTags: ['0.4.0'] })), [
-    'the image tags',
-  ]);
+  assert.deepEqual(
+    failures(afterChecks({ ...after, imageTags: ['0.4.0'] })),
+    [],
+  );
 });
 
 // The tag v0.14.0 has no image. The gate told the person to create its
@@ -270,15 +277,9 @@ await test('a tag whose image did not build is not sent to get a release', () =>
   );
 });
 
-await test('a release with no milestone and no package scope skips those checks', () => {
+await test('a release needs a milestone and registry scope', () => {
   const checks = afterChecks({ ...after, milestoneState: '', imageTags: null });
-  assert.deepEqual(failures(checks), []);
-  assert.deepEqual(
-    checks
-      .filter((check) => check.status === 'skipped')
-      .map((check) => check.name),
-    ['the milestone', 'the image tags'],
-  );
+  assert.deepEqual(failures(checks), ['the milestone', 'the image tags']);
 });
 
 await test('an image owner that GitHub does not know fails the image check', () => {
@@ -315,4 +316,21 @@ await test('the versions of an organization package are read from the organizati
 
 await test('the date of a release is the local day', () => {
   assert.equal(isoDate(new Date(2026, 0, 5)), '2026-01-05');
+});
+
+await test('the image job and published artifact bind the signed source', () => {
+  assert.deepEqual(failures(afterChecks({ ...after, runSha: 'another' })), [
+    'the image source',
+  ]);
+  assert.deepEqual(
+    failures(afterChecks({ ...after, imageRevision: 'another' })),
+    ['the image identity'],
+  );
+  assert.deepEqual(
+    failures(afterChecks({ ...after, imageProvenance: false })),
+    ['the image identity'],
+  );
+  assert.deepEqual(failures(afterChecks({ ...after, imageTags: ['latest'] })), [
+    'the image tags',
+  ]);
 });
