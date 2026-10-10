@@ -1303,7 +1303,7 @@ await test('prepare resumes after each successful local write without a second p
     }
   }
 });
-await test('a lost tag push result resumes from the remote fixed tag without another push', async () => {
+await test('a lost tag push result resumes from the remote fixed tag after stopped writer recovery', async () => {
   const f = releaseFixture();
   try {
     interruptGit(f.cwd, 'push-tag');
@@ -1312,6 +1312,20 @@ await test('a lost tag push result resumes from the remote fixed tag without ano
     assert.equal(before.stage, 'ready');
     assert.equal(before.stage, 'ready');
     const tagObject = git(f.cwd, ['rev-parse', 'v0.2.0']);
+    await assert.rejects(
+      release({ cwd: f.cwd, resume: true, execute: true }),
+      /Another publication/,
+    );
+    assert.ok(
+      git(f.cwd, ['ls-remote', 'origin', 'refs/tags/v0.2.0']).startsWith(
+        tagObject,
+      ),
+    );
+    const file = join(f.cwd, '.tooling/service.json');
+    const stopped = readState(file);
+    assert.equal(typeof stopped.publicationLock, 'string');
+    delete stopped.publicationLock;
+    save(file, stopped);
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
     assert.equal(git(f.cwd, ['rev-parse', 'v0.2.0']), tagObject);
