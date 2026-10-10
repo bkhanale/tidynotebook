@@ -21,7 +21,7 @@
 - Only the owner starts the `cleaning-up-after-a-task` skill. Never run it on
   your own, and never remove another worktree, another branch, or Docker data
   outside it.
-- A release follows the `release-core` skill, from the changelog entry
-  to the signed tag, the GitHub release, and the milestone. Prove each step
-  with `node tools/release-check.mjs`. A pushed tag is never moved and never
-  deleted.
+- Preparation follows the `release-core` skill for notes, source review and
+  tests. Publication uses its remote prepared image and official assets. It
+  runs no source gate, image test, review or milestone work (record 0215).
+  A pushed signed tag is never moved and never deleted.

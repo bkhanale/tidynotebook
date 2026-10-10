@@ -14,7 +14,7 @@ It does not repeat the instructions of a unit.
 A feature or fix request starts preparation and includes build, proof, and PR
 review. It includes landing when the session permits it. An agent continues
 through those units without asking for the same permission again. A release
-request starts the release unit and includes its prepare PR and proof. An
+request includes preparation when needed, then publication. An
 interruption resumes the saved unit. A build request never starts a release,
 live deploy, host restore, retirement, or machine cleanup.
 
@@ -24,23 +24,23 @@ a completion event or a bounded read. It does not repeat an expensive gate.
 
 ## Catalog
 
-| Skill                      | Start                                    | End                                            |
-| -------------------------- | ---------------------------------------- | ---------------------------------------------- |
-| `prepare-change`           | Core task or resume                      | Saved owner, context, scope, and phase         |
-| `design-change`            | Architectural choice                     | Accepted record and linked work                |
-| `build-change`             | Prepared approved change                 | Code and focused tests                         |
-| `prove-change`             | Clean source                             | Exact input proof and screen evidence          |
-| `test-application`         | Browser check request                    | Observed local application and screenshots     |
-| `review-change`            | Current proof or review findings         | Final head review and resolved threads         |
-| `land-change`              | Reviewed head and landing scope          | Read back exact merged source                  |
-| `release-core`             | Explicit release or release resume       | Fixed tag, image, assets, notes, and milestone |
-| `setup-project`            | Named new target                         | Ready contributor worktree or host             |
-| `operate-host`             | Named host check or backup               | Health or verified archive evidence            |
-| `recover-host`             | Named verified archive and empty target  | Proved restored target                         |
-| `maintain-project`         | Named maintenance scope                  | Checked change through normal units            |
-| `manage-host-credentials`  | Named credential operation and consumers | Verified replacement and revoke state          |
-| `retire-host`              | Explicit named retirement                | Stopped service and stated retained data       |
-| `cleaning-up-after-a-task` | Owner invokes this exact skill           | Owner machine cleanup                          |
+| Skill                      | Start                                    | End                                        |
+| -------------------------- | ---------------------------------------- | ------------------------------------------ |
+| `prepare-change`           | Core task or resume                      | Saved owner, context, scope, and phase     |
+| `design-change`            | Architectural choice                     | Accepted record and linked work            |
+| `build-change`             | Prepared approved change                 | Code and focused tests                     |
+| `prove-change`             | Clean source                             | Exact input proof and screen evidence      |
+| `test-application`         | Browser check request                    | Observed local application and screenshots |
+| `review-change`            | Current proof or review findings         | Final head review and resolved threads     |
+| `land-change`              | Reviewed head and landing scope          | Read back exact merged source              |
+| `release-core`             | Explicit release or release resume       | Fixed tag, image, assets and notes         |
+| `setup-project`            | Named new target                         | Ready contributor worktree or host         |
+| `operate-host`             | Named host check or backup               | Health or verified archive evidence        |
+| `recover-host`             | Named verified archive and empty target  | Proved restored target                     |
+| `maintain-project`         | Named maintenance scope                  | Checked change through normal units        |
+| `manage-host-credentials`  | Named credential operation and consumers | Verified replacement and revoke state      |
+| `retire-host`              | Explicit named retirement                | Stopped service and stated retained data   |
+| `cleaning-up-after-a-task` | Owner invokes this exact skill           | Owner machine cleanup                      |
 
 The skill sources live in `.agents/skills/`. `.claude/skills/` links each source.
 The cleanup skill remains owner-only. No unit invokes it.
@@ -84,15 +84,17 @@ keeps that attempt unchanged.
 
 ## Release and consumers
 
-`tools/release.mjs` owns the explicit release chain and shared worktree lock.
-It derives notes and the version from merged PR metadata. The strongest release
-type wins. A mixed feature and fix takes the feature step. Before stability, a
-breaking change takes the next minor step. The command saves each stage.
-The prepare commit and date stay fixed even when later work lands on main.
-The command publishes the exact local image that passes the image gate.
-It reads the registry before a retry and refuses a different image.
+[Record 0215](../decisions/0215-release-publishes-prepared-artifacts.md) separates
+preparation and publication. `tools/release.mjs` prepares notes, reviews source,
+runs source and image gates, and stores the prepared image and official assets
+remotely. The source image name is fixed. The draft release holds the assets.
+`tools/release-publish.mjs` publishes these artifacts from any runner. It uses
+no local proof receipt or build image and starts no tests or source review.
+It creates the signed tag, copies registry references, and publishes the draft.
+Milestone work is separate. A readback checks each remote write.
 
-`tools/release-check.mjs` proves the before and after chain. The after gate reads
+`tools/release-check.mjs` keeps the older before and after diagnostic.
+Publication does not run it. The after gate reads
 the cryptographic tag result, immutable version digest, and image
 revision for the exact source commit. A later latest alias does not invalidate that release.
 `tools/release-manifest.mjs` validates the public asset. The release publishes

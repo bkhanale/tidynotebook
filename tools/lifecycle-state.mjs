@@ -71,6 +71,7 @@ export function snapshot(cwd) {
         'lifecycle.mjs',
         'release.mjs',
         'release-manifest.mjs',
+        'release-publish.mjs',
       ].map((name) => readFileSync(join(cwd, 'tools', name))),
     ),
   );

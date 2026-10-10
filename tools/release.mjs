@@ -1,6 +1,5 @@
 /** Explicit, locked, resumable core release. Remote writes are read before retry. */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { join } from 'node:path';
 import {
@@ -11,6 +10,8 @@ import {
   statusLine,
 } from './release-check.mjs';
 import { changelogEntries, releaseNotes } from './release-notes.mjs';
+import { publishPreparedImage, release } from './release-publish.mjs';
+export { release } from './release-publish.mjs';
 import { land, prepareReview, prove } from './lifecycle.mjs';
 import {
   command,
@@ -139,7 +140,7 @@ export function releaseEntry(changelog, version, changes, date) {
 
 /** @typedef {{cwd:string;version?:string;execute?:boolean;resume?:boolean;status?:boolean;autoReviewOnReady?:boolean}} ReleaseOptions */
 /** @param {ReleaseOptions} options */
-export async function release(options) {
+export async function prepareRelease(options) {
   const cwd = options.cwd;
   const unlock = lock(cwd, 'release');
   try {
@@ -150,7 +151,7 @@ export async function release(options) {
     if (
       Object.keys(state).length > 0 &&
       !options.resume &&
-      state.stage !== 'complete'
+      state.stage !== 'ready'
     )
       throw new Error(
         'An unfinished release exists. Read its status, then resume it.',
@@ -368,175 +369,14 @@ export async function release(options) {
       advance('before', { proof });
     }
     if (state.stage === 'before') {
-      const remote = git(cwd, [
-        'ls-remote',
-        'origin',
-        `refs/tags/${tag}`,
-        `refs/tags/${tag}^{}`,
-      ]);
-      const local = git(cwd, ['tag', '--list', tag]);
-      if (remote && !local)
-        throw new Error(
-          'The remote tag exists without its local source. Read it before recovery.',
-        );
-      if (!local)
-        git(cwd, [
-          'tag',
-          '-s',
-          tag,
-          '-m',
-          releaseTitle(version),
-          String(state.releaseCommit),
-        ]);
-      git(cwd, ['verify-tag', tag]);
-      if (git(cwd, ['rev-parse', `${tag}^{commit}`]) !== state.releaseCommit)
-        throw new Error('The immutable tag source differs.');
-      if (
-        remote &&
-        !remote
-          .split('\n')
-          .some(
-            (line) =>
-              line.startsWith(releaseCommit + '\t') && line.endsWith('^{}'),
-          )
-      )
-        throw new Error('The remote tag identity differs.');
-      advance('tag-write', { tagObject: git(cwd, ['rev-parse', tag]) });
-    }
-    if (state.stage === 'tag-write') {
-      git(cwd, ['verify-tag', tag]);
-      const tagObject = git(cwd, ['rev-parse', tag]);
-      if (
-        tagObject !== state.tagObject ||
-        git(cwd, ['rev-parse', `${tag}^{commit}`]) !== state.releaseCommit
-      )
-        throw new Error('The fixed local tag identity changes.');
-      const remote = git(cwd, [
-        'ls-remote',
-        'origin',
-        `refs/tags/${tag}`,
-        `refs/tags/${tag}^{}`,
-      ]);
-      if (!remote) {
-        const attempts =
-          typeof state.tagAttempts === 'number' ? state.tagAttempts : 0;
-        if (attempts >= 2)
-          throw new Error(
-            'The tag write remains absent after bounded recovery. Keep its identity and inspect the remote.',
-          );
-        advance('tag-write', {
-          uncertain: true,
-          tagAttempts: attempts + 1,
-          absenceRead: true,
-        });
-        git(cwd, ['push', 'origin', `refs/tags/${tag}`]);
-      } else if (
-        !remote.split('\n').includes(`${tagObject}\trefs/tags/${tag}`) ||
-        !remote.split('\n').includes(`${releaseCommit}\trefs/tags/${tag}^{}`)
-      )
-        throw new Error('The remote tag object or source differs.');
-      advance('image', { uncertain: false });
-    }
-    if (state.stage === 'image') {
       const repository = githubRepository(String(state.origin));
       const image = `ghcr.io/${repository.toLowerCase()}`;
-      const target = `${image}:${version}`;
-      const proofImage = record(record(state.proof).image);
-      if (
-        typeof proofImage.id !== 'string' ||
-        proofImage.commit !== state.releaseCommit
-      )
-        throw new Error('The tested image proof is missing.');
-      // A failed registry read is not evidence that an immutable tag is absent.
-      const pull = spawnSync('docker', ['pull', target], {
+      const prepared = await publishPreparedImage(
         cwd,
-        encoding: 'utf8',
-      });
-      if (pull.status !== 0) {
-        if (
-          !/manifest unknown|manifest.*not found|not found.*manifest/i.test(
-            pull.stderr ?? '',
-          )
-        )
-          throw new Error(
-            'The registry image cannot be read. Check registry access.',
-          );
-        const attempts =
-          typeof state.imageAttempts === 'number' ? state.imageAttempts : 0;
-        if (attempts >= 2)
-          throw new Error(
-            'The image write remains absent after bounded recovery.',
-          );
-        command(cwd, 'docker', ['tag', proofImage.id, target]);
-        advance('image', { imageAttempts: attempts + 1, uncertain: true });
-        command(cwd, 'docker', ['push', target]);
-        command(cwd, 'docker', ['pull', target]);
-      }
-      /** @type {unknown} */
-      const inspection = JSON.parse(
-        command(cwd, 'docker', ['image', 'inspect', target]),
+        image,
+        releaseCommit,
+        record(record(state.proof).image),
       );
-      const inspected = Array.isArray(inspection) ? record(inspection[0]) : {};
-      const labels = record(record(inspected.Config).Labels);
-      const digests = inspected.RepoDigests;
-      /** @type {unknown} */
-      const reference = Array.isArray(digests)
-        ? digests.find(
-            (value) =>
-              typeof value === 'string' && value.startsWith(image + '@sha256:'),
-          )
-        : undefined;
-      if (
-        inspected.Id !== proofImage.id ||
-        labels['org.opencontainers.image.revision'] !== state.releaseCommit ||
-        typeof reference !== 'string'
-      )
-        throw new Error('The published image differs from the tested image.');
-      // The latest alias can move. The fixed version tag cannot move.
-      if (state.latestPublished !== true) {
-        const latest = `${image}:latest`;
-        const observed = spawnSync('docker', ['pull', latest], {
-          cwd,
-          encoding: 'utf8',
-        });
-        if (
-          observed.status !== 0 &&
-          !/manifest unknown|manifest.*not found|not found.*manifest/i.test(
-            observed.stderr ?? '',
-          )
-        )
-          throw new Error(
-            'The latest image cannot be read. Check registry access.',
-          );
-        const currentId =
-          observed.status === 0
-            ? command(cwd, 'docker', [
-                'image',
-                'inspect',
-                '--format',
-                '{{.Id}}',
-                latest,
-              ])
-            : '';
-        if (currentId !== proofImage.id) {
-          command(cwd, 'docker', ['tag', proofImage.id, latest]);
-          advance('image', { uncertain: true });
-          command(cwd, 'docker', ['push', latest]);
-          command(cwd, 'docker', ['pull', latest]);
-          if (
-            command(cwd, 'docker', [
-              'image',
-              'inspect',
-              '--format',
-              '{{.Id}}',
-              latest,
-            ]) !== proofImage.id
-          )
-            throw new Error('The latest alias differs from the tested image.');
-        }
-        advance('image', { latestPublished: true, uncertain: false });
-      }
-      const proof = record(state.proof);
       const contractFile = join(
         directory,
         'releases',
@@ -550,9 +390,9 @@ export async function release(options) {
         repository,
         version,
         image,
-        reference.split('@')[1] ?? '',
+        prepared.split('@')[1] ?? '',
         contractFile,
-        proof,
+        record(state.proof),
       );
       const manifestFile = join(
         directory,
@@ -561,18 +401,6 @@ export async function release(options) {
         'release-manifest.json',
       );
       save(manifestFile, manifest);
-      advance('publish', {
-        manifestFile,
-        contractFile,
-        imageDigest: manifest.image.digest,
-        assetDigests: {
-          'release-manifest.json': digest(readFileSync(manifestFile)),
-          'operator-contract.json': digest(readFileSync(contractFile)),
-        },
-        uncertain: false,
-      });
-    }
-    if (state.stage === 'publish') {
       const notes = releaseNotes(
         readFileSync(join(cwd, 'CHANGELOG.md'), 'utf8'),
         version,
@@ -581,144 +409,56 @@ export async function release(options) {
       const notesFile = join(directory, 'releases', version, 'notes.md');
       writeFileSync(notesFile, notes);
       const files = {
-        'release-manifest.json': String(state.manifestFile),
-        'operator-contract.json': String(state.contractFile),
+        'release-manifest.json': manifestFile,
+        'operator-contract.json': contractFile,
       };
-      for (const [name, file] of Object.entries(files))
-        if (digest(readFileSync(file)) !== record(state.assetDigests)[name])
-          throw new Error('The fixed release asset differs.');
-      const observed = publishedRelease(cwd, tag),
-        existing = observed.release;
-      if (!existing) {
-        const attempts =
-          typeof state.publishAttempts === 'number' ? state.publishAttempts : 0;
-        if (attempts >= 2)
-          throw new Error(
-            'The release write remains absent after bounded recovery. Inspect the release state.',
-          );
-        advance('publish', {
-          uncertain: true,
-          publishAttempts: attempts + 1,
-          absenceRead: true,
-        });
+      const remote = publishedRelease(cwd, tag);
+      if (!remote.release) {
         command(cwd, 'gh', [
           'release',
           'create',
           tag,
-          '--verify-tag',
+          '--draft',
+          '--target',
+          releaseCommit,
           '--title',
           releaseTitle(version),
           '--notes-file',
           notesFile,
-          files['release-manifest.json'],
-          files['operator-contract.json'],
+          manifestFile,
+          contractFile,
         ]);
       } else {
         if (
-          existing.name !== releaseTitle(version) ||
-          String(existing.body).trim() !== notes.trim() ||
-          existing.draft !== false ||
-          existing.prerelease !== false
+          remote.release.name !== releaseTitle(version) ||
+          String(remote.release.body).trim() !== notes.trim() ||
+          remote.release.prerelease !== false
         )
-          throw new Error('The published release identity differs.');
-        // Validate every existing asset before filling a missing asset.
-        for (const [name, file] of Object.entries(files)) {
-          const bytes = observed.assets.get(name);
-          if (bytes && !bytes.equals(readFileSync(file)))
-            throw new Error('The published release asset differs.');
-        }
-        for (const [name, file] of Object.entries(files)) {
-          if (observed.assets.has(name)) continue;
-          const attempts = record(state.assetAttempts);
-          const savedCount = attempts[name];
-          const count = typeof savedCount === 'number' ? savedCount : 0;
-          if (count >= 2)
-            throw new Error(
-              'The asset write remains absent after bounded recovery. Inspect publication.',
-            );
-          advance('publish', {
-            uncertain: true,
-            assetAttempts: { ...attempts, [name]: count + 1 },
-            absenceRead: true,
-          });
-          command(cwd, 'gh', ['release', 'upload', tag, file]);
-        }
-      }
-      const readback = publishedRelease(cwd, tag);
-      if (
-        !readback.release ||
-        readback.release.name !== releaseTitle(version) ||
-        String(readback.release.body).trim() !== notes.trim() ||
-        readback.release.draft !== false ||
-        readback.release.prerelease !== false
-      )
-        throw new Error(
-          'The publication result is missing or differs. Read it before another write.',
-        );
-      checkReleaseAssets(readback.assets, files);
-      advance('milestone', { uncertain: false });
-    }
-    if (state.stage === 'milestone') {
-      /** @type {unknown} */
-      const milestones = JSON.parse(
-        command(cwd, 'gh', [
-          'api',
-          'repos/{owner}/{repo}/milestones?state=all&per_page=100',
-        ]),
-      );
-      const milestone = Array.isArray(milestones)
-        ? milestones
-            .map(record)
-            .find((milestone) => milestone.title === version)
-        : undefined;
-      if (!milestone) {
-        const created = record(
-          JSON.parse(
-            command(cwd, 'gh', [
-              'api',
-              '--method',
-              'POST',
-              'repos/{owner}/{repo}/milestones',
-              '-f',
-              `title=${version}`,
-              '-f',
-              'state=closed',
-            ]),
-          ),
-        );
-        if (typeof created.number !== 'number' || created.state !== 'closed')
           throw new Error(
-            'The milestone create result is uncertain. Read it before another write.',
+            'The prepared release identity differs. Never replace it.',
           );
-        advance('after');
-      } else if (typeof milestone.number !== 'number')
-        throw new Error('The milestone identity is invalid.');
-      if (milestone && milestone.open_issues !== 0)
-        throw new Error(
-          'The release milestone has open work. Close or move it, then resume.',
-        );
-      if (milestone && milestone.state !== 'closed') {
-        const number = milestone.number;
-        if (typeof number !== 'number')
-          throw new Error('The milestone identity is invalid.');
-        command(cwd, 'gh', [
-          'api',
-          '--method',
-          'PATCH',
-          `repos/{owner}/{repo}/milestones/${number}`,
-          '-f',
-          'state=closed',
-        ]);
+        for (const [name, file] of Object.entries(files)) {
+          const bytes = remote.assets.get(name);
+          if (bytes && !bytes.equals(readFileSync(file)))
+            throw new Error('The prepared release asset differs.');
+        }
+        for (const [name, file] of Object.entries(files)) {
+          if (!remote.assets.has(name))
+            command(cwd, 'gh', ['release', 'upload', tag, file]);
+        }
       }
-      advance('after');
-    }
-    if (state.stage === 'after') {
-      command(cwd, process.execPath, [
-        'tools/release-check.mjs',
-        'after',
-        version,
-      ]);
-      advance('complete');
+      checkReleaseAssets(publishedRelease(cwd, tag).assets, files);
+      advance('ready', {
+        manifestFile,
+        contractFile,
+        imageDigest: manifest.image.digest,
+        assetDigests: Object.fromEntries(
+          Object.entries(files).map(([name, file]) => [
+            name,
+            digest(readFileSync(file)),
+          ]),
+        ),
+      });
     }
     return state;
   } finally {
@@ -736,6 +476,7 @@ if (import.meta.main) {
         status: { type: 'boolean' },
         execute: { type: 'boolean' },
         json: { type: 'boolean' },
+        prepare: { type: 'boolean' },
       },
     });
     if (positionals.length > 1)
@@ -743,7 +484,7 @@ if (import.meta.main) {
     const version = positionals[0];
     process.stdout.write(
       JSON.stringify(
-        await release({
+        await (values.prepare ? prepareRelease : release)({
           cwd: root,
           autoReviewOnReady: values['auto-review-on-ready'] === true,
           ...(version ? { version } : {}),

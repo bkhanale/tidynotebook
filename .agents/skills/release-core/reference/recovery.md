@@ -1,12 +1,14 @@
 # Release recovery
 
-Read `pnpm release --status` before a write. Keep the source, repository, tag,
-version, tested image, and published digest fixed. A pending review is a wait.
-Resume when its completion event arrives. A gate failure is a fix before a tag.
-An absent registry image can resume its saved write. A different image is a stop.
+Read preparation with `pnpm release:prepare --status`. Resume its source,
+version, notes and review with `pnpm release:prepare --resume`. A gate failure
+is source work before publication. Keep its tested image identity fixed.
 
-A lock does not expire on a timer. Read the named process and its worktree.
-Remove a stale lock only after its process is gone and no other work owns it.
-An uncertain external write needs a current read. A missing exact release asset
-can be uploaded after that read. A differing asset, tag, or repository is a stop.
-Do not overwrite it. Record the state and the next safe action.
+Read publication with `pnpm release "$VERSION" --status`. Publication reads
+the remote prepared assets and registry digest. It needs no local receipt.
+Retry the same version after an uncertain write. The command reads remote state
+before another write. A differing asset, version tag, image or repository is
+a stop. Never overwrite it. Milestone work is separate.
+
+A local lock does not expire on a timer. Read the named process and worktree.
+Remove a stale lock only when its process is gone and no other work owns it.

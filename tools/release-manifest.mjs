@@ -243,6 +243,23 @@ export function publishedRelease(cwd, tag) {
           ? stderr.toString('utf8')
           : '';
     if (!/^gh: Not Found \(HTTP 404\)\s*$/m.test(message)) throw error;
+    const pages = JSON.parse(
+      command(cwd, 'gh', [
+        'api',
+        '--paginate',
+        '--slurp',
+        `repos/${repository}/releases?per_page=100`,
+      ]),
+    );
+    if (!Array.isArray(pages) || pages.some((page) => !Array.isArray(page)))
+      throw new Error('The release list is invalid.');
+    const matches = pages
+      .flat()
+      .map(record)
+      .filter((item) => item.tag_name === tag);
+    if (matches.length > 1)
+      throw new Error('The prepared release is not unique.');
+    release = matches[0];
   }
   if (release && release.tag_name !== tag)
     throw new Error('The published release tag differs.');

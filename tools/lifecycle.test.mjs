@@ -34,7 +34,8 @@ import {
   nextVersion,
   releaseChange,
   releaseEntry,
-  release,
+  release as publishRelease,
+  prepareRelease,
 } from './release.mjs';
 import {
   parseManifest,
@@ -47,6 +48,21 @@ import { prepare } from './task-prepare.mjs';
 import { record, root } from './workspace.mjs';
 import { main as releaseCheck } from './release-check.mjs';
 
+/** Exercise the two explicit units together in recovery fixtures.
+ * @param {import('./release-publish.mjs').ReleaseOptions} options
+ */
+async function release(options) {
+  const prepared = await prepareRelease(options);
+  if (!options.execute || options.status || prepared.stage !== 'ready')
+    return prepared;
+  if (typeof prepared.version !== 'string')
+    throw new Error('Missing prepared version.');
+  return {
+    ...prepared,
+    ...(await publishRelease({ ...options, version: prepared.version })),
+  };
+}
+
 /** A real Git repository with isolated command executables, not a fake Git API. */
 function fixture() {
   mkdirSync(join(root, '.tooling'), { recursive: true });
@@ -58,6 +74,7 @@ function fixture() {
     'lifecycle.mjs',
     'release.mjs',
     'release-manifest.mjs',
+    'release-publish.mjs',
   ])
     copyFileSync(join(root, 'tools', name), join(cwd, 'tools', name));
   writeFileSync(join(cwd, '.gitignore'), '.tooling/\n');
@@ -791,7 +808,7 @@ const store=()=>writeFileSync('.tooling/service.json',JSON.stringify(s));
 const json=v=>console.log(JSON.stringify(v));
 const write=kind=>{s.writes.push(kind);store();if(s.interrupt===kind){s.interrupt=null;store();process.exit(7);}};
 const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:s.prNumber??41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:s.mergedCommit??prepared}};};
-if(a[0]==='attestation'&&a.includes('--help')){if(s.unsupportedAttestation)process.exit(1);console.log(s.missingSourceFlag?'--repo --signer-workflow --source-ref':'--repo --signer-workflow --source-digest --source-ref');}
+if(a[0]==='api'&&a.includes('--slurp')&&a.some(v=>v.includes('/releases?')))json([s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets}]:[]]);\nelse if(a[0]==='attestation'&&a.includes('--help')){if(s.unsupportedAttestation)process.exit(1);console.log(s.missingSourceFlag?'--repo --signer-workflow --source-ref':'--repo --signer-workflow --source-digest --source-ref');}
 else if(a[0]==='pr'&&a[1]==='list')json(s.created?[{number:41}]:[]);
 else if(a[0]==='pr'&&a[1]==='create'){s.created=true;s.prepared=head;write('pr-create');console.log(pr().url);}
 else if(a[0]==='pr'&&a[1]==='edit'){}
@@ -799,8 +816,8 @@ else if(a[0]==='pr'&&a[1]==='view')json(pr());
 else if(a[0]==='pr'&&a[1]==='comment'){s.comments.push({id:s.comments.length+1,user:{login:'owner'},body:a.at(-1)});write('review-request');}
 else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/core/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
 else if(a[0]==='attestation'){if(s.badProvenance||(s.provenanceSource&&a.includes('--source-digest')&&a[a.indexOf('--source-digest')+1]!==s.provenanceSource)||(s.provenanceRef&&a.includes('--source-ref')&&a[a.indexOf('--source-ref')+1]!==s.provenanceRef))process.exit(1);console.log('{}');}
-else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/core/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/core/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
-else if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
+else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.draft=a.includes('--draft');s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/core/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/core/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
+else if(a[0]==='release'&&a[1]==='edit'){s.draft=false;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
 else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];if(fields==='body')process.stdout.write(s.notes);else console.log(s.releaseName+'\\tv'+version+'\\tfalse\\tfalse');}
 else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:s.unresolved?[{isResolved:false}]:[],pageInfo:{hasNextPage:false}}}}}});
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
@@ -811,8 +828,8 @@ else if(a[0]==='api'&&a[1].includes('/reviews'))json(s.cleanReview?[{user:{login
 else if(a[0]==='api'&&a[1].includes('/comments'))json(s.automaticClean?[...s.comments,{user:{login:'chatgpt-codex-connector[bot]'},body:'<!-- codex-pull-request-review-summary -->\\n\\n| Review | Status | Commit | Review trigger |\\n| --- | --- | --- | --- |\\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-09T15:46:52.440214Z">time</relative-time> | \`'+s.prepared.slice(0,7)+'\` | PR opened |'}]:s.comments);
 else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
 else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
-else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:false,prerelease:false,assets:s.assets});}
-else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:false,prerelease:false,assets:s.assets}]:[]);
+else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets});}
+else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets}]:[]);
 else if(a[0]==='api'&&a[1].includes('/releases/latest'))console.log('v'+version);
 else if(a[0]==='api'&&a.includes('POST')){s.milestone=true;write('milestone-create');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a.includes('PATCH')){s.milestone=true;write('milestone-close');json({number:1,state:'closed'});}
@@ -826,7 +843,7 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
     `#!/usr/bin/env node
 import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
-if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
+if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){const ref=a[3];if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
 else if(a[0]==='pull'){if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
@@ -839,19 +856,52 @@ else console.log('fixture-runtime');
   return f;
 }
 
-await test('the complete release runs once, signs its tag, publishes exact assets, and closes its milestone', async () => {
+await test('publication reads remote preparation with no local receipts, tests, build or review', async () => {
+  const f = releaseFixture();
+  try {
+    const prepared = await prepareRelease({ cwd: f.cwd, execute: true });
+    assert.equal(prepared.stage, 'ready');
+    const file = join(f.cwd, '.tooling/service.json');
+    assert.equal(readState(file).draft, true);
+    assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
+    const gates = readFileSync(join(f.cwd, '.tooling/count'), 'utf8');
+    const builds = readFileSync(join(f.cwd, '.tooling/builds'), 'utf8');
+    rmSync(stateDirectory(f.cwd), { recursive: true, force: true });
+    process.env.NOTESAPP_TEST_GATE_MODE = 'fail';
+    const result = await publishRelease({
+      cwd: f.cwd,
+      version: '0.2.0',
+      execute: true,
+    });
+    assert.equal(result.phase, 'complete');
+    assert.equal(readFileSync(join(f.cwd, '.tooling/count'), 'utf8'), gates);
+    assert.equal(readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'), builds);
+    assert.equal(existsSync(join(stateDirectory(f.cwd), 'proof.json')), false);
+    assert.deepEqual(readState(file).writes, [
+      'pr-create',
+      'review-request',
+      'release-create',
+      'release-publish',
+    ]);
+    assert.equal(readState(file).milestone, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('the complete release runs once, signs its tag, publishes exact assets, without milestone work', async () => {
   const f = releaseFixture();
   try {
     const result = await release({ cwd: f.cwd, execute: true });
     assert.equal(result.stage, 'complete');
     assert.equal(result.version, '0.2.0');
     const service = readState(join(f.cwd, '.tooling/service.json'));
-    assert.equal(service.milestone, true);
+    assert.equal(service.milestone, undefined);
     assert.deepEqual(service.writes, [
       'pr-create',
       'review-request',
       'release-create',
-      'milestone-create',
+      'release-publish',
     ]);
     assert.doesNotThrow(() => git(f.cwd, ['verify-tag', 'v0.2.0']));
     assert.equal(
@@ -884,7 +934,7 @@ await test('an uncertain release create resumes by reading and adding only the m
     await assert.rejects(release({ cwd: f.cwd, execute: true }));
     assert.equal(
       readState(join(stateDirectory(f.cwd), 'release.json')).stage,
-      'publish',
+      'before',
     );
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
@@ -1107,8 +1157,8 @@ await test('a lost tag push result resumes from the remote fixed tag without ano
     interruptGit(f.cwd, 'push-tag');
     await assert.rejects(release({ cwd: f.cwd, execute: true }));
     const before = readState(join(stateDirectory(f.cwd), 'release.json'));
-    assert.equal(before.stage, 'tag-write');
-    assert.equal(before.uncertain, true);
+    assert.equal(before.stage, 'ready');
+    assert.equal(before.stage, 'ready');
     const tagObject = git(f.cwd, ['rev-parse', 'v0.2.0']);
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
@@ -1188,7 +1238,7 @@ await test('a zero-exit partial release upload stays at publish until both exact
     );
     assert.equal(
       readState(join(stateDirectory(f.cwd), 'release.json')).stage,
-      'publish',
+      'before',
     );
     assert.equal(readState(file).milestone, undefined);
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
@@ -1198,7 +1248,7 @@ await test('a zero-exit partial release upload stays at publish until both exact
       'review-request',
       'release-create',
       'asset-upload',
-      'milestone-create',
+      'release-publish',
     ]);
   } finally {
     f.cleanup();
@@ -1269,8 +1319,7 @@ await test('release needs no attestation support and publishes the tested image 
     const result = await release({ cwd: f.cwd, execute: true });
     assert.equal(result.stage, 'complete');
     assert.deepEqual(readState(file).imageWrites, [
-      'ghcr.io/example/core:0.2.0',
-      'ghcr.io/example/core:latest',
+      `ghcr.io/example/core:source-${result.releaseCommit}`,
     ]);
     assert.equal(
       readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
@@ -1278,8 +1327,7 @@ await test('release needs no attestation support and publishes the tested image 
     );
     await release({ cwd: f.cwd, resume: true, execute: true });
     assert.deepEqual(readState(file).imageWrites, [
-      'ghcr.io/example/core:0.2.0',
-      'ghcr.io/example/core:latest',
+      `ghcr.io/example/core:source-${result.releaseCommit}`,
     ]);
   } finally {
     f.cleanup();
@@ -1295,8 +1343,7 @@ await test('an uncertain image push resumes from the registry without another pu
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
     assert.deepEqual(readState(file).imageWrites, [
-      'ghcr.io/example/core:0.2.0',
-      'ghcr.io/example/core:latest',
+      `ghcr.io/example/core:source-${result.releaseCommit}`,
     ]);
   } finally {
     f.cleanup();
@@ -1494,7 +1541,7 @@ await test('release recovery does not treat a failed exact-target read as absenc
     assert.ok(Array.isArray(writes) && !writes.includes('release-create'));
     assert.equal(
       readState(join(stateDirectory(f.cwd), 'release.json')).stage,
-      'publish',
+      'before',
     );
   } finally {
     f.cleanup();
@@ -1558,6 +1605,8 @@ await test('the historical after gate accepts a fresh checkout and a new runtime
   const f = releaseFixture();
   try {
     await release({ cwd: f.cwd, execute: true });
+    const legacyService = join(f.cwd, '.tooling/service.json');
+    save(legacyService, { ...readState(legacyService), milestone: true });
     const proofFile = join(stateDirectory(f.cwd), 'proof.json'),
       releaseFile = join(stateDirectory(f.cwd), 'release.json');
     const proof = readState(proofFile),
