@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   prove,
-  reviewGate,
+  landGate,
   readPull,
   cleanReviewBody,
   land,
@@ -451,7 +451,7 @@ await test('a previous unlock never removes a replacement lock', () => {
     f.cleanup();
   }
 });
-await test('final head checks require real completed review and resolved threads', () => {
+await test('final head checks need a ready head, passing checks and resolved threads, not a review', () => {
   const head = 'a'.repeat(40);
   const status = {
     headRefOid: head,
@@ -461,66 +461,25 @@ await test('final head checks require real completed review and resolved threads
     mergeable: 'MERGEABLE',
     mergeStateStatus: 'CLEAN',
     statusCheckRollup: [{ conclusion: 'SUCCESS' }],
-    reviews: [
-      {
-        user: { login: 'chatgpt-codex-connector[bot]' },
-        commit_id: head,
-        state: 'COMMENTED',
-        body: "Didn't find any major issues.",
-      },
-    ],
+    reviews: [],
     threads: [],
   };
-  assert.equal(reviewGate(status, head), true);
-  assert.throws(() => reviewGate(status, 'b'.repeat(40)), /head or base/);
+  assert.equal(landGate(status, head), true);
+  assert.throws(() => landGate(status, 'b'.repeat(40)), /head or base/);
   assert.throws(
-    () => reviewGate({ ...status, reviews: [] }, head),
-    /completed review/,
-  );
-  assert.throws(
-    () => reviewGate({ ...status, statusCheckRollup: [] }, head),
+    () => landGate({ ...status, statusCheckRollup: [] }, head),
     /checks/,
   );
   assert.throws(
-    () => reviewGate({ ...status, threads: [{ isResolved: false }] }, head),
+    () => landGate({ ...status, threads: [{ isResolved: false }] }, head),
     /thread/,
   );
   assert.throws(
-    () =>
-      reviewGate(
-        {
-          ...status,
-          reviews: [{ ...status.reviews[0], commit_id: 'b'.repeat(40) }],
-        },
-        head,
-      ),
-    /completed review/,
-  );
-  assert.equal(
-    reviewGate(
-      {
-        ...status,
-        reviews: [],
-        actor: 'owner',
-        comments: [
-          {
-            id: 1,
-            user: { login: 'owner' },
-            body: `@codex review\nLifecycle review head: ${head}`,
-          },
-          {
-            id: 2,
-            user: { login: 'chatgpt-codex-connector[bot]' },
-            reviewedCommit: head,
-            body: "Didn't find any major issues.",
-          },
-        ],
-      },
-      head,
-    ),
-    true,
+    () => landGate({ ...status, reviewDecision: 'CHANGES_REQUESTED' }, head),
+    /changes/,
   );
 });
+
 await test('version and notes derive from reviewed metadata including mixed and pre-stable changes', () => {
   assert.equal(nextVersion('0.3.4', ['patch', 'minor']), '0.4.0');
   assert.equal(nextVersion('0.3.4', ['major']), '0.4.0');
@@ -882,7 +841,6 @@ await test('publication reads remote preparation with no local receipts, tests, 
     assert.equal(existsSync(join(stateDirectory(f.cwd), 'proof.json')), false);
     assert.deepEqual(readState(file).writes, [
       'pr-create',
-      'review-request',
       'release-create',
       'release-publish',
     ]);
@@ -1051,7 +1009,6 @@ await test('the complete release runs once, signs its tag, publishes exact asset
     assert.equal(service.milestone, undefined);
     assert.deepEqual(service.writes, [
       'pr-create',
-      'review-request',
       'release-create',
       'release-publish',
     ]);
@@ -1133,15 +1090,12 @@ await test('automatic review starts once and survives a lost PR creation respons
   }
 });
 
-await test('an existing ready PR gets one manual review for its changed head', async () => {
+await test('a requested review posts once for a changed head and none posts by default', async () => {
   const f = releaseFixture();
   try {
     const file = join(f.cwd, '.tooling/service.json');
     save(file, { ...readState(file), cleanReview: false });
-    await assert.rejects(
-      release({ cwd: f.cwd, execute: true, autoReviewOnReady: true }),
-      /completed review/,
-    );
+    git(f.cwd, ['switch', '-c', 'fix/review-head']);
     writeFileSync(join(f.cwd, 'source.txt'), 'new source');
     git(f.cwd, ['add', 'source.txt']);
     git(f.cwd, ['commit', '-m', 'fix: review a new source head']);
@@ -1158,7 +1112,7 @@ await test('an existing ready PR gets one manual review for its changed head', a
       releaseNote: 'Check the new source.',
       screenshots: [],
       execute: true,
-      autoReviewOnReady: true,
+      requestReview: true,
     };
     await prepareReview(f.cwd, options);
     await prepareReview(f.cwd, options);
@@ -1194,28 +1148,22 @@ await test('an interrupted prepare PR creation reads the existing PR and does no
     f.cleanup();
   }
 });
-await test('pending review saves its phase and resumes only after the same head receives review', async () => {
+await test('a release lands its prepare PR with no review of the head', async () => {
   const f = releaseFixture();
   try {
     const file = join(f.cwd, '.tooling/service.json');
     save(file, { ...readState(file), cleanReview: false });
-    await assert.rejects(
-      release({ cwd: f.cwd, execute: true }),
-      /completed review/,
-    );
-    const before = readState(join(stateDirectory(f.cwd), 'release.json'));
-    assert.equal(before.stage, 'review');
-    assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
-    save(file, { ...readState(file), cleanReview: true });
-    const result = await release({ cwd: f.cwd, resume: true, execute: true });
+    const result = await release({ cwd: f.cwd, execute: true });
     assert.equal(result.stage, 'complete');
-    assert.equal(result.prepareCommit, before.prepareCommit);
+    const writes = readState(file).writes;
+    assert.ok(Array.isArray(writes));
+    assert.equal(writes.filter((kind) => kind === 'review-request').length, 0);
   } finally {
     f.cleanup();
   }
 });
 
-await test('a delayed prior-head clean comment and mixed clean text never permit landing', () => {
+await test('landing accepts a proved ready head with no review and still refuses open threads', () => {
   const head = 'a'.repeat(40);
   const status = {
     headRefOid: head,
@@ -1242,7 +1190,15 @@ await test('a delayed prior-head clean comment and mixed clean text never permit
       },
     ],
   };
-  assert.throws(() => reviewGate(status, head), /completed review/);
+  assert.equal(landGate(status, head), true);
+  assert.throws(
+    () => landGate({ ...status, threads: [{ isResolved: false }] }, head),
+    /thread/,
+  );
+  assert.throws(
+    () => landGate({ ...status, isDraft: true }, head),
+    /head or base/,
+  );
   assert.equal(
     cleanReviewBody('Did not find any input issues, but found data loss.'),
     false,
@@ -1337,11 +1293,8 @@ await test('a changed prepared source or origin cannot resume a release', async 
   const f = releaseFixture();
   try {
     const file = join(f.cwd, '.tooling/service.json');
-    save(file, { ...readState(file), cleanReview: false });
-    await assert.rejects(
-      release({ cwd: f.cwd, execute: true }),
-      /completed review/,
-    );
+    save(file, { ...readState(file), unresolved: true });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }), /thread/);
     git(f.cwd, [
       'remote',
       'set-url',
@@ -1411,7 +1364,6 @@ await test('a zero-exit partial release upload stays at publish until both exact
     assert.equal(result.stage, 'complete');
     assert.deepEqual(readState(file).writes, [
       'pr-create',
-      'review-request',
       'release-create',
       'asset-upload',
       'release-publish',
@@ -1534,21 +1486,18 @@ await test('a different registry image is never replaced with the tested image',
 });
 
 await test('an external merge cannot bypass review or accept a different prepare commit', async () => {
-  for (const mode of ['review', 'threads', 'commit']) {
+  for (const mode of ['threads', 'commit']) {
     const f = releaseFixture();
     try {
       const file = join(f.cwd, '.tooling/service.json');
-      save(file, { ...readState(file), cleanReview: false });
-      await assert.rejects(
-        release({ cwd: f.cwd, execute: true }),
-        /completed review/,
-      );
+      save(file, { ...readState(file), unresolved: true });
+      await assert.rejects(release({ cwd: f.cwd, execute: true }), /thread/);
       const head = git(f.cwd, ['rev-parse', 'HEAD']);
       git(f.cwd, ['push', 'origin', head + ':refs/heads/main']);
       save(file, {
         ...readState(file),
-        cleanReview: mode !== 'review',
         unresolved: mode === 'threads',
+
         ...(mode === 'commit'
           ? { mergedCommit: git(f.cwd, ['rev-parse', 'HEAD^']) }
           : {}),
@@ -1570,12 +1519,9 @@ await test('a lost exact main push result resumes with its recorded validated at
     interruptGit(f.cwd, 'push');
     // The branch push precedes the main push. Begin with the review wait first.
     const file = join(f.cwd, '.tooling/service.json');
-    save(file, { ...readState(file), gitInterrupt: null, cleanReview: false });
-    await assert.rejects(
-      release({ cwd: f.cwd, execute: true }),
-      /completed review/,
-    );
-    save(file, { ...readState(file), cleanReview: true, gitInterrupt: 'push' });
+    save(file, { ...readState(file), gitInterrupt: null, unresolved: true });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }), /thread/);
+    save(file, { ...readState(file), unresolved: false, gitInterrupt: 'push' });
     await assert.rejects(release({ cwd: f.cwd, resume: true, execute: true }));
     const before = readState(join(stateDirectory(f.cwd), 'land.json'));
     assert.equal(before.stage, 'merge-write');
@@ -1584,7 +1530,7 @@ await test('a lost exact main push result resumes with its recorded validated at
       readState(join(stateDirectory(f.cwd), 'land.json')),
       before,
     );
-    save(file, { ...readState(file), cleanReview: false });
+    save(file, { ...readState(file), unresolved: true });
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
     assert.equal(result.releaseCommit, before.commit);
@@ -1721,10 +1667,10 @@ await test('a saved prepare resumes on a later day without a new commit', async 
       stateFile = join(stateDirectory(f.cwd), 'release.json');
     const planned = await release({ cwd: f.cwd, execute: false });
     save(stateFile, { ...planned, date: '2026-01-02' });
-    save(file, { ...readState(file), cleanReview: false });
+    save(file, { ...readState(file), unresolved: true });
     await assert.rejects(
       release({ cwd: f.cwd, resume: true, execute: true }),
-      /completed review/,
+      /thread/,
     );
     const prepared = readState(stateFile).prepareCommit;
     assert.ok(
@@ -1732,7 +1678,7 @@ await test('a saved prepare resumes on a later day without a new commit', async 
         '0.2.0 - 2026-01-02',
       ),
     );
-    save(file, { ...readState(file), cleanReview: true });
+    save(file, { ...readState(file), unresolved: false });
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
     assert.equal(result.prepareCommit, prepared);
@@ -1745,13 +1691,10 @@ await test('a recorded exact main push cannot recover with an external merge com
   const f = releaseFixture();
   try {
     const file = join(f.cwd, '.tooling/service.json');
-    save(file, { ...readState(file), cleanReview: false });
-    await assert.rejects(
-      release({ cwd: f.cwd, execute: true }),
-      /completed review/,
-    );
+    save(file, { ...readState(file), unresolved: true });
+    await assert.rejects(release({ cwd: f.cwd, execute: true }), /thread/);
     interruptGit(f.cwd, 'push');
-    save(file, { ...readState(file), cleanReview: true });
+    save(file, { ...readState(file), unresolved: false });
     await assert.rejects(release({ cwd: f.cwd, resume: true, execute: true }));
     save(file, {
       ...readState(file),
@@ -2082,7 +2025,7 @@ await test('automatic review requires the exact completed summary and a later bo
     comments: [comment],
     reactions: [approval],
   };
-  assert.equal(reviewGate(status, head), true);
+  assert.equal(landGate(status, head), true);
   for (const changed of [
     { comments: [] },
     { reactions: [] },
@@ -2121,17 +2064,14 @@ await test('automatic review requires the exact completed summary and a later bo
     { reactions: [{ ...approval, created_at: '2026-10-09T15:45:00Z' }] },
     { reactions: [{ ...approval, created_at: 'invalid' }] },
   ])
-    assert.throws(
-      () => reviewGate({ ...status, ...changed }, head),
-      /completed review/,
-    );
+    assert.equal(landGate({ ...status, ...changed }, head), true);
   assert.throws(
-    () => reviewGate({ ...status, threads: [{ isResolved: false }] }, head),
+    () => landGate({ ...status, threads: [{ isResolved: false }] }, head),
     /thread/,
   );
   assert.throws(
     () =>
-      reviewGate(
+      landGate(
         { ...status, statusCheckRollup: [{ conclusion: 'FAILURE' }] },
         head,
       ),
