@@ -43,6 +43,7 @@ import {
   migrationMetadata,
   publishedRelease,
 } from './release-manifest.mjs';
+import { advancesLatest } from './release-publish.mjs';
 import { coreReadingList, diffImpact } from './agent-context.mjs';
 import { prepare } from './task-prepare.mjs';
 import { record, root } from './workspace.mjs';
@@ -817,7 +818,7 @@ else if(a[0]==='pr'&&a[1]==='comment'){s.comments.push({id:s.comments.length+1,u
 else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/core/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
 else if(a[0]==='attestation'){if(s.badProvenance||(s.provenanceSource&&a.includes('--source-digest')&&a[a.indexOf('--source-digest')+1]!==s.provenanceSource)||(s.provenanceRef&&a.includes('--source-ref')&&a[a.indexOf('--source-ref')+1]!==s.provenanceRef))process.exit(1);console.log('{}');}
 else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.draft=a.includes('--draft');s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/core/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/core/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
-else if(a[0]==='release'&&a[1]==='edit'){s.draft=false;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
+else if(a[0]==='release'&&a[1]==='edit'){s.draft=false;s.releaseEditArgs=a;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
 else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];if(fields==='body')process.stdout.write(s.notes);else console.log(s.releaseName+'\\tv'+version+'\\tfalse\\tfalse');}
 else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:s.unresolved?[{isResolved:false}]:[],pageInfo:{hasNextPage:false}}}}}});
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
@@ -830,7 +831,7 @@ else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
 else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
 else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets});}
 else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets}]:[]);
-else if(a[0]==='api'&&a[1].includes('/releases/latest'))console.log('v'+version);
+else if(a[0]==='api'&&a[1].includes('/releases/latest')){if(s.latestReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(s.noLatest){console.error('gh: Not Found (HTTP 404)');process.exit(1);}console.log(s.latestPublishedTag??('v'+version));}
 else if(a[0]==='api'&&a.includes('POST')){s.milestone=true;write('milestone-create');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a.includes('PATCH')){s.milestone=true;write('milestone-close');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a[1].includes('/milestones')){if(a.includes('--jq'))console.log(s.milestone?'closed\\t0':'');else json(s.milestone?[{number:1,title:version,state:'closed',open_issues:0}]:[]);}
@@ -884,6 +885,59 @@ await test('publication reads remote preparation with no local receipts, tests, 
       'release-publish',
     ]);
     assert.equal(readState(file).milestone, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('latest advances by semantic version, including the first release', () => {
+  assert.equal(advancesLatest('0.2.0', null), true);
+  assert.equal(advancesLatest('0.2.0', 'v0.1.9'), true);
+  assert.equal(advancesLatest('0.10.0', 'v0.9.0'), true);
+  assert.equal(advancesLatest('0.2.0', 'v0.2.0'), true);
+  assert.equal(advancesLatest('0.2.0', 'v0.3.0'), false);
+  assert.throws(
+    () => advancesLatest('0.2.0', 'invalid'),
+    /latest published version/,
+  );
+});
+
+await test('an interrupted older draft publishes without replacing a newer latest', async () => {
+  const f = releaseFixture();
+  try {
+    await prepareRelease({ cwd: f.cwd, execute: true });
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), latestPublishedTag: 'v0.3.0' });
+    const result = await publishRelease({
+      cwd: f.cwd,
+      version: '0.2.0',
+      execute: true,
+    });
+    assert.equal(result.phase, 'complete');
+    const state = readState(file);
+    assert.deepEqual(state.aliases, ['ghcr.io/example/core:0.2.0']);
+    assert.ok(
+      Array.isArray(state.releaseEditArgs) &&
+        state.releaseEditArgs.includes('--latest=false'),
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('an uncertain latest release read stops before tag or alias writes', async () => {
+  const f = releaseFixture();
+  try {
+    await prepareRelease({ cwd: f.cwd, execute: true });
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), latestReadFailure: true });
+    await assert.rejects(
+      publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true }),
+      /latest release read is uncertain/,
+    );
+    assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
+    assert.equal(readState(file).aliases, undefined);
+    assert.equal(readState(file).draft, true);
   } finally {
     f.cleanup();
   }

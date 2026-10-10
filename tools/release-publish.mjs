@@ -7,7 +7,11 @@ import { parseManifest, publishedRelease } from './release-manifest.mjs';
 import { command, digest, git, lock } from './lifecycle-state.mjs';
 import { githubRepository } from './pr-screenshots.mjs';
 import { record } from './workspace.mjs';
-import { parseVersion, releaseTitle } from './release-check.mjs';
+import {
+  compareVersions,
+  parseVersion,
+  releaseTitle,
+} from './release-check.mjs';
 
 /** @param {string} cwd @param {string} reference */
 function remoteImage(cwd, reference) {
@@ -73,6 +77,31 @@ export async function publishPreparedImage(cwd, image, commit, tested) {
   return `${image}@${imageDigest}`;
 }
 
+/** @param {string} version @param {string|null} publishedTag */
+export function advancesLatest(version, publishedTag) {
+  if (parseVersion(version) === null)
+    throw new Error('The prepared version is invalid.');
+  if (publishedTag === null) return true;
+  const published = publishedTag.startsWith('v') ? publishedTag.slice(1) : '';
+  if (parseVersion(published) === null)
+    throw new Error('The latest published version is invalid.');
+  return compareVersions(version, published) >= 0;
+}
+
+/** @param {string} cwd @param {string} repository */
+function latestPublishedTag(cwd, repository) {
+  const result = spawnSync(
+    'gh',
+    ['api', `repos/${repository}/releases/latest`, '--jq', '.tag_name'],
+    { cwd, encoding: 'utf8' },
+  );
+  if (result.status === 0) return result.stdout.trim();
+  if (/^gh: Not Found \(HTTP 404\)\s*$/m.test(result.stderr ?? '')) return null;
+  throw new Error(
+    'The latest release read is uncertain. No publication starts.',
+  );
+}
+
 /** @typedef {{cwd:string;version?:string;execute?:boolean;resume?:boolean;status?:boolean;autoReviewOnReady?:boolean}} ReleaseOptions */
 /** @param {ReleaseOptions} options */
 export async function release(options) {
@@ -129,6 +158,9 @@ export async function release(options) {
     if (options.status || !options.execute) return result;
     command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main', '--tags']);
     git(cwd, ['merge-base', '--is-ancestor', commit, 'origin/main']);
+    const advanceLatest =
+      remote.release.draft &&
+      advancesLatest(version, latestPublishedTag(cwd, repository));
     const source = `${image}@${imageDigest}`;
     if (remoteImage(cwd, source) !== imageDigest)
       throw new Error('The prepared image is absent.');
@@ -155,9 +187,7 @@ export async function release(options) {
       )
         throw new Error('The remote tag differs. Never replace it.');
     } else git(cwd, ['push', 'origin', `refs/tags/${tag}`]);
-    for (const suffix of remote.release.draft
-      ? [version, 'latest']
-      : [version]) {
+    for (const suffix of advanceLatest ? [version, 'latest'] : [version]) {
       const target = `${image}:${suffix}`;
       const current = remoteImage(cwd, target);
       if (current === imageDigest) continue;
@@ -176,7 +206,13 @@ export async function release(options) {
         throw new Error('The image tag write has no matching readback.');
     }
     if (remote.release.draft)
-      command(cwd, 'gh', ['release', 'edit', tag, '--draft=false']);
+      command(cwd, 'gh', [
+        'release',
+        'edit',
+        tag,
+        '--draft=false',
+        `--latest=${advanceLatest}`,
+      ]);
     const observed = publishedRelease(cwd, tag);
     if (
       observed.release?.draft !== false ||
