@@ -7,12 +7,13 @@
   issue.
 - Work happens in a git worktree on a short-lived branch.
 - Before a branch lands, `pnpm verify` must pass.
-- A change lands through a reviewed pull request. Prove its exact head with
-  `pnpm verify`. Resolve the findings of Codex for that head. The current
-  remote main must be its ancestor. Push that exact head to main without force.
-  A rejected push is a stop, never a reason to bypass a protection.
+- A change lands through a pull request. Prove its exact head with
+  `pnpm verify`. A review is optional (record 0218). The owner may ask for one,
+  and then fix each open finding of it. The current remote main must be an
+  ancestor of the head. Push that exact head to main without force. A rejected
+  push is a stop, never a reason to bypass a protection.
 - `tools/lifecycle.mjs` reads the PR and merged tree before it saves landing
-  proof. A build request includes this review and landing only when the session
+  proof. A build request includes this landing only when the session
   permits landing. A build request never permits release or live deployment.
 - A pull request shows its screenshots through `tools/pr-screenshots.mjs`,
   which adds them to the `pr-screenshots` branch. Never delete that branch.

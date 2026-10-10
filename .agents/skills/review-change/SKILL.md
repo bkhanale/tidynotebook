@@ -1,6 +1,6 @@
 ---
 name: review-change
-description: Publishes a standard core PR and handles Codex feedback for its current head. Use when a proved change is ready for PR review or when review asks for a fix. It does not merge.
+description: Publishes a standard core PR and handles optional review feedback for its current head. Use when a proved change is ready for a PR or when a requested review asks for a fix. It does not merge.
 ---
 
 # Review change
@@ -15,6 +15,8 @@ is minor. The pre-stable breaking step is minor. Name public consumer effects.
 pnpm lifecycle review --title-file .tooling/title.md --summary-file .tooling/summary.md --compatibility-file .tooling/compatibility.md --release-type patch --release-note-file .tooling/release-note.md --execute
 ```
 
+A review is optional (record 0218). The command requests none unless asked.
+To request a Codex review of the head, add `--request-review`.
 When the actual integration starts Codex on a new ready PR, add
 `--auto-review-on-ready`. The command saves that trigger and sends no extra
 manual request. An existing ready PR uses one manual request for its new head.
@@ -22,15 +24,15 @@ manual request. An existing ready PR uses one manual request for its new head.
 For UI changes, pass each screen with `--screenshot`, once for light and once for
 dark. The command publishes them through `tools/pr-screenshots.mjs`.
 Return the PR URL at once. When `link_pull_request` is available, link the PR to this session at once.
-Then use `watch_pull_request`. End the turn while review is pending so its
-event can resume work. Use `unwatch_pull_request` before final handback.
+Then use `watch_pull_request`. End the turn while a requested review is pending
+so its event can resume work. Use `unwatch_pull_request` before final handback.
 A portable session reads status with a bound. It needs no new credential.
 
-Read feedback with `pnpm lifecycle review-status <PR>`. Fix each accepted finding. A
+Read feedback of a requested review with `pnpm lifecycle review-status <PR>`. Fix each accepted finding. A
 rejected finding needs evidence in its thread. Resolve a thread only after its
 cause is fixed or its conclusion is supported. Prove the new commit and request
-a new review. Wait for its event or use a bounded read, then continue. End when
-Codex completes review of the final head and all threads are resolved.
+a new review. Wait for its event or use a bounded read, then continue. End a requested
+review when Codex completes review of the final head and all threads are resolved.
 Completion uses the bot's exact-head clean result, or its completed automatic
 Code Review row for the exact head with a later approval reaction on the PR.
 A summary alone or a reaction alone is not proof. The reader checks the saved

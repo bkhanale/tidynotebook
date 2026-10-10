@@ -5,6 +5,7 @@ This page owns phase routing, saved proof, and the public lifecycle boundary.
 [Record 0212](../decisions/0212-agent-lifecycle-proof.md) sets the lifecycle.
 [Record 0213](../decisions/0213-build-and-publish-one-release-image.md) sets image publication.
 [Record 0214](../decisions/0214-read-the-completed-automatic-review.md) sets automatic review readback.
+[Record 0218](../decisions/0218-review-is-optional-for-landing.md) makes review optional for landing.
 Commands perform repeated operations. Skills make the choices of a unit.
 Each skill has one start state and one end state. The catalog below routes work.
 It does not repeat the instructions of a unit.
@@ -31,8 +32,8 @@ a completion event or a bounded read. It does not repeat an expensive gate.
 | `build-change`             | Prepared approved change                 | Code and focused tests                     |
 | `prove-change`             | Clean source                             | Exact input proof and screen evidence      |
 | `test-application`         | Browser check request                    | Observed local application and screenshots |
-| `review-change`            | Current proof or review findings         | Final head review and resolved threads     |
-| `land-change`              | Reviewed head and landing scope          | Read back exact merged source              |
+| `review-change`            | Current proof or review findings         | Optional review and resolved threads       |
+| `land-change`              | Proved head and landing scope            | Read back exact merged source              |
 | `release-core`             | Explicit release or release resume       | Fixed tag, image, assets and notes         |
 | `setup-project`            | Named new target                         | Ready contributor worktree or host         |
 | `operate-host`             | Named host check or backup               | Health or verified archive evidence        |
@@ -63,7 +64,7 @@ there. Private guide contents never enter a public archive.
 
 `tools/lifecycle-state.mjs` binds a clean commit, tree, repository, environment
 hash, runtime, package manager, and gate definitions. `tools/lifecycle.mjs` owns
-canonical proof, saved logs, PR bodies, live review reads, and exact landing.
+canonical proof, saved logs, PR bodies, optional review reads, and exact landing.
 A local receipt is a same-user cache. It is not an external attestation. A
 partial receipt, missing log, changed log, changed input, or failed command
 cannot permit landing. A gate must leave the checked inputs unchanged.
@@ -75,7 +76,7 @@ type and note, and light and dark screen evidence. Screenshots go through
 `tools/pr-screenshots.mjs`. For a known automatic review integration, `--auto-review-on-ready` uses the
 new PR trigger once. A changed head on an existing ready PR uses one manual
 request. A saved automatic intent survives a lost PR creation response.
-Codex completion must belong to the final head.
+Landing needs no review (record 0218). A requested review keeps its rules.
 Every thread must be resolved. All observed checks must pass. A fast-forward
 push of the exact head refuses unseen main work. A rejected push never grants
 permission to bypass protection. The merged commit and tree must match proved source. A saved validated write

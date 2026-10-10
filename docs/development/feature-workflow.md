@@ -108,8 +108,8 @@ See [Verification](verification.md) for what each one proves.
 
 ## h. Landing the change
 
-The [agent lifecycle](agent-lifecycle.md) owns current proof, PR review, and
-landing. A change uses a worktree and a short-lived branch. A reviewed exact
+The [agent lifecycle](agent-lifecycle.md) owns current proof, optional PR review,
+and landing. A change uses a worktree and a short-lived branch. A proved exact
 head lands with a non-force fast-forward push. Unseen main work refuses it.
 A branch protection refusal is a stop. No command bypasses it.
 
@@ -119,7 +119,7 @@ pnpm lifecycle review-status <PR>
 pnpm lifecycle land <PR> --execute
 ```
 
-A rebase changes the checked input. Prove and review it again. Never force push.
+A rebase changes the checked input. Prove it again. Never force push.
 Worktree and branch cleanup stays under the owner-only cleanup skill.
 
 ## Definition of done

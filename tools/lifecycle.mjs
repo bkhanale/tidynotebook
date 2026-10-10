@@ -1,4 +1,4 @@
-/** Build proof, prepare a PR, read review feedback, and land an authorized head. */
+/** Build proof, prepare a PR, read optional review feedback, and land an authorized head. */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -141,8 +141,9 @@ export function prove(cwd, gates = ['verify']) {
   }
 }
 
-/** @param {unknown} value @param {string} head */
-export function reviewGate(value, head) {
+/** Landing needs a ready PR, passing checks, and resolved threads. A review stays optional.
+ * @param {unknown} value @param {string} head */
+export function landGate(value, head) {
   const status = record(value);
   if (
     status.headRefOid !== head ||
@@ -166,50 +167,6 @@ export function reviewGate(value, head) {
     throw new Error('The PR checks are not complete.');
   if (status.reviewDecision === 'CHANGES_REQUESTED')
     throw new Error('The PR has changes to make.');
-  if (!Array.isArray(status.reviews))
-    throw new Error('The PR review state is missing.');
-  // Codex uses COMMENTED. The commit, author, and observed content must match.
-  const reviews = status.reviews
-    .map(record)
-    .filter(
-      (review) =>
-        record(review.user).login === 'chatgpt-codex-connector[bot]' &&
-        review.commit_id === head &&
-        review.state === 'COMMENTED',
-    );
-  const clean = reviews.some((review) => cleanReviewBody(review.body));
-  const comments = Array.isArray(status.comments)
-    ? status.comments.map(record)
-    : [];
-  const cleanComment = comments.some(
-    (comment) =>
-      record(comment.user).login === 'chatgpt-codex-connector[bot]' &&
-      comment.reviewedCommit === head &&
-      cleanReviewBody(comment.body),
-  );
-  const reactions = Array.isArray(status.reactions)
-    ? status.reactions.map(record)
-    : [];
-  const automatic = comments.some((comment) => {
-    const completed = automaticReviewBody(comment.body);
-    return (
-      record(comment.user).login === 'chatgpt-codex-connector[bot]' &&
-      comment.reviewedCommit === head &&
-      completed !== null &&
-      head.startsWith(completed.reference) &&
-      reactions.some(
-        (reaction) =>
-          record(reaction.user).login === 'chatgpt-codex-connector[bot]' &&
-          reaction.content === '+1' &&
-          typeof reaction.created_at === 'string' &&
-          Date.parse(reaction.created_at) > completed.time,
-      )
-    );
-  });
-  if (!clean && !cleanComment && !automatic)
-    throw new Error(
-      'Codex has no clear completed review for this head. Request @codex review and read its feedback.',
-    );
   if (
     !Array.isArray(status.threads) ||
     status.threads.some((value) => record(value).isResolved !== true)
@@ -361,7 +318,7 @@ export function readPull(cwd, pr) {
   };
 }
 
-/** @param {string} cwd @param {{title:string;summary:string;compatibility:string;releaseType:string;releaseNote:string;screenshots:string[];execute:boolean;autoReviewOnReady?:boolean}} options */
+/** @param {string} cwd @param {{title:string;summary:string;compatibility:string;releaseType:string;releaseNote:string;screenshots:string[];execute:boolean;autoReviewOnReady?:boolean;requestReview?:boolean}} options */
 export async function prepareReview(cwd, options) {
   const input = snapshot(cwd),
     proof = readState(join(stateDirectory(cwd), 'proof.json'));
@@ -466,9 +423,10 @@ export async function prepareReview(cwd, options) {
     prUrl = pull.url;
     const automatic = readState(automaticFile);
     if (
-      automatic.origin !== input.origin ||
-      automatic.branch !== branch ||
-      automatic.head !== input.commit
+      options.requestReview === true &&
+      (automatic.origin !== input.origin ||
+        automatic.branch !== branch ||
+        automatic.head !== input.commit)
     ) {
       const repository = githubRepository(input.origin);
       /** @type {unknown} */
@@ -531,14 +489,14 @@ export function land(cwd, pr, execute) {
         throw new Error(
           'The merged PR has no validated merge attempt for this source.',
         );
-      reviewGate(attempt.validatedReview, input.commit);
+      landGate(attempt.validatedReview, input.commit);
       validatedReview = attempt.validatedReview;
       if (pull.headRefOid !== input.commit)
         throw new Error('The merged PR head differs.');
       git(cwd, ['merge-base', '--is-ancestor', input.commit, 'origin/main']);
     } else {
       git(cwd, ['merge-base', '--is-ancestor', 'origin/main', 'HEAD']);
-      reviewGate(pull, input.commit);
+      landGate(pull, input.commit);
       validatedReview = pull;
     }
     if (execute && pull.state !== 'MERGED') {
@@ -620,6 +578,7 @@ export function parseLifecycle(args, cwd) {
     review: {
       execute: { type: 'boolean' },
       'auto-review-on-ready': { type: 'boolean' },
+      'request-review': { type: 'boolean' },
       'title-file': { type: 'string' },
       'summary-file': { type: 'string' },
       'compatibility-file': { type: 'string' },
@@ -676,6 +635,7 @@ export function parseLifecycle(args, cwd) {
     image: false,
     review: {
       autoReviewOnReady: values['auto-review-on-ready'] === true,
+      requestReview: values['request-review'] === true,
       title: text('title-file'),
       summary: text('summary-file'),
       compatibility: text('compatibility-file'),
