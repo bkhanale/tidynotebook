@@ -22,6 +22,10 @@
 - Use the named type steps only: `text-kbd`, `text-control`, `text-ui`,
   `text-base`, `text-xl`, `text-3xl` and the note steps. Two weights,
   `font-medium` and `font-semibold`. No capitals, no wide tracking.
+- Every page is the note column (record 0137). Only the home page of the
+  landing site may use `max-w-5xl`, a `text-3xl` hero headline, a 20 px feature
+  icon, and a real screenshot in `rounded-lg`, `edge-subtle` and
+  `shadow-overlay` (record 0217).
 - Use the standard Tailwind spacing scale. Do not add one-off pixel or rem
   spacing values.
 - `edge-line` is the resting edge of a control and the one divider. `edge` is

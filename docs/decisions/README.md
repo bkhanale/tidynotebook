@@ -248,6 +248,7 @@ and needs no record.
 | [0214](0214-read-the-completed-automatic-review.md)                                   | Read the completed automatic review                                             |
 | [0215](0215-release-publishes-prepared-artifacts.md)                                  | Release publishes prepared artifacts                                            |
 | [0216](0216-release-publication-has-one-remote-writer.md)                             | Release publication has one remote writer                                       |
+| [0217](0217-the-landing-home-page-may-use-a-wide-column.md)                           | The home page of the landing site may use a wide column                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -855,3 +856,7 @@ the image publication policy and the compute limits of records 0199 and 0200.
 Record 0211 gives the account portal a Billing section in Settings and
 names it billing in every word that a person reads. It refines records
 0186, 0190 and 0201.
+
+Record 0217 lets the home page of the landing site use a wide column, a
+hero headline at `text-3xl`, 20 px feature icons and a raised screenshot. Every
+other page keeps the note column. It refines records 0137 and 0198.
