@@ -247,6 +247,7 @@ and needs no record.
 | [0213](0213-build-and-publish-one-release-image.md)                                   | Build and publish one release image                                             |
 | [0214](0214-read-the-completed-automatic-review.md)                                   | Read the completed automatic review                                             |
 | [0215](0215-release-publishes-prepared-artifacts.md)                                  | Release publishes prepared artifacts                                            |
+| [0216](0216-release-publication-has-one-remote-writer.md)                             | Release publication has one remote writer                                       |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

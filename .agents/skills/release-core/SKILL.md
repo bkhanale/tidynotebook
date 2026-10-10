@@ -30,7 +30,18 @@ pnpm release "$VERSION"
 ```
 
 Publication creates the fixed signed source tag, copies the prepared image
-reference to the version and latest aliases, and publishes the draft release.
+reference to the fixed version alias, and publishes the draft release.
+Only a version that moves forward updates the latest aliases.
+Publication holds one remote repository lock across these writes (record 0216).
 The version can be explicit on a different runner. Readback checks each write.
 A differing version tag, image or asset stops the run. Never move a fixed tag.
 End when the official release names the intended source and image.
+
+If publication stops after a write, its remote lock stays. Confirm that its
+writer has stopped. Read back the fixed tag, image aliases and release before
+removing that lock. Never remove the lock of a running publisher.
+
+```sh
+gh variable delete CORE_RELEASE_PUBLICATION_LOCK --repo "$REPOSITORY"
+pnpm release "$VERSION"
+```

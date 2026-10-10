@@ -43,7 +43,7 @@ import {
   migrationMetadata,
   publishedRelease,
 } from './release-manifest.mjs';
-import { advancesLatest } from './release-publish.mjs';
+import { acquirePublicationLock, advancesLatest } from './release-publish.mjs';
 import { coreReadingList, diffImpact } from './agent-context.mjs';
 import { prepare } from './task-prepare.mjs';
 import { record, root } from './workspace.mjs';
@@ -818,7 +818,7 @@ else if(a[0]==='pr'&&a[1]==='comment'){s.comments.push({id:s.comments.length+1,u
 else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/core/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
 else if(a[0]==='attestation'){if(s.badProvenance||(s.provenanceSource&&a.includes('--source-digest')&&a[a.indexOf('--source-digest')+1]!==s.provenanceSource)||(s.provenanceRef&&a.includes('--source-ref')&&a[a.indexOf('--source-ref')+1]!==s.provenanceRef))process.exit(1);console.log('{}');}
 else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.draft=a.includes('--draft');s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/core/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/core/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
-else if(a[0]==='release'&&a[1]==='edit'){s.draft=false;s.releaseEditArgs=a;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
+else if(a[0]==='release'&&a[1]==='edit'){if(!s.publicationLock)throw new Error('missing shared lock');s.draft=false;s.releaseEditArgs=a;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
 else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];if(fields==='body')process.stdout.write(s.notes);else console.log(s.releaseName+'\\tv'+version+'\\tfalse\\tfalse');}
 else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:s.unresolved?[{isResolved:false}]:[],pageInfo:{hasNextPage:false}}}}}});
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
@@ -831,7 +831,9 @@ else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
 else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
 else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets});}
 else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets}]:[]);
-else if(a[0]==='api'&&a[1].includes('/releases/latest')){if(s.latestReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(s.noLatest){console.error('gh: Not Found (HTTP 404)');process.exit(1);}console.log(s.latestPublishedTag??('v'+version));}
+else if(a[0]==='api'&&a[1].includes('/releases/latest')){if(!s.publicationLock)throw new Error('latest read outside shared lock');if(s.latestReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(s.noLatest){console.error('gh: Not Found (HTTP 404)');process.exit(1);}console.log(s.latestPublishedTag??('v'+version));}
+else if(a[0]==='api'&&a[1].endsWith('/actions/variables')&&a.includes('POST')){if(s.publicationLock){console.error('gh: Variable already exists (HTTP 409)');process.exit(1);}s.publicationLock=a.find(v=>v.startsWith('value=')).slice(6);if(s.latestOnLock)s.latestPublishedTag=s.latestOnLock;store();if(s.interruptLockCreate){s.interruptLockCreate=false;store();process.exit(7);}}
+else if(a[0]==='api'&&a[1].endsWith('/actions/variables/CORE_RELEASE_PUBLICATION_LOCK')){if(a.includes('DELETE')){delete s.publicationLock;store();if(s.interruptLockDelete){s.interruptLockDelete=false;store();process.exit(7);}}else if(s.publicationLock)json({name:'CORE_RELEASE_PUBLICATION_LOCK',value:s.publicationLock});else{console.error('gh: Not Found (HTTP 404)');process.exit(1);}}
 else if(a[0]==='api'&&a.includes('POST')){s.milestone=true;write('milestone-create');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a.includes('PATCH')){s.milestone=true;write('milestone-close');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a[1].includes('/milestones')){if(a.includes('--jq'))console.log(s.milestone?'closed\\t0':'');else json(s.milestone?[{number:1,title:version,state:'closed',open_issues:0}]:[]);}
@@ -844,7 +846,7 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
     `#!/usr/bin/env node
 import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
-if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){const ref=a[3];if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
+if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){const ref=a[3];if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
 else if(a[0]==='pull'){if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
@@ -885,6 +887,102 @@ await test('publication reads remote preparation with no local receipts, tests, 
       'release-publish',
     ]);
     assert.equal(readState(file).milestone, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('one remote publication owner excludes other runners, including the same version', () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    const unlock = acquirePublicationLock(f.cwd, 'example/core', '0.2.0');
+    const first = readState(file).publicationLock;
+    for (const version of ['0.2.0', '0.3.0']) {
+      assert.throws(
+        () => acquirePublicationLock(f.cwd, 'example/core', version),
+        /Another publication/,
+      );
+      assert.equal(readState(file).publicationLock, first);
+    }
+    save(file, { ...readState(file), publicationLock: 'another owner' });
+    assert.throws(unlock, /owner changed/);
+    assert.equal(readState(file).publicationLock, 'another owner');
+    save(file, { ...readState(file), publicationLock: first });
+    unlock();
+    assert.equal(readState(file).publicationLock, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('publication lock reads back lost creation and deletion responses', () => {
+  const f = releaseFixture();
+  try {
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, {
+      ...readState(file),
+      interruptLockCreate: true,
+      interruptLockDelete: true,
+    });
+    const unlock = acquirePublicationLock(f.cwd, 'example/core', '0.2.0');
+    assert.equal(typeof readState(file).publicationLock, 'string');
+    unlock();
+    assert.equal(readState(file).publicationLock, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('publication reads the latest version after it acquires the shared lock', async () => {
+  const f = releaseFixture();
+  try {
+    await prepareRelease({ cwd: f.cwd, execute: true });
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, {
+      ...readState(file),
+      latestPublishedTag: 'v0.1.0',
+      latestOnLock: 'v0.3.0',
+    });
+    await publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true });
+    const state = readState(file);
+    assert.deepEqual(state.aliases, ['ghcr.io/example/core:0.2.0']);
+    assert.ok(
+      Array.isArray(state.releaseEditArgs) &&
+        state.releaseEditArgs.includes('--latest=false'),
+    );
+    assert.equal(state.publicationLock, undefined);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('an uncertain publication retains its remote lock until the stopped writer is recovered', async () => {
+  const f = releaseFixture();
+  try {
+    await prepareRelease({ cwd: f.cwd, execute: true });
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), interrupt: 'release-publish' });
+    await assert.rejects(
+      publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true }),
+    );
+    const interrupted = readState(file);
+    assert.equal(typeof interrupted.publicationLock, 'string');
+    await assert.rejects(
+      publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true }),
+      /Another publication/,
+    );
+    assert.deepEqual(readState(file).aliases, interrupted.aliases);
+    delete interrupted.publicationLock;
+    save(file, interrupted);
+    const result = await publishRelease({
+      cwd: f.cwd,
+      version: '0.2.0',
+      execute: true,
+    });
+    assert.equal(result.phase, 'complete');
+    assert.deepEqual(readState(file).aliases, interrupted.aliases);
+    assert.equal(readState(file).publicationLock, undefined);
   } finally {
     f.cleanup();
   }

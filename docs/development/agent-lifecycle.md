@@ -92,6 +92,9 @@ remotely. The source image name is fixed. The draft release holds the assets.
 no local proof receipt or build image and starts no tests or source review.
 It creates the signed tag, copies registry references, and publishes the draft.
 Milestone work is separate. A readback checks each remote write.
+[Record 0216](../decisions/0216-release-publication-has-one-remote-writer.md)
+gives all runners one remote publication lock. Latest version checks and
+writes run inside that lock. The release skill owns stopped-write recovery.
 
 `tools/release-check.mjs` keeps the older before and after diagnostic.
 Publication does not run it. The after gate reads

@@ -1,5 +1,6 @@
 /** Publish remote prepared artifacts. No source gate or local receipt is read. */
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { changelogEntries } from './release-notes.mjs';
@@ -102,6 +103,84 @@ function latestPublishedTag(cwd, repository) {
   );
 }
 
+const publicationLockName = 'CORE_RELEASE_PUBLICATION_LOCK';
+
+/** @param {string} cwd @param {string} repository */
+function readPublicationLock(cwd, repository) {
+  const result = spawnSync(
+    'gh',
+    ['api', `repos/${repository}/actions/variables/${publicationLockName}`],
+    { cwd, encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    if (/^gh: Not Found \(HTTP 404\)\s*$/m.test(result.stderr ?? ''))
+      return null;
+    throw new Error(
+      'The publication lock read is uncertain. No takeover is allowed.',
+    );
+  }
+  const variable = record(JSON.parse(result.stdout));
+  if (
+    variable.name !== publicationLockName ||
+    typeof variable.value !== 'string'
+  )
+    throw new Error('The publication lock has invalid inputs.');
+  return variable.value;
+}
+
+/** Atomic creation excludes every other runner, including the same version.
+ * @param {string} cwd @param {string} repository @param {string} version
+ */
+export function acquirePublicationLock(cwd, repository, version) {
+  const owner = JSON.stringify({ run: randomUUID(), version });
+  const result = spawnSync(
+    'gh',
+    [
+      'api',
+      `repos/${repository}/actions/variables`,
+      '--method',
+      'POST',
+      '--raw-field',
+      `name=${publicationLockName}`,
+      '--raw-field',
+      `value=${owner}`,
+    ],
+    { cwd, encoding: 'utf8' },
+  );
+  const observed = readPublicationLock(cwd, repository);
+  if (observed !== owner)
+    throw new Error(
+      observed === null
+        ? 'The publication lock creation is uncertain. No publication starts.'
+        : 'Another publication holds the repository lock. Wait for that run or recover its stopped write.',
+    );
+  // Readback also handles a lost creation response. Never PATCH an owner.
+  if (result.error)
+    throw new Error(
+      'The publication lock command stopped. Read its remote state before retry.',
+    );
+  return () => {
+    if (readPublicationLock(cwd, repository) !== owner)
+      throw new Error(
+        'The publication lock owner changed. No lock is removed.',
+      );
+    spawnSync(
+      'gh',
+      [
+        'api',
+        `repos/${repository}/actions/variables/${publicationLockName}`,
+        '--method',
+        'DELETE',
+      ],
+      { cwd, encoding: 'utf8' },
+    );
+    if (readPublicationLock(cwd, repository) === owner)
+      throw new Error(
+        'The publication lock removal is uncertain. Read its remote state before retry.',
+      );
+  };
+}
+
 /** @typedef {{cwd:string;version?:string;execute?:boolean;resume?:boolean;status?:boolean;autoReviewOnReady?:boolean}} ReleaseOptions */
 /** @param {ReleaseOptions} options */
 export async function release(options) {
@@ -113,6 +192,9 @@ export async function release(options) {
   if (!version || parseVersion(version) === null)
     throw new Error('Select the prepared release version.');
   const unlock = lock(cwd, 'release');
+  let releasePublicationLock;
+  let publicationStarted = false;
+  let publicationComplete = false;
   try {
     const repository = githubRepository(
       git(cwd, ['config', '--get', 'remote.origin.url']),
@@ -158,6 +240,7 @@ export async function release(options) {
     if (options.status || !options.execute) return result;
     command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main', '--tags']);
     git(cwd, ['merge-base', '--is-ancestor', commit, 'origin/main']);
+    releasePublicationLock = acquirePublicationLock(cwd, repository, version);
     const advanceLatest =
       remote.release.draft &&
       advancesLatest(version, latestPublishedTag(cwd, repository));
@@ -186,13 +269,17 @@ export async function release(options) {
         !remoteTag.split('\n').includes(`${commit}\trefs/tags/${tag}^{}`)
       )
         throw new Error('The remote tag differs. Never replace it.');
-    } else git(cwd, ['push', 'origin', `refs/tags/${tag}`]);
+    } else {
+      publicationStarted = true;
+      git(cwd, ['push', 'origin', `refs/tags/${tag}`]);
+    }
     for (const suffix of advanceLatest ? [version, 'latest'] : [version]) {
       const target = `${image}:${suffix}`;
       const current = remoteImage(cwd, target);
       if (current === imageDigest) continue;
       if (suffix === version && current !== null)
         throw new Error('The fixed image differs. Never replace it.');
+      publicationStarted = true;
       command(cwd, 'docker', [
         'buildx',
         'imagetools',
@@ -205,7 +292,8 @@ export async function release(options) {
       if (remoteImage(cwd, target) !== imageDigest)
         throw new Error('The image tag write has no matching readback.');
     }
-    if (remote.release.draft)
+    if (remote.release.draft) {
+      publicationStarted = true;
       command(cwd, 'gh', [
         'release',
         'edit',
@@ -213,6 +301,7 @@ export async function release(options) {
         '--draft=false',
         `--latest=${advanceLatest}`,
       ]);
+    }
     const observed = publishedRelease(cwd, tag);
     if (
       observed.release?.draft !== false ||
@@ -223,8 +312,17 @@ export async function release(options) {
       !observed.assets.get('operator-contract.json')?.equals(contractBytes)
     )
       throw new Error('The release write has no matching readback.');
+    publicationComplete = true;
     return { ...result, phase: 'complete', stage: 'complete' };
   } finally {
-    unlock();
+    try {
+      if (
+        releasePublicationLock &&
+        (publicationComplete || !publicationStarted)
+      )
+        releasePublicationLock();
+    } finally {
+      unlock();
+    }
   }
 }
