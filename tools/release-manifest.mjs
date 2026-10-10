@@ -243,6 +243,7 @@ export function publishedRelease(cwd, tag) {
           ? stderr.toString('utf8')
           : '';
     if (!/^gh: Not Found \(HTTP 404\)\s*$/m.test(message)) throw error;
+    /** @type {unknown} */
     const pages = JSON.parse(
       command(cwd, 'gh', [
         'api',

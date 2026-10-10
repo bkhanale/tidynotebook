@@ -56,6 +56,7 @@ export async function publishPreparedImage(cwd, image, commit, tested) {
     command(cwd, 'docker', ['push', reference]);
   }
   command(cwd, 'docker', ['pull', reference]);
+  /** @type {unknown} */
   const inspection = JSON.parse(
     command(cwd, 'docker', ['image', 'inspect', reference]),
   );

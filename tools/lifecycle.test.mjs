@@ -1319,7 +1319,7 @@ await test('release needs no attestation support and publishes the tested image 
     const result = await release({ cwd: f.cwd, execute: true });
     assert.equal(result.stage, 'complete');
     assert.deepEqual(readState(file).imageWrites, [
-      `ghcr.io/example/core:source-${result.releaseCommit}`,
+      `ghcr.io/example/core:source-${String(result.releaseCommit)}`,
     ]);
     assert.equal(
       readFileSync(join(f.cwd, '.tooling/builds'), 'utf8'),
@@ -1327,7 +1327,7 @@ await test('release needs no attestation support and publishes the tested image 
     );
     await release({ cwd: f.cwd, resume: true, execute: true });
     assert.deepEqual(readState(file).imageWrites, [
-      `ghcr.io/example/core:source-${result.releaseCommit}`,
+      `ghcr.io/example/core:source-${String(result.releaseCommit)}`,
     ]);
   } finally {
     f.cleanup();
@@ -1343,7 +1343,7 @@ await test('an uncertain image push resumes from the registry without another pu
     const result = await release({ cwd: f.cwd, resume: true, execute: true });
     assert.equal(result.stage, 'complete');
     assert.deepEqual(readState(file).imageWrites, [
-      `ghcr.io/example/core:source-${result.releaseCommit}`,
+      `ghcr.io/example/core:source-${String(result.releaseCommit)}`,
     ]);
   } finally {
     f.cleanup();
