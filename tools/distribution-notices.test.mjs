@@ -232,10 +232,15 @@ await test('the runner security source records only the two fixed Debian inputs'
   if (!Array.isArray(fixed.binaries) || !Array.isArray(original.packages))
     throw new Error('The binary inventory is missing.');
   const binaries = fixed.binaries.map(record);
-  assert.deepEqual(binaries.map((row) => row.name).sort(), [
-    'libpcre2-8-0:amd64',
-    'perl-base',
-  ]);
+  const names = binaries.map((row) => {
+    if (typeof row.name !== 'string')
+      throw new Error('The fixed binary name is missing.');
+    return row.name;
+  });
+  assert.deepEqual(
+    names.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+    ['libpcre2-8-0:amd64', 'perl-base'],
+  );
   const dockerfile = await readFile(join(root, 'Dockerfile'), 'utf8');
   for (const row of binaries) {
     if (typeof row.name !== 'string' || typeof row.version !== 'string')
