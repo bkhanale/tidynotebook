@@ -23,14 +23,38 @@ Run the commands from the checkout of that fixed release. Use the same shell:
 ```bash
 set -e
 read -r -p 'Fixed release tag: ' operator_release_tag
-test -n "$operator_release_tag"
+[[ "$operator_release_tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+operator_release_commit="$(git rev-parse "$operator_release_tag^{commit}")"
+test "$(git rev-parse HEAD)" = "$operator_release_commit"
 operator_release_dir="$PWD/.tooling/published-release/$operator_release_tag"
 mkdir -p "$operator_release_dir"
 gh release download "$operator_release_tag" --repo tidynotebook/tidynotebook \
   --pattern release-manifest.json --dir "$operator_release_dir"
-NOTESAPP_IMAGE="$(jq -er '.image.reference + "@" + .image.digest' \
+NOTESAPP_IMAGE="$(jq -ser --arg tag "$operator_release_tag" \
+  --arg commit "$operator_release_commit" '
+  select(length == 1) | .[0]
+  | select(.repository == "tidynotebook/tidynotebook"
+    and .tag == $tag and .version == ($tag | ltrimstr("v"))
+    and .source.commit == $commit
+    and .image.reference == "ghcr.io/tidynotebook/core"
+    and (.image.digest | type == "string" and length == 71
+      and test("^sha256:[a-f0-9]{64}$")))
+  | .image.reference + "@" + .image.digest' \
   "$operator_release_dir/release-manifest.json")"
 export NOTESAPP_IMAGE
+printf 'NOTESAPP_IMAGE=%s\n' "$NOTESAPP_IMAGE"
+```
+
+The commands refuse an invalid tag or manifest and a different checkout.
+Save the printed setting in the protected Compose environment file of this
+installation. Replace its old `NOTESAPP_IMAGE` setting, or add it when absent.
+Keep one such setting. Restrict file access to the operator. This keeps the
+same digest for later shells. See the protected configuration section of
+[Self-hosting](self-hosting.md#protected-configuration).
+
+Then pull and start the fixed image:
+
+```bash
 docker compose pull app
 docker compose up -d --no-build app
 ```
