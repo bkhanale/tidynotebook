@@ -97,6 +97,12 @@ Milestone work is separate. A readback checks each remote write.
 gives all runners one remote publication lock. Latest version checks and
 writes run inside that lock. The release skill owns stopped-write recovery.
 
+[Record 0220](../decisions/0220-future-releases-use-a-new-public-image.md)
+sets the future image package. `tools/release-registry.mjs` owns its address
+and read-only legacy selection. An old draft cannot publish. An old published
+release permits status only. Its fixed manifest selects its image for diagnostics.
+The [operator guide](../guide/operator.md) reads the published digest for Compose.
+
 `tools/release-check.mjs` keeps the older before and after diagnostic.
 Publication does not run it. The after gate reads
 the cryptographic tag result, immutable version digest, and image

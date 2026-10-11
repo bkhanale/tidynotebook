@@ -109,6 +109,13 @@ it sets the settings above. A change here reaches the service only when the
 service moves its pin, so a breaking change must be clear to the person who
 moves it.
 
+[Record 0220](../decisions/0220-future-releases-use-a-new-public-image.md)
+changes the package of future release images. The cloud pin format accepts
+the new package. Its release and image source checks need a private follow-up
+before it can use that package. Existing private pins stay intact. The HTTP
+contract and image commands stay the same. The [operator guide](../guide/operator.md)
+shows how a self-hosted installation selects the image from the official manifest.
+
 ## Before a change to the interface
 
 - Read this page.

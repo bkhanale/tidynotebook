@@ -53,15 +53,15 @@ These settings apply only when you start the optional Caddy proxy with
 
 ## Data, secrets and the image
 
-| Setting                 | What it does                                                                                                               |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `NOTESAPP_DATABASE_DIR` | Required. The host directory of the PostgreSQL data.                                                                       |
-| `NOTESAPP_STORAGE_DIR`  | Required. The host directory of the images and files of the notes. It must belong to uid 10001, the user of the image.     |
-| `NOTESAPP_SECRETS_DIR`  | Required. The host directory of the secret files below. Keep it outside the repository.                                    |
-| `POSTGRES_USER`         | The administrator of the database that Compose starts.                                                                     |
-| `POSTGRES_DB`           | The name of the database.                                                                                                  |
-| `NOTESAPP_IMAGE`        | The name and the tag of the application image that Compose runs, for example a release from the registry.                  |
-| `COMPOSE_FILE`          | The Compose files that `docker compose` reads, separated by colons. Add the mail file or the legal file below to use them. |
+| Setting                 | What it does                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTESAPP_DATABASE_DIR` | Required. The host directory of the PostgreSQL data.                                                                                        |
+| `NOTESAPP_STORAGE_DIR`  | Required. The host directory of the images and files of the notes. It must belong to uid 10001, the user of the image.                      |
+| `NOTESAPP_SECRETS_DIR`  | Required. The host directory of the secret files below. Keep it outside the repository.                                                     |
+| `POSTGRES_USER`         | The administrator of the database that Compose starts.                                                                                      |
+| `POSTGRES_DB`           | The name of the database.                                                                                                                   |
+| `NOTESAPP_IMAGE`        | The application image that Compose runs. For an official release, use its manifest address and digest. See [Published images](operator.md). |
+| `COMPOSE_FILE`          | The Compose files that `docker compose` reads, separated by colons. Add the mail file or the legal file below to use them.                  |
 
 The secret directory holds these files. Each one has mode `0600` and belongs to
 uid 10001. [Self-hosting](self-hosting.md#protected-configuration) states the

@@ -26,6 +26,7 @@ import {
 } from './release-notes.mjs';
 import { productName } from '../packages/core/src/product.ts';
 import { record, root } from './workspace.mjs';
+import { diagnosticImage } from './release-registry.mjs';
 import {
   digest,
   git,
@@ -689,9 +690,23 @@ async function readAfter(version, directory) {
     directory,
   );
   const [milestoneState = '', openIssues = '0'] = milestone.out.split('\t');
-  const imageName = imagePackage(
-    workflow ||
-      `IMAGE: ghcr.io/${githubRepository(git(directory, ['config', '--get', 'remote.origin.url'])).toLowerCase()}`,
+  const origin = git(directory, ['config', '--get', 'remote.origin.url']);
+  const repository = githubRepository(origin);
+  let assetsError = '';
+  let observed;
+  let manifestValue;
+  try {
+    observed = publishedRelease(directory, tag);
+    const manifest = observed.assets.get('release-manifest.json');
+    if (manifest)
+      manifestValue = parseManifest(JSON.parse(manifest.toString('utf8')));
+  } catch (error) {
+    assetsError = error instanceof Error ? error.message : String(error);
+  }
+  const imageName = diagnosticImage(
+    origin,
+    workflow,
+    manifestValue?.image.reference,
   );
   const ownerType = run(
     'gh',
@@ -708,7 +723,7 @@ async function readAfter(version, directory) {
     ],
     directory,
   );
-  const imageReference = `ghcr.io/${imageName.owner}/${imageName.name}`;
+  const imageReference = imageName.reference;
   const pull = run(
     'docker',
     ['pull', `${imageReference}:${version}`],
@@ -742,24 +757,18 @@ async function readAfter(version, directory) {
           directory,
         ).out
       : '';
-  const repository = githubRepository(
-    git(directory, ['config', '--get', 'remote.origin.url']),
-  );
-  let assetsError = '';
   try {
-    const observed = publishedRelease(directory, tag);
-    if (!observed.release) throw new Error('The published release is missing.');
+    if (assetsError) throw new Error(assetsError);
+    if (!observed?.release)
+      throw new Error('The published release is missing.');
     const contract = observed.assets.get('operator-contract.json'),
       manifest = observed.assets.get('release-manifest.json');
-    if (!contract || !manifest)
+    if (!contract || !manifest || !manifestValue)
       throw new Error('The published release asset is missing.');
     const parent = stateDirectory(directory);
     mkdirSync(parent, { recursive: true });
     const temporary = mkdtempSync(join(parent, 'asset-read-'));
     try {
-      const manifestValue = parseManifest(
-        JSON.parse(manifest.toString('utf8')),
-      );
       const archive = spawnSync('git', ['archive', localTagSha], {
         cwd: directory,
         maxBuffer: 64 * 1024 * 1024,

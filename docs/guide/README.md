@@ -48,6 +48,7 @@ For the person who runs the server.
 - [Quick start](quickstart.md) - the shortest path from a clone to the setup
   screen on your own machine.
 - [Self-hosting](self-hosting.md) - the production installation.
+- [Published images](operator.md) - select an official image by its fixed digest.
 - [Configuration reference](configuration.md) - every setting of the server
   and of its Compose file.
 - [Backup and restore](backup-and-restore.md) - encrypted backups, and the

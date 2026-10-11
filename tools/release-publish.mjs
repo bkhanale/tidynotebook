@@ -7,6 +7,7 @@ import { changelogEntries } from './release-notes.mjs';
 import { parseManifest, publishedRelease } from './release-manifest.mjs';
 import { command, digest, git, lock } from './lifecycle-state.mjs';
 import { githubRepository } from './pr-screenshots.mjs';
+import { publicationImage } from './release-registry.mjs';
 import { record } from './workspace.mjs';
 import {
   compareVersions,
@@ -53,6 +54,11 @@ function remoteImage(cwd, reference) {
  * @param {string} cwd @param {string} image @param {string} commit @param {Record<string,unknown>} tested
  */
 export async function publishPreparedImage(cwd, image, commit, tested) {
+  publicationImage(
+    git(cwd, ['config', '--get', 'remote.origin.url']),
+    image,
+    false,
+  );
   if (typeof tested.id !== 'string' || tested.commit !== commit)
     throw new Error('The prepared image is missing.');
   const reference = `${image}:source-${commit}`;
@@ -196,9 +202,8 @@ export async function release(options) {
   let publicationStarted = false;
   let publicationComplete = false;
   try {
-    const repository = githubRepository(
-      git(cwd, ['config', '--get', 'remote.origin.url']),
-    );
+    const origin = git(cwd, ['config', '--get', 'remote.origin.url']);
+    const repository = githubRepository(origin);
     const tag = `v${version}`;
     const remote = publishedRelease(cwd, tag);
     if (!remote.release)
@@ -222,13 +227,17 @@ export async function release(options) {
       manifest.repository !== repository ||
       manifest.version !== version ||
       manifest.tag !== tag ||
-      image !== `ghcr.io/${repository.toLowerCase()}` ||
       digest(contractBytes) !== manifest.operator.contractDigest ||
       remote.release.name !== releaseTitle(version) ||
       remote.release.prerelease !== false ||
       typeof remote.release.draft !== 'boolean'
     )
       throw new Error('The prepared release identity differs.');
+    const packageIdentity = publicationImage(
+      origin,
+      image,
+      !remote.release.draft,
+    );
     const result = {
       phase: remote.release.draft ? 'ready' : 'complete',
       stage: remote.release.draft ? 'ready' : 'complete',
@@ -238,6 +247,10 @@ export async function release(options) {
       manifest,
     };
     if (options.status || !options.execute) return result;
+    if (packageIdentity.legacy)
+      throw new Error(
+        'The old published image permits read-only status. Keep its fixed release intact.',
+      );
     command(cwd, 'git', ['fetch', '--quiet', 'origin', 'main', '--tags']);
     git(cwd, ['merge-base', '--is-ancestor', commit, 'origin/main']);
     releasePublicationLock = acquirePublicationLock(cwd, repository, version);

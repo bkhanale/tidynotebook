@@ -30,6 +30,7 @@ import {
   checkReleaseAssets,
 } from './release-manifest.mjs';
 import { githubRepository } from './pr-screenshots.mjs';
+import { releaseImage } from './release-registry.mjs';
 import { record, root } from './workspace.mjs';
 
 /** @typedef {'none' | 'patch' | 'minor' | 'major'} ReleaseType */
@@ -370,7 +371,7 @@ export async function prepareRelease(options) {
     }
     if (state.stage === 'before') {
       const repository = githubRepository(String(state.origin));
-      const image = `ghcr.io/${repository.toLowerCase()}`;
+      const image = releaseImage(String(state.origin));
       const prepared = await publishPreparedImage(
         cwd,
         image,

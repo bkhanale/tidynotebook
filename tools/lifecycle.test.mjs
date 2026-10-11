@@ -43,7 +43,11 @@ import {
   migrationMetadata,
   publishedRelease,
 } from './release-manifest.mjs';
-import { acquirePublicationLock, advancesLatest } from './release-publish.mjs';
+import {
+  acquirePublicationLock,
+  advancesLatest,
+  publishPreparedImage,
+} from './release-publish.mjs';
 import { coreReadingList, diffImpact } from './agent-context.mjs';
 import { prepare } from './task-prepare.mjs';
 import { record, root } from './workspace.mjs';
@@ -76,6 +80,7 @@ function fixture() {
     'release.mjs',
     'release-manifest.mjs',
     'release-publish.mjs',
+    'release-registry.mjs',
   ])
     copyFileSync(join(root, 'tools', name), join(cwd, 'tools', name));
   writeFileSync(join(cwd, '.gitignore'), '.tooling/\n');
@@ -122,7 +127,7 @@ appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args'
   git(cwd, ['config', 'user.name', 'Test']);
   git(cwd, ['config', 'commit.gpgsign', 'false']);
   git(cwd, ['config', 'tag.gpgsign', 'false']);
-  git(cwd, ['remote', 'add', 'origin', 'https://github.com/example/core']);
+  git(cwd, ['remote', 'add', 'origin', 'https://github.com/example/notebook']);
   git(cwd, ['add', '.']);
   git(cwd, ['commit', '-m', 'feat: fixture']);
   const oldPath = process.env.PATH;
@@ -573,7 +578,7 @@ await test('manifest rejects image drift and missing migration or gate proof', (
     hash = digest('fixture');
   const input = {
     schemaVersion: 1,
-    repository: 'example/core',
+    repository: 'example/notebook',
     version: '0.3.5',
     tag: 'v0.3.5',
     source: { commit: sha, tree: sha },
@@ -733,7 +738,7 @@ writeFileSync(process.argv.at(-1),JSON.stringify({openapi:'3.1.0',info:{title:'F
   git(cwd, [
     'config',
     `url.${remote}.insteadOf`,
-    'https://github.com/example/core',
+    'https://github.com/example/notebook',
   ]);
   git(cwd, ['push', 'origin', 'main', '--tags']);
   const key = join(cwd, '.tooling/key');
@@ -767,21 +772,21 @@ const head=git('rev-parse','HEAD');let version='0.2.0';try{version=JSON.parse(re
 const store=()=>writeFileSync('.tooling/service.json',JSON.stringify(s));
 const json=v=>console.log(JSON.stringify(v));
 const write=kind=>{s.writes.push(kind);store();if(s.interrupt===kind){s.interrupt=null;store();process.exit(7);}};
-const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:s.prNumber??41,url:'https://github.com/example/core/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:s.mergedCommit??prepared}};};
+const pr=()=>{const prepared=s.prepared??head;let merged=false;try{merged=git('--git-dir=.tooling/remote','rev-parse','main')===prepared;}catch{};return{number:s.prNumber??41,url:'https://github.com/example/notebook/pull/41',headRefOid:prepared,baseRefName:'main',state:merged?'MERGED':'OPEN',isDraft:false,mergeable:'MERGEABLE',mergeStateStatus:'CLEAN',statusCheckRollup:[{conclusion:'SUCCESS'}],reviews:[],reviewDecision:'',mergeCommit:{oid:s.mergedCommit??prepared}};};
 if(a[0]==='api'&&a.includes('--slurp')&&a.some(v=>v.includes('/releases?')))json([s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets}]:[]]);\nelse if(a[0]==='attestation'&&a.includes('--help')){if(s.unsupportedAttestation)process.exit(1);console.log(s.missingSourceFlag?'--repo --signer-workflow --source-ref':'--repo --signer-workflow --source-digest --source-ref');}
 else if(a[0]==='pr'&&a[1]==='list')json(s.created?[{number:41}]:[]);
 else if(a[0]==='pr'&&a[1]==='create'){s.created=true;s.prepared=head;write('pr-create');console.log(pr().url);}
 else if(a[0]==='pr'&&a[1]==='edit'){}
 else if(a[0]==='pr'&&a[1]==='view')json(pr());
 else if(a[0]==='pr'&&a[1]==='comment'){s.comments.push({id:s.comments.length+1,user:{login:'owner'},body:a.at(-1)});write('review-request');}
-else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/core/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
+else if(a[0]==='run'){if(a.includes('--jq'))console.log('completed\\tsuccess\\thttps://github.com/example/notebook/actions/runs/1\\t'+s.prepared);else json([{databaseId:1,headSha:s.prepared,status:'completed',conclusion:'success'}]);}
 else if(a[0]==='attestation'){if(s.badProvenance||(s.provenanceSource&&a.includes('--source-digest')&&a[a.indexOf('--source-digest')+1]!==s.provenanceSource)||(s.provenanceRef&&a.includes('--source-ref')&&a[a.indexOf('--source-ref')+1]!==s.provenanceRef))process.exit(1);console.log('{}');}
-else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.draft=a.includes('--draft');s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/core/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/core/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
-else if(a[0]==='release'&&a[1]==='edit'){if(!s.publicationLock)throw new Error('missing shared lock');s.draft=false;s.releaseEditArgs=a;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/core/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
+else if(a[0]==='release'&&a[1]==='create'){s.release=true;s.draft=a.includes('--draft');s.releaseName=a[a.indexOf('--title')+1];s.notes=readFileSync(a[a.indexOf('--notes-file')+1],'utf8');s.assets=[{name:'release-manifest.json',id:1,url:'https://api.github.com/repos/example/notebook/releases/assets/1',bytes:readFileSync(a.at(-2),'utf8')}];write('release-create');if(s.partialCreate)process.exit(0);s.assets.push({name:'operator-contract.json',id:2,url:'https://api.github.com/repos/example/notebook/releases/assets/2',bytes:readFileSync(a.at(-1),'utf8')});store();}
+else if(a[0]==='release'&&a[1]==='edit'){if(!s.publicationLock)throw new Error('missing shared lock');s.draft=false;s.releaseEditArgs=a;write('release-publish');}\nelse if(a[0]==='release'&&a[1]==='upload'){const name=a.at(-1).split('/').at(-1);const id=name==='release-manifest.json'?1:2;s.assets.push({name,id,url:'https://api.github.com/repos/example/notebook/releases/assets/'+id,bytes:readFileSync(a.at(-1),'utf8')});write('asset-upload');}
 else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];if(fields==='body')process.stdout.write(s.notes);else console.log(s.releaseName+'\\tv'+version+'\\tfalse\\tfalse');}
 else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:s.unresolved?[{isResolved:false}]:[],pageInfo:{hasNextPage:false}}}}}});
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
-else if(a[0]==='api'&&a[1].startsWith('https://api.github.com/repos/example/core/releases/assets/')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
+else if(a[0]==='api'&&a[1].startsWith('https://api.github.com/repos/example/notebook/releases/assets/')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
 else if(a[0]==='api'&&a[1].includes('/commits/'))json([{number:40,merged_at:'2026-10-09',base:{ref:'main'},body:'Release-Type: minor\\nRelease-Note: Read a new note.'}]);
 else if(a[0]==='api'&&a[1].includes('/reactions'))json(s.automaticClean?[{user:{login:'chatgpt-codex-connector[bot]'},content:'+1',created_at:'2026-10-09T15:46:56Z'}]:[]);
 else if(a[0]==='api'&&a[1].includes('/reviews'))json(s.cleanReview?[{user:{login:'chatgpt-codex-connector[bot]'},commit_id:s.prepared,state:'COMMENTED',body:"Didn't find any major issues."}]:[]);
@@ -790,9 +795,9 @@ else if(a[0]==='api'&&a[1].startsWith('users/'))console.log('Organization');
 else if(a[0]==='api'&&a[1].includes('/packages/'))console.log(version);
 else if(a[0]==='api'&&a[1].includes('/releases/tags/')){if(s.releaseReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(!s.release){console.error('gh: Not Found (HTTP 404)');process.exit(1);}json({name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets});}
 else if(a[0]==='api'&&a[1].includes('/releases?'))json(s.release?[{name:s.releaseName,tag_name:'v'+version,body:s.notes,draft:s.draft??false,prerelease:false,assets:s.assets}]:[]);
-else if(a[0]==='api'&&a[1].includes('/releases/latest')){if(!s.publicationLock)throw new Error('latest read outside shared lock');if(s.latestReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(s.noLatest){console.error('gh: Not Found (HTTP 404)');process.exit(1);}console.log(s.latestPublishedTag??('v'+version));}
-else if(a[0]==='api'&&a[1].endsWith('/actions/variables')&&a.includes('POST')){if(s.publicationLock){console.error('gh: Variable already exists (HTTP 409)');process.exit(1);}s.publicationLock=a.find(v=>v.startsWith('value=')).slice(6);if(s.latestOnLock)s.latestPublishedTag=s.latestOnLock;store();if(s.interruptLockCreate){s.interruptLockCreate=false;store();process.exit(7);}}
-else if(a[0]==='api'&&a[1].endsWith('/actions/variables/CORE_RELEASE_PUBLICATION_LOCK')){if(a.includes('DELETE')){delete s.publicationLock;store();if(s.interruptLockDelete){s.interruptLockDelete=false;store();process.exit(7);}}else if(s.publicationLock)json({name:'CORE_RELEASE_PUBLICATION_LOCK',value:s.publicationLock});else{console.error('gh: Not Found (HTTP 404)');process.exit(1);}}
+else if(a[0]==='api'&&a[1].includes('/releases/latest')){if(!s.publicationLock&&a[1]!=='repos/{owner}/{repo}/releases/latest')throw new Error('latest read outside shared lock');if(s.latestReadFailure){console.error('gh: Bad Gateway (HTTP 502)');process.exit(1);}if(s.noLatest){console.error('gh: Not Found (HTTP 404)');process.exit(1);}console.log(s.latestPublishedTag??('v'+version));}
+else if(a[0]==='api'&&a[1].endsWith('/actions/variables')&&a.includes('POST')){if(s.publicationLock){console.error('gh: Variable already exists (HTTP 409)');process.exit(1);}s.lockWrites=[...(s.lockWrites??[]),'create'];s.publicationLock=a.find(v=>v.startsWith('value=')).slice(6);if(s.latestOnLock)s.latestPublishedTag=s.latestOnLock;store();if(s.interruptLockCreate){s.interruptLockCreate=false;store();process.exit(7);}}
+else if(a[0]==='api'&&a[1].endsWith('/actions/variables/CORE_RELEASE_PUBLICATION_LOCK')){if(a.includes('DELETE')){s.lockWrites=[...(s.lockWrites??[]),'delete'];delete s.publicationLock;store();if(s.interruptLockDelete){s.interruptLockDelete=false;store();process.exit(7);}}else if(s.publicationLock)json({name:'CORE_RELEASE_PUBLICATION_LOCK',value:s.publicationLock});else{console.error('gh: Not Found (HTTP 404)');process.exit(1);}}
 else if(a[0]==='api'&&a.includes('POST')){s.milestone=true;write('milestone-create');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a.includes('PATCH')){s.milestone=true;write('milestone-close');json({number:1,state:'closed'});}
 else if(a[0]==='api'&&a[1].includes('/milestones')){if(a.includes('--jq'))console.log(s.milestone?'closed\\t0':'');else json(s.milestone?[{number:1,title:version,state:'closed',open_issues:0}]:[]);}
@@ -805,8 +810,8 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
     `#!/usr/bin/env node
 import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
-if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){const ref=a[3];if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
-else if(a[0]==='pull'){if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
+if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){const ref=a[3];s.registryReads=[...(s.registryReads??[]),ref];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
+else if(a[0]==='pull'){s.imageReads=[...(s.imageReads??[]),a[1]];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
 else if(a.some(v=>v.includes('org.opencontainers.image.revision')))console.log(s.prepared);
@@ -817,6 +822,108 @@ else console.log('fixture-runtime');
   );
   return f;
 }
+
+/** @param {string} cwd @param {string} image */
+function replaceFixtureImage(cwd, image) {
+  const file = join(cwd, '.tooling/service.json');
+  const service = readState(file);
+  const assets = Array.isArray(service.assets) ? service.assets : [];
+  save(file, {
+    ...service,
+    assets: assets.map((value) => {
+      const asset = record(value);
+      if (asset.name !== 'release-manifest.json') return asset;
+      if (typeof asset.bytes !== 'string')
+        throw new Error('Missing fixture manifest.');
+      const manifest = record(JSON.parse(asset.bytes));
+      return {
+        ...asset,
+        bytes: JSON.stringify({
+          ...manifest,
+          image: { ...record(manifest.image), reference: image },
+        }),
+      };
+    }),
+  });
+}
+
+await test('a legacy draft refuses publication before any lock, tag or alias write', async () => {
+  const f = releaseFixture();
+  try {
+    await prepareRelease({ cwd: f.cwd, execute: true });
+    replaceFixtureImage(f.cwd, 'ghcr.io/example/notebook');
+    const file = join(f.cwd, '.tooling/service.json');
+    const before = readState(file);
+    await assert.rejects(
+      publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true }),
+      /old image package/,
+    );
+    assert.deepEqual(readState(file), before);
+    assert.equal(git(f.cwd, ['tag', '--list', 'v0.2.0']), '');
+    assert.equal(git(f.cwd, ['ls-remote', 'origin', 'refs/tags/v0.2.0']), '');
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('preparation refuses an old image package before registry reads or writes', async () => {
+  const f = releaseFixture();
+  try {
+    const prepared = await prepareRelease({ cwd: f.cwd, execute: true });
+    const file = join(f.cwd, '.tooling/service.json');
+    const before = readState(file);
+    if (typeof prepared.releaseCommit !== 'string')
+      throw new Error('Missing fixture commit.');
+    const tested = record(record(prepared.proof).image);
+    await assert.rejects(
+      publishPreparedImage(
+        f.cwd,
+        'ghcr.io/example/notebook',
+        prepared.releaseCommit,
+        tested,
+      ),
+      /old image package/,
+    );
+    assert.deepEqual(readState(file), before);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('a published legacy release permits read-only status and uses its fixed manifest for diagnostics', async () => {
+  const f = releaseFixture();
+  try {
+    await release({ cwd: f.cwd, execute: true });
+    replaceFixtureImage(f.cwd, 'ghcr.io/example/notebook');
+    rmSync(stateDirectory(f.cwd), { recursive: true, force: true });
+    const file = join(f.cwd, '.tooling/service.json');
+    save(file, { ...readState(file), milestone: true });
+    const before = readState(file);
+    const status = await publishRelease({
+      cwd: f.cwd,
+      version: '0.2.0',
+      status: true,
+    });
+    assert.equal(status.stage, 'complete');
+    assert.equal(
+      status.image,
+      'ghcr.io/example/notebook@sha256:' + 'c'.repeat(64),
+    );
+    await assert.rejects(
+      publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true }),
+      /read-only/,
+    );
+    assert.deepEqual(readState(file), before);
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 0);
+    const reads = readState(file).imageReads;
+    assert.ok(Array.isArray(reads));
+    assert.equal(reads.at(-1), 'ghcr.io/example/notebook:0.2.0');
+    assert.deepEqual(readState(file).writes, before.writes);
+    assert.deepEqual(readState(file).aliases, before.aliases);
+  } finally {
+    f.cleanup();
+  }
+});
 
 await test('publication reads remote preparation with no local receipts, tests, build or review', async () => {
   const f = releaseFixture();
@@ -854,11 +961,11 @@ await test('one remote publication owner excludes other runners, including the s
   const f = releaseFixture();
   try {
     const file = join(f.cwd, '.tooling/service.json');
-    const unlock = acquirePublicationLock(f.cwd, 'example/core', '0.2.0');
+    const unlock = acquirePublicationLock(f.cwd, 'example/notebook', '0.2.0');
     const first = readState(file).publicationLock;
     for (const version of ['0.2.0', '0.3.0']) {
       assert.throws(
-        () => acquirePublicationLock(f.cwd, 'example/core', version),
+        () => acquirePublicationLock(f.cwd, 'example/notebook', version),
         /Another publication/,
       );
       assert.equal(readState(file).publicationLock, first);
@@ -883,7 +990,7 @@ await test('publication lock reads back lost creation and deletion responses', (
       interruptLockCreate: true,
       interruptLockDelete: true,
     });
-    const unlock = acquirePublicationLock(f.cwd, 'example/core', '0.2.0');
+    const unlock = acquirePublicationLock(f.cwd, 'example/notebook', '0.2.0');
     assert.equal(typeof readState(file).publicationLock, 'string');
     unlock();
     assert.equal(readState(file).publicationLock, undefined);
@@ -1309,7 +1416,7 @@ await test('a changed prepared source or origin cannot resume a release', async 
       'remote',
       'set-url',
       'origin',
-      'https://github.com/example/core',
+      'https://github.com/example/notebook',
     ]);
     writeFileSync(join(f.cwd, 'source.txt'), 'changed source');
     git(f.cwd, ['add', '.']);
@@ -1740,12 +1847,12 @@ await test('the historical after gate accepts a fresh checkout and a new runtime
       'remote',
       'set-url',
       'origin',
-      'https://github.com/example/core',
+      'https://github.com/example/notebook',
     ]);
     git(fresh, [
       'config',
       `url.${join(f.cwd, '.tooling/remote')}.insteadOf`,
-      'https://github.com/example/core',
+      'https://github.com/example/notebook',
     ]);
     git(fresh, ['config', 'gpg.format', 'ssh']);
     git(fresh, [
@@ -1861,7 +1968,7 @@ await test('remote PR and release asset identities require positive numeric IDs'
           ? {
               ...asset,
               id: -1,
-              url: 'https://api.github.com/repos/example/core/releases/assets/-1',
+              url: 'https://api.github.com/repos/example/notebook/releases/assets/-1',
             }
           : asset,
       ),
