@@ -1,0 +1,16 @@
+{
+  "keyringSource": "Debian bookworm debian-keyring package, authenticated by apt archive signatures. The fixed source descriptors use these exported developer keys.",
+  "keyringSha256": "c9f48dc72306909e30af3aac5a78f933c0eca02bc6b87d30ed83c4f23bd1299b",
+  "signatures": [
+    {
+      "file": "pcre2_10.42-1+deb12u2.dsc",
+      "fingerprint": "4644409808C171E05531DDEE054CB8F31343CF44",
+      "verified": true
+    },
+    {
+      "file": "perl_5.36.0-7+deb12u4.dsc",
+      "fingerprint": "D0A97B9DD6EEB7EF67E1B62CE725E87914600216",
+      "verified": true
+    }
+  ]
+}

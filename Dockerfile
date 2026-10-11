@@ -47,6 +47,8 @@ RUN node tools/distribution-notices.mjs /prod/server /prod/licenses
 RUN node tools/distribution-notices.mjs /usr/local/lib/node_modules/npm /prod/licenses/base-npm
 RUN node tools/native-sources.mjs /prod/licenses/native-source
 RUN node tools/native-sources.mjs /prod/licenses/base-source "" tools/base-sources.json
+RUN cp tools/base-packages.json /prod/licenses/base-source/original-binaries.json
+RUN node tools/native-sources.mjs /prod/licenses/runner-source "" tools/runner-sources.json
 # The archive holds the preferred first-party source and the exact build inputs.
 RUN tar --exclude='node_modules' --exclude='dist' --exclude='*.tsbuildinfo' \
     -czf /prod/licenses/core-source.tar.gz LICENSE README.md Dockerfile docker \
@@ -54,6 +56,14 @@ RUN tar --exclude='node_modules' --exclude='dist' --exclude='*.tsbuildinfo' \
     tsconfig.json tsconfig.base.json patches packages apps/server apps/web tools
 
 FROM node:26.10.0-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS runner
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    libpcre2-8-0=10.42-1+deb12u2 perl-base=5.36.0-7+deb12u4 && \
+    rm -rf /var/lib/apt/lists/*
+RUN chmod ugo-s /usr/bin/mount /usr/bin/umount
+
+# Build tools are unused in the runner. Original layer terms stay bundled.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Create non-root system group and user
 RUN groupadd -g 10001 notesapp && \
     useradd -u 10001 -g notesapp -m -d /home/notesapp -s /bin/bash notesapp

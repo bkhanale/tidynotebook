@@ -17,6 +17,17 @@ do not grant that choice from a copy of the license alone.
   The runner keeps the licenses of its deployed packages and base image.
   Exact Debian source descriptors and archives, and Node source, travel with
   the image. The source inventory matches the pinned image and its binaries.
+- The runner removes unused npm and npx tools from its active filesystem.
+  The builder keeps its package tools. Original base layer terms and source
+  stay with the image. The inventory separates those layers from the active
+  runtime. The operator commands still use Node directly.
+- The runner installs only the fixed Debian security packages named in
+  `tools/runner-sources.json`. Their exact source and terms travel with the
+  original base source. The image test refuses other package changes.
+- The runner clears elevation bits on mount and umount. This removes an
+  elevation precondition without changing their program bytes. The image
+  check holds the default nonroot user and Docker capabilities. Custom root
+  or privileged use is outside that proof.
 - A narrow Mermaid patch excludes only the ELK layout loader. All diagram
   types stay available. An ELK layout request takes Mermaid's standard Dagre
   fallback, as the upstream small build does. The graph stays the same;

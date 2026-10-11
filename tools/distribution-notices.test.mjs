@@ -222,3 +222,39 @@ await test('base source inputs match the pinned image and Node build input', asy
     ),
   );
 });
+
+await test('the runner security source records only the two fixed Debian inputs', async () => {
+  const base = await readJson(join(root, 'tools/base-sources.json'));
+  const original = await readJson(join(root, 'tools/base-packages.json'));
+  const fixed = await readJson(join(root, 'tools/runner-sources.json'));
+  assert.equal(original.image, base.image);
+  assert.equal(fixed.image, base.image);
+  if (!Array.isArray(fixed.binaries) || !Array.isArray(original.packages))
+    throw new Error('The binary inventory is missing.');
+  const binaries = fixed.binaries.map(record);
+  assert.deepEqual(binaries.map((row) => row.name).sort(), [
+    'libpcre2-8-0:amd64',
+    'perl-base',
+  ]);
+  const dockerfile = await readFile(join(root, 'Dockerfile'), 'utf8');
+  for (const row of binaries) {
+    if (typeof row.name !== 'string' || typeof row.version !== 'string')
+      throw new Error('The fixed binary identity is missing.');
+    assert.ok(
+      original.packages.some((value) => record(value).name === row.name),
+    );
+    assert.ok(dockerfile.includes(row.name.split(':')[0] + '=' + row.version));
+  }
+  assert.ok(sourceRows(fixed.sources).length > 0);
+  const signatures = await readJson(
+    join(root, 'tools/third-party/runner-source-signatures.json'),
+  );
+  if (typeof signatures.keyringSha256 !== 'string')
+    throw new Error('The source keyring identity is missing.');
+  assert.ok(
+    sourceMatches(
+      await readFile(join(root, 'tools/third-party/runner-source-keys.gpg')),
+      signatures.keyringSha256,
+    ),
+  );
+});

@@ -12,11 +12,19 @@ const image = process.env['NOTESAPP_IMAGE'] || 'notesapp:latest';
 await test('the runner carries full notices and its exact build source', async () => {
   const script = String.raw`
     import assert from 'node:assert/strict';
-    import {readFileSync,readdirSync} from 'node:fs';
+    import {readFileSync,readdirSync,statSync} from 'node:fs';
     import {createHash} from 'node:crypto';
     import {execFileSync} from 'node:child_process';
     import {createRequire} from 'node:module';
     import {dirname,join} from 'node:path';
+    assert.ok(process.getuid()>0);
+    for(const file of ['/usr/bin/mount','/usr/bin/umount']) {
+      const metadata=statSync(file);
+      assert.equal(metadata.uid,0);assert.equal(metadata.gid,0);
+      assert.equal(metadata.mode & 0o6000,0);assert.equal(metadata.mode & 0o022,0);
+    }
+    const capabilities=/^CapBnd:\s*([a-fA-F0-9]+)$/m.exec(readFileSync('/proc/self/status','utf8'))?.[1];assert.ok(capabilities);
+    assert.equal(BigInt('0x'+capabilities) & (1n<<21n),0n);
     const license=readFileSync('/app/LICENSE','utf8');
     assert.match(license,/GNU AFFERO GENERAL PUBLIC LICENSE/);
     assert.equal(readFileSync('/app/licenses/LICENSE','utf8'),license);
@@ -42,20 +50,32 @@ await test('the runner carries full notices and its exact build source', async (
       if(checksum!==undefined)assert.ok(source.sources.some(row=>row.file===name+'-'+version+'.crate'&&row.sha256===checksum),'librsvg crate '+name);
     }
     const base=JSON.parse(readFileSync('/app/licenses/base-source/manifest.json','utf8'));
+    const fixed=JSON.parse(readFileSync('/app/licenses/runner-source/manifest.json','utf8'));
+    assert.equal(fixed.image,base.image);
+    const fixedSources=new Set(fixed.packages.map(row=>row.name));
+    const expectedSources=[...base.packages.filter(row=>!fixedSources.has(row.name)),...fixed.packages];
     const actual=execFileSync('dpkg-query',['-W','-f=$'+'{source:Package}\t$'+'{source:Version}\n'],{encoding:'utf8'}).trim().split('\n');
-    assert.deepEqual([...new Set(actual)].sort(),base.packages.map(row=>row.name+'\t'+row.version).sort());
+    assert.deepEqual([...new Set(actual)].sort(),expectedSources.map(row=>row.name+'\t'+row.version).sort());
+    const original=JSON.parse(readFileSync('/app/licenses/base-source/original-binaries.json','utf8'));
+    assert.equal(original.image,base.image);
+    const expectedBinaries=original.packages.map(row=>fixed.binaries.find(change=>change.name===row.name)??row);
+    assert.equal(expectedBinaries.length,original.packages.length);
+    const actualBinaries=execFileSync('dpkg-query',['-W','-f=$'+'{binary:Package}\t$'+'{Version}\t$'+'{source:Package}\t$'+'{source:Version}\n'],{encoding:'utf8'}).trim().split('\n');
+    assert.deepEqual(actualBinaries.sort(),expectedBinaries.map(row=>[row.name,row.version,row.sourcePackage,row.sourceVersion].join('\t')).sort());
     assert.equal(process.versions.node,base.nodeVersion);
     assert.deepEqual(readdirSync('/opt'),[]);
-    assert.deepEqual(readdirSync('/usr/local/lib/node_modules').sort(),['npm']);
-    assert.deepEqual(readdirSync('/usr/local/bin').sort(),['docker-entrypoint.sh','node','nodejs','npm','npx']);
-    assert.equal(JSON.parse(readFileSync('/usr/local/lib/node_modules/npm/package.json','utf8')).version,base.npmVersion);
+    assert.deepEqual(readdirSync('/usr/local/lib/node_modules').sort(),[]);
+    assert.deepEqual(readdirSync('/usr/local/bin').sort(),['docker-entrypoint.sh','node','nodejs']);
+    const npmInventory=JSON.parse(readFileSync('/app/licenses/base-npm/inventory.json','utf8'));
+    assert.equal(npmInventory.packages.find(row=>row.name==='npm')?.version,base.npmVersion);
     assert.match(readFileSync('/app/licenses/base-npm/THIRD-PARTY-NOTICES.txt','utf8'),/spdx-exceptions@2.5.0/);
     assert.equal(createHash('sha256').update(readFileSync('/usr/local/bin/docker-entrypoint.sh')).digest('hex'),base.dockerEntrypointSha256);
-    for(const row of base.sources)assert.equal(createHash('sha256').update(readFileSync('/app/licenses/base-source/'+row.file)).digest('hex'),row.sha256);
-    for(const pkg of base.packages) {
+    for(const {manifest,directory,keyring} of [{manifest:base,directory:'/app/licenses/base-source',keyring:'/app/licenses/borrowed-work/debian-source-keys.gpg'},{manifest:fixed,directory:'/app/licenses/runner-source',keyring:'/app/licenses/borrowed-work/runner-source-keys.gpg'}]) {
+    for(const row of manifest.sources)assert.equal(createHash('sha256').update(readFileSync(directory+'/'+row.file)).digest('hex'),row.sha256);
+    for(const pkg of manifest.packages) {
       const descriptor=pkg.files.find(file=>file.endsWith('.dsc'));assert.ok(descriptor);
-      const file='/app/licenses/base-source/'+descriptor;
-      execFileSync('gpgv',['--keyring','/app/licenses/borrowed-work/debian-source-keys.gpg',file],{stdio:['ignore','pipe','pipe']});
+      const file=directory+'/'+descriptor;
+      execFileSync('gpgv',['--keyring',keyring,file],{stdio:['ignore','pipe','pipe']});
       const body=readFileSync(file,'utf8');
       assert.equal(/^Source: (.+)$/m.exec(body)?.[1],pkg.name);
       assert.equal(/^Version: (.+)$/m.exec(body)?.[1],pkg.version);
@@ -63,9 +83,10 @@ await test('the runner carries full notices and its exact build source', async (
       for(const line of checksum.split('\n')) {
         if(!line.startsWith(' '))break;
         const [hash,size,name]=line.trim().split(/\s+/);
-        const bytes=readFileSync('/app/licenses/base-source/'+name);
+        const bytes=readFileSync(directory+'/'+name);
         assert.equal(bytes.length,Number(size));assert.equal(createHash('sha256').update(bytes).digest('hex'),hash);
       }
+    }
     }
     execFileSync('gpgv',['--keyring','/app/licenses/base-source/node-release-pubring.kbx','/app/licenses/base-source/node-SHASUMS256.txt.sig','/app/licenses/base-source/node-SHASUMS256.txt'],{stdio:['ignore','pipe','pipe']});
     const nodeSource=base.sources.find(row=>row.file==='node-v'+base.nodeVersion+'.tar.xz');assert.ok(nodeSource);
