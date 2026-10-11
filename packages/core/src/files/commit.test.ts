@@ -313,6 +313,38 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
   };
 }
 
+/** A commit reads all head state once while it holds the workspace lock. */
+function singleHeadReadStore(
+  store: WorkspaceStore,
+  reads: string[][],
+): WorkspaceStore {
+  return {
+    ...store,
+    transact: (writer, scope, run, options) =>
+      store.transact(
+        writer,
+        scope,
+        (tx) => {
+          let read = false;
+          return run({
+            ...tx,
+            headStates: (fileIds) => {
+              assert.equal(
+                read,
+                false,
+                'a commit repeats its locked head read',
+              );
+              read = true;
+              reads.push([...fileIds]);
+              return tx.headStates(fileIds);
+            },
+          });
+        },
+        options,
+      ),
+  };
+}
+
 /** A workspace whose single member holds the given role. */
 function workspaceWith(role: Role): FakeWorkspace {
   const state = new FakeWorkspace();
@@ -703,14 +735,16 @@ await test('a duplicate of accepted work never leaves Trash', async () => {
     parents: [first.id],
     content: content(startText, startText),
   });
+  const reads: string[][] = [];
   accepted(
     await commitChangeset(
-      store,
+      singleHeadReadStore(store, reads),
       actor,
       changeset([repeat], { expectedHeads: { [fileId]: first.id } }),
       'd-3',
     ),
   );
+  assert.deepEqual(reads, [[fileId]]);
   assert.equal(state.files.get(fileId)?.deleted, true);
 });
 
@@ -816,17 +850,87 @@ await test('a stale save after a rename elsewhere keeps the new name', async () 
     parents: [first.id],
     content: content('# later text\n'),
   });
+  const reads: string[][] = [];
   const result = accepted(
     await commitChangeset(
-      store,
+      singleHeadReadStore(store, reads),
       actor,
       changeset([stale], { expectedHeads: { [fileId]: first.id } }),
       'd-3',
     ),
   );
+  assert.deepEqual(reads, [[fileId]]);
   assert.equal(result.revisions[0]?.path, 'notes/renamed.md');
   assert.equal(state.files.get(fileId)?.path, 'notes/renamed.md');
   assert.equal(state.revisions.get(stale.id)?.path, 'notes/renamed.md');
+});
+
+await test('one locked head read serves all files and revisions of a changeset', async () => {
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const first = await revision({
+    fileId: id('f'),
+    path: 'notes/first.md',
+    content: content('first body'),
+  });
+  const second = await revision({
+    fileId: id('f'),
+    path: 'notes/second.md',
+    content: content('second body'),
+  });
+  accepted(
+    await commitChangeset(store, actor, changeset([first, second]), 'seed'),
+  );
+  const one = await revision({
+    fileId: first.fileId,
+    path: first.path,
+    parents: [first.id],
+    content: content('first edit', 'first body'),
+  });
+  const next = await revision({
+    fileId: first.fileId,
+    path: first.path,
+    parents: [one.id],
+    content: content('next edit', 'first edit'),
+  });
+  const two = await revision({
+    fileId: second.fileId,
+    path: second.path,
+    parents: [second.id],
+    content: content('second edit', 'second body'),
+  });
+  const created = await revision({
+    fileId: id('f'),
+    path: 'notes/created.md',
+    content: content('new body'),
+  });
+  const reads: string[][] = [];
+  const outcome = accepted(
+    await commitChangeset(
+      singleHeadReadStore(store, reads),
+      actor,
+      changeset([two, one, next, created], {
+        expectedHeads: {
+          [first.fileId]: first.id,
+          [second.fileId]: second.id,
+          [created.fileId]: null,
+        },
+      }),
+      'all-files',
+    ),
+  );
+  assert.deepEqual(reads, [
+    [first.fileId, second.fileId, created.fileId].sort(),
+  ]);
+  assert.deepEqual(outcome.revisionIds, [two.id, one.id, next.id, created.id]);
+  assert.equal(state.files.get(first.fileId)?.headRevisionId, next.id);
+  assert.equal(state.files.get(second.fileId)?.headRevisionId, two.id);
+  assert.equal(state.files.get(created.fileId)?.headRevisionId, created.id);
+  assert.equal(state.revisions.get(next.id)?.text, 'next edit');
+  assert.equal(state.revisions.get(two.id)?.text, 'second edit');
+  assert.equal(state.revisions.get(created.id)?.text, 'new body');
+  assert.deepEqual(state.revisions.get(next.id)?.parents, [one.id]);
 });
 
 await test('a stale save that renames the file wins its own rename', async () => {

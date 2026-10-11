@@ -858,7 +858,10 @@ async function writeChangeset(
 
   // Force the deferred checks now, so a path conflict is an expected outcome
   // of this call rather than a failure at commit time.
-  await client.query('set constraints all immediate');
-  await client.query('set constraints all deferred');
+  // Both fixed statements run in order in one trip. A failed check still
+  // rolls back to the accept savepoint before another write can run.
+  await client.query(
+    'set constraints all immediate; set constraints all deferred',
+  );
   return ok(outcome);
 }

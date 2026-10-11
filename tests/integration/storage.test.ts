@@ -9,6 +9,7 @@
  * ```
  */
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -27,6 +28,7 @@ import {
   withCredentials,
   withDatabaseName,
   WorkspaceUnavailableError,
+  writeChargeBytes,
   type WorkspaceStoreHandle,
 } from '@notesapp/storage-server';
 import {
@@ -293,6 +295,164 @@ await test('accepted changesets: swaps two accepted paths inside one changeset',
   } finally {
     await session.close();
   }
+});
+
+await test('a path conflict rolls back every write and leaves the transaction usable', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const leftText = 'Left seed.\n';
+  const rightText = 'Right seed.\n';
+  const left = revision({
+    fileId: randomUUID(),
+    path: 'notes/left.md',
+    text: leftText,
+  });
+  const right = revision({
+    fileId: randomUUID(),
+    path: 'notes/right.md',
+    text: rightText,
+  });
+  accepted(
+    await store.transact(actor, workspaceId, (tx) =>
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [left, right]),
+        'seed-before-conflict',
+      ),
+    ),
+  );
+  const leftMovedText = 'Left moved. [Plan](Plan.md)\n';
+  const rightMovedText = 'Right moved.\n';
+  const leftMoved = revision({
+    fileId: left.fileId,
+    path: right.path,
+    parents: [left.id],
+    text: leftMovedText,
+  });
+  const rightMoved = revision({
+    fileId: right.fileId,
+    path: left.path,
+    parents: [right.id],
+    text: rightMovedText,
+  });
+  const rejectedText = 'Rejected text. [Ghost](Ghost.md)\n';
+  const conflict = changeset(workspaceId, [
+    revision({
+      fileId: left.fileId,
+      path: left.path,
+      parents: [leftMoved.id],
+      text: rejectedText,
+    }),
+  ]);
+  const finalText = 'Final text. [Kept](Kept.md)\n';
+  const final = revision({
+    fileId: left.fileId,
+    path: right.path,
+    parents: [leftMoved.id],
+    text: finalText,
+  });
+  const outcome = await store.transact(actor, workspaceId, async (tx) => {
+    const swapped = accepted(
+      await acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [leftMoved, rightMoved]),
+        'swap-before-conflict',
+      ),
+    );
+    assert.equal(swapped.cursor, '2');
+    const before = {
+      heads: await tx.headStates([left.fileId, right.fileId]),
+      documents: await tx.documents([left.fileId, right.fileId]),
+      feed: await tx.syncChanges('0', 100),
+      search: await tx.search('moved', 10),
+      links: await tx.backlinks('notes/Plan.md', 10),
+    };
+    const refusal = await acceptWithDocuments(
+      store.documents,
+      tx,
+      actor,
+      conflict,
+      'conflict-that-must-roll-back',
+    );
+    assert.equal(refusal.ok, false);
+    if (!refusal.ok) assert.equal(refusal.error.code, 'path_conflict');
+    assert.deepEqual(
+      await tx.headStates([left.fileId, right.fileId]),
+      before.heads,
+    );
+    assert.deepEqual(
+      await tx.documents([left.fileId, right.fileId]),
+      before.documents,
+    );
+    assert.deepEqual(await tx.syncChanges('0', 100), before.feed);
+    assert.deepEqual(await tx.search('moved', 10), before.search);
+    assert.deepEqual(await tx.backlinks('notes/Plan.md', 10), before.links);
+    assert.deepEqual(await tx.search('rejected', 10), []);
+    assert.deepEqual(await tx.backlinks('notes/Ghost.md', 10), []);
+    assert.equal(await tx.receipt(conflict.mutationId, accountId), null);
+    const saved = accepted(
+      await acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [final]),
+        'valid-save-after-conflict',
+      ),
+    );
+    assert.equal(saved.cursor, '3');
+    return saved;
+  });
+  assert.equal(outcome.revisions[0]?.path, right.path);
+  for (const [table, total] of [
+    ['files', 2],
+    ['live_paths', 2],
+    ['contents', 5],
+    ['revisions', 5],
+    ['revision_parents', 3],
+    ['changesets', 3],
+    ['mutation_receipts', 3],
+    ['sync_changes', 5],
+    ['note_documents', 2],
+    ['search_index', 2],
+    ['note_links', 1],
+  ] as const)
+    assert.equal(await countRows(table, workspaceId), total, table);
+  const owner = await openSession(database.migrationUrl);
+  try {
+    const missing = await owner.query<{ total: number }>(
+      'select count(*)::int as total from contents where workspace_id = $1 and digest = $2',
+      [workspaceId, markdownDigest(rejectedText)],
+    );
+    assert.equal(missing[0]?.total, 0);
+    const usage = await owner.query<{ bytes_used: string; text_bytes: string }>(
+      'select bytes_used::text, text_bytes::text from workspace_usage where workspace_id = $1',
+      [workspaceId],
+    );
+    const contentBytes = [
+      leftText,
+      rightText,
+      leftMovedText,
+      rightMovedText,
+      finalText,
+    ].reduce(
+      (total, text) => total + BigInt(Buffer.byteLength(text, 'utf8')),
+      0n,
+    );
+    const charge = writeChargeBytes(contentBytes, 5, 3).toString();
+    assert.deepEqual(usage, [{ bytes_used: charge, text_bytes: charge }]);
+  } finally {
+    await owner.close();
+  }
+  const stored = await store.transact(actor, workspaceId, (tx) =>
+    tx.revision(final.id),
+  );
+  assert.equal(stored?.text, finalText);
+  assert.ok(stored?.document !== null && stored?.document !== undefined);
+  assert.equal(store.documents.readText(stored.document), finalText);
 });
 
 await test('workspace boundaries: rejects a parent revision of another workspace', async () => {

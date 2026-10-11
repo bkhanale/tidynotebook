@@ -128,6 +128,7 @@ async function knownRevisions(
 type RebaseResult = {
   readonly input: ChangesetInput;
   readonly superseded: readonly SupersededHead[];
+  readonly heads: ReadonlyMap<string, HeadState>;
 };
 
 /**
@@ -249,6 +250,7 @@ async function rebaseHeads(
       revisions,
     },
     superseded,
+    heads,
   });
 }
 
@@ -385,7 +387,9 @@ export async function commitChangeset(
             .filter((revision) => revision.content.kind === 'markdown')
             .map((revision) => revision.fileId),
         ),
-        await tx.headStates(fileIds),
+        // No write runs between the rebase and this step. The workspace lock
+        // keeps its head state current, so the document reads the same map.
+        rebased.value.heads,
         accepted.revisions,
       );
       if (!documents.ok) return documents;
