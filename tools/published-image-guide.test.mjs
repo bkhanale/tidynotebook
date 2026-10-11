@@ -12,9 +12,18 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { root } from './workspace.mjs';
 
+for (const tool of ['bash', 'jq']) {
+  const result = spawnSync(tool, ['--version'], { encoding: 'utf8' });
+  if (result.error || result.status !== 0)
+    throw new Error(
+      `The published image guide test needs ${tool}. Install ${tool} and add it to PATH.`,
+    );
+}
+
 const guide = readFileSync(join(root, 'docs/guide/operator.md'), 'utf8');
-const commands = /```bash\n([\s\S]*?)```/.exec(guide)?.[1];
-if (!commands) throw new Error('Missing published image selection commands.');
+const selection = /```bash\n([\s\S]*?)```/.exec(guide)?.[1];
+if (!selection) throw new Error('Missing published image selection commands.');
+const commands = selection;
 const commit = 'a'.repeat(40);
 const manifest = {
   repository: 'tidynotebook/tidynotebook',
@@ -133,5 +142,35 @@ await test('the actual guide refuses a different checkout or malformed official 
     const result = selectImage('v0.3.5', asset);
     assert.notEqual(result.status, 0, JSON.stringify(asset));
     assert.equal(result.stdout, '', JSON.stringify(asset));
+  }
+});
+
+await test('a missing guide test tool stops with a clear install action', () => {
+  mkdirSync(join(root, '.tooling'), { recursive: true });
+  const bin = mkdtempSync(join(root, '.tooling/published-image-tools-'));
+  try {
+    for (const tool of ['bash', 'jq']) {
+      const result = spawnSync(
+        process.execPath,
+        ['--test', join(root, 'tools/published-image-guide.test.mjs')],
+        {
+          env: { ...process.env, PATH: bin, NODE_TEST_CONTEXT: undefined },
+          encoding: 'utf8',
+        },
+      );
+      assert.notEqual(result.status, 0, result.stdout + result.stderr);
+      assert.match(
+        result.stdout + result.stderr,
+        new RegExp(`needs ${tool}\\. Install ${tool} and add it to PATH\\.`),
+      );
+      if (tool === 'bash')
+        writeFileSync(
+          join(bin, 'bash'),
+          `#!${process.execPath}\nconsole.log('Fixture Bash version');\n`,
+          { mode: 0o700 },
+        );
+    }
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
   }
 });

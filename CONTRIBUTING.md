@@ -30,9 +30,15 @@ links to it.
 | pnpm           | 12.3.4                                  |
 | Docker Engine  | any version that runs Docker Compose v2 |
 | Docker Compose | v2                                      |
+| Bash           | available in `PATH`                     |
+| jq             | available in `PATH`                     |
 
-`pnpm lint` checks these versions against `engines` and `packageManager` in
+`pnpm lint` checks Node.js and pnpm against `engines` and `packageManager` in
 `package.json`. A different version fails the gate.
+
+Install Bash and jq before you run `pnpm verify`. The published image guide
+test runs the actual shell commands and manifest selection. A missing tool
+stops the test and names the tool to install.
 
 ## Setup
 
