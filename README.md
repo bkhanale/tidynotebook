@@ -43,8 +43,8 @@ tidy notebook has two editions. They run the same code.
   excerpt.
 - **Attachments.** Images are validated, deduplicated by digest, and stored
   outside the database.
-- **One user.** First-run setup takes one email address and one password.
-  There is no sharing and no invitation.
+- **Separate accounts.** Setup creates the first administrator. An
+  administrator can invite other people. Each account has its own notes.
 - **Published links.** Publish a note or a folder as one read-only address,
   with an optional password and an optional expiry. Revoke it at any moment.
 - **One Compose file.** Safe defaults, health checks, encrypted backups and a
@@ -119,8 +119,8 @@ pnpm generated:check
 - [docs/README.md](docs/README.md) states what each documentation directory
   holds and how to write a document of that kind.
 
-[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
-[CHANGELOG.md](CHANGELOG.md) stay at the root.
+[CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
+[SECURITY.md](SECURITY.md) and [CHANGELOG.md](CHANGELOG.md) stay at the root.
 
 ## License
 

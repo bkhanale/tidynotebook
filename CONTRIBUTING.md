@@ -5,6 +5,12 @@ landing path. Read [AGENTS.md](AGENTS.md) for the full rule set and
 [docs/development/architecture.md](docs/development/architecture.md) for the
 current picture of the system.
 
+Follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) in issues, pull requests and
+other project spaces. The repository owner maintains the project and makes
+the final decision on a change. Use the issue templates for a defect or a feature.
+The [GitHub project board](https://github.com/users/bkhanale/projects/2) holds
+the work that the owner selects.
+
 ## Before you start
 
 Run `node tools/agent-context.mjs <paths you will touch>` before your first
@@ -138,8 +144,9 @@ needs no sign-off, because the owner holds the copyright. The rule is in
 
 A change uses a worktree and a short-lived branch. The
 [agent lifecycle](docs/development/agent-lifecycle.md) holds the current PR,
-proof, review, and landing procedure. The owner and contributors use reviewed
-pull requests. An authorized exact head lands by non-force fast-forward push.
+proof, review, and landing procedure. The owner and contributors use
+pull requests. A review is optional unless the owner asks for one. An
+authorized exact head lands by non-force fast-forward push.
 A protection refusal is a stop. Worktree cleanup remains an owner action.
 
 ## Commit style

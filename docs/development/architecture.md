@@ -1,6 +1,6 @@
 # Architecture
 
-tidy notebook is a self-hosted Markdown notes application for one person. A note is
+tidy notebook is a self-hosted Markdown notes application with separate accounts. A note is
 a Markdown file with one `.md` suffix. Typing writes a draft on the device.
 Save creates one immutable version on the server. Nothing is stored that cannot
 be exported as plain Markdown files.
@@ -41,10 +41,11 @@ Four records hold the text, and they stay separate.
 | Queue entry    | IndexedDB             | One save that waits to reach the server |
 | Server version | PostgreSQL, immutable | The accepted history of the note        |
 
-Typing never creates a version. Save never needs a connection. The sync engine
+Typing writes a draft. A checkpoint creates a version after a pause, when the
+person leaves the note, or on Save. Save needs no connection. The sync engine
 sends queue entries in local order with a frozen body and digest, so a retry
 repeats the same mutation. See
-[decision 0007](../decisions/0007-keep-the-save-model.md),
+[decision 0022](../decisions/0022-autosave-and-automatic-versions.md),
 [Local drafts and explicit saves](local-storage.md), and
 [Files, revisions, and atomic changes](files-and-revisions.md).
 
@@ -54,9 +55,9 @@ opening a conflict screen, and it refuses only a rebase that would cross a
 deletion boundary. History stays one line. The full rule set is in
 [Files, revisions, and atomic changes](files-and-revisions.md).
 
-Delete moves a note to Trash, and Trash offers Restore and Delete permanently.
+Move to Trash moves a note to Trash, and Trash offers Restore and Delete.
 The permanent delete also releases the attachment bytes that no live revision
-references. See [decision 0006](../decisions/0006-trash-replaces-purge.md).
+references. See [decision 0026](../decisions/0026-slim-the-save-and-delete-surfaces.md).
 
 The note saves itself and makes a version on a natural boundary, and the
 sidebar footer states the queue (`apps/web/src/lib/sync-state.ts`). A save
@@ -91,8 +92,7 @@ policy are in [Toolchain](toolchain.md).
 
 ## Target structure
 
-The structure inside an application and a package is decided, and it is not yet
-what the tree holds.
+Each application and package follows the ports and adapters structure.
 [Decision 0018](../decisions/0018-directory-structure-by-layer.md) states the
 ports and adapters layout that new code follows: cross-cutting plugins and
 resource routes in the server, one directory per context in `core`, one
@@ -101,9 +101,7 @@ feature on the web side.
 [Decision 0019](../decisions/0019-contract-validation-and-shared-types.md)
 states that the contract stays the one shared schema, that its source splits
 into files that Redocly bundles, and that a type assertion gives way to a type
-guard or a parser. The move is one epic on the
-[GitHub project board](https://github.com/users/bkhanale/projects/2), and until
-it closes the two records decide where new code goes.
+guard or a parser. These records decide where new code goes.
 [Decision 0020](../decisions/0020-central-logging-through-one-module.md) adds
 `packages/logging`, which owns the shape of every log record and keeps the
 transport in a sink adapter.

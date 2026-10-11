@@ -60,11 +60,13 @@ table. See [Accounts and identity](../development/identity.md).
 
 ## What the application does on its own
 
-- The session cookie is the only credential that reaches your notes. It is
+- A browser session or a personal API key reaches the notes of its account.
+  A key does not reach another account. The session cookie is
   `HttpOnly` and `SameSite`, and an HTTPS deployment marks it secure. A
   published link carries its own secret in the address. That secret opens what
   you published, for reading only, and it reaches nothing else.
-- A write must also name an origin that the installation serves.
+- A write with a browser session must name an origin that the installation
+  serves. An API key uses its authorization header.
 - Note content is rendered through one sanitizer. It keeps a safe set of
   HTML elements with no script, no style and no event, and a link to anything
   other than a web address, a mail address, another note, or an attachment
@@ -72,9 +74,10 @@ table. See [Accounts and identity](../development/identity.md).
 - A published page runs no script, except one file of the server. That file
   draws a diagram in a sandboxed frame and adds a **Copy** button to a code
   block. A page with no diagram and no code block runs no script.
-- An image from another site is never fetched by the page on its own. It needs
-  an explicit action, so opening a note cannot tell another site that you read
-  it.
+- An image from another site loads when you open the note. The image must
+  use HTTPS. Its server receives a request from your browser and can see your
+  address. Do not open a note with an external image if you do not trust its
+  source.
 - The database refuses on its own what the application refuses: row access
   policies scope every row to its workspace, and the runtime role holds no
   migration right and no right on the identity tables.

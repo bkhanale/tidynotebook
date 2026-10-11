@@ -99,6 +99,8 @@ jobs:
       POSTGRES_USER: postgres
       POSTGRES_DB: notesapp
       NOTESAPP_SECRETS_DIR: ${{ runner.temp }}/notesapp-secrets
+      NOTESAPP_DATABASE_DIR: ${{ runner.temp }}/notesapp-postgres
+      NOTESAPP_STORAGE_DIR: ${{ runner.temp }}/notesapp-storage
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

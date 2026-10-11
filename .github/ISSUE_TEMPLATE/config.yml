@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/tidynotebook/tidynotebook/blob/main/SECURITY.md
+    about: Read the policy and use its private contact.
+  - name: Read the guide
+    url: https://github.com/tidynotebook/tidynotebook/tree/main/docs/guide
+    about: Read the use and hosting instructions.
