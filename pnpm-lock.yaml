@@ -187,6 +187,7 @@ patchedDependencies:
   '@lezer/markdown@1.7.2': 763a4270d6e568bbf93e257bfa38d04828fb7dd35c03923b1fe320c608c4ff49
   mdast-util-from-markdown@2.0.3: 60d5e0e84e7cf2d6c4cf62eccd9f91e1489d1e56a365a4ee32b0f5af30e721ea
   mdast-util-to-hast@13.2.1: 305044ba40ea5db9cfc6d9a5d28a5f1de2fe82b411a899534b4757f418d21b15
+  mermaid@12.0.0: afff34dc8a0fec47b9d25839a09ed7b9d3b4d6b1d860365fc55e78dec61edef1
   micromark-core-commonmark@2.0.3: e6df24c6a49dd78cb02e5594da923591946fcf87978fc9d10238a85eccb25222
   micromark@4.0.2: 0927acf9d77925cee49f3208288dce013fe3560225da3f05fe8d6993ba29ba20
   parse5@7.3.0: 6502534519b354e57c9caab0f58709b09db1342bd2299a3514b4899a60148733
@@ -411,7 +412,7 @@ importers:
         version: 0.18.9
       mermaid:
         specifier: 12.0.0
-        version: 12.0.0
+        version: 12.0.0(patch_hash=afff34dc8a0fec47b9d25839a09ed7b9d3b4d6b1d860365fc55e78dec61edef1)
       react:
         specifier: 'catalog:'
         version: 19.3.0
@@ -6524,7 +6525,7 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
 
-  mermaid@12.0.0:
+  mermaid@12.0.0(patch_hash=afff34dc8a0fec47b9d25839a09ed7b9d3b4d6b1d860365fc55e78dec61edef1):
     dependencies:
       '@braintree/sanitize-url': 7.1.2
       '@iconify/utils': 3.1.5

@@ -1,0 +1,122 @@
+{
+  "package": "pagefind",
+  "packageVersion": "1.5.2",
+  "scope": "Pagefind WebAssembly source, complete Wasm crate lock graph, Snowball preferred algorithm source, and upstream build scripts. Build-only crates can appear.",
+  "sources": [
+    {
+      "file": "snowball-v3.0.0.tar.gz",
+      "url": "https://github.com/snowballstem/snowball/archive/refs/tags/v3.0.0.tar.gz",
+      "sha256": "4100b983cec95e1e6c998ea57b220d235f082b9ef6e837afb97dee0bb0a65d14"
+    },
+    {
+      "file": "pagefind-v1.5.2.tar.gz",
+      "url": "https://github.com/Pagefind/pagefind/archive/refs/tags/v1.5.2.tar.gz",
+      "sha256": "b2562714098479a19ddade7ad226ddbb9ecee8663a51963018ada9101ef16f34"
+    },
+    {
+      "file": "bit-set-0.10.0.crate",
+      "url": "https://static.crates.io/crates/bit-set/bit-set-0.10.0.crate",
+      "sha256": "09ec2f926cc3060f09db9ebc5b52823d85268d24bb917e472c0c4bea35780a7d"
+    },
+    {
+      "file": "bit-vec-0.9.1.crate",
+      "url": "https://static.crates.io/crates/bit-vec/bit-vec-0.9.1.crate",
+      "sha256": "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51"
+    },
+    {
+      "file": "bumpalo-3.20.2.crate",
+      "url": "https://static.crates.io/crates/bumpalo/bumpalo-3.20.2.crate",
+      "sha256": "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
+    },
+    {
+      "file": "cfg-if-1.0.4.crate",
+      "url": "https://static.crates.io/crates/cfg-if/cfg-if-1.0.4.crate",
+      "sha256": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+    },
+    {
+      "file": "minicbor-2.2.1.crate",
+      "url": "https://static.crates.io/crates/minicbor/minicbor-2.2.1.crate",
+      "sha256": "e70eae6d4f18f7d76877fe7b13f0bc21f7c2b7239d2041c338335f7b388d0dd7"
+    },
+    {
+      "file": "once_cell-1.21.4.crate",
+      "url": "https://static.crates.io/crates/once_cell/once_cell-1.21.4.crate",
+      "sha256": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+    },
+    {
+      "file": "pagefind_microjson-0.1.4.crate",
+      "url": "https://static.crates.io/crates/pagefind_microjson/pagefind_microjson-0.1.4.crate",
+      "sha256": "8f97aa64cde14e78d6274c473f36cec98d401f0b583282055e953d2df907e210"
+    },
+    {
+      "file": "pagefind_stem-1.0.0.crate",
+      "url": "https://static.crates.io/crates/pagefind_stem/pagefind_stem-1.0.0.crate",
+      "sha256": "8dfa810b158f3ac364e5acd43ca4a6020a6e729d40c15ce1bed1d911237a52e5"
+    },
+    {
+      "file": "proc-macro2-1.0.106.crate",
+      "url": "https://static.crates.io/crates/proc-macro2/proc-macro2-1.0.106.crate",
+      "sha256": "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
+    },
+    {
+      "file": "quote-1.0.45.crate",
+      "url": "https://static.crates.io/crates/quote/quote-1.0.45.crate",
+      "sha256": "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
+    },
+    {
+      "file": "rustversion-1.0.22.crate",
+      "url": "https://static.crates.io/crates/rustversion/rustversion-1.0.22.crate",
+      "sha256": "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
+    },
+    {
+      "file": "serde-1.0.228.crate",
+      "url": "https://static.crates.io/crates/serde/serde-1.0.228.crate",
+      "sha256": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+    },
+    {
+      "file": "serde_core-1.0.228.crate",
+      "url": "https://static.crates.io/crates/serde_core/serde_core-1.0.228.crate",
+      "sha256": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+    },
+    {
+      "file": "serde_derive-1.0.228.crate",
+      "url": "https://static.crates.io/crates/serde_derive/serde_derive-1.0.228.crate",
+      "sha256": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+    },
+    {
+      "file": "syn-2.0.117.crate",
+      "url": "https://static.crates.io/crates/syn/syn-2.0.117.crate",
+      "sha256": "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99"
+    },
+    {
+      "file": "unicode-ident-1.0.24.crate",
+      "url": "https://static.crates.io/crates/unicode-ident/unicode-ident-1.0.24.crate",
+      "sha256": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+    },
+    {
+      "file": "wasm-bindgen-0.2.117.crate",
+      "url": "https://static.crates.io/crates/wasm-bindgen/wasm-bindgen-0.2.117.crate",
+      "sha256": "0551fc1bb415591e3372d0bc4780db7e587d84e2a7e79da121051c5c4b89d0b0"
+    },
+    {
+      "file": "wasm-bindgen-macro-0.2.117.crate",
+      "url": "https://static.crates.io/crates/wasm-bindgen-macro/wasm-bindgen-macro-0.2.117.crate",
+      "sha256": "7fbdf9a35adf44786aecd5ff89b4563a90325f9da0923236f6104e603c7e86be"
+    },
+    {
+      "file": "wasm-bindgen-macro-support-0.2.117.crate",
+      "url": "https://static.crates.io/crates/wasm-bindgen-macro-support/wasm-bindgen-macro-support-0.2.117.crate",
+      "sha256": "dca9693ef2bab6d4e6707234500350d8dad079eb508dca05530c85dc3a529ff2"
+    },
+    {
+      "file": "wasm-bindgen-shared-0.2.117.crate",
+      "url": "https://static.crates.io/crates/wasm-bindgen-shared/wasm-bindgen-shared-0.2.117.crate",
+      "sha256": "39129a682a6d2d841b6c429d0c51e5cb0ed1a03829d8b3d1e69a011e62cb3d3b"
+    },
+    {
+      "file": "write-json-0.1.4.crate",
+      "url": "https://static.crates.io/crates/write-json/write-json-0.1.4.crate",
+      "sha256": "23f6174b2566cc4a74f95e1367ec343e7fa80c93cc8087f5c4a3d6a1088b2118"
+    }
+  ]
+}

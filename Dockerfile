@@ -12,6 +12,8 @@ WORKDIR /app
 # Copy every workspace manifest that the context keeps, so the frozen install
 # compares each one with the lockfile. tools/check-versions.mjs holds the list.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .node-version .npmrc ./
+COPY LICENSE README.md Dockerfile ./
+COPY docker ./docker
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/core/package.json ./packages/core/
@@ -41,6 +43,13 @@ COPY apps ./apps
 # Build contracts, libraries, web client, and server
 RUN pnpm build
 RUN pnpm --filter @notesapp/server deploy --prod /prod/server
+RUN node tools/distribution-notices.mjs /prod/server /prod/licenses
+RUN node tools/native-sources.mjs /prod/licenses/native-source
+# The archive holds the preferred first-party source and the exact build inputs.
+RUN tar --exclude='node_modules' --exclude='dist' --exclude='*.tsbuildinfo' \
+    -czf /prod/licenses/core-source.tar.gz LICENSE README.md Dockerfile docker \
+    package.json pnpm-lock.yaml pnpm-workspace.yaml .node-version .npmrc \
+    tsconfig.json tsconfig.base.json patches packages apps/server apps/web tools
 
 FROM node:26.10.0-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS runner
 # Create non-root system group and user
@@ -55,6 +64,8 @@ WORKDIR /app
 # Copy production server dependencies and built web assets only.
 COPY --chown=notesapp:notesapp --from=builder /prod/server /app/server
 COPY --chown=notesapp:notesapp --from=builder /app/apps/web/dist /app/web/dist
+COPY --chown=notesapp:notesapp --from=builder /prod/licenses /app/licenses
+COPY --chown=notesapp:notesapp --from=builder /app/LICENSE /app/LICENSE
 
 # Migrate-then-serve entry point and the readiness health check.
 COPY --chown=notesapp:notesapp --chmod=755 docker/entrypoint.sh /app/entrypoint.sh

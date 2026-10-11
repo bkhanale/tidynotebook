@@ -1,0 +1,122 @@
+[
+  {
+    "file": "better-auth-utils.txt",
+    "url": "https://raw.githubusercontent.com/better-auth/utils/main/LICENSE",
+    "sha256": "b5052b5db9a8720634e5243aaf019269ddd93c2e43f46a09f72b99e0004c8680"
+  },
+  {
+    "file": "remark-math.txt",
+    "url": "https://raw.githubusercontent.com/remarkjs/remark-math/d5d0660b150810a535bbb07eac6cc96a4510aa24/license",
+    "sha256": "cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9"
+  },
+  {
+    "file": "pagefind.txt",
+    "url": "https://raw.githubusercontent.com/Pagefind/pagefind/v1.5.2/LICENSE",
+    "sha256": "4736929bfded122bd969f0621a0d917484b126d981270d68a63ed42cb55503d5"
+  },
+  {
+    "file": "drizzle-orm.txt",
+    "url": "https://raw.githubusercontent.com/drizzle-team/drizzle-orm/0.45.3/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "file": "sharp-libvips-notices.txt",
+    "url": "https://raw.githubusercontent.com/lovell/sharp-libvips/v1.3.4/THIRD-PARTY-NOTICES.md",
+    "sha256": "6f0d5086e3bcbee12bcdacf5878b31d1104002aeecaeb241d3fff466108082fe"
+  },
+  {
+    "file": "geist.txt",
+    "url": "https://raw.githubusercontent.com/vercel/geist-font/main/OFL.txt",
+    "sha256": "942560b236adfa83745b2c64e5fc09ebaf91cb331751b1157eb92187e5d6e930"
+  },
+  {
+    "file": "catppuccin.txt",
+    "url": "https://raw.githubusercontent.com/catppuccin/catppuccin/main/LICENSE",
+    "sha256": "814096d2c34cc216c624738a49356f32b7237733b4f7edb0685f4e50ef5074ba"
+  },
+  {
+    "file": "dracula.txt",
+    "url": "https://raw.githubusercontent.com/dracula/dracula-theme/main/LICENSE",
+    "sha256": "38b806a7e799cca4e9821e6f8d65cf0d8bfaaddbe454b41f12e5baad52d310f1"
+  },
+  {
+    "file": "primer.txt",
+    "url": "https://raw.githubusercontent.com/primer/primitives/main/LICENSE",
+    "sha256": "e63582a78dddebe610b6cb59f0e7f5f761c1bb6a1c9551443beddc64fe525c3a"
+  },
+  {
+    "file": "nord.txt",
+    "url": "https://raw.githubusercontent.com/nordtheme/nord/develop/license",
+    "sha256": "25ac8188d670bd2ad2ce2f4f55ab88573010ee9f7a4502543cb1eea1e2274f8a"
+  },
+  {
+    "file": "one-dark.txt",
+    "url": "https://raw.githubusercontent.com/atom/one-dark-syntax/master/LICENSE.md",
+    "sha256": "e1bd6bab503e4d7990504df1e646f6e7465a9096648304335e4c0b55c88f1f54"
+  },
+  {
+    "file": "one-light.txt",
+    "url": "https://raw.githubusercontent.com/atom/one-light-syntax/master/LICENSE.md",
+    "sha256": "e1bd6bab503e4d7990504df1e646f6e7465a9096648304335e4c0b55c88f1f54"
+  },
+  {
+    "file": "rose-pine.txt",
+    "url": "https://raw.githubusercontent.com/rose-pine/rose-pine-theme/main/LICENSE",
+    "sha256": "fb2535bcb42729f0547691eea7feee12d6870d184d704a7a929513973974d7bd"
+  },
+  {
+    "file": "solarized.txt",
+    "url": "https://raw.githubusercontent.com/altercation/solarized/master/LICENSE",
+    "sha256": "f756784d458073b04f09d81fca4de14f17cc1e1a10cf7a082d6e8979909d85c4"
+  },
+  {
+    "file": "lgpl-3.0.txt",
+    "url": "https://www.gnu.org/licenses/lgpl-3.0.txt",
+    "sha256": "e3a994d82e644b03a792a930f574002658412f62407f5fee083f2555c5f23118"
+  },
+  {
+    "file": "pg-types.txt",
+    "url": "https://raw.githubusercontent.com/brianc/node-pg-types/d9d9dfb87eb50914043cbc178c301b7dd3b0c50d/README.md",
+    "sha256": "2c8a6e1b7782f0ca241792868af742f1c281c9661f59ec36c9acf40381c86645"
+  },
+  {
+    "file": "pgpass.txt",
+    "url": "https://raw.githubusercontent.com/hoegaarden/pgpass/4230ed5e417ba6044ea7eb80b7c33db9ec301398/README.md",
+    "sha256": "492e56ee92e47d39ca91d60ef75f55b1104678fab8f09838206b61b43136e211"
+  },
+  {
+    "file": "gruvbox.txt",
+    "url": "https://github.com/morhetz/gruvbox/blob/master/README.md",
+    "sha256": "af1d57ff0b6c00296679c849508aa40ff41f5ff16ef3d1dfab12ae099e7e1480"
+  },
+  {
+    "file": "tokyo-night.txt",
+    "url": "https://github.com/folke/tokyonight.nvim/blob/main/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "file": "format.txt",
+    "url": "https://github.com/samsonjs/format/blob/4f898096759776b7c84fa7a25b13c923dadfe46e/Readme.md",
+    "sha256": "1cd3ce909b97df8a792c31a964ded5643f72e7689e7b992d65928f2f9eaa2d37"
+  },
+  {
+    "file": "abstract-logging.txt",
+    "url": "https://github.com/remy/mit-license/blob/master/users/jsumners.json",
+    "sha256": "885c5494558153ded7d61d8c843619ec5789be416d0cb29fba42f64de8462a69"
+  },
+  {
+    "file": "aws-sdk.txt",
+    "url": "https://github.com/aws/aws-sdk-js-v3/blob/86b3dcd6619aa3a5972f2e189b0e0b83d9a07ffe/LICENSE",
+    "sha256": "e345c2ee7df4446e739de7b91535f0c10ddcd909b9753889e943ee637b05db8c"
+  },
+  {
+    "file": "snowball.txt",
+    "url": "https://github.com/snowballstem/snowball/blob/v3.0.0/COPYING",
+    "sha256": "f6f9e4c0e737728ca980de8595ded046d5e077017c1bb0ee05dc794a01434dae"
+  },
+  {
+    "file": "pagefind-wasm-notices.txt",
+    "url": "https://github.com/Pagefind/pagefind/blob/v1.5.2/pagefind_web/Cargo.lock",
+    "sha256": "d6c393c9f9030e3bfcfeb2de42767da6604d84b85265a53dd6e180ccf0ce4a49"
+  }
+]

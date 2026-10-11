@@ -1,0 +1,14 @@
+diff --git a/dist/chunks/mermaid.core/chunk-GNY47TPC.mjs b/dist/chunks/mermaid.core/chunk-GNY47TPC.mjs
+index 043945b..d8ae6d3 100644
+--- a/dist/chunks/mermaid.core/chunk-GNY47TPC.mjs
++++ b/dist/chunks/mermaid.core/chunk-GNY47TPC.mjs
+@@ -85,8 +85,7 @@ var registerDefaultLayoutLoaders = /* @__PURE__ */ __name(() => {
+       {
+         name: "cose-bilkent",
+         loader: /* @__PURE__ */ __name(async () => await import("./cose-bilkent-JH36ORCC.mjs"), "loader")
+-      },
+-      ...elkLayoutLoaders()
++      }
+     ] : []
+   ]);
+ }, "registerDefaultLayoutLoaders");

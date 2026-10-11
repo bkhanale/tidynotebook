@@ -250,6 +250,7 @@ and needs no record.
 | [0216](0216-release-publication-has-one-remote-writer.md)                             | Release publication has one remote writer                                       |
 | [0217](0217-the-landing-home-page-may-use-a-wide-column.md)                           | The home page of the landing site may use a wide column                         |
 | [0218](0218-review-is-optional-for-landing.md)                                        | Review is optional for landing                                                  |
+| [0219](0219-distributions-carry-notices-and-compatible-diagram-layouts.md)            | Distributions carry notices and compatible diagram layouts                      |
 | [0220](0220-future-releases-use-a-new-public-image.md)                                | Future releases use a new public image                                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of

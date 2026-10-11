@@ -1,0 +1,52 @@
+{
+  "@better-auth/utils": {
+    "versions": ["0.4.2", "0.5.0"],
+    "file": "better-auth-utils.txt",
+    "repository": "https://github.com/better-auth/utils"
+  },
+  "format": {
+    "versions": ["0.2.2"],
+    "file": "format.txt",
+    "repository": "https://github.com/samsonjs/format"
+  },
+  "abstract-logging": {
+    "versions": ["2.0.1"],
+    "file": "abstract-logging.txt",
+    "repository": "https://github.com/jsumners/abstract-logging"
+  },
+  "drizzle-orm": {
+    "versions": ["0.45.3"],
+    "file": "drizzle-orm.txt",
+    "repository": "https://github.com/drizzle-team/drizzle-orm"
+  },
+  "remark-math": {
+    "versions": ["6.0.0"],
+    "file": "remark-math.txt",
+    "repository": "https://github.com/remarkjs/remark-math/tree/main/packages/remark-math"
+  },
+  "@pagefind/linux-x64": {
+    "versions": ["1.5.2"],
+    "file": "pagefind.txt",
+    "repository": "https://github.com/Pagefind/pagefind"
+  },
+  "@img/sharp-libvips-linux-x64": {
+    "versions": ["1.3.4"],
+    "file": "sharp-libvips-notices.txt",
+    "repository": "https://github.com/lovell/sharp-libvips"
+  },
+  "@aws-sdk/credential-provider-http": {
+    "versions": ["3.972.74"],
+    "file": "aws-sdk.txt",
+    "repository": "https://github.com/aws/aws-sdk-js-v3"
+  },
+  "@aws-sdk/credential-provider-login": {
+    "versions": ["3.972.79"],
+    "file": "aws-sdk.txt",
+    "repository": "https://github.com/aws/aws-sdk-js-v3"
+  },
+  "@aws-sdk/nested-clients": {
+    "versions": ["3.997.46"],
+    "file": "aws-sdk.txt",
+    "repository": "https://github.com/aws/aws-sdk-js-v3"
+  }
+}

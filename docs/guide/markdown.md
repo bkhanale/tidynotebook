@@ -206,6 +206,9 @@ failing.
 A code fence marked `mermaid` is drawn as a diagram, in the note and on a
 published page.
 
+A diagram that selects ELK uses the standard layout. Its nodes and links stay
+visible. Their placement can change.
+
 An image from this note shows the picture. An image from another site shows the
 picture as well, and the address must start with `https`. Opening the note
 asks that site for the picture, so the site learns that somebody opened it. The
