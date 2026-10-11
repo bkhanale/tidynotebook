@@ -55,6 +55,7 @@ import {
   limitAccountTo,
 } from './support/database.ts';
 import { LogRecorder, startTestServer } from './support/server.ts';
+import { imageUploadFailure } from '../../apps/web/src/lib/image-upload-feedback.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
 function readProperty(value: unknown, key: string): unknown {
@@ -517,6 +518,10 @@ await test('reject oversize pixel dimensions above 40 megapixels', async () => {
   });
   assert.equal(responseOf(uploadResult.response).status, 413);
   assert.equal(problemCode(uploadResult.error), 'payload_too_large');
+  assert.equal(
+    imageUploadFailure(uploadResult.error),
+    'The image cannot be added. Use a smaller image.',
+  );
 });
 
 await test('reject oversize payload exceeding 20 MiB limit', async () => {
@@ -544,6 +549,10 @@ await test('reject forged MIME type when content does not match', async () => {
   });
   assert.equal(responseOf(uploadResult.response).status, 422);
   assert.equal(problemCode(uploadResult.error), 'invalid_content');
+  assert.equal(
+    imageUploadFailure(uploadResult.error),
+    'The image is not valid. Export it as PNG, JPEG, GIF or WebP, then try again.',
+  );
 });
 
 await test('reject malformed image bytes', async () => {
@@ -561,6 +570,10 @@ await test('reject malformed image bytes', async () => {
   assert.equal(
     readProperty(uploadResult.error, 'detail'),
     'The image cannot be read. Export it as PNG, JPEG, GIF or WebP, then try again.',
+  );
+  assert.equal(
+    imageUploadFailure(uploadResult.error),
+    'The image is not valid. Export it as PNG, JPEG, GIF or WebP, then try again.',
   );
 });
 
@@ -605,6 +618,10 @@ await test('the upload refuses blocked loaders and unknown bytes without stored 
         'application/problem+json; charset=utf-8',
       );
       assert.equal(problemCode(refused.error), 'unsupported_media_type');
+      assert.equal(
+        imageUploadFailure(refused.error),
+        'The image format is not supported. Use PNG, JPEG, GIF or WebP.',
+      );
       assert.equal(
         readProperty(refused.error, 'detail'),
         'The image format is not supported. Use PNG, JPEG, GIF or WebP.',

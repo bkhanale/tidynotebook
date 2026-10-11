@@ -13,7 +13,14 @@ import { generateUUID } from '@notesapp/core';
 import { insertText, type EditorView } from '@notesapp/editor';
 import { portableRelativePath } from '@notesapp/markdown';
 import type { LocalStore } from '@notesapp/sync';
-import { problemMessage, useRequestSync } from '../../app.tsx';
+import { useRequestSync } from '../../app.tsx';
+import {
+  imageUploadInterruption,
+  imageUploadTooLarge,
+  imageUploadFailure,
+} from '../../lib/image-upload-feedback.ts';
+import { problemCode } from '../../lib/problem-text.ts';
+import { webLogger } from '../../logging.ts';
 import {
   maxPastedBytes,
   sanitizeAttachmentName,
@@ -25,19 +32,24 @@ export type AttachState =
   | { readonly kind: 'uploading'; readonly name: string }
   | { readonly kind: 'failed'; readonly message: string };
 
+/** Keep the existing safe problem event separate from the fixed screen text. */
+function failureText(error: unknown): string {
+  const code = problemCode(error);
+  if (code !== null) webLogger.emit('web.problem', { problemCode: code });
+  return imageUploadFailure(error);
+}
+
 /** The upload of the pictures of one open note. */
 export function useImageUpload({
   store,
   workspaceId,
   viewRef,
   pathRef,
-  setNotice,
 }: {
   readonly store: LocalStore;
   readonly workspaceId: string;
   readonly viewRef: RefObject<EditorView | null>;
   readonly pathRef: { readonly current: string };
-  readonly setNotice: (message: string) => void;
 }): {
   readonly attachState: AttachState;
   /** The attachments of this open, by path, before the list holds them. */
@@ -65,9 +77,8 @@ export function useImageUpload({
         for (const file of images) {
           setAttachState({ kind: 'uploading', name: file.name });
           if (file.size > maxPastedBytes) {
-            const message = `The image ${file.name} is larger than 20 MiB and was not uploaded.`;
+            const message = imageUploadTooLarge();
             setAttachState({ kind: 'failed', message });
-            setNotice(message);
             continue;
           }
           try {
@@ -76,9 +87,8 @@ export function useImageUpload({
               body: { file },
             });
             if (uploaded.error !== undefined || uploaded.data === undefined) {
-              const message = `The image ${file.name} did not upload: ${problemMessage(uploaded.error)}`;
+              const message = failureText(uploaded.error);
               setAttachState({ kind: 'failed', message });
-              setNotice(message);
               continue;
             }
             const fileId = generateUUID();
@@ -99,9 +109,8 @@ export function useImageUpload({
               },
             });
             if (finalized.error !== undefined) {
-              const message = `The image ${file.name} did not finalize: ${problemMessage(finalized.error)}`;
+              const message = failureText(finalized.error);
               setAttachState({ kind: 'failed', message });
-              setNotice(message);
               continue;
             }
             const attachmentPath = `attachments/${fileId}-${safeName}`;
@@ -116,16 +125,14 @@ export function useImageUpload({
                 `![${safeName}](${portableRelativePath(pathRef.current, attachmentPath)})`,
               );
             setAttachState({ kind: 'idle' });
-            setNotice('');
           } catch {
-            const message = `The image ${file.name} could not be read on this device.`;
+            const message = imageUploadInterruption();
             setAttachState({ kind: 'failed', message });
-            setNotice(message);
           }
         }
       })();
     },
-    [requestSync, viewRef, pathRef, setNotice],
+    [requestSync, viewRef, pathRef],
   );
 
   const retry = useCallback((): void => {

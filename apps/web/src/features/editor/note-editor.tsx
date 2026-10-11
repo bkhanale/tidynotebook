@@ -372,7 +372,6 @@ const NoteEditorBody = memo(function NoteEditorBody({
     workspaceId,
     viewRef,
     pathRef: validPathRef,
-    setNotice: setEditorNotice,
   });
   const attachments = useAttachmentUrls(
     store,
