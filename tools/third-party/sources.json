@@ -118,5 +118,56 @@
     "file": "pagefind-wasm-notices.txt",
     "url": "https://github.com/Pagefind/pagefind/blob/v1.5.2/pagefind_web/Cargo.lock",
     "sha256": "d6c393c9f9030e3bfcfeb2de42767da6604d84b85265a53dd6e180ccf0ce4a49"
+  },
+  {
+    "file": "npm-agent.txt",
+    "url": "https://raw.githubusercontent.com/npm/agent/db7852869c74ceb8985d7c36b291a2e7a866741c/package.json",
+    "sha256": "a9f30d8075ccbfcf5a55189fb30a6cf5254ac10fe0c02528fa5120c680a6d731",
+    "terms": "https://spdx.org/licenses/ISC.html"
+  },
+  {
+    "file": "sigstore-verify.txt",
+    "url": "https://raw.githubusercontent.com/sigstore/sigstore-js/c1dc7d4778a450787fc72b083f2490ad02b714c6/LICENSE",
+    "sha256": "2741e038f71c0346763c8ba624454da55a1bd0a9bdf6d106b9edc34758e5a6f4"
+  },
+  {
+    "file": "spdx-exceptions.txt",
+    "url": "https://raw.githubusercontent.com/kemitchell/spdx-exceptions.json/3aa64bec339abc6a3eca00c3436aaa7e154b8799/README.md",
+    "sha256": "554b19eee11d2964e9f7b244e47944c08d52ca75539260a04f3227e6c0144513"
+  },
+  {
+    "file": "spdx-license-ids.txt",
+    "url": "https://raw.githubusercontent.com/jslicense/spdx-license-ids/a2a975daf48bbc2afdc8e7c304405b44c656fd53/README.md",
+    "sha256": "b4807793db6058c819f76c023362b7d522b3d19c9b41563fcc01c2b2c5b1ccd3"
+  },
+  {
+    "file": "cc-by-3.0.txt",
+    "url": "https://creativecommons.org/licenses/by/3.0/legalcode",
+    "sha256": "e6bc9e9c474700b708f568bac9e5a8a9bcb2b1dad53442f5ba449fcb848b8e76"
+  },
+  {
+    "file": "cc0-1.0.txt",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+    "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  },
+  {
+    "file": "docker-node.txt",
+    "url": "https://raw.githubusercontent.com/nodejs/docker-node/feeba252e1e8bec14470f5ee8f9be7fce65bf935/LICENSE",
+    "sha256": "782e17d54343aa3f6db60430015692b6540089b3ec5b78274981ada2d3c3c423"
+  },
+  {
+    "file": "rust-runtime/COPYRIGHT",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/bf4fbfb7a18d74e7cd8eef93af7329c58fbb5344/COPYRIGHT",
+    "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af"
+  },
+  {
+    "file": "rust-runtime/LICENSE-MIT",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/bf4fbfb7a18d74e7cd8eef93af7329c58fbb5344/LICENSE-MIT",
+    "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1"
+  },
+  {
+    "file": "rust-runtime/LICENSE-APACHE",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/bf4fbfb7a18d74e7cd8eef93af7329c58fbb5344/LICENSE-APACHE",
+    "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
   }
 ]

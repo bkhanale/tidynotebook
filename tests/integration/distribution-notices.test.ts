@@ -4,6 +4,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { startTestServer } from './support/server.ts';
 
 const repository =
   process.env['NOTESAPP_DISTRIBUTION_ROOT'] ??
@@ -48,6 +49,10 @@ await test('browser and documentation distributions retain licenses and notices'
       await readFile(join(licenses, 'SOURCE.txt'), 'utf8'),
       /AGPL-3.0-only/,
     );
+    assert.doesNotMatch(
+      await readFile(join(licenses, 'SOURCE.txt'), 'utf8'),
+      /The image includes/,
+    );
   }
 });
 
@@ -70,6 +75,13 @@ await test('documentation search retains its Wasm terms and locked preferred sou
   assert.match(
     await readFile(join(licenses, 'PAGEFIND-SOURCE.txt'), 'utf8'),
     /local_build\.sh/,
+  );
+  assert.match(
+    await readFile(
+      join(licenses, 'borrowed-work/rust-runtime/THIRD-PARTY-RUST-NOTICES.txt'),
+      'utf8',
+    ),
+    /addr2line 0\.25\.1/,
   );
   const expected = await readFile(
     join(repository, 'tools/pagefind-sources.json'),
@@ -116,4 +128,65 @@ await test('no browser script, frame or source map contains the excluded ELK eng
       /org\.eclipse\.elk|elkjs\/lib|Kiel University|elk\.layered/i,
       file,
     );
+});
+
+await test('readers can request full notices and Pagefind source from the built outputs', async () => {
+  const distributions: readonly { output: string; paths: readonly string[] }[] =
+    [
+      {
+        output: 'apps/web/dist/web',
+        paths: ['licenses/LICENSE', 'licenses/THIRD-PARTY-NOTICES.txt'],
+      },
+      {
+        output: 'apps/docs/dist/site',
+        paths: [
+          'licenses/borrowed-work/pagefind-wasm-notices.txt',
+          'licenses/PAGEFIND-SOURCE.txt',
+          'licenses/pagefind-source/manifest.json',
+          'licenses/pagefind-source/pagefind-v1.5.2.tar.gz',
+          'licenses/pagefind-source/pagefind_microjson-0.1.4.crate',
+        ],
+      },
+    ];
+  for (const { output, paths } of distributions) {
+    const server = await startTestServer({ webDist: join(repository, output) });
+    try {
+      for (const path of paths) {
+        const response = await server.app.inject({
+          method: 'GET',
+          url: '/' + path,
+        });
+        assert.equal(response.statusCode, 200, path);
+        assert.equal(
+          createHash('sha256').update(response.rawPayload).digest('hex'),
+          createHash('sha256')
+            .update(await readFile(join(repository, output, path)))
+            .digest('hex'),
+          path,
+        );
+      }
+    } finally {
+      await server.close();
+    }
+  }
+});
+
+await test('the served Markdown guide states the standard ELK placement rule', async () => {
+  const server = await startTestServer({
+    webDist: join(repository, 'apps/docs/dist/site'),
+  });
+  try {
+    const response = await server.app.inject({
+      method: 'GET',
+      url: '/markdown/index.html',
+    });
+    assert.equal(response.statusCode, 200);
+    assert.match(
+      response.body,
+      /A diagram that selects ELK uses the standard layout/,
+    );
+    assert.match(response.body, /Their placement can change/);
+  } finally {
+    await server.close();
+  }
 });

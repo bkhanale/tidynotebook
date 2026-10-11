@@ -44,7 +44,9 @@ COPY apps ./apps
 RUN pnpm build
 RUN pnpm --filter @notesapp/server deploy --prod /prod/server
 RUN node tools/distribution-notices.mjs /prod/server /prod/licenses
+RUN node tools/distribution-notices.mjs /usr/local/lib/node_modules/npm /prod/licenses/base-npm
 RUN node tools/native-sources.mjs /prod/licenses/native-source
+RUN node tools/native-sources.mjs /prod/licenses/base-source "" tools/base-sources.json
 # The archive holds the preferred first-party source and the exact build inputs.
 RUN tar --exclude='node_modules' --exclude='dist' --exclude='*.tsbuildinfo' \
     -czf /prod/licenses/core-source.tar.gz LICENSE README.md Dockerfile docker \

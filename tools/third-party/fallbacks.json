@@ -2,51 +2,85 @@
   "@better-auth/utils": {
     "versions": ["0.4.2", "0.5.0"],
     "file": "better-auth-utils.txt",
-    "repository": "https://github.com/better-auth/utils"
+    "repository": "https://github.com/better-auth/utils",
+    "license": "MIT"
   },
   "format": {
     "versions": ["0.2.2"],
     "file": "format.txt",
-    "repository": "https://github.com/samsonjs/format"
+    "repository": "https://github.com/samsonjs/format",
+    "license": "MIT"
   },
   "abstract-logging": {
     "versions": ["2.0.1"],
     "file": "abstract-logging.txt",
-    "repository": "https://github.com/jsumners/abstract-logging"
+    "repository": "https://github.com/jsumners/abstract-logging",
+    "license": "MIT"
   },
   "drizzle-orm": {
     "versions": ["0.45.3"],
     "file": "drizzle-orm.txt",
-    "repository": "https://github.com/drizzle-team/drizzle-orm"
+    "repository": "https://github.com/drizzle-team/drizzle-orm",
+    "license": "Apache-2.0"
   },
   "remark-math": {
     "versions": ["6.0.0"],
     "file": "remark-math.txt",
-    "repository": "https://github.com/remarkjs/remark-math/tree/main/packages/remark-math"
+    "repository": "https://github.com/remarkjs/remark-math/tree/main/packages/remark-math",
+    "license": "MIT"
   },
   "@pagefind/linux-x64": {
     "versions": ["1.5.2"],
     "file": "pagefind.txt",
-    "repository": "https://github.com/Pagefind/pagefind"
+    "repository": "https://github.com/Pagefind/pagefind",
+    "license": "MIT"
   },
   "@img/sharp-libvips-linux-x64": {
     "versions": ["1.3.4"],
     "file": "sharp-libvips-notices.txt",
-    "repository": "https://github.com/lovell/sharp-libvips"
+    "repository": "https://github.com/lovell/sharp-libvips",
+    "license": "LGPL-3.0-or-later"
   },
   "@aws-sdk/credential-provider-http": {
     "versions": ["3.972.74"],
     "file": "aws-sdk.txt",
-    "repository": "https://github.com/aws/aws-sdk-js-v3"
+    "repository": "https://github.com/aws/aws-sdk-js-v3",
+    "license": "Apache-2.0"
   },
   "@aws-sdk/credential-provider-login": {
     "versions": ["3.972.79"],
     "file": "aws-sdk.txt",
-    "repository": "https://github.com/aws/aws-sdk-js-v3"
+    "repository": "https://github.com/aws/aws-sdk-js-v3",
+    "license": "Apache-2.0"
   },
   "@aws-sdk/nested-clients": {
     "versions": ["3.997.46"],
     "file": "aws-sdk.txt",
-    "repository": "https://github.com/aws/aws-sdk-js-v3"
+    "repository": "https://github.com/aws/aws-sdk-js-v3",
+    "license": "Apache-2.0"
+  },
+  "spdx-exceptions": {
+    "versions": ["2.5.0"],
+    "file": "spdx-exceptions.txt",
+    "repository": "kemitchell/spdx-exceptions.json",
+    "license": "CC-BY-3.0"
+  },
+  "spdx-license-ids": {
+    "versions": ["3.0.23"],
+    "file": "spdx-license-ids.txt",
+    "repository": "jslicense/spdx-license-ids",
+    "license": "CC0-1.0"
+  },
+  "@npmcli/agent": {
+    "versions": ["4.0.2"],
+    "file": "npm-agent.txt",
+    "repository": "https://github.com/npm/agent",
+    "license": "ISC"
+  },
+  "@sigstore/verify": {
+    "versions": ["3.1.1"],
+    "file": "sigstore-verify.txt",
+    "repository": "https://github.com/sigstore/sigstore-js",
+    "license": "Apache-2.0"
   }
 }

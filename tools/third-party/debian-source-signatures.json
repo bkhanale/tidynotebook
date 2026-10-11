@@ -1,0 +1,321 @@
+{
+  "keyringSource": "Debian bookworm debian-keyring package, authenticated by apt archive signatures. Two additional official developer keys are from keyring.debian.org.",
+  "keyringSha256": "4b02392f37b39405e1c85f5c687cfa4bc425c4843416c82e385d54f79708a91e",
+  "signatures": [
+    {
+      "file": "glibc_2.36-9+deb12u14.dsc",
+      "fingerprint": "52BC8695BE34F90AD7D40CB81388C0F899E8336B",
+      "verified": true
+    },
+    {
+      "file": "debian-archive-keyring_2023.3+deb12u2.dsc",
+      "fingerprint": "DD1738DF2C69FC511166B5E3035EE609804B5139",
+      "verified": true
+    },
+    {
+      "file": "acl_2.3.1-3.dsc",
+      "fingerprint": "4F3E74F436050C10F5696574B972BF3EA4AE57A3",
+      "verified": true
+    },
+    {
+      "file": "base-files_12.4+deb12u15.dsc",
+      "fingerprint": "D54C3BFAFFB042DE382DA5D741CE7F0B9F1B8B32",
+      "verified": true
+    },
+    {
+      "file": "gmp_6.2.1+dfsg1-1.1.dsc",
+      "fingerprint": "B8BF54137B09D35CF026FE9D091AB856069AAA1C",
+      "verified": true
+    },
+    {
+      "file": "libcap-ng_0.8.3-1.dsc",
+      "fingerprint": "65939117519C43A2B2B2F5CBF9377598F04C830A",
+      "verified": true
+    },
+    {
+      "file": "pcre2_10.42-1+deb12u1.dsc",
+      "fingerprint": "BA4EF9C84DF96D37D8A1E2D412F4D21C8F6A63C8",
+      "verified": true
+    },
+    {
+      "file": "debconf_1.5.82.dsc",
+      "fingerprint": "AC0A4FF12611B6FCCF01C111393587D97D86500B",
+      "verified": true
+    },
+    {
+      "file": "libsemanage_3.4-1.dsc",
+      "fingerprint": "991ADDA90021B85DB1DF50F01FC5891EBAB043D5",
+      "verified": true
+    },
+    {
+      "file": "base-passwd_3.6.1.dsc",
+      "fingerprint": "AC0A4FF12611B6FCCF01C111393587D97D86500B",
+      "verified": true
+    },
+    {
+      "file": "xxhash_0.8.1-1.dsc",
+      "fingerprint": "7733B328D2795F5BE2325ADD01509D5CAB4AFD3F",
+      "verified": true
+    },
+    {
+      "file": "diffutils_3.8-4.dsc",
+      "fingerprint": "D54C3BFAFFB042DE382DA5D741CE7F0B9F1B8B32",
+      "verified": true
+    },
+    {
+      "file": "lz4_1.9.4-1.dsc",
+      "fingerprint": "5E629EE5232197357B84CF4332247FBB40AD1FA6",
+      "verified": true
+    },
+    {
+      "file": "libgcrypt20_1.10.1-3+deb12u1.dsc",
+      "fingerprint": "4644409808C171E05531DDEE054CB8F31343CF44",
+      "verified": true
+    },
+    {
+      "file": "perl_5.36.0-7+deb12u3.dsc",
+      "fingerprint": "EE66FD977E0DB1FEE57179F78AFEB3640EB139B2",
+      "verified": true
+    },
+    {
+      "file": "util-linux_2.38.1-5+deb12u3.dsc",
+      "fingerprint": "7D1ACFFAD9E0806C9C4CD3925C13D6DB93052E03",
+      "verified": true
+    },
+    {
+      "file": "nettle_3.8.1-2.dsc",
+      "fingerprint": "CD2A073B386154170A4082E8D4F219BFEC998489",
+      "verified": true
+    },
+    {
+      "file": "hostname_3.23+nmu1.dsc",
+      "fingerprint": "406220C8B8552802378CCE411F5C7A8B45564314",
+      "verified": true
+    },
+    {
+      "file": "p11-kit_0.24.1-2.dsc",
+      "fingerprint": "D2E092039EF8D496EDF4FA5EA54F018543821484",
+      "verified": true
+    },
+    {
+      "file": "sed_4.9-1+deb12u1.dsc",
+      "fingerprint": "4644409808C171E05531DDEE054CB8F31343CF44",
+      "verified": true
+    },
+    {
+      "file": "zlib_1.2.13.dfsg-1.dsc",
+      "fingerprint": "ADE668AA675718B59FE29FEA24D68B725D5487D0",
+      "verified": true
+    },
+    {
+      "file": "mawk_1.3.4.20200120-3.1.dsc",
+      "fingerprint": "406220C8B8552802378CCE411F5C7A8B45564314",
+      "verified": true
+    },
+    {
+      "file": "debianutils_5.7-0.5~deb12u1.dsc",
+      "fingerprint": "EBF30A30A8D9C63BDA44C6945FB33F9359E9ED08",
+      "verified": true
+    },
+    {
+      "file": "findutils_4.9.0-4.dsc",
+      "fingerprint": "D2E092039EF8D496EDF4FA5EA54F018543821484",
+      "verified": true
+    },
+    {
+      "file": "tar_1.34+dfsg-1.2+deb12u1.dsc",
+      "fingerprint": "4644409808C171E05531DDEE054CB8F31343CF44",
+      "verified": true
+    },
+    {
+      "file": "libsepol_3.4-2.1.dsc",
+      "fingerprint": "FDDD0CFF3864277630A2186C9164FA1D17BD5D36",
+      "verified": true
+    },
+    {
+      "file": "libgpg-error_1.46-1.dsc",
+      "fingerprint": "2DB5491C9DF0DC8F432863CF3E9D717371DE565C",
+      "verified": true
+    },
+    {
+      "file": "db5.3_5.3.28+dfsg2-1.dsc",
+      "fingerprint": "406220C8B8552802378CCE411F5C7A8B45564314",
+      "verified": true
+    },
+    {
+      "file": "shadow_4.13+dfsg1-1+deb12u2.dsc",
+      "fingerprint": "7D1ACFFAD9E0806C9C4CD3925C13D6DB93052E03",
+      "verified": true
+    },
+    {
+      "file": "init-system-helpers_1.65.2+deb12u1.dsc",
+      "fingerprint": "AC24AAC7DDC420F18ECA6B91286BF7EFCD77241E",
+      "verified": true
+    },
+    {
+      "file": "libidn2_2.3.3-1.dsc",
+      "fingerprint": "99415CE1905D0E55A9F88026860B7FBB32F8119D",
+      "verified": true
+    },
+    {
+      "file": "libunistring_1.0-2.dsc",
+      "fingerprint": "9236557B170C87F8821C0AC3C1E0D92E986F7C7E",
+      "verified": true
+    },
+    {
+      "file": "bash_5.2.15-2.dsc",
+      "fingerprint": "D56571B88A8BBAF140BF63D6BD7EAA60778FA6F5",
+      "verified": true
+    },
+    {
+      "file": "gzip_1.12-1.dsc",
+      "fingerprint": "5647FF9BAF64AC261FFB3F86E9ED6781B455090E",
+      "verified": true
+    },
+    {
+      "file": "libxcrypt_4.4.33-2.dsc",
+      "fingerprint": "272945CD836D38DFB7427E86CB3EC33AE1DED781",
+      "verified": true
+    },
+    {
+      "file": "attr_2.5.1-4.dsc",
+      "fingerprint": "4F3E74F436050C10F5696574B972BF3EA4AE57A3",
+      "verified": true
+    },
+    {
+      "file": "gnupg2_2.2.40-1.1+deb12u2.dsc",
+      "fingerprint": "63AC118E5B2E5D66C88A85A7780B854ED9C2B496",
+      "verified": true
+    },
+    {
+      "file": "libseccomp_2.5.4-1+deb12u1.dsc",
+      "fingerprint": "164C70512F7929476764AB56FE22C6FD83135D45",
+      "verified": true
+    },
+    {
+      "file": "cdebconf_0.270.dsc",
+      "fingerprint": "B60EBF2984453C70D74CF478FF914AF0C2B35520",
+      "verified": true
+    },
+    {
+      "file": "libzstd_1.5.4+dfsg2-5.dsc",
+      "fingerprint": "2EE7A7A517FC124CF115C354651EEFB02527DF13",
+      "verified": true
+    },
+    {
+      "file": "sysvinit_3.06-4.dsc",
+      "fingerprint": "506C15A42B0AF5A0A85423EED28A45BF3287D649",
+      "verified": true
+    },
+    {
+      "file": "gnutls28_3.7.9-2+deb12u7.dsc",
+      "fingerprint": "D2E092039EF8D496EDF4FA5EA54F018543821484",
+      "verified": true
+    },
+    {
+      "file": "libmd_1.0.4-2.dsc",
+      "fingerprint": "4F3E74F436050C10F5696574B972BF3EA4AE57A3",
+      "verified": true
+    },
+    {
+      "file": "libtasn1-6_4.19.0-2+deb12u1.dsc",
+      "fingerprint": "D2E092039EF8D496EDF4FA5EA54F018543821484",
+      "verified": true
+    },
+    {
+      "file": "libffi_3.4.4-1.dsc",
+      "fingerprint": "D56571B88A8BBAF140BF63D6BD7EAA60778FA6F5",
+      "verified": true
+    },
+    {
+      "file": "gcc-12_12.2.0-14+deb12u1.dsc",
+      "fingerprint": "9545969619281C17FFAC5891D5085A0750FDB7A3",
+      "verified": true
+    },
+    {
+      "file": "dash_0.5.12-2.dsc",
+      "fingerprint": "83DCD17F44B22CC83656EDA1E8446B4AC8C77261",
+      "verified": true
+    },
+    {
+      "file": "apt_2.6.1.dsc",
+      "fingerprint": "4FB588A84C2DDE79A74C77876FA458DD1DB03F71",
+      "verified": true
+    },
+    {
+      "file": "bzip2_1.0.8-5.dsc",
+      "fingerprint": "142421B19AD4A95996F95072EA2500B412C59ACF",
+      "verified": true
+    },
+    {
+      "file": "audit_3.0.9-1.dsc",
+      "fingerprint": "991ADDA90021B85DB1DF50F01FC5891EBAB043D5",
+      "verified": true
+    },
+    {
+      "file": "coreutils_9.1-1.dsc",
+      "fingerprint": "02D5315FF11F1861860E1E02F61AACDCFA11FFDE",
+      "verified": true
+    },
+    {
+      "file": "usrmerge_37~deb12u1.dsc",
+      "fingerprint": "EBF30A30A8D9C63BDA44C6945FB33F9359E9ED08",
+      "verified": true
+    },
+    {
+      "file": "adduser_3.134.dsc",
+      "fingerprint": "E902F9509FCBD2972E3446E38F77201301320442",
+      "verified": true
+    },
+    {
+      "file": "e2fsprogs_1.47.0-2.dsc",
+      "fingerprint": "2B69B954DBFE0879288137C9F2F95956950D81A3",
+      "verified": true
+    },
+    {
+      "file": "libselinux_3.4-1.dsc",
+      "fingerprint": "991ADDA90021B85DB1DF50F01FC5891EBAB043D5",
+      "verified": true
+    },
+    {
+      "file": "systemd_252.39-1~deb12u2.dsc",
+      "fingerprint": "57892E705233051337F6FDD105641F175712FA5B",
+      "verified": true
+    },
+    {
+      "file": "dpkg_1.21.23.dsc",
+      "fingerprint": "4F3E74F436050C10F5696574B972BF3EA4AE57A3",
+      "verified": true
+    },
+    {
+      "file": "pam_1.5.2-6+deb12u2.dsc",
+      "fingerprint": "A3DA34706C074ACC663FE2E02C6C4C3CA8378674",
+      "verified": true
+    },
+    {
+      "file": "grep_3.8-5.dsc",
+      "fingerprint": "59563CED63C6FE4F2E37A07D62B410892A1DBA1D",
+      "verified": true
+    },
+    {
+      "file": "tzdata_2026b-0+deb12u1.dsc",
+      "fingerprint": "52BC8695BE34F90AD7D40CB81388C0F899E8336B",
+      "verified": true
+    },
+    {
+      "file": "ncurses_6.4-4.dsc",
+      "fingerprint": "285F2178A82FE496A2E69E103B106E718D6B31AC",
+      "verified": true
+    },
+    {
+      "file": "xz-utils_5.4.1-1+deb12u2.dsc",
+      "fingerprint": "99B452B11F3C74C3B453E46FBED8449FCEE8DA88",
+      "verified": true
+    },
+    {
+      "file": "libcap2_2.66-4+deb12u3.dsc",
+      "fingerprint": "419F7E9A47C3AB9519F1B0A339953A37DE4EB36B",
+      "verified": true
+    }
+  ]
+}

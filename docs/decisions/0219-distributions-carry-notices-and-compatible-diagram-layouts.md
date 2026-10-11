@@ -15,6 +15,8 @@ do not grant that choice from a copy of the license alone.
 - Builds carry the core license, third-party license texts, notices and source
   links. The inventory states its scope and reads the installed packages.
   The runner keeps the licenses of its deployed packages and base image.
+  Exact Debian source descriptors and archives, and Node source, travel with
+  the image. The source inventory matches the pinned image and its binaries.
 - A narrow Mermaid patch excludes only the ELK layout loader. All diagram
   types stay available. An ELK layout request takes Mermaid's standard Dagre
   fallback, as the upstream small build does. The graph stays the same;

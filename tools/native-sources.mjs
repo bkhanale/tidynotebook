@@ -21,7 +21,7 @@ export function sourceRows(value) {
     const row = record(value);
     if (
       typeof row.file !== 'string' ||
-      !/^[\w.+-]+$/.test(row.file) ||
+      !/^[\w.+~-]+$/.test(row.file) ||
       ['.', '..', 'manifest.json'].includes(row.file) ||
       files.has(row.file) ||
       typeof row.url !== 'string' ||
@@ -39,6 +39,7 @@ export function sourceRows(value) {
 async function sourceBytes(url, redirects = 0) {
   if (!url.startsWith('https://') || redirects > 8)
     throw new Error('A native source redirect is invalid.');
+  /** @type {import('node:http').IncomingMessage} */
   const response = await new Promise((resolve, reject) => {
     get(
       url,
@@ -69,7 +70,7 @@ async function sourceBytes(url, redirects = 0) {
   return Buffer.concat(chunks);
 }
 
-/** @param {string} output @param {string|undefined} [cache] @param {string} [manifestFile] */
+/** @param {string} output @param {string} [cache] @param {string} [manifestFile] */
 export async function prepareNativeSources(
   output,
   cache,
@@ -107,5 +108,9 @@ if (
 ) {
   const output = process.argv[2];
   if (output === undefined) throw new Error('Give the native source folder.');
-  await prepareNativeSources(resolve(output), process.argv[3]);
+  await prepareNativeSources(
+    resolve(output),
+    process.argv[3] || undefined,
+    process.argv[4],
+  );
 }

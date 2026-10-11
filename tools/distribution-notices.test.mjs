@@ -5,9 +5,10 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 import { dependencyNotices } from './distribution-notices.mjs';
 import { sourceMatches, sourceRows } from './native-sources.mjs';
-import { root, readJson } from './workspace.mjs';
+import { root, readJson, record } from './workspace.mjs';
 
 await test('an installed graph retains notices and refuses a missing required package', async () => {
+  await mkdir(join(root, '.tooling'), { recursive: true });
   const directory = await mkdtemp(join(root, '.tooling/notices-test-'));
   try {
     await mkdir(join(directory, 'node_modules/fixture'), { recursive: true });
@@ -41,6 +42,37 @@ await test('an installed graph retains notices and refuses a missing required pa
     );
     await rm(join(directory, 'node_modules/fixture/LICENSE'));
     await assert.rejects(dependencyNotices(directory), /No complete notice/);
+    await writeFile(
+      join(directory, 'node_modules/fixture/package.json'),
+      JSON.stringify({
+        name: '@npmcli/agent',
+        version: '4.0.2',
+        license: 'ISC',
+        repository: 'https://github.com/npm/agent',
+      }),
+    );
+    const fallbackGraph = await dependencyNotices(directory);
+    assert.match(
+      fallbackGraph[0]?.notices[0]?.text ?? '',
+      /Declared license: ISC/,
+    );
+    assert.match(
+      fallbackGraph[0]?.notices[0]?.text ?? '',
+      /no copyright or license notice/,
+    );
+    await writeFile(
+      join(directory, 'node_modules/fixture/package.json'),
+      JSON.stringify({
+        name: '@npmcli/agent',
+        version: '4.0.2',
+        license: 'MIT',
+        repository: 'https://github.com/npm/agent',
+      }),
+    );
+    await assert.rejects(
+      dependencyNotices(directory),
+      /reviewed notice does not match/,
+    );
     await writeFile(
       join(directory, 'package.json'),
       JSON.stringify({
@@ -116,18 +148,19 @@ await test('source rows refuse reserved and duplicate names', () => {
 await test('native source versions match the installed library', async () => {
   const manifest = await readJson(join(root, 'tools/native-sources.json'));
   const require = createRequire(join(root, 'apps/server/package.json'));
-  const sharpRequire = createRequire(require.resolve('sharp'));
-  const packageFile = dirname(
-    sharpRequire.resolve('@img/sharp-libvips-linux-x64/package'),
+  const sharp = await readJson(
+    join(dirname(require.resolve('sharp')), '../package.json'),
   );
-  assert.equal(manifest.platform, `${process.platform}-${process.arch}-glibc`);
-  const installed = await readJson(join(packageFile, 'package.json'));
-  assert.equal(manifest.package, installed.name);
-  assert.equal(manifest.packageVersion, installed.version);
-  assert.deepEqual(
-    manifest.versions,
-    await readJson(join(packageFile, 'versions.json')),
-  );
+  const dependencies = record(sharp.optionalDependencies);
+  if (typeof manifest.package !== 'string')
+    throw new Error('The source target is missing.');
+  assert.equal(dependencies[manifest.package], manifest.packageVersion);
+  assert.equal(manifest.platform, 'linux-x64-glibc');
+  /** @type {unknown} */
+  const consumer = require('sharp');
+  if (typeof consumer !== 'function' || !('versions' in consumer))
+    throw new Error('The active sharp consumer has no version facts.');
+  assert.equal(record(consumer.versions).vips, record(manifest.versions).vips);
   assert.ok(
     sourceRows(manifest.sources).length >
       Object.keys(manifest.versions ?? {}).length,
@@ -138,5 +171,54 @@ await test('native source versions match the installed library', async () => {
       'utf8',
     ),
     /Mozilla Public License 1.1/,
+  );
+});
+
+await test('the installed Mermaid registry retains standard layouts and falls back for ELK', async () => {
+  const require = createRequire(join(root, 'apps/web/package.json'));
+  const module = record(
+    require('mermaid/dist/chunks/mermaid.core/chunk-GNY47TPC.mjs'),
+  );
+  const select = module.getRegisteredLayoutAlgorithm;
+  if (typeof select !== 'function')
+    throw new Error('The layout registry is missing.');
+  for (const name of ['elk', 'elk.layered', 'elk.force', 'elk.mrtree'])
+    assert.equal(select(name), 'dagre');
+  for (const name of ['dagre', 'swimlane', 'cose-bilkent'])
+    assert.equal(select(name), name);
+  assert.equal(select('elk', { fallback: 'swimlane' }), 'swimlane');
+});
+
+await test('base source inputs match the pinned image and Node build input', async () => {
+  const manifest = await readJson(join(root, 'tools/base-sources.json'));
+  const dockerfile = await readFile(join(root, 'Dockerfile'), 'utf8');
+  if (
+    typeof manifest.image !== 'string' ||
+    typeof manifest.nodeVersion !== 'string'
+  )
+    throw new Error('The base source identity is missing.');
+  assert.equal(
+    (await readFile(join(root, '.node-version'), 'utf8')).trim(),
+    manifest.nodeVersion,
+  );
+  assert.equal(
+    dockerfile.split('FROM ' + manifest.image + ' AS ').length - 1,
+    2,
+  );
+  const rows = sourceRows(manifest.sources);
+  assert.ok(
+    rows.some(
+      (row) => row.file === 'node-v' + manifest.nodeVersion + '.tar.xz',
+    ),
+  );
+  const signatures = await readJson(
+    join(root, 'tools/third-party/debian-source-signatures.json'),
+  );
+  assert.ok(typeof signatures.keyringSha256 === 'string');
+  assert.ok(
+    sourceMatches(
+      await readFile(join(root, 'tools/third-party/debian-source-keys.gpg')),
+      signatures.keyringSha256,
+    ),
   );
 });

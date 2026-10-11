@@ -145,18 +145,19 @@ export async function dependencyNotices(entry) {
         if (
           !Array.isArray(versions) ||
           !versions.includes(manifest.version) ||
+          text(fallback.license) !== licenseOf(manifest) ||
           text(fallback.repository) !== sourceOf(manifest)
         )
           throw new Error(
             `The reviewed notice does not match ${name}@${text(manifest.version)}.`,
           );
-        notices.push({
-          file: 'upstream license',
-          text: await readFile(
-            join(root, 'tools/third-party', fallbackFile),
-            'utf8',
-          ),
-        });
+        const notice = await readFile(
+          join(root, 'tools/third-party', fallbackFile),
+          'utf8',
+        );
+        if (notice.trim() === '')
+          throw new Error(`The reviewed notice is empty for ${name}.`);
+        notices.push({ file: 'upstream license', text: notice });
       } else if (files.length === 0 && !completeReadme)
         throw new Error(`No complete notice is available for ${name}.`);
       // Khroma omits the SPDX field but its package carries its full MIT text.
@@ -193,8 +194,8 @@ export async function dependencyNotices(entry) {
   );
 }
 
-/** @param {string} entry @param {string} output */
-export async function writeNotices(entry, output) {
+/** @param {string} entry @param {string} output @param {string} [scope] */
+export async function writeNotices(entry, output, scope = 'server image') {
   await mkdir(output, { recursive: true });
   const packages = await dependencyNotices(entry);
   await writeFile(
@@ -226,7 +227,10 @@ export async function writeNotices(entry, output) {
   await writeFile(join(output, 'THIRD-PARTY-NOTICES.txt'), notices + '\n');
   await writeFile(
     join(output, 'SOURCE.txt'),
-    'tidy notebook source and build inputs are under AGPL-3.0-only.\nThe image includes /app/licenses/core-source.tar.gz.\nPublic releases identify the exact source commit in the release manifest.\nhttps://github.com/tidynotebook/tidynotebook\n\nThe native source folder holds the original source archives, upstream build scripts and patches.\nThe manifest lists their exact versions and SHA-256 hashes.\nThe shared libvips library can be replaced by a modified compatible library.\nYou may debug changes to these LGPL libraries.\nThe base image keeps Debian copyright notices under /usr/share/doc.\nDebian sources: https://sources.debian.org/\nNode source and license: https://nodejs.org/en/download\n',
+    `Scope: ${scope}.\nFirst-party source and build inputs are under AGPL-3.0-only.\nSource repository: https://github.com/tidynotebook/tidynotebook\nPublic releases identify the exact source commit in the release manifest.\n` +
+      (scope === 'server image'
+        ? 'The image includes /app/licenses/core-source.tar.gz.\nNative preferred source, upstream scripts and patches are in /app/licenses/native-source.\nThe shared libvips library can be replaced by a modified compatible library.\nYou may debug changes to these LGPL libraries.\nDebian source descriptors and archives, Node source and release sums are in /app/licenses/base-source.\nDebian copyright notices stay in /usr/share/doc. Node and bundled library notices stay in /usr/local/LICENSE.\nThe npm graph notices are in /app/licenses/base-npm.\nTo rebuild the application, unpack core-source.tar.gz and run docker build --target builder .\nUse dpkg-source -x with a Debian source descriptor to unpack its source and Debian build recipes.\nThe Node source archive includes BUILDING.md and the npm source tree.\n'
+        : 'This browser output includes notices and first-party source directions.\nThe server image source bundle has a separate filesystem scope.\n'),
   );
 }
 
@@ -239,6 +243,7 @@ if (
     await writeNotices(
       join(root, 'apps/web'),
       join(root, 'apps/web/dist/web/licenses'),
+      'web app',
     );
     try {
       await realpath(join(root, 'apps/docs/dist/site'));
@@ -249,6 +254,7 @@ if (
     await writeNotices(
       join(root, 'apps/docs'),
       join(root, 'apps/docs/dist/site/licenses'),
+      'documentation site',
     );
     const pagefind = (await dependencyNotices(join(root, 'apps/docs'))).find(
       (pkg) => pkg.name === 'pagefind',
@@ -267,7 +273,7 @@ if (
     );
     await writeFile(
       join(root, 'apps/docs/dist/site/licenses/PAGEFIND-SOURCE.txt'),
-      'The search WebAssembly program uses GPL-3.0-only code in pagefind_microjson.\nIts terms are in borrowed-work/pagefind-wasm-notices.txt.\nIts preferred source and build inputs are in pagefind-source/.\nThe manifest keeps source archive and crate SHA-256 hashes.\nUnpack the Pagefind repository and the Snowball archive beside each other.\nThe Pagefind pagefind_web/Cargo.lock identifies the included crate sources.\nThe Pagefind pagefind_web/local_build.sh builds the search program.\nThe upstream release workflow names wasm-pack and Rust build inputs.\nA build needs a Rust nightly toolchain with rust-src, wasm32-unknown-unknown, wasm-pack, Node and a C build toolchain.\nThe upstream build uses the compiler standard library as a general system build input.\nThis bundle does not promise byte-identical output from an unpinned upstream nightly compiler.\n',
+      'The search WebAssembly program uses GPL-3.0-only code in pagefind_microjson.\nIts terms are in borrowed-work/pagefind-wasm-notices.txt.\nIts preferred source and build inputs are in pagefind-source/.\nThe manifest keeps source archive and crate SHA-256 hashes.\nUnpack the Pagefind repository and the Snowball archive beside each other.\nThe Pagefind pagefind_web/Cargo.lock identifies the included crate sources.\nThe Pagefind pagefind_web/local_build.sh builds the search program.\nThe upstream release workflow names wasm-pack and Rust build inputs.\nThe tested build uses nightly-2026-04-12 (rustc 1.97.0-nightly bf4fbfb7a), rust-src, wasm32-unknown-unknown and wasm-pack 0.14.0, plus Node and a C build toolchain.\nThe upstream build uses the compiler standard library as a general system build input.\nThe generic and English source builds use the unchanged Wasm crate lock graph and pass actual documentation index searches.\nThis bundle does not promise byte-identical output from the upstream release pipeline.\n',
     );
   } else if (output !== undefined)
     await writeNotices(resolve(entry), resolve(output));
