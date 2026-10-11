@@ -7,9 +7,10 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { Root } from 'mdast';
 import { extractLinks, indexNote } from './links.ts';
 import { MarkdownLimitError, markdownLimits } from './limits.ts';
-import { blockSeparator, readableText } from './plain-text.ts';
+import { blockSeparator, readableText, readableTextOf } from './plain-text.ts';
 import { renderMarkdown } from './render.ts';
 
 await test('emphasis marks go and their words stay', () => {
@@ -152,6 +153,145 @@ await test('an alert leaves its title in place of its marker', () => {
 await test('white space at the edges goes', () => {
   assert.equal(readableText('\n\n  word  \n'), 'word');
   assert.equal(readableText(''), '');
+});
+
+await test('empty and white space nodes keep the same inline word boundaries', () => {
+  const tree: Root = {
+    type: 'root',
+    children: [
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'text', value: '\t' },
+          { type: 'text', value: '' },
+          { type: 'text', value: 'one' },
+          { type: 'emphasis', children: [{ type: 'text', value: '' }] },
+          { type: 'text', value: ' \u00a0' },
+          { type: 'strong', children: [{ type: 'text', value: '\ttwo ' }] },
+          { type: 'inlineCode', value: '\nthree' },
+          { type: 'text', value: '' },
+          { type: 'text', value: 'wo' },
+          { type: 'emphasis', children: [{ type: 'text', value: 'rd' }] },
+          { type: 'text', value: '\t ' },
+        ],
+      },
+    ],
+  };
+  assert.equal(readableTextOf(tree), 'one two threeword');
+});
+
+await test('empty, hidden and white space blocks keep a pending block break', () => {
+  const tree: Root = {
+    type: 'root',
+    children: [
+      { type: 'paragraph', children: [{ type: 'text', value: 'one ' }] },
+      { type: 'paragraph', children: [] },
+      { type: 'paragraph', children: [{ type: 'text', value: '\t\n' }] },
+      { type: 'yaml', value: 'hidden' },
+      { type: 'thematicBreak' },
+      { type: 'paragraph', children: [{ type: 'text', value: ' two ' }] },
+      { type: 'paragraph', children: [{ type: 'text', value: '\t' }] },
+    ],
+  };
+  assert.equal(readableTextOf(tree), 'one · two');
+});
+
+await test('every white space character keeps astral text across node boundaries', () => {
+  const whiteSpace = [
+    '\t',
+    '\n',
+    '\v',
+    '\f',
+    '\r',
+    ' ',
+    '\u00a0',
+    '\u1680',
+    '\u2000',
+    '\u2001',
+    '\u2002',
+    '\u2003',
+    '\u2004',
+    '\u2005',
+    '\u2006',
+    '\u2007',
+    '\u2008',
+    '\u2009',
+    '\u200a',
+    '\u2028',
+    '\u2029',
+    '\u202f',
+    '\u205f',
+    '\u3000',
+    '\ufeff',
+  ];
+  for (const space of whiteSpace) {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'text', value: `${space}😀${space}` },
+            { type: 'text', value: '' },
+            { type: 'text', value: space },
+            { type: 'inlineCode', value: `${space}🪴${space}` },
+          ],
+        },
+      ],
+    };
+    assert.equal(readableTextOf(tree), '😀 🪴', JSON.stringify(space));
+  }
+  assert.equal(readableText('a\u0085b\u200bc'), 'a\u0085b\u200bc');
+});
+
+await test('each sentence end chooses a space after empty blocks', () => {
+  for (const ending of ['.', '!', '?', ':', ';', '…', 'x', ')', '😀']) {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', value: `First${ending}\t` }],
+        },
+        { type: 'paragraph', children: [{ type: 'text', value: '' }] },
+        { type: 'paragraph', children: [{ type: 'text', value: ' \n' }] },
+        { type: 'paragraph', children: [{ type: 'text', value: ' Next' }] },
+      ],
+    };
+    const separator = ['.', '!', '?', ':', ';', '…'].includes(ending)
+      ? ' '
+      : blockSeparator;
+    assert.equal(readableTextOf(tree), `First${ending}${separator}Next`);
+  }
+});
+
+await test('white space HTML blocks preserve text and sentence boundaries', () => {
+  const tree: Root = {
+    type: 'root',
+    children: [
+      { type: 'paragraph', children: [{ type: 'text', value: 'Before ' }] },
+      { type: 'html', value: '<div> \n<span> </span></div>' },
+      {
+        type: 'html',
+        value: '<p>one </p><p> \t</p><p> two!</p><br><p> three</p>',
+      },
+      { type: 'paragraph', children: [{ type: 'text', value: ' After' }] },
+    ],
+  };
+  assert.equal(readableTextOf(tree), 'Before · one · two! three · After');
+});
+
+await test('an alert and a repeated title keep their text around empty content', () => {
+  assert.equal(
+    readableText('# Plan\n\n> [!TIP]\n> \n> One **word**.\n\nAfter', {
+      title: 'Plan',
+    }),
+    'Tip · One word. After',
+  );
+  assert.equal(
+    readableText('# Plan\n\n<!-- empty -->', { title: 'Plan' }),
+    'Plan',
+  );
 });
 
 await test('a first block that repeats the note name goes', () => {

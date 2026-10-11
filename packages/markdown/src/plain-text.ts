@@ -176,25 +176,32 @@ function repeatedTitle(tree: Root, title: string | undefined): Nodes | null {
 
 /** The readable text of a tree, leaving out the node `skip`. */
 function textOf(tree: Root, skip: Nodes | null): string {
-  let output = '';
+  const output: string[] = [];
+  // White space waits for the next word, so a block can replace it without
+  // reading or trimming the text that is already written.
+  let spacePending = false;
+  let lastCharacter = '';
   // A block ended, and the next character of text starts the next block.
   let blockEnded = false;
   // The first text of a quote can be the marker of an alert.
   let quoteOpened = false;
 
   const push = (text: string): void => {
-    for (const char of text) {
-      if (/\s/.test(char)) {
-        if (output !== '' && !output.endsWith(' ')) output += ' ';
-        continue;
-      }
-      if (blockEnded && output !== '') {
-        output = output.trimEnd();
-        output += sentenceEnd.test(output) ? ' ' : blockSeparator;
-      }
-      blockEnded = false;
-      output += char;
+    const normalized = text.replace(/\s+/g, ' ');
+    const words = normalized.trim();
+    if (words === '') {
+      if (normalized !== '') spacePending = true;
+      return;
     }
+    if (output.length !== 0) {
+      if (blockEnded)
+        output.push(sentenceEnd.test(lastCharacter) ? ' ' : blockSeparator);
+      else if (spacePending || normalized.startsWith(' ')) output.push(' ');
+    }
+    output.push(words);
+    lastCharacter = words.at(-1) ?? '';
+    spacePending = normalized.endsWith(' ');
+    blockEnded = false;
   };
 
   // `block` states that the parent holds blocks, so an HTML node is a block.
@@ -242,7 +249,7 @@ function textOf(tree: Root, skip: Nodes | null): string {
   };
 
   walk(tree, false);
-  return output.trimEnd();
+  return output.join('');
 }
 
 /** The readable text of a parsed tree. */
