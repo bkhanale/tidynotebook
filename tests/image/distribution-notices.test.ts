@@ -2,12 +2,35 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
 
 const run = promisify(execFile);
 const image = process.env['NOTESAPP_IMAGE'] || 'notesapp:latest';
+
+function sourceFile(manifest: unknown, suffix: string): string {
+  if (
+    typeof manifest !== 'object' ||
+    manifest === null ||
+    !('sources' in manifest) ||
+    !Array.isArray(manifest.sources)
+  )
+    throw new Error('The image source manifest is invalid.');
+  for (const value of manifest.sources) {
+    const row: unknown = value;
+    if (
+      typeof row === 'object' &&
+      row !== null &&
+      'file' in row &&
+      typeof row.file === 'string' &&
+      /^[\w.+~-]+$/.test(row.file) &&
+      row.file.endsWith(suffix)
+    )
+      return row.file;
+  }
+  throw new Error('The image source archive is missing.');
+}
 
 await test('the runner carries full notices and its exact build source', async () => {
   const script = String.raw`
@@ -42,7 +65,8 @@ await test('the runner carries full notices and its exact build source', async (
     }
     const rsvg=source.sources.find(row=>row.file.endsWith('librsvg-2.63.2.tar.xz'));
     assert.ok(rsvg);
-    const lock=execFileSync('tar',['-xOf','/app/licenses/native-source/'+rsvg.file,'librsvg-2.63.2/Cargo.lock'],{encoding:'utf8'});
+    assert.equal(createHash('sha256').update(readFileSync('/inspection/librsvg.tar.xz')).digest('hex'),rsvg.sha256);
+    const lock=readFileSync('/inspection/librsvg.lock','utf8');
     for(const block of lock.split('[[package]]')) {
       const name=/^name = "([^"]+)"$/m.exec(block)?.[1];
       const version=/^version = "([^"]+)"$/m.exec(block)?.[1];
@@ -91,29 +115,104 @@ await test('the runner carries full notices and its exact build source', async (
     execFileSync('gpgv',['--keyring','/app/licenses/base-source/node-release-pubring.kbx','/app/licenses/base-source/node-SHASUMS256.txt.sig','/app/licenses/base-source/node-SHASUMS256.txt'],{stdio:['ignore','pipe','pipe']});
     const nodeSource=base.sources.find(row=>row.file==='node-v'+base.nodeVersion+'.tar.xz');assert.ok(nodeSource);
     assert.ok(readFileSync('/app/licenses/base-source/node-SHASUMS256.txt','utf8').includes(nodeSource.sha256+'  '+nodeSource.file));
-    assert.equal(execFileSync('tar',['-xOf','/app/licenses/base-source/'+nodeSource.file,'node-v'+base.nodeVersion+'/LICENSE'],{encoding:'utf8'}),readFileSync('/usr/local/LICENSE','utf8'));
-    assert.equal(JSON.parse(execFileSync('tar',['-xOf','/app/licenses/base-source/'+nodeSource.file,'node-v'+base.nodeVersion+'/deps/npm/package.json'],{encoding:'utf8'})).version,base.npmVersion);
+    assert.equal(createHash('sha256').update(readFileSync('/inspection/node.tar.xz')).digest('hex'),nodeSource.sha256);
+    assert.equal(readFileSync('/inspection/node-LICENSE','utf8'),readFileSync('/usr/local/LICENSE','utf8'));
+    assert.equal(JSON.parse(readFileSync('/inspection/npm-package.json','utf8')).version,base.npmVersion);
     const list=execFileSync('tar',['-tzf','/app/licenses/core-source.tar.gz'],{encoding:'utf8'}).split('\n');
     for(const file of ['LICENSE','Dockerfile','pnpm-lock.yaml','pnpm-workspace.yaml','apps/server/src/main.ts','apps/web/src/diagram/frame-main.ts','patches/mermaid@12.0.0.patch','apps/web/public/fonts/geist-latin.woff2','apps/web/public/fonts/geist-mono-latin.woff2'])assert.ok(list.includes(file),file);
     assert.ok(!list.some(file=>file.includes('node_modules/')||file.startsWith('.env')||file.startsWith('.tooling/')||file.startsWith('../')));
     assert.equal(execFileSync('tar',['-xOzf','/app/licenses/core-source.tar.gz','LICENSE'],{encoding:'utf8'}),license);
     console.log('runner notices, core build source and native source hashes pass');
   `;
-  const result = await run(
-    'docker',
-    [
-      'run',
-      '--rm',
-      '--entrypoint',
-      'node',
-      image,
-      '--input-type=module',
-      '-e',
-      script,
-    ],
-    { maxBuffer: 1024 * 1024 },
+  const repository = join(import.meta.dirname, '../..');
+  await mkdir(join(repository, '.tooling'), { recursive: true });
+  const directory = await mkdtemp(
+    join(repository, '.tooling/source-inspection-'),
   );
-  assert.match(result.stdout, /native source hashes pass/);
+  const inspection = join(directory, 'inspection');
+  await mkdir(inspection, { mode: 0o755 });
+  let container;
+  try {
+    container = (
+      await run('docker', [
+        'create',
+        '--entrypoint',
+        'node',
+        image,
+        '--input-type=module',
+        '-e',
+        script,
+      ])
+    ).stdout.trim();
+    for (const kind of ['native', 'base'])
+      await run('docker', [
+        'cp',
+        `${container}:/app/licenses/${kind}-source/manifest.json`,
+        join(directory, `${kind}.json`),
+      ]);
+    const native: unknown = JSON.parse(
+      await readFile(join(directory, 'native.json'), 'utf8'),
+    );
+    const base: unknown = JSON.parse(
+      await readFile(join(directory, 'base.json'), 'utf8'),
+    );
+    if (
+      typeof base !== 'object' ||
+      base === null ||
+      !('nodeVersion' in base) ||
+      typeof base.nodeVersion !== 'string'
+    )
+      throw new Error('The image Node source identity is missing.');
+    const rsvg = sourceFile(native, 'librsvg-2.63.2.tar.xz');
+    const node = sourceFile(base, 'node-v' + base.nodeVersion + '.tar.xz');
+    for (const [origin, target] of [
+      ['native-source/' + rsvg, 'librsvg.tar.xz'],
+      ['base-source/' + node, 'node.tar.xz'],
+    ] as const)
+      await run('docker', [
+        'cp',
+        `${container}:/app/licenses/${origin}`,
+        join(inspection, target),
+      ]);
+    // The host has the inspection tools; the slim runner needs no xz tool.
+    for (const [archive, member, target] of [
+      ['librsvg.tar.xz', 'librsvg-2.63.2/Cargo.lock', 'librsvg.lock'],
+      ['node.tar.xz', 'node-v' + base.nodeVersion + '/LICENSE', 'node-LICENSE'],
+      [
+        'node.tar.xz',
+        'node-v' + base.nodeVersion + '/deps/npm/package.json',
+        'npm-package.json',
+      ],
+    ] as const) {
+      const result = await run('tar', [
+        '-xOf',
+        join(inspection, archive),
+        member,
+      ]);
+      await writeFile(join(inspection, target), result.stdout, {
+        mode: 0o644,
+      });
+    }
+    await run('docker', ['cp', inspection, `${container}:/inspection`]);
+    const result = await run('docker', ['start', '--attach', container], {
+      maxBuffer: 1024 * 1024,
+    });
+    assert.equal(
+      (
+        await run('docker', [
+          'inspect',
+          '--format',
+          '{{.State.ExitCode}}',
+          container,
+        ])
+      ).stdout.trim(),
+      '0',
+    );
+    assert.match(result.stdout, /native source hashes pass/);
+  } finally {
+    if (container !== undefined) await run('docker', ['rm', container]);
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 await test('the bundled first-party source rebuilds the builder context', async () => {
