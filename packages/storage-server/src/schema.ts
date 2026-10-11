@@ -1028,11 +1028,12 @@ export const searchIndex = pgTable(
     // The workspace identifier leads the index, so a search of one workspace
     // never reads the postings of another. `btree_gin` supplies the operator
     // class of the uuid column; the migration installs it.
-    index('search_index_document_idx').using(
-      'gin',
-      table.workspaceId,
-      table.document,
-    ),
+    // Pending entries make a search read unsorted writes and can make the
+    // planner read every stored vector instead of this index (issue 326).
+    // Direct writes keep search cost stable between maintenance runs.
+    index('search_index_document_idx')
+      .using('gin', table.workspaceId, table.document)
+      .with({ fastupdate: false }),
   ],
 );
 
