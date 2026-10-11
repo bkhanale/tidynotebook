@@ -10,7 +10,12 @@
  * the guarantee: the server and the database refuse the same change
  * (record 0110).
  */
-import type { AccountSummary, Invitation } from '@notesapp/api-client';
+import type {
+  AccountSummary,
+  Invitation,
+  SettingSource,
+} from '@notesapp/api-client';
+import type { OpenRegistrationPart } from '@notesapp/core';
 import { relativeTime } from './relative-time.ts';
 
 /** The title of the accounts page, which is also its breadcrumb part. */
@@ -46,12 +51,18 @@ export function invitationTokenOf(hash: string): string | null {
   return tokenPattern.test(token) ? token : null;
 }
 
-/** The words of each part that open registration needs (record 0114). */
-const partWords: Readonly<Record<string, string>> = {
+/**
+ * The words of each part that open registration needs (records 0114 and
+ * 0191). The type of the core holds the keys, so a part that the core adds or
+ * drops fails the type check here.
+ */
+const words: Readonly<Record<OpenRegistrationPart, string>> = {
   mail: 'a mail server',
-  'published-origin': 'a separate address for published pages',
   'legal-documents': 'the terms and the privacy notice',
 };
+
+/** The words of a part, by the name that a refusal carries. */
+const partWords: ReadonlyMap<string, string> = new Map(Object.entries(words));
 
 /** The missing parts that a refusal of open registration names. */
 export function missingPartsOf(error: unknown): string[] {
@@ -69,28 +80,24 @@ export function missingPartsOf(error: unknown): string[] {
 export function openRegistrationMissingText(
   missing: readonly string[],
 ): string {
-  const words = missing.map((part) => partWords[part] ?? part);
-  if (words.length === 0)
+  const named = missing.map((part) => partWords.get(part) ?? part);
+  if (named.length === 0)
     return 'Open registration needs parts that this installation does not have.';
   const list =
-    words.length === 1
-      ? (words[0] ?? '')
-      : `${words.slice(0, -1).join(', ')} and ${words.at(-1) ?? ''}`;
+    named.length === 1
+      ? (named[0] ?? '')
+      : `${named.slice(0, -1).join(', ')} and ${named.at(-1) ?? ''}`;
   // An administrator sets the mail server and the legal documents on the
-  // accounts page (record 0148). Only the operator sets the published origin.
+  // accounts page (record 0148).
   const here = [
     missing.includes('mail') ? 'the mail server' : '',
     missing.includes('legal-documents') ? 'the legal documents' : '',
   ].filter(Boolean);
-  const advice = [
-    here.length === 0 ? '' : `Set up ${here.join(' and ')} on this page.`,
-    missing.includes('published-origin')
-      ? 'The operator of the server sets the address for published pages.'
-      : '',
-  ].filter(Boolean);
   return [
     `Anybody can sign up only when the installation has ${list}.`,
-    ...advice,
+    ...(here.length === 0
+      ? []
+      : [`Set up ${here.join(' and ')} on this page.`]),
   ].join(' ');
 }
 
@@ -144,7 +151,10 @@ export function formatBytes(bytes: number): string {
     value /= 1024;
     unit += 1;
   }
-  if (unit === 0) return `${String(Math.round(value))} bytes`;
+  if (unit === 0) {
+    const count = Math.round(value);
+    return count === 1 ? '1 byte' : `${String(count)} bytes`;
+  }
   const shown = value < 10 ? Math.round(value * 10) / 10 : Math.round(value);
   return `${String(shown)} ${byteUnits[unit] ?? 'bytes'}`;
 }
@@ -215,6 +225,8 @@ export function accountFacts(account: AccountSummary, now: number): string[] {
   if (account.self) facts.push('You');
   facts.push(roleWord(account.installationRole));
   if (account.state === 'disabled') facts.push('Disabled');
+  // A locked account keeps only the way to unlock it (record 0201).
+  if (account.controls.standing === 'locked') facts.push('Locked');
   facts.push(
     // The last activity is the last use of a session that still exists, so
     // an account that signed out on every device has none.
@@ -250,7 +262,7 @@ export type AccountAction =
   | 'make-member'
   | 'disable'
   | 'enable'
-  | 'change-limit'
+  | 'change-controls'
   | 'remove';
 
 /**
@@ -274,7 +286,7 @@ export function accountActions(
   else if (!lastAdministrator) actions.push('make-member');
   if (account.state === 'disabled') actions.push('enable');
   else if (!lastAdministrator) actions.push('disable');
-  actions.push('change-limit');
+  actions.push('change-controls');
   if (!account.self && !lastAdministrator) actions.push('remove');
   return actions;
 }
@@ -290,16 +302,16 @@ export function accountActionLabel(action: AccountAction): string {
       return 'Disable';
     case 'enable':
       return 'Enable';
-    case 'change-limit':
-      return 'Change storage limit';
+    case 'change-controls':
+      return 'Change limits and access';
     case 'remove':
-      return 'Remove account';
+      return 'Delete account';
   }
 }
 
 /** The sentence after one account action succeeded. */
 export function accountActionNotice(
-  action: Exclude<AccountAction, 'remove' | 'change-limit'>,
+  action: Exclude<AccountAction, 'remove' | 'change-controls'>,
   name: string,
 ): string {
   switch (action) {
@@ -324,9 +336,25 @@ export function invitationFacts(invitation: Invitation, now: number): string[] {
   ];
 }
 
-/** The sentence of a registration policy. */
-export function registrationPolicyText(policy: 'invitation' | 'open'): string {
-  return policy === 'invitation'
-    ? 'Only a person with an invitation can make an account.'
-    : 'A person who proves their address can make an account.';
+/**
+ * The sentences of a registration policy. A policy that the server
+ * environment names is locked, so the page says where it changes (record
+ * 0206).
+ */
+export function registrationPolicyText(
+  policy: 'invitation' | 'open',
+  source: SettingSource,
+): string {
+  const rule =
+    policy === 'invitation'
+      ? 'Only a person with an invitation can make an account.'
+      : 'A person who proves their address can make an account.';
+  return source === 'environment'
+    ? `${rule} The server environment sets this, so it changes there and not on this page.`
+    : rule;
+}
+
+/** Whether the page can change the registration policy (record 0206). */
+export function registrationPolicyLocked(source: SettingSource): boolean {
+  return source === 'environment';
 }

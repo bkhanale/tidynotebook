@@ -1,8 +1,8 @@
-# NotesApp guide
+# tidy notebook guide
 
-This page is for anyone who uses NotesApp or runs it on their own server.
+This page is for anyone who uses tidy notebook or runs it on their own server.
 
-NotesApp is a self-hosted Markdown notes application for you and the people you
+tidy notebook is a self-hosted Markdown notes application for you and the people you
 invite. Each account has its own notes. A note is a Markdown file in a folder
 you choose. Typing writes a draft on your device.
 Save creates one version on your server, and History keeps every version.
@@ -37,6 +37,7 @@ For the person who writes the notes.
 - [Spelling](spelling.md) - the spell check of the editor, and how to turn it
   off.
 - [Export](export.md) - take every note out as plain Markdown files.
+- [API keys and programs](api.md) - connect a program to your account.
 - [Settings](settings.md) - each section of the Settings page, and where each
   choice is kept.
 

@@ -2,7 +2,7 @@
  * The gate of one release.
  *
  * A release is a chain: the prepare commit, the signed tag, the pushed tag,
- * the image that the tag builds, the GitHub release, and the milestone that
+ * the tested image, the GitHub release, and the milestone that
  * the release closes. Every link is a place where a step is forgotten, and a
  * forgotten step is silent. This check reads the real state of each link and
  * names the one that is missing.
@@ -14,7 +14,9 @@
  * Usage: `node tools/release-check.mjs <before|after> <version>`
  */
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import {
@@ -22,7 +24,25 @@ import {
   entrySections,
   releaseNotes,
 } from './release-notes.mjs';
-import { root } from './workspace.mjs';
+import { productName } from '../packages/core/src/product.ts';
+import { record, root } from './workspace.mjs';
+import {
+  digest,
+  git,
+  readState,
+  snapshot,
+  stateDirectory,
+  validProof,
+} from './lifecycle-state.mjs';
+
+import {
+  publishedRelease,
+  generateOperatorContract,
+  parseManifest,
+  operatorDigests,
+  migrationMetadata,
+} from './release-manifest.mjs';
+import { githubRepository } from './pr-screenshots.mjs';
 
 /** One result of the gate. */
 /** @typedef {{ name: string; status: 'ok' | 'failed' | 'skipped'; detail: string }} Check */
@@ -33,7 +53,7 @@ export const prepareSubject = (/** @type {string} */ version) =>
 
 /** The first line of the tag message, and the title of the release. */
 export const releaseTitle = (/** @type {string} */ version) =>
-  `NotesApp ${version}`;
+  `${productName} ${version}`;
 
 /** The line of `README.md` that names the current release. */
 export const statusLine = (/** @type {string} */ version) =>
@@ -83,14 +103,18 @@ export function compareVersions(left, right) {
  * @typedef {{
  *   version: string;
  *   today: string;
+ *   releaseDate?: string;
  *   changelog: string;
  *   readme: string;
- *   branch: string;
+ *   headSha: string;
+ *   mainSha: string;
+ *   holdsOriginMain: boolean;
  *   headSubject: string;
  *   pending: string;
  *   localTag: boolean;
  *   remoteTag: boolean;
  *   signsTags: boolean;
+ *   imageBuild: string;
  * }} BeforeState
  */
 
@@ -111,10 +135,14 @@ export function beforeChecks(state) {
       ? failed('the version', `${version} is not major.minor.patch.`)
       : ok('the version', version),
   );
+  // The tip of main, not the name of the branch: a release runs from its
+  // worktree, and `git push origin main` pushes the local main (record 0204).
   checks.push(
-    state.branch === 'main'
-      ? ok('the branch', 'main')
-      : failed('the branch', `${state.branch}. A release leaves main.`),
+    state.mainSha === ''
+      ? failed('the branch', 'there is no published main.')
+      : !state.holdsOriginMain
+        ? failed('the branch', 'The release source is not in published main.')
+        : ok('the branch', 'published main holds the release source'),
   );
   checks.push(
     state.pending.trim() === ''
@@ -144,11 +172,11 @@ export function beforeChecks(state) {
         `the newest entry is ${newest.version}. Write the ${version} entry above it.`,
       ),
     );
-  else if (newest.date !== state.today)
+  else if (newest.date !== (state.releaseDate ?? state.today))
     checks.push(
       failed(
         'the changelog entry',
-        `the entry is dated ${newest.date}. Today is ${state.today}.`,
+        `the entry is dated ${newest.date}. The fixed release date is ${state.releaseDate ?? state.today}.`,
       ),
     );
   else checks.push(ok('the changelog entry', `${version} - ${newest.date}`));
@@ -227,7 +255,74 @@ export function beforeChecks(state) {
           'git does not sign tags. Set tag.gpgsign, or sign this tag with git tag -s.',
         ),
   );
+  checks.push(
+    state.imageBuild === ''
+      ? ok('the image build', 'the prepare commit builds the image')
+      : failed('the image build', state.imageBuild),
+  );
   return checks;
+}
+
+/**
+ * The line that names the cause of a failed image build.
+ *
+ * The build prints every step, so the first line that states an error names
+ * the cause, and its step number and time are left out.
+ *
+ * @param {string} output
+ * @returns {string}
+ */
+export function buildFailure(output) {
+  const lines = output.split('\n').map((line) => line.trim());
+  const cause =
+    lines.find((line) => /\berror\b/i.test(line)) ??
+    lines.filter(Boolean).at(-1) ??
+    '';
+  return cause.replace(/^#\d+\s+[\d.]+\s+/, '');
+}
+
+/**
+ * Builds the image of one commit as the release workflow does, and returns
+ * the cause of a failure, or the empty string when the image builds.
+ *
+ * The context is `git archive` of the commit in a temporary folder, so the
+ * build reads the committed tree and `.dockerignore`, as a checkout does. A
+ * folder, not a stream: BuildKit loses its session over a streamed context
+ * when the Dockerfile names a syntax frontend. The build exports no image.
+ *
+ * @param {string} directory
+ * @param {string} [revision]
+ * @returns {string}
+ */
+export function buildImage(directory, revision = 'HEAD') {
+  const context = mkdtempSync(join(tmpdir(), 'release-image-'));
+  try {
+    const archive = spawnSync('git', ['archive', '--format=tar', revision], {
+      cwd: directory,
+      maxBuffer: 2 ** 30,
+    });
+    if (archive.status !== 0) return `git archive of ${revision} failed.`;
+    const unpack = spawnSync('tar', ['-x', '-C', context], {
+      input: archive.stdout,
+    });
+    if (unpack.status !== 0) return `tar could not unpack ${revision}.`;
+    process.stderr.write(
+      `Building the image of ${revision}. This takes some minutes.\n`,
+    );
+    const build = spawnSync(
+      'docker',
+      ['build', '--progress=plain', '--output', 'type=cacheonly', context],
+      { cwd: directory, maxBuffer: 2 ** 28 },
+    );
+    if (build.error !== undefined)
+      return 'Docker is not here. The gate builds the image before the tag.';
+    if (build.status === 0) return '';
+    return buildFailure(
+      `${build.stdout.toString()}\n${build.stderr.toString()}`,
+    );
+  } finally {
+    rmSync(context, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -243,9 +338,9 @@ export function beforeChecks(state) {
  *   localTagSha: string;
  *   remoteTagSha: string;
  *   mainHoldsTagCommit: boolean;
- *   runStatus: string;
- *   runConclusion: string;
- *   runUrl: string;
+ *   imageDigest: string;
+ *   imageRevision: string;
+ *   assetsError: string;
  *   releaseName: string;
  *   releaseTag: string;
  *   releaseDraft: boolean;
@@ -254,6 +349,8 @@ export function beforeChecks(state) {
  *   latestTag: string;
  *   milestoneState: string;
  *   milestoneOpenIssues: number;
+ *   imageOwner: string;
+ *   imageOwnerType: string;
  *   imageTags: string[] | null;
  * }} AfterState
  */
@@ -320,22 +417,24 @@ export function afterChecks(state) {
         ),
   );
   checks.push(
-    state.runStatus === ''
-      ? failed(
-          'the image build',
-          `no Release run for ${tag}. The tag push starts it.`,
+    /^sha256:[a-f0-9]{64}$/.test(state.imageDigest) &&
+      state.imageRevision === state.localTagSha
+      ? ok('the image identity', state.imageDigest)
+      : failed(
+          'the image identity',
+          'The image digest or source cannot be proved.',
+        ),
+  );
+  checks.push(
+    state.assetsError === ''
+      ? ok(
+          'the release assets',
+          'the manifest and operator contract match the fixed source and proof',
         )
-      : state.runStatus !== 'completed'
-        ? failed(
-            'the image build',
-            `the run is ${state.runStatus}. ${state.runUrl}`,
-          )
-        : state.runConclusion === 'success'
-          ? ok('the image build', state.runUrl)
-          : failed(
-              'the image build',
-              `the run ended in ${state.runConclusion}. ${state.runUrl}`,
-            ),
+      : failed(
+          'the release assets',
+          state.assetsError || 'The release asset proof is missing.',
+        ),
   );
   if (state.releaseTag === '')
     checks.push(
@@ -370,18 +469,10 @@ export function afterChecks(state) {
             `they differ from the changelog entry. Run node tools/release-notes.mjs ${version} and edit the release.`,
           ),
     );
-    checks.push(
-      state.latestTag === tag
-        ? ok('the latest release', tag)
-        : failed(
-            'the latest release',
-            `GitHub calls ${state.latestTag} the latest.`,
-          ),
-    );
   }
   checks.push(
     state.milestoneState === ''
-      ? skipped('the milestone', `no milestone is named ${version}.`)
+      ? failed('the milestone', `no milestone is named ${version}.`)
       : state.milestoneOpenIssues > 0
         ? failed(
             'the milestone',
@@ -391,20 +482,27 @@ export function afterChecks(state) {
           ? ok('the milestone', `${version} is closed`)
           : failed('the milestone', `${version} is still open. Close it.`),
   );
-  if (state.imageTags === null)
+  if (state.imageOwnerType === '')
     checks.push(
-      skipped(
+      failed(
+        'the image tags',
+        `GitHub names no account "${state.imageOwner}". Check the repository origin.`,
+      ),
+    );
+  else if (state.imageTags === null)
+    checks.push(
+      failed(
         'the image tags',
         'the GitHub token cannot read packages. Run gh auth refresh -s read:packages.',
       ),
     );
   else {
-    const missing = [version, 'latest'].filter(
+    const missing = [version].filter(
       (name) => !(state.imageTags ?? []).includes(name),
     );
     checks.push(
       missing.length === 0
-        ? ok('the image tags', `${version} and latest`)
+        ? ok('the image tags', version)
         : failed(
             'the image tags',
             `the registry has no ${missing.join(' and no ')}.`,
@@ -438,14 +536,33 @@ export function isoDate(when) {
 }
 
 /**
- * The container package that the release workflow pushes.
+ * The owner and the name of the container package that the release workflow
+ * pushes, from an image such as `ghcr.io/<owner>/<name>`.
  *
  * @param {string} workflow
- * @returns {string}
+ * @returns {{ owner: string; name: string }}
  */
 export function imagePackage(workflow) {
   const image = /^\s*IMAGE:\s*(\S+)\s*$/m.exec(workflow)?.[1] ?? '';
-  return image.split('/').at(-1) ?? '';
+  const parts = image.split('/');
+  if (parts.length < 3) return { owner: '', name: '' };
+  const [owner = '', name = ''] = parts.slice(-2);
+  return { owner, name };
+}
+
+/**
+ * The API address that lists the versions of the image package.
+ *
+ * A package of an organization is listed under that organization. Any other
+ * package belongs to the account that runs the check.
+ *
+ * @param {{ owner: string; name: string }} image
+ * @param {string} ownerType The `type` of the owner account, for example `Organization`.
+ * @returns {string}
+ */
+export function packageVersionsPath(image, ownerType) {
+  const scope = ownerType === 'Organization' ? `orgs/${image.owner}` : 'user';
+  return `${scope}/packages/container/${image.name}/versions?per_page=100`;
 }
 
 /**
@@ -459,12 +576,50 @@ async function readBefore(version, directory) {
     readFile(join(directory, 'CHANGELOG.md'), 'utf8').catch(() => ''),
     readFile(join(directory, 'README.md'), 'utf8').catch(() => ''),
   ]);
+  const releaseState = readState(
+    join(stateDirectory(directory), 'release.json'),
+  );
+  const head = run('git', ['rev-parse', 'HEAD'], directory).out;
+  let imageBuild;
+  try {
+    imageBuild = validProof(
+      readState(join(stateDirectory(directory), 'proof.json')),
+      snapshot(directory),
+      ['verify', 'test:image'],
+      directory,
+    )
+      ? ''
+      : buildImage(directory);
+  } catch (error) {
+    imageBuild =
+      error instanceof Error
+        ? error.message
+        : 'The proof inputs cannot be checked.';
+  }
   return {
     version,
     today: isoDate(new Date()),
+    ...(releaseState.version === version &&
+    releaseState.prepareCommit === head &&
+    typeof releaseState.date === 'string'
+      ? { releaseDate: releaseState.date }
+      : {}),
     changelog,
     readme,
-    branch: run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], directory).out,
+    headSha: run('git', ['rev-parse', 'HEAD'], directory).out,
+    mainSha: run(
+      'git',
+      ['rev-parse', '--verify', 'refs/remotes/origin/main'],
+      directory,
+    ).out,
+    holdsOriginMain:
+      run('git', ['fetch', '--quiet', 'origin', 'main'], directory).status ===
+        0 &&
+      run(
+        'git',
+        ['merge-base', '--is-ancestor', 'HEAD', 'FETCH_HEAD'],
+        directory,
+      ).status === 0,
     headSubject: run('git', ['log', '-1', '--pretty=%s'], directory).out,
     pending: run('git', ['status', '--porcelain'], directory).out,
     localTag: run('git', ['tag', '--list', tag], directory).out !== '',
@@ -476,6 +631,7 @@ async function readBefore(version, directory) {
       ).out !== '',
     signsTags:
       run('git', ['config', '--get', 'tag.gpgsign'], directory).out === 'true',
+    imageBuild,
   };
 }
 
@@ -486,15 +642,19 @@ async function readBefore(version, directory) {
  */
 async function readAfter(version, directory) {
   const tag = `v${version}`;
-  const [changelog, workflow] = await Promise.all([
-    readFile(join(directory, 'CHANGELOG.md'), 'utf8').catch(() => ''),
-    readFile(join(directory, '.github/workflows/release.yml'), 'utf8').catch(
-      () => '',
-    ),
-  ]);
   const localTagSha = run(
     'git',
     ['rev-parse', `${tag}^{commit}`],
+    directory,
+  ).out;
+  const changelog = run(
+    'git',
+    ['show', `${localTagSha}:CHANGELOG.md`],
+    directory,
+  ).out;
+  const workflow = run(
+    'git',
+    ['show', `${localTagSha}:.github/workflows/release.yml`],
     directory,
   ).out;
   const remote = run(
@@ -518,25 +678,6 @@ async function readAfter(version, directory) {
   );
   const [releaseName = '', releaseTag = '', draft = '', prerelease = ''] =
     release.status === 0 ? release.out.split('\t') : [];
-  const runLine = run(
-    'gh',
-    [
-      'run',
-      'list',
-      '--workflow=release.yml',
-      '--branch',
-      tag,
-      '--limit',
-      '1',
-      '--json',
-      'status,conclusion,url',
-      '--jq',
-      '.[0] | [.status, .conclusion, .url] | @tsv',
-    ],
-    directory,
-  );
-  const [runStatus = '', runConclusion = '', runUrl = ''] =
-    runLine.out.split('\t');
   const milestone = run(
     'gh',
     [
@@ -548,27 +689,145 @@ async function readAfter(version, directory) {
     directory,
   );
   const [milestoneState = '', openIssues = '0'] = milestone.out.split('\t');
-  const packageName = imagePackage(workflow);
+  const imageName = imagePackage(
+    workflow ||
+      `IMAGE: ghcr.io/${githubRepository(git(directory, ['config', '--get', 'remote.origin.url'])).toLowerCase()}`,
+  );
+  const ownerType = run(
+    'gh',
+    ['api', `users/${imageName.owner}`, '--jq', '.type'],
+    directory,
+  ).out;
   const image = run(
     'gh',
     [
       'api',
-      `user/packages/container/${packageName}/versions?per_page=100`,
+      packageVersionsPath(imageName, ownerType),
       '--jq',
-      '.[].metadata.container.tags[]',
+      `.[] | select(.metadata.container.tags | index("${version}")) | .metadata.container.tags[]`,
     ],
     directory,
   );
+  const imageReference = `ghcr.io/${imageName.owner}/${imageName.name}`;
+  const pull = run(
+    'docker',
+    ['pull', `${imageReference}:${version}`],
+    directory,
+  );
+  const imageDigest =
+    pull.status === 0
+      ? (run(
+          'docker',
+          [
+            'image',
+            'inspect',
+            '--format',
+            '{{index .RepoDigests 0}}',
+            `${imageReference}:${version}`,
+          ],
+          directory,
+        ).out.split('@')[1] ?? '')
+      : '';
+  const imageRevision =
+    pull.status === 0
+      ? run(
+          'docker',
+          [
+            'image',
+            'inspect',
+            '--format',
+            '{{index .Config.Labels "org.opencontainers.image.revision"}}',
+            `${imageReference}:${version}`,
+          ],
+          directory,
+        ).out
+      : '';
+  const repository = githubRepository(
+    git(directory, ['config', '--get', 'remote.origin.url']),
+  );
+  let assetsError = '';
+  try {
+    const observed = publishedRelease(directory, tag);
+    if (!observed.release) throw new Error('The published release is missing.');
+    const contract = observed.assets.get('operator-contract.json'),
+      manifest = observed.assets.get('release-manifest.json');
+    if (!contract || !manifest)
+      throw new Error('The published release asset is missing.');
+    const parent = stateDirectory(directory);
+    mkdirSync(parent, { recursive: true });
+    const temporary = mkdtempSync(join(parent, 'asset-read-'));
+    try {
+      const manifestValue = parseManifest(
+        JSON.parse(manifest.toString('utf8')),
+      );
+      const archive = spawnSync('git', ['archive', localTagSha], {
+        cwd: directory,
+        maxBuffer: 64 * 1024 * 1024,
+      });
+      if (
+        archive.status !== 0 ||
+        spawnSync('tar', ['-xf', '-', '-C', temporary], {
+          input: archive.stdout,
+        }).status !== 0
+      )
+        throw new Error('The fixed release source cannot be read.');
+      const files = git(directory, [
+        'ls-tree',
+        '-r',
+        '--name-only',
+        localTagSha,
+      ])
+        .split('\n')
+        .filter(Boolean);
+      const contractFile = join(temporary, 'operator-contract.json');
+      generateOperatorContract(directory, contractFile, temporary);
+      const operator = await operatorDigests(temporary, files),
+        migration = migrationMetadata(temporary, files);
+      if (
+        manifestValue.repository !== repository ||
+        manifestValue.version !== version ||
+        manifestValue.tag !== tag ||
+        manifestValue.source.commit !== localTagSha ||
+        manifestValue.source.tree !==
+          git(directory, ['rev-parse', `${localTagSha}^{tree}`]) ||
+        manifestValue.image.reference !== imageReference ||
+        manifestValue.image.digest !== imageDigest ||
+        digest(contract) !== manifestValue.operator.contractDigest ||
+        manifestValue.operator.contractDigest !==
+          digest(await readFile(contractFile)) ||
+        manifestValue.operator.surfaceDigest !== operator.surfaceDigest ||
+        manifestValue.migration.digest !== migration.digest ||
+        manifestValue.migration.requiredSchemaVersion !==
+          migration.requiredSchemaVersion
+      )
+        throw new Error(
+          'The published release asset differs from the fixed source or image.',
+        );
+      const saved = readState(join(stateDirectory(directory), 'release.json'));
+      if (saved.version === version && saved.releaseCommit === localTagSha) {
+        const expected = record(saved.assetDigests);
+        if (
+          digest(manifest) !== expected['release-manifest.json'] ||
+          digest(contract) !== expected['operator-contract.json']
+        )
+          throw new Error(
+            'The published release asset differs from its saved publication bytes.',
+          );
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  } catch (error) {
+    assetsError = error instanceof Error ? error.message : String(error);
+  }
   return {
     version,
     changelog,
+    imageDigest,
+    imageRevision,
+    assetsError,
     tagKind: run('git', ['cat-file', '-t', tag], directory).out,
-    tagSigned:
-      run(
-        'git',
-        ['tag', '--list', tag, '--format=%(contents:signature)'],
-        directory,
-      ).out !== '',
+    tagSigned: run('git', ['verify-tag', tag], directory).status === 0,
     tagSubject: run(
       'git',
       ['tag', '--list', tag, '--format=%(contents:subject)'],
@@ -587,9 +846,6 @@ async function readAfter(version, directory) {
         ['merge-base', '--is-ancestor', localTagSha, 'FETCH_HEAD'],
         directory,
       ).status === 0,
-    runStatus,
-    runConclusion,
-    runUrl,
     releaseName,
     releaseTag,
     releaseDraft: draft === 'true',
@@ -609,6 +865,8 @@ async function readAfter(version, directory) {
     ).out,
     milestoneState,
     milestoneOpenIssues: Number(openIssues),
+    imageOwner: imageName.owner,
+    imageOwnerType: imageName.owner === '' ? '' : ownerType,
     imageTags:
       image.status === 0 ? image.out.split('\n').filter(Boolean) : null,
   };

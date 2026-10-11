@@ -163,6 +163,8 @@ await test('the first account is an administrator with the default limit', async
   const installation = await getInstallation({ headers: admin });
   assert.deepEqual(installation.data, {
     registrationPolicy: 'invitation',
+    // No environment names the policy, so an administrator sets it (0206).
+    registrationPolicySource: 'application',
     mailConfigured: false,
     invitationLifetimeHours: config.accounts.invitationLifetimeHours,
     defaultLimitBytes: Number(defaultAccountLimitBytes),
@@ -304,7 +306,11 @@ await test('a failed link deletes the identity user that it made', async () => {
         name: 'Compensated',
         password: 'compensated-password-1',
         ground: { kind: 'invitation', tokenDigest: 'c'.repeat(64) },
-        limitBytes: defaultAccountLimitBytes,
+        newAccount: {
+          limitBytes: defaultAccountLimitBytes,
+          standing: 'active',
+          removeAfterSeconds: null,
+        },
       },
     );
     assert.deepEqual(refused, {
@@ -403,11 +409,8 @@ await test('open registration names every part the installation lacks', async ()
   assert.equal(responseOf(refused.response).status, 422);
   const problem = problemOf(refused.error);
   assert.equal(problem['code'], 'open_registration_unavailable');
-  assert.deepEqual(problem['missing'], [
-    'mail',
-    'published-origin',
-    'legal-documents',
-  ]);
+  // A published origin is not a part (record 0191).
+  assert.deepEqual(problem['missing'], ['mail', 'legal-documents']);
   const kept = await updateInstallation({
     headers: admin,
     body: { registrationPolicy: 'invitation' },
@@ -513,6 +516,100 @@ await test('the operator invites by mail or prints the link, and promotes', asyn
   } finally {
     await identity.close();
   }
+});
+
+await test('an administrator sets the controls of an account with the revision it read', async () => {
+  const joined = await member();
+  const listed = await listAccounts({ headers: admin });
+  const seen = listed.data?.accounts.find(
+    (entry) => entry.accountId === joined.accountId,
+  );
+  assert.equal(seen?.controls.standing, 'active');
+  const revision = seen?.controls.revision ?? 0;
+  const locked = await updateAccount({
+    headers: admin,
+    path: { accountId: joined.accountId },
+    body: {
+      controls: {
+        revision,
+        standing: 'locked',
+        removalAt: '2030-01-01T00:00:00.000Z',
+        textLimitBytes: 1_000_000,
+        features: { teams: false },
+      },
+    },
+  });
+  assert.equal(locked.error, undefined, JSON.stringify(locked.error));
+  assert.equal(locked.data?.controls.standing, 'locked');
+  assert.equal(locked.data?.controls.textLimitBytes, 1_000_000);
+  assert.deepEqual(locked.data?.controls.features, {
+    teams: false,
+    collaboration: true,
+  });
+  // The account reads its own lock, and an operation off its list refuses.
+  const own = await getAccount({ headers: joined.headers });
+  assert.equal(own.data?.controls.standing, 'locked');
+  const refused = await getInstallation({ headers: joined.headers });
+  assert.equal(responseOf(refused.response).status, 423);
+  // A second change that read the first revision changes nothing.
+  const stale = await updateAccount({
+    headers: admin,
+    path: { accountId: joined.accountId },
+    body: { controls: { revision, standing: 'active' } },
+  });
+  assert.equal(responseOf(stale.response).status, 409);
+  assert.equal(problemOf(stale.error)['code'], 'controls_changed');
+  // An administrator is never locked.
+  const self = listed.data?.accounts.find((entry) => entry.self);
+  const lockSelf = await updateAccount({
+    headers: admin,
+    path: { accountId: self?.accountId ?? '' },
+    body: {
+      controls: { revision: self?.controls.revision ?? 0, standing: 'locked' },
+    },
+  });
+  assert.equal(responseOf(lockSelf.response).status, 403);
+});
+
+await test('one request demotes and locks, and one unlocks and promotes', async () => {
+  const joined = await member();
+  const promoted = await updateAccount({
+    headers: admin,
+    path: { accountId: joined.accountId },
+    body: { installationRole: 'administrator' },
+  });
+  assert.equal(promoted.data?.installationRole, 'administrator');
+  // The database refuses a locked administrator at every write, so the
+  // demotion goes before the lock.
+  const demoted = await updateAccount({
+    headers: admin,
+    path: { accountId: joined.accountId },
+    body: {
+      installationRole: 'member',
+      controls: {
+        revision: promoted.data?.controls.revision ?? 0,
+        standing: 'locked',
+      },
+    },
+  });
+  assert.equal(demoted.error, undefined, JSON.stringify(demoted.error));
+  assert.equal(demoted.data?.installationRole, 'member');
+  assert.equal(demoted.data?.controls.standing, 'locked');
+  // And the unlock goes before the promotion.
+  const back = await updateAccount({
+    headers: admin,
+    path: { accountId: joined.accountId },
+    body: {
+      installationRole: 'administrator',
+      controls: {
+        revision: demoted.data?.controls.revision ?? 0,
+        standing: 'active',
+      },
+    },
+  });
+  assert.equal(back.error, undefined, JSON.stringify(back.error));
+  assert.equal(back.data?.installationRole, 'administrator');
+  assert.equal(back.data?.controls.standing, 'active');
 });
 
 await app.close();

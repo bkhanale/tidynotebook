@@ -9,14 +9,18 @@
  * a laptop.
  */
 
-/** The name of the product, as every page names it. */
-export const productName = 'NotesApp';
+/**
+ * The name of the product, as every page names it. This package reads no
+ * `@notesapp/core`, so `tools/product-name.test.mjs` holds this copy to
+ * `productName` of `packages/core/src/product.ts` (record 0187).
+ */
+export const productName = 'tidy notebook';
 
 /** The name of the site, as a browser tab and a search engine read it. */
 export const siteName = `${productName} docs`;
 
 /** The repository that holds the source of the product and of this site. */
-export const repositoryUrl = 'https://github.com/bkhanale/notesapp';
+export const repositoryUrl = 'https://github.com/tidynotebook/tidynotebook';
 
 /** The branch whose files a link out of the guide opens. */
 export const repositoryBranch = 'main';

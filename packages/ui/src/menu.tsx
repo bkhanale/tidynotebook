@@ -47,6 +47,7 @@ import {
 } from './control-classes.ts';
 import { startsGroup } from './menu-groups.ts';
 import { placeOverlay } from './overlay-position.ts';
+import { followVisibleArea, readVisibleArea } from './visible-area.ts';
 
 /** One row of a menu. */
 export type MenuItem = {
@@ -235,7 +236,7 @@ function MenuList({
     const placed = placeOverlay({
       anchor: spot,
       overlay: { width: size.width, height: size.height },
-      viewport: { width: window.innerWidth, height: window.innerHeight },
+      screen: readVisibleArea(),
       align,
     });
     list.style.top = `${String(placed.top)}px`;
@@ -248,12 +249,13 @@ function MenuList({
     const follow = (): void => {
       place();
     };
-    window.addEventListener('resize', follow);
+    // The keyboard of a phone moves the visible area and not the window.
+    const stopFollowing = followVisibleArea(follow);
     // The capture phase, because the trigger can sit in a box that scrolls,
     // such as the folder tree, and a scroll there does not reach the window.
     window.addEventListener('scroll', follow, true);
     return () => {
-      window.removeEventListener('resize', follow);
+      stopFollowing();
       window.removeEventListener('scroll', follow, true);
     };
   }, [place]);

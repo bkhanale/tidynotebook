@@ -27,7 +27,12 @@ The function takes one ground:
 - **Open.** The function refuses it unless the policy is open. The use case
   refuses the open policy until the parts of
   [record 0114](../decisions/0114-open-registration-verifies-the-address-before-the-first-session.md)
-  exist.
+  exist, mail and the legal documents.
+  [Record 0191](../decisions/0191-a-published-page-of-the-cloud-lives-on-the-application-origin.md)
+  states that a published origin is not one of them.
+  `NOTESAPP_REGISTRATION_POLICY` can name the policy, which the server writes
+  into the row at each start and locks
+  ([record 0206](../decisions/0206-the-environment-can-name-the-registration-policy.md)).
 
 The identity user and the account live in two stores. The path makes the
 identity user, calls the function, and deletes the identity user when the
@@ -38,7 +43,7 @@ the person in after the account exists.
 ## Sign-in and sessions
 
 Better Auth owns password hashing, sessions, reset tokens, and cookie security.
-NotesApp mounts only the routes it needs; `better-auth.ts` states the exact
+tidy notebook mounts only the routes it needs; `better-auth.ts` states the exact
 list, and the sign-up route is not one of them.
 
 A session create hook asks `notesapp_session_account` before every new
@@ -80,6 +85,26 @@ The byte limit belongs to the account and counts every workspace that it owns
 ([record 0112](../decisions/0112-the-owner-account-holds-the-storage-quota.md)).
 The configuration names the limit of a new account and the lifetime of an
 invitation. See [Database](database.md) for the lock order.
+
+## Controls and the operator API
+
+An account carries limits, a standing and feature switches, with a revision
+that guards each write
+([record 0189](../decisions/0189-an-account-carries-limits-a-standing-and-feature-switches.md)).
+A locked account keeps a fixed list of operations
+([record 0201](../decisions/0201-a-locked-account-keeps-a-fixed-list-of-operations.md)).
+A service of the operator reaches the controls through `/api/operator/` with
+one bearer token, and a person hands the portal of that service a single-use
+token ([record 0190](../decisions/0190-an-operator-api-reaches-the-account-controls.md)).
+`packages/core/src/identity/controls.ts` and `operator.ts` hold the rules, and
+`apps/server/src/routes/operator.ts` the handlers. The Billing section of
+Settings opens the portal for any standing, and every word that a person
+reads names the portal billing
+([record 0211](../decisions/0211-the-application-names-the-account-portal-billing.md)).
+The portal links back to the route `/portal` with a path,
+which `apps/web/src/lib/portal.ts` decides, and sign-in returns to it through
+`apps/web/src/lib/sign-in-return.ts`, which takes a path of this origin only. [The operator API](operator-api.md)
+states what a service depends on and which change breaks it.
 
 ## Password recovery
 

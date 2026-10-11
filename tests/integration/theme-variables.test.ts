@@ -203,6 +203,24 @@ await test('a field under touch sets its text at 16 px', async () => {
   assert.match(served, /--text-base:1rem/);
 });
 
+await test('the footer of a note gives its row to the text on a phone', async () => {
+  // The rule of `noteFooterClassName` stacks two variants. The served
+  // stylesheet holds it under both queries, so the count goes away while a
+  // person types on a phone and stays on a desktop.
+  const assets = resolve(root, 'apps/web/dist/web/assets');
+  const served = (
+    await Promise.all(
+      (await readdir(assets))
+        .filter((name) => name.endsWith('.css'))
+        .map((name) => readFile(resolve(assets, name), 'utf8')),
+    )
+  ).join('\n');
+  assert.match(
+    served,
+    /@media not all and \(width>=48rem\)\{@media \(pointer:coarse\)\{\.max-md\\:pointer-coarse\\:hidden\{display:none\}/,
+  );
+});
+
 await test('every class of every control recipe reaches the built stylesheet', async () => {
   // Tailwind reads the source text to decide which utilities to emit. The
   // button recipe built its hover and its disabled classes from a prefix and

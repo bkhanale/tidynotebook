@@ -84,8 +84,9 @@ export const emptyInstallationSettings: StoredInstallationSettings = {
 
 /**
  * What the server environment sets, and what the server can use. A group
- * that the environment sets is locked, and a published origin comes from the
- * environment only (record 0118).
+ * that the environment sets is locked. `registrationPolicy` is true when the
+ * environment names the registration policy, which locks it too (record
+ * 0206).
  *
  * `mailUsable` answers whether the server can send with a stored transport.
  * The password of a transport is sealed with a key of the server, so a stored
@@ -93,6 +94,7 @@ export const emptyInstallationSettings: StoredInstallationSettings = {
  * server secret, sends nothing and counts as no transport.
  */
 export type InstallationEnvironment = OpenRegistrationReadiness & {
+  readonly registrationPolicy: boolean;
   readonly mailUsable: (mail: StoredMailSettings) => boolean;
 };
 
@@ -117,7 +119,6 @@ export function settingsReadiness(
     mail:
       environment.mail ||
       (stored.mail !== null && environment.mailUsable(stored.mail)),
-    publishedOrigin: environment.publishedOrigin,
     legalDocuments:
       environment.legalDocuments ||
       (stored.terms !== null && stored.privacy !== null),

@@ -8,9 +8,12 @@
  * 1. Every `.md` file under `docs/` sits in a known directory, so a reader and
  *    an agent can tell the kind of a document from its path alone.
  * 2. The code is the source of truth. A fenced block whose language is not a
- *    shell the reader runs is a copy of code, so it is refused. A document
- *    whose status line says that it is superseded is frozen, so only that one
- *    rule steps back for it.
+ *    shell the reader runs is a copy of code, so it is refused, and so is a
+ *    block with no language. A document whose status line says that it is
+ *    superseded is frozen, so only that one rule steps back for it. An audit
+ *    that `tools/docs-fence-allow.json` names was accepted before the rule
+ *    refused a block with no language, and it is never edited again, so it
+ *    keeps its blocks. That list only shrinks.
  * 3. Each kind carries its required header: the ADR template for a decision, a
  *    date and a commit for an audit, a status line for a plan and a design, and
  *    the "who this is for" sentence for a guide page. A design and a plan also
@@ -82,15 +85,17 @@ export const repositoryRoots = [
 /** How many lines one page of `development/` may hold. */
 export const maximumDevelopmentLines = 150;
 
-/** The fenced block languages that a reader runs, plus plain text. */
-export const allowedFenceLanguages = [
-  '',
-  'sh',
-  'bash',
-  'shell',
-  'console',
-  'text',
-];
+/**
+ * The fenced block languages of a shell command that the reader runs.
+ *
+ * The root rule allows one code block, a shell command. A block with no
+ * language and a text block are not shell commands, and a console block
+ * mixes a command with its output, so each of them is refused.
+ */
+export const allowedFenceLanguages = ['sh', 'bash', 'shell'];
+
+/** The accepted documents of rule 2, from the root of the checked tree. */
+export const fenceAllowFile = 'tools/docs-fence-allow.json';
 
 /** The headings that `docs/decisions/0000-template.md` states. */
 export const decisionHeadings = [
@@ -146,12 +151,12 @@ export function placementFailure(path) {
       ? null
       : 'a document sits at the top of docs/. Only README.md belongs there.';
   const [kind, ...rest] = parts;
-  if (!documentKinds.includes(/** @type {string} */ (kind)))
+  if (!documentKinds.includes(kind ?? ''))
     return `"${kind}" is not a documentation directory. Use one of ${documentKinds.join(', ')}.`;
   if (kind === 'audits') {
     if (rest.length !== 2)
       return 'an audit sits in audits/<date>/, one directory deep.';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(/** @type {string} */ (rest[0])))
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rest[0] ?? ''))
       return `"${rest[0]}" is not an audit date. Name the directory YYYY-MM-DD.`;
     return null;
   }
@@ -172,11 +177,11 @@ export function fenceLanguages(text) {
   let open = null;
   const lines = text.split('\n');
   for (let index = 0; index < lines.length; index += 1) {
-    const line = /** @type {string} */ (lines[index]);
+    const line = lines[index] ?? '';
     const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (!match) continue;
-    const marker = /** @type {string} */ (match[1]);
-    const rest = /** @type {string} */ (match[2]).trim();
+    const marker = match[1] ?? '';
+    const rest = (match[2] ?? '').trim();
     if (open === null) {
       if (marker.startsWith('`') && rest.includes('`')) continue;
       open = marker[0] === '`' ? '`' : '~';
@@ -198,7 +203,7 @@ export function relativeLinks(text) {
   /** @type {string[]} */
   const targets = [];
   for (const match of withoutCode.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-    const target = /** @type {string} */ (match[1]);
+    const target = match[1] ?? '';
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
     if (target.startsWith('#')) continue;
     const path = target.split('#')[0];
@@ -215,7 +220,7 @@ export function relativeLinks(text) {
  */
 export function statusLine(text) {
   const match = /^Status: *(\S.*)$/m.exec(text);
-  return match === null ? null : /** @type {string} */ (match[1]).trim();
+  return match === null ? null : (match[1] ?? '').trim();
 }
 
 /**
@@ -369,7 +374,7 @@ export function decisionIndexFailures(names, index) {
     const text = lines[line] ?? '';
     if (!text.startsWith('|')) break;
     const link = /\]\((\d{4}-[^)]+\.md)\)/.exec(text);
-    if (link !== null) rows.push(/** @type {string} */ (link[1]));
+    if (link !== null) rows.push(link[1] ?? '');
   }
   const listed = new Set(rows);
   for (const name of records)
@@ -455,8 +460,8 @@ export function measuredQuantities(text) {
   for (const [index, line] of text.split('\n').entries()) {
     const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (fence !== null) {
-      const marker = /** @type {string} */ (fence[1]);
-      const rest = /** @type {string} */ (fence[2]).trim();
+      const marker = fence[1] ?? '';
+      const rest = (fence[2] ?? '').trim();
       if (open === null) {
         if (!(marker.startsWith('`') && rest.includes('`')))
           open = marker.slice(0, 1);
@@ -492,17 +497,14 @@ function fieldsOf(value) {
 }
 
 /**
- * The documents that may keep their measured quantities, with the reason.
- *
- * Each one was accepted before rule 9 held and is never edited again, so its
- * quantities are history. The list only shrinks: an entry whose document
- * holds no quantity fails.
+ * The documents that one list of accepted documents names, with the reason.
  *
  * @param {string} directory
+ * @param {string} file
  * @returns {Promise<Map<string, string>>}
  */
-export async function readMeasuredAllowlist(directory) {
-  const text = await readFile(join(directory, measuredAllowFile), 'utf8').catch(
+async function readAllowlist(directory, file) {
+  const text = await readFile(join(directory, file), 'utf8').catch(
     () => '{"allow":[]}',
   );
   /** @type {Map<string, string>} */
@@ -515,6 +517,46 @@ export async function readMeasuredAllowlist(directory) {
       allowed.set(file, reason);
   }
   return allowed;
+}
+
+/**
+ * The documents that may keep their measured quantities, with the reason.
+ *
+ * Each one was accepted before rule 9 held and is never edited again, so its
+ * quantities are history. The list only shrinks: an entry whose document
+ * holds no quantity fails.
+ *
+ * @param {string} directory
+ * @returns {Promise<Map<string, string>>}
+ */
+export function readMeasuredAllowlist(directory) {
+  return readAllowlist(directory, measuredAllowFile);
+}
+
+/**
+ * The documents that may keep a refused fenced block, with the reason.
+ *
+ * Each one is an audit that was accepted before rule 2 refused a block with
+ * no language, and an audit is never edited again. The list only shrinks: an
+ * entry whose document holds no refused block fails.
+ *
+ * @param {string} directory
+ * @returns {Promise<Map<string, string>>}
+ */
+export function readFenceAllowlist(directory) {
+  return readAllowlist(directory, fenceAllowFile);
+}
+
+/**
+ * The words of one refused fenced block.
+ *
+ * @param {string} language
+ * @returns {string}
+ */
+function fenceFailure(language) {
+  const block =
+    language === '' ? 'a block with no language' : `a "${language}" block`;
+  return `${block}. A document points at code and never copies it. The one allowed block is a shell command in ${allowedFenceLanguages.join(', ')}.`;
 }
 
 /**
@@ -532,6 +574,9 @@ export async function main(directory) {
   /** @type {{ path: string; text: string }[]} */
   const linked = [];
   const measuredAllowed = await readMeasuredAllowlist(directory);
+  const fenceAllowed = await readFenceAllowlist(directory);
+  /** @type {Set<string>} */
+  const fenceHistory = new Set();
   /** @type {Set<string>} */
   const measuredHistory = new Set();
   for (const path of documents) {
@@ -542,9 +587,8 @@ export async function main(directory) {
       continue;
     }
     const parts = inside.split('/');
-    const kind =
-      parts.length === 1 ? 'index' : /** @type {string} */ (parts[0]);
-    const name = /** @type {string} */ (parts.at(-1));
+    const kind = parts.length === 1 ? 'index' : (parts[0] ?? '');
+    const name = parts.at(-1) ?? '';
     const text = await readFile(join(directory, path), 'utf8');
     linked.push({ path, text });
     for (const failure of headerFailures(kind, name, text))
@@ -589,12 +633,20 @@ export async function main(directory) {
             `${path}:${String(found.line)}: "${found.quantity}" is a measured result or a configured value. A document never copies one: say what it shows in words, and link the audit or name the code by path.`,
           );
     }
-    for (const fence of fenceLanguages(text))
-      if (!allowedFenceLanguages.includes(fence.language))
-        failures.push(
-          `${path}:${fence.line}: a "${fence.language}" block. A document points at code and never copies it.`,
-        );
+    const refused = fenceLanguages(text).filter(
+      (fence) => !allowedFenceLanguages.includes(fence.language),
+    );
+    if (fenceAllowed.has(path) && kind === 'audits') {
+      if (refused.length > 0) fenceHistory.add(path);
+    } else
+      for (const fence of refused)
+        failures.push(`${path}:${fence.line}: ${fenceFailure(fence.language)}`);
   }
+  for (const file of fenceAllowed.keys())
+    if (!fenceHistory.has(file))
+      failures.push(
+        `${fenceAllowFile}: ${file} holds no refused block now, or it is not an audit. Remove its entry.`,
+      );
   for (const file of measuredAllowed.keys())
     if (!measuredHistory.has(file))
       failures.push(

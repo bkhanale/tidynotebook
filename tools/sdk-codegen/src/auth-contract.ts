@@ -261,21 +261,6 @@ export function authContractSchemas(): Json {
       additionalProperties: false,
       properties: {},
     },
-    AuthProfileUpdate: {
-      type: 'object',
-      description: 'The display name of the signed in account.',
-      additionalProperties: false,
-      required: ['name'],
-      properties: {
-        name: {
-          type: 'string',
-          description: 'Display name of the account.',
-          minLength: 1,
-          maxLength: 256,
-          pattern: '^\\S(?:[\\s\\S]*\\S)?$',
-        },
-      },
-    },
     AuthPasswordResetRequest: {
       type: 'object',
       description: 'The address that asks for a password reset message.',
@@ -346,19 +331,6 @@ export function authContractPaths(): Json {
         }),
         success: json('The session ended.', {
           $ref: '#/components/schemas/AuthSignOutResult',
-        }),
-      }),
-    },
-    '/api/auth/update-user': {
-      post: operation({
-        id: 'updateProfile',
-        summary: 'Change the display name of the signed in account.',
-        description: 'Stores the display name of the account.',
-        requestBody: body('The new display name.', {
-          $ref: '#/components/schemas/AuthProfileUpdate',
-        }),
-        success: json('The account profile was updated.', {
-          $ref: '#/components/schemas/AuthOutcome',
         }),
       }),
     },

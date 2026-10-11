@@ -538,6 +538,16 @@ await test('the completion list is a menu of the design and its rows are rows', 
   );
 });
 
+await test('a list cut by a short room scrolls and keeps every row', () => {
+  // On a phone the keyboard leaves a short room at the caret, so CodeMirror
+  // gives the tooltip a height of its own. The list kept its own height and
+  // the tooltip cut its last rows out of reach.
+  const tooltip = rule('.cm-tooltip.cm-tooltip-autocomplete');
+  assert.equal(tooltip.display, 'flex');
+  assert.equal(tooltip.flexDirection, 'column');
+  assert.equal(rule('.cm-tooltip.cm-tooltip-autocomplete > ul').minHeight, '0');
+});
+
 await test('the rules of the panels keep the rules of the surface', () => {
   // The panel rules join the one style object, so a selector of both would
   // drop the rule of the surface. The frame of the editor keeps its fill and

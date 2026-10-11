@@ -217,6 +217,39 @@ and needs no record.
 | [0183](0183-a-save-never-builds-on-a-parked-save.md)                                  | A save never builds on a parked save                                            |
 | [0184](0184-a-free-name-avoids-every-path-the-server-may-hold.md)                     | A free name avoids every path the server may hold                               |
 | [0185](0185-a-step-of-the-grammar-that-grows-faster-than-the-note-is-patched.md)      | A step of the grammar that grows faster than the note is patched                |
+| [0186](0186-the-open-core-holds-no-billing-and-a-private-service-sells-the-cloud.md)  | The open core holds no billing, and a private service sells the cloud           |
+| [0187](0187-the-product-is-tidy-notebook-on-tidynotebook-com.md)                      | The product is Tidy Notebook on tidynotebook.com                                |
+| [0188](0188-the-repository-opens-under-agpl-3-0-only.md)                              | The repository opens under AGPL-3.0-only                                        |
+| [0189](0189-an-account-carries-limits-a-standing-and-feature-switches.md)             | An account carries limits, a standing and feature switches                      |
+| [0190](0190-an-operator-api-reaches-the-account-controls.md)                          | An operator API reaches the account controls                                    |
+| [0191](0191-a-published-page-of-the-cloud-lives-on-the-application-origin.md)         | A published page of the cloud lives on the application origin                   |
+| [0192](0192-uploads-and-attachments-can-live-in-an-s3-compatible-store.md)            | Uploads and attachments can live in an S3 compatible store                      |
+| [0193](0193-transfer-and-object-operations-have-a-limit.md)                           | Transfer and object operations have a limit                                     |
+| [0194](0194-paddle-is-the-merchant-of-record.md)                                      | Paddle is the merchant of record                                                |
+| [0195](0195-two-plans-standard-for-one-person-and-pro-for-a-team.md)                  | Two plans: Standard for one person and Pro for a team                           |
+| [0196](0196-the-billing-service-mirrors-paddle-into-the-account-controls.md)          | The billing service mirrors Paddle into the account controls                    |
+| [0197](0197-the-billing-pages-and-the-checkout-live-on-the-billing-service.md)        | The billing pages and the checkout live on the billing service                  |
+| [0198](0198-the-landing-site-is-a-static-site-of-the-private-repository.md)           | The landing site is a static site of the private repository                     |
+| [0199](0199-the-cloud-runs-on-railway-behind-cloudflare.md)                           | The cloud runs on Railway behind Cloudflare                                     |
+| [0200](0200-every-cost-of-the-cloud-has-a-limit.md)                                   | Every cost of the cloud has a limit                                             |
+| [0201](0201-a-locked-account-keeps-a-fixed-list-of-operations.md)                     | A locked account keeps a fixed list of operations                               |
+| [0202](0202-the-image-takes-a-migrate-and-a-serve-command.md)                         | The image takes a migrate and a serve command                                   |
+| [0203](0203-the-product-name-is-written-in-lowercase.md)                              | The product name is written in lowercase                                        |
+| [0204](0204-the-release-gate-builds-the-image-before-the-tag.md)                      | The release gate builds the image before the tag                                |
+| [0205](0205-the-cloud-infrastructure-is-code.md)                                      | The cloud infrastructure is code                                                |
+| [0206](0206-the-environment-can-name-the-registration-policy.md)                      | The environment can name the registration policy                                |
+| [0207](0207-every-secret-of-the-image-has-an-environment-form.md)                     | Every secret of the image has an environment form                               |
+| [0208](0208-personal-keys-resolve-to-the-shared-actor.md)                             | Personal keys resolve to the shared actor                                       |
+| [0209](0209-generated-api-reference.md)                                               | The API reference comes from the client contract                                |
+| [0210](0210-railway-pro-keeps-private-images-within-the-compute-budget.md)            | Railway Pro keeps private images within the compute budget                      |
+| [0211](0211-the-application-names-the-account-portal-billing.md)                      | The application names the account portal Billing                                |
+| [0212](0212-agent-lifecycle-proof.md)                                                 | Agent lifecycle uses exact input proof                                          |
+| [0213](0213-build-and-publish-one-release-image.md)                                   | Build and publish one release image                                             |
+| [0214](0214-read-the-completed-automatic-review.md)                                   | Read the completed automatic review                                             |
+| [0215](0215-release-publishes-prepared-artifacts.md)                                  | Release publishes prepared artifacts                                            |
+| [0216](0216-release-publication-has-one-remote-writer.md)                             | Release publication has one remote writer                                       |
+| [0217](0217-the-landing-home-page-may-use-a-wide-column.md)                           | The home page of the landing site may use a wide column                         |
+| [0218](0218-review-is-optional-for-landing.md)                                        | Review is optional for landing                                                  |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -781,3 +814,50 @@ list, the typed brackets, a paste or an import, and answers
 fence language of the one list is a CodeMirror language, so both surfaces
 share its parser and the editor its editing, and a code block carries its
 language and a copy action in the note and on a published page.
+
+Records 0186 to 0202 follow
+[design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md), which makes
+the product a free open core and a paid cloud. Record 0186 keeps every line of
+billing out of this repository: a private service sells the cloud and reaches
+the core over HTTP only. Record 0187 names the product Tidy Notebook on one
+domain. Record 0188 opens the repository under AGPL-3.0-only. Record 0189 gives
+an account a text limit, a published transfer limit, a download limit, a
+standing and feature switches beside the storage limit of record 0112, with a
+revision on each write, and record 0201 states what a locked account keeps.
+Record 0190 opens the controls to a service through an operator API. Record
+0191 lets the `open` policy run with no published origin. Record 0192 puts
+staged uploads, imports in parts and attachments in an S3 compatible store,
+and record 0193 bounds the transfer and the object operations of an account
+and of the installation. Record 0202 gives the image a migrate and a serve
+command. Records 0194 to 0200 state the cloud: Paddle as the merchant of
+record, two plans with seats, the billing service that mirrors Paddle into the
+account controls, its pages and checkout, the landing site, Railway behind
+Cloudflare, and a limit on every cost. Record 0203 writes the name in lowercase, tidy
+notebook, and gives the install icon its tn monogram.
+
+Record 0204 builds the image in the release gate before the tag, from the
+committed tree, because the tags of 0.13.0 and 0.14.0 have no image.
+
+Record 0205 declares the infrastructure of the cloud as code in the private
+repository. It replaces only the bullet of record 0199 that lists the
+dashboard settings, and the line of design 024 that keeps infrastructure as
+code out.
+
+Record 0206 lets the environment name the registration policy, as record 0148
+lets it set the mail and the legal documents, so an installation set up as
+code needs no step in a browser.
+
+Record 0207 gives each secret of the image a variable form beside its file,
+never both, so the image runs on a platform that mounts no file. It refines
+records 0190, 0192 and 0202.
+
+Record 0210 replaces Railway Hobby with Pro from the first deploy. It keeps
+the image publication policy and the compute limits of records 0199 and 0200.
+
+Record 0211 gives the account portal a Billing section in Settings and
+names it billing in every word that a person reads. It refines records
+0186, 0190 and 0201.
+
+Record 0217 lets the home page of the landing site use a wide column, a
+hero headline at `text-3xl`, 20 px feature icons and a raised screenshot. Every
+other page keeps the note column. It refines records 0137 and 0198.

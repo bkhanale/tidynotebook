@@ -37,6 +37,7 @@ import {
   UpdateFailedError,
   type TabLock,
 } from '../pwa/update.ts';
+import { productName } from '@notesapp/core';
 
 /** Watches the worker registration for a version that waits to activate. */
 export function useWaitingUpdate(): boolean {
@@ -203,7 +204,7 @@ export function UpdateNotice({
     return (
       <Notice
         tone="info"
-        message="Notesapp updates in another tab. This tab reloads when the update is done."
+        message={`${productName} updates in another tab. This tab reloads when the update is done.`}
       >
         <Button variant="secondary" size="sm" onClick={reload}>
           Reload
@@ -228,8 +229,8 @@ export function UpdateNotice({
       message={
         problem ??
         (required
-          ? 'A new version of Notesapp is needed to save to the server.'
-          : 'A new version of Notesapp is ready.')
+          ? `A new version of ${productName} is needed to save to the server.`
+          : `A new version of ${productName} is ready.`)
       }
     >
       <Button variant="primary" size="sm" disabled={busy} onClick={install}>

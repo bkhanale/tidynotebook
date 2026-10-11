@@ -1,13 +1,22 @@
 description: >-
   The service cannot do this work now: it runs as many jobs of this kind as
-  it can, or a failure of the service stopped the work. The code names the
-  cause.
+  it can, a failure of the service stopped the work, or the object store of
+  the installation took the most writes that one calendar month in UTC
+  allows (record 0193). The code names the cause, for example
+  storage_busy. Nothing changed.
 headers:
   retry-after:
     description: The seconds after which the caller may try again.
     schema:
       type: string
       maxLength: 16
+  notesapp-limit:
+    description: >-
+      The limit of the month that refused the request, on the codes
+      download_limit and storage_busy only, so the answer of a HEAD request
+      names it too (record 0193).
+    schema:
+      $ref: '../schemas/UsageLimit.yaml'
 content:
   application/problem+json:
     schema:

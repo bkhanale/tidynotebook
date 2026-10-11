@@ -19,16 +19,19 @@ const message: MailMessage = {
 };
 
 await test('every message states that a program wrote it', () => {
-  assert.deepEqual(envelopeOf('NotesApp <no-reply@example.com>', message), {
-    from: 'NotesApp <no-reply@example.com>',
-    to: 'a@example.com',
-    subject: 'Subject',
-    text: 'Text\n',
-    headers: {
-      'Auto-Submitted': 'auto-generated',
-      'X-Auto-Response-Suppress': 'All',
+  assert.deepEqual(
+    envelopeOf('tidy notebook <no-reply@example.com>', message),
+    {
+      from: 'tidy notebook <no-reply@example.com>',
+      to: 'a@example.com',
+      subject: 'Subject',
+      text: 'Text\n',
+      headers: {
+        'Auto-Submitted': 'auto-generated',
+        'X-Auto-Response-Suppress': 'All',
+      },
     },
-  });
+  );
 });
 
 await test('a budgeted transport sends while the address has budget', async () => {

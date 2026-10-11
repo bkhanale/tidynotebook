@@ -1,6 +1,6 @@
 # Joining an installation
 
-This page is for a person who joins a NotesApp installation, with an invitation
+This page is for a person who joins a tidy notebook installation, with an invitation
 or with a sign-up.
 
 ## Accept the invitation
@@ -13,12 +13,14 @@ An administrator of the installation sends you a link, by mail or in a message.
    empty.
 3. Enter a password of at least 15 characters, and type it again. A password
    that a list of leaked passwords holds is refused.
-4. When the installation names its terms and its privacy notice, the page links
-   both. Read them, and select **I accept the terms and the privacy notice**.
+4. When the installation names its terms and its privacy notice, the page asks
+   you to accept them. The words **terms** and **privacy notice** in that line
+   are links. Read them, and select **I accept the terms and the privacy
+   notice**.
 5. Select **Make account**.
 
 Your account opens at once, with its own workspace and one note, **Welcome to
-NotesApp**. Every later visit shows **Sign in**. Use the same address and
+tidy notebook**. Every later visit shows **Sign in**. Use the same address and
 password. See [Getting started](getting-started.md) for the first steps.
 
 If the page says that the invitation is not valid, the link expired, somebody
@@ -31,8 +33,9 @@ Some installations let anybody make an account. The sign-in screen then shows
 
 1. Select **Create an account**.
 2. Enter your email address and a password of at least 15 characters.
-3. Read the terms and the privacy notice, and select **I accept the terms and
-   the privacy notice**.
+3. Open the **terms** and the **privacy notice** links in the line of the
+   check box, and read them. Then select **I accept the terms and the privacy
+   notice**.
 4. Select **Create account**. The browser does a short check, and a message
    goes to your address.
 5. Open the link in the message within the time that it states. The page says
@@ -69,7 +72,7 @@ links the terms and the privacy notice of the installation.
 
 ## Leave the installation
 
-To remove your account, open **Settings** and select **Remove my account**.
+To delete your account, open **Settings** and select **Delete my account**.
 Enter your password to confirm. Your account and every note in your workspaces
 go for good. Export your notes first if you want to keep them. See
 [Export](export.md).

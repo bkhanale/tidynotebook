@@ -5,6 +5,205 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.18.1 - 2026-10-09
+
+This release updates tidy notebook.
+
+### Fixed
+
+- Publish the tested image once and remove the required GitHub build certificate.
+- Accept the completed automatic review without a second request.
+
+## 0.18.0 - 2026-10-09
+
+This release updates tidy notebook.
+
+### Added
+
+- Add exact source proof for agent review, landing, and release. Publish a release manifest and the operator contract.
+
+## 0.17.0 - 2026-10-09
+
+This release shows account use against each limit in Settings. It also makes
+Billing and account deletion easier to find.
+
+### Added
+
+- Settings shows a meter for storage and each monthly transfer limit. Almost
+  full marks use at or above 90% of the limit.
+
+### Changed
+
+- Settings gives Billing its own section when the installation offers it.
+  Open billing opens that section.
+- Settings names account removal Delete my account. Sign out sits below the
+  account card.
+
+### Fixed
+
+- The consent line links to the terms and the privacy notice.
+- The terms and the privacy notice use Delete my account for account removal.
+
+## 0.16.2 - 2026-10-08
+
+This patch release makes the account role visible to a service of the
+operator.
+
+### Changed
+
+- The deployment plan uses Railway Pro within the compute budget.
+
+### Fixed
+
+- The operator account interface includes the installation role. A service
+  can check which account controls apply.
+
+## 0.16.1 - 2026-10-08
+
+This patch release adds a generated API reference to the documentation site.
+It shows the authentication rules for personal API keys and browser sessions.
+
+### Added
+
+- The API reference shows each operation, request, response, and schema from
+  the OpenAPI contract. You can download the same contract.
+- Search and page links include the API reference.
+
+### Changed
+
+- The API key guide links to the generated reference for API details.
+- The reference explains how to set the address of your own installation.
+
+### Fixed
+
+- Long section lists scroll so you can reach every operation and schema.
+- The contents menu shows the current page on a small screen.
+
+## 0.16.0 - 2026-10-07
+
+This minor release lets you use a personal API key to read and change your
+notes from a program.
+
+### Added
+
+- Settings lets you create, name, and revoke API keys.
+- An API key gives a program the same account access as the web application.
+- The API guide explains how to use a key and save a note.
+
+### Security
+
+- Each key has an expiry date. The application shows its secret only once.
+- A password change, account disable, or account removal revokes all API keys.
+- A password reset waits for a key creation in progress and revokes that key.
+
+## 0.15.1 - 2026-10-06
+
+This patch release keeps notes in sync after a connection failure and on a
+slow connection. The format row on a phone gives more space to its tools.
+
+### Fixed
+
+- A queued save tries again after a connection failure. The offline notice
+  clears when the connection works again.
+- A save on a slow connection has time to reach the server.
+- A large note keeps downloading while data arrives on a slow connection.
+  An interrupted download tries again.
+- The format row on a phone has no scroll arrows. Swipe the row to reach its
+  tools.
+
+## 0.15.0 - 2026-10-05
+
+This minor release gives the operator of an installation controls for each
+account, an interface for a separate account service, monthly limits on
+transfer, and storage in an S3 compatible store. The source is now licensed
+under AGPL-3.0-only.
+
+### Added
+
+- **Account controls.** An administrator can lock an account, set its storage,
+  text, published transfer and download limits, and turn teams and
+  collaboration on or off for it.
+- A locked account signs in to one screen. It can export its notes, remove the
+  account, and open the account portal when the installation names one.
+- A locked account is removed after its removal time. The account receives a
+  mail 30 days and 7 days before the removal.
+- **An operator interface.** A separate service of the operator can find an
+  account, read and change its controls, remove it, read the account events,
+  and read the totals of a month. The interface uses one secret and is off
+  when no secret is set.
+- Settings opens the account portal for any account when the installation
+  names one. A portal can link a person back to a page of the portal through
+  the application, and sign-in returns the person there.
+- **Monthly limits.** An installation can limit the published transfer, the
+  downloads, and the calls to the object store in each calendar month. Past a
+  limit, a published page closes and a download waits for the next month.
+- **S3 compatible storage.** Uploads, images and imports can live in R2, MinIO
+  or Amazon S3. An import goes up in parts, so a large archive passes a proxy
+  that limits the size of a request.
+- The image takes the commands `migrate` and `serve`, so a replica that serves
+  holds no migration secret.
+- The environment can name the registration policy. The setting is then
+  locked on the accounts page.
+- Each secret of the image can come from an environment variable or from a
+  file.
+
+### Changed
+
+- The source is licensed under AGPL-3.0-only. A contribution needs a sign-off
+  on each commit.
+- The open sign-up no longer needs a separate origin for published pages.
+- The health probes answer on any host name, so a platform can check a
+  replica by its own name.
+
+### Fixed
+
+- A start that fails on a wrong setting now names the setting.
+- The container image no longer copies the dependency folders of a local
+  checkout.
+
+## 0.14.1 - 2026-10-04
+
+This patch release gives the container image that 0.14.0 did not build.
+
+### Fixed
+
+- The container image builds again. The tag 0.14.0 has no image, and this
+  release holds every change of 0.14.0.
+
+## 0.14.0 - 2026-10-04
+
+This minor release gives the product its new name, tidy notebook, and a new
+install icon. The source and the container image move to the tidynotebook
+organization on GitHub.
+
+### Changed
+
+- **A new name.** The product is tidy notebook. The title of the browser tab,
+  the installed application, the mail and the published page show it.
+- The welcome note of a new account is "Welcome to tidy notebook". An existing
+  note keeps its name.
+- The install icon is a ring bound page with a tn monogram. The small mark in
+  the application shows the same page.
+- The container image moves to `ghcr.io/tidynotebook/tidynotebook`.
+- The settings of the server keep their names. An installation needs no other
+  change.
+
+## 0.13.2 - 2026-10-04
+
+This patch release keeps the tools, the menus and the caret in view when you
+write a note on a phone.
+
+### Fixed
+
+- On a phone, the row of formatting tools stands above the note again. You can
+  reach it when the keyboard is closed.
+- The slash menu and the other menus open above the keyboard of a phone. A long
+  menu scrolls and keeps every item.
+- When the keyboard of a phone opens, the caret stays in view. The word count
+  gives its row to the text while you type.
+- A notice at the top of the screen no longer pushes the foot of the note out
+  of view.
+
 ## 0.13.1 - 2026-10-03
 
 This patch release gives the container image that 0.13.0 did not build.

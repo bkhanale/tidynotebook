@@ -20,6 +20,7 @@ import {
   isLeaseExpired,
   type LocalStore,
 } from '@notesapp/sync';
+import { productName } from '@notesapp/core';
 
 /** The channel that carries the messages of an update between tabs. */
 export const updateChannelName = 'notesapp-update';
@@ -100,7 +101,7 @@ export function updateFailureMessage(reason: UpdateFailure): string {
   if (reason === 'not-ready')
     return 'The new version is not ready yet. Your work stays on this device. Try again later.';
   if (reason === 'other-tab-open')
-    return 'Another tab of Notesapp did not close. Close the other tabs, then try again.';
+    return `Another tab of ${productName} did not close. Close the other tabs, then try again.`;
   return 'The new version could not start. Your work is stored on this device. Reload this tab.';
 }
 

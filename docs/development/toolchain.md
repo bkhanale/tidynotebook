@@ -62,6 +62,7 @@ An error class avoids a TypeScript parameter property for the same reason.
 | `tools/check-versions.mjs`     | The installed runtime matches the pins in the manifests.           |
 | `oxlint`                       | The source rules that need no type information, with no warning.   |
 | `tools/check-boundaries.mjs`   | The package graph, the browser rule, and the transport rule.       |
+| `tools/check-casts.mjs`        | No JavaScript file asserts a type with a JSDoc cast (record 0019). |
 | `tools/check-agents-md.mjs`    | The root guide matches `rules/`, and each directory has its guide. |
 | `tools/check-docs.mjs`         | The documentation rules of `docs/README.md`.                       |
 | `tools/check-design-rules.mjs` | The styling and user-facing text rules of the interface code.      |

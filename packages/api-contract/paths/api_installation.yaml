@@ -15,6 +15,8 @@ get:
       $ref: '../components/responses/Unauthorized.yaml'
     '403':
       $ref: '../components/responses/Forbidden.yaml'
+    '423':
+      $ref: '../components/responses/AccountLocked.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
 put:
@@ -22,8 +24,9 @@ put:
   summary: Change the registration policy of the installation.
   description: >-
     Only an administrator changes the settings. The server refuses open
-    registration until the installation has a mail transport, an origin for
-    published pages, and its legal documents.
+    registration until the installation has a mail transport and its legal
+    documents, and it refuses any change while the server environment names
+    the policy.
   tags:
     - administration
   parameters:
@@ -41,9 +44,13 @@ put:
       $ref: '../components/responses/Forbidden.yaml'
     '413':
       $ref: '../components/responses/PayloadTooLarge.yaml'
+    '409':
+      $ref: '../components/responses/SettingConflict.yaml'
     '415':
       $ref: '../components/responses/UnsupportedMediaType.yaml'
     '422':
       $ref: '../components/responses/OpenRegistrationUnavailable.yaml'
+    '423':
+      $ref: '../components/responses/AccountLocked.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'

@@ -10,21 +10,21 @@ authentication routes on one origin, and it holds no domain rule.
 
 - `src/plugins/` holds one cross-cutting Fastify concern per file and no business
   resource: `register.ts`, `problem.ts`, `security-headers.ts`, `static-assets.ts`,
-  `host.ts`, `content-disposition.ts`, `body-idle-timeout.ts`, `attempt-store.ts`,
-  `compression.ts` of a large JSON read (0169), and `published-origin.ts`, which
-  keeps the published origin to the reader path and its files (0158) and sends
-  a reader address to it (0118).
+  `host.ts` with `answersAnyHost`, the one Host allowlist skip (0199),
+  `content-disposition.ts`, `body-idle-timeout.ts`, `attempt-store.ts`, `compression.ts`
+  of a large JSON read (0169), and `published-origin.ts`, which keeps the published
+  origin to the reader path and its files (0158) and sends a reader address to it (0118).
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns one
   handler per operation id and the body lives in its area file. `published.ts` is the
   reader path of a published link and its report (0119), `published-document.ts`
   writes its one document (0031, 0047, 0146), and `publications.ts` holds the owner
-  operations. `import-layout.ts` places the files of an import (0172).
-  `sync-notices.ts` serves the notice stream and checks its origin (0128,
-  0129). `legal.ts` serves the terms and the privacy notice of the operator,
-  and `legal-document.ts` writes their page like the published page (0140).
-- `src/notices/` holds the notice gateway and its bounds (0129). Only
-  `src/plugins/websocket.ts` imports a WebSocket library; the gateway reads its
-  `StreamSocket`.
+  operations. `import-layout.ts` places the files of an import (0172), `scratch.ts` the
+  files of one request (0192), and `sync-notices.ts` serves the notice stream and checks
+  its origin (0128, 0129). `legal.ts` serves the terms and the privacy notice of the operator,
+  and `legal-document.ts` writes their page like the published page (0140). `operator.ts` serves the
+  operator API, which `host.ts` lets any host reach, and `account-controls.ts` the controls (0189, 0190).
+- `src/notices/` holds the notice gateway and its bounds (0129). Only `src/plugins/websocket.ts`
+  imports a WebSocket library; the gateway reads its `StreamSocket`. `src/usage/` puts the limits of a month (0193) on the boundary: the gate before a handler, the count of the last `onSend` hook, and the writes of the sums.
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start and the stop, and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a
   published link, the seal of a reported address and of the mail password
@@ -34,7 +34,7 @@ authentication routes on one origin, and it holds no domain rule.
   of open registration, `verification.ts` the token of its link (0114), and
   `proof-of-work.ts` the challenges of a sign-up (0115). `src/jobs/` holds background work, `src/cli/` the operator
   commands. `routes/administration.ts` serves the installation operations (0109).
-- `src/installation-settings.ts` decides the mail and the legal documents (0148).
+- `src/installation-settings.ts` decides the mail, the legal documents and the policy lock (0148, 0206).
 - A domain rule lives in `packages/core`, every SQL statement in
   `packages/storage-server`, and every request shape in `packages/api-contract/`.
 
@@ -90,9 +90,9 @@ request that no generated operation can express uses `app.inject()`.
 | `src/routes/health.ts`                 | Liveness, readiness, and the probes            |
 | `src/routes/published.ts`              | The reader path and document of a link         |
 | `src/routes/published-render-cache.ts` | The bounded cache of published bodies          |
-| `src/auth/actor.ts`                    | Turns a session into a verified actor          |
+| `src/auth/actor.ts`                    | Turns a session or key into a verified actor   |
 | `src/lifecycle.ts`                     | The order of the start and of the stop         |
-| `src/config.ts`                        | Environment reading and refusal messages       |
+| `src/config.ts`                        | Settings, secrets (0207) and refusal messages  |
 | `src/served-origins.ts`                | The one list of origins this deployment serves |
 | `src/trusted-proxies.ts`               | The one list of proxies this deployment trusts |
 | `src/logging.ts`                       | Pino sink for the shared event catalog         |

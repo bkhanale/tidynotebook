@@ -67,6 +67,8 @@ import {
   isImportedFamilyId,
 } from './lib/imported-themes.ts';
 import { createFocusPass } from './lib/focus-pass.ts';
+import { createAccountRecheck, isLocked } from './lib/locked.ts';
+import { openMonth } from './lib/monthly-limits.ts';
 import { displayNoteName } from './lib/note-name.ts';
 import {
   chooseWorkspace,
@@ -77,11 +79,13 @@ import {
 } from './lib/workspace-choice.ts';
 import {
   problemCode,
+  problemLimit,
   problemSentence,
   problemStatus,
 } from './lib/problem-text.ts';
 import {
   noticeReadsQueue,
+  noticeRechecksAccount,
   startingSyncState,
   syncQueueOf,
   syncStateOfNotice,
@@ -112,7 +116,7 @@ export function problemMessage(error: unknown): string {
   const knownStatus = problemStatus(error);
   if (knownCode !== null)
     webLogger.emit('web.problem', { problemCode: knownCode });
-  return problemSentence(knownCode, knownStatus);
+  return problemSentence(knownCode, knownStatus, problemLimit(error));
 }
 
 /** Where the session stands. */
@@ -124,6 +128,12 @@ export type SessionValue = {
   readonly account: Account | null;
   readonly error: string | null;
   readonly refresh: () => void;
+  /**
+   * Reads the account again with no loading screen, so a lock or an unlock
+   * changes the screen in place, and a gone session goes to sign-in (record
+   * 0201).
+   */
+  readonly recheck: () => void;
   readonly signOut: () => void;
   /**
    * Takes the settings that the account answered after a write, so every
@@ -139,6 +149,7 @@ const SessionContext = createContext<SessionValue>({
   account: null,
   error: null,
   refresh: () => {},
+  recheck: () => {},
   signOut: () => {},
   adoptPreferences: () => {},
   adoptProfileName: () => {},
@@ -159,6 +170,31 @@ function readProperty(value: unknown, key: string): unknown {
     Object.entries(value),
   );
   return record[key];
+}
+
+/**
+ * The controls of a cached account, read again from browser storage.
+ *
+ * Only the standing and the removal time change what this device shows, so
+ * the other members take the values of an installation that sets nothing.
+ */
+function cachedControls(value: unknown, limit: unknown): Account['controls'] {
+  const removalAt = readProperty(value, 'removalAt');
+  const revision = readProperty(value, 'revision');
+  return {
+    revision:
+      typeof revision === 'number' && Number.isSafeInteger(revision)
+        ? revision
+        : 1,
+    standing:
+      readProperty(value, 'standing') === 'locked' ? 'locked' : 'active',
+    removalAt: typeof removalAt === 'string' ? removalAt : null,
+    limitBytes: typeof limit === 'number' ? limit : 0,
+    textLimitBytes: null,
+    publishedTransferLimitBytes: null,
+    downloadLimitBytes: null,
+    features: { teams: true, collaboration: true },
+  };
 }
 
 /** Reads only a previously validated account shape from browser storage. */
@@ -218,6 +254,14 @@ function readCachedAccount(): Account | null {
       // An account cached by an earlier release holds no consent state. The
       // next read of the account answers it (record 0120).
       consentRequired: row['consentRequired'] === true,
+      // An account cached by an earlier release holds no controls. It reads
+      // as active with no new limit until the server answers (record 0189),
+      // and a cached locked account stays locked.
+      controls: cachedControls(row['controls'], limit),
+      // A closure of the month that this device kept can be over, so a
+      // cached account states none until the server answers (record 0193).
+      month: openMonth(new Date()),
+      accountPortal: row['accountPortal'] === true,
     };
   } catch {
     return null;
@@ -364,13 +408,20 @@ function useSessionLoader(generation: number): {
   readonly error: string | null;
   readonly adoptPreferences: (preferences: Preferences) => void;
   readonly adoptProfileName: (name: string) => void;
+  readonly recheck: () => void;
+  /** Moves the session epoch on, so a read that runs is dropped. */
+  readonly invalidate: () => void;
 } {
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The session epoch. A load of the session and a sign-out move it on, and a
+  // read of the account again that started in an earlier one is dropped.
+  const epoch = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    epoch.current += 1;
     async function load(): Promise<void> {
       setStatus('loading');
       setError(null);
@@ -425,7 +476,45 @@ function useSessionLoader(generation: number): {
     if (status === 'signed-in' && account !== null) rememberAccount(account);
   }, [status, account]);
 
-  return { status, account, error, adoptPreferences, adoptProfileName };
+  // One read at a time, and one more for the notices that came while it ran
+  // (`lib/locked.ts`). The recheck lives as long as the application.
+  const [recheck] = useState(() =>
+    createAccountRecheck<Account>({
+      read: async () => {
+        const result = await getAccount();
+        return {
+          status: result.response?.status ?? 0,
+          account: result.data,
+        };
+      },
+      epoch: () => epoch.current,
+      adopt: (read) => {
+        rememberAccount(read);
+        setAccount(read);
+        setStatus('signed-in');
+        setError(null);
+      },
+      signOut: () => {
+        rememberAccount(null);
+        setAccount(null);
+        setStatus('signed-out');
+      },
+    }),
+  );
+
+  const invalidate = useCallback((): void => {
+    epoch.current += 1;
+  }, []);
+
+  return {
+    status,
+    account,
+    error,
+    adoptPreferences,
+    adoptProfileName,
+    recheck,
+    invalidate,
+  };
 }
 
 /**
@@ -969,6 +1058,7 @@ export function useWorkspaceSync(
   const [noteName, setNoteName] = useState<string | null>(null);
   const syncSession = useSyncSession();
   const notices = useContext(NoticesContext);
+  const recheckAccount = useContext(SessionContext).recheck;
   const wake = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -994,6 +1084,9 @@ export function useWorkspaceSync(
       // A paused session cannot send for this account. The lease goes to a
       // tab that can, so a tab of another account is not kept waiting.
       if (notice.kind === 'paused') void notices.suspend();
+      // A recovered connection clears the account banner of an offline
+      // start. A locked refusal also reads the account (record 0201).
+      if (noticeRechecksAccount(notice)) recheckAccount();
       const next = syncStateOfNotice(notice);
       if (next !== null) {
         setState(queue === null ? next : syncStateOfQueue(next, queue));
@@ -1107,7 +1200,7 @@ export function useWorkspaceSync(
       engine.stop();
       wake.current = () => {};
     };
-  }, [store, accountId, workspaceId, syncSession, notices]);
+  }, [store, accountId, workspaceId, syncSession, notices, recheckAccount]);
 
   const requestSync = useCallback((): void => {
     wake.current();
@@ -1360,15 +1453,28 @@ export function AppProviders({
 
   // Record 0050. The drain sits here and not in the shell, so a workspace that
   // still holds queued work keeps sending while the person reads another
-  // workspace, and while they are on a screen that has no shell at all.
+  // workspace, and while they are on a screen that has no shell at all. A
+  // locked account runs no engine, and its queue waits until it is active
+  // again (record 0201). Its notices still run, so the stream says when the
+  // account changes and the screen follows with no reload.
+  const syncAccountId =
+    session.account === null || isLocked(session.account)
+      ? null
+      : session.account.accountId;
   const notices = useTabNotices(
     storeValue.store,
     session.account?.accountId ?? null,
     syncSession,
   );
+  const recheckAccount = session.recheck;
+  useEffect(
+    () =>
+      notices === null ? undefined : notices.onAccountChanged(recheckAccount),
+    [notices, recheckAccount],
+  );
   useBackgroundSync(
     storeValue.store,
-    session.account?.accountId ?? null,
+    syncAccountId,
     workspaceState.status === 'ready' ? workspaceState.workspaceId : null,
     syncSession,
     notices,
@@ -1391,14 +1497,17 @@ export function AppProviders({
   }, []);
 
   const signedOutStore = storeValue.store;
+  const invalidateSession = session.invalidate;
   const doSignOut = useCallback(() => {
     async function end(): Promise<void> {
+      // A read of the account that runs now must not bring it back.
+      invalidateSession();
       rememberAccount(null);
       await signOutKeepingWork(signedOutStore);
       refresh();
     }
     void end();
-  }, [refresh, signedOutStore]);
+  }, [refresh, signedOutStore, invalidateSession]);
 
   const sessionValue = useMemo<SessionValue>(
     () => ({
@@ -1406,6 +1515,7 @@ export function AppProviders({
       account: session.account,
       error: session.error,
       refresh,
+      recheck: session.recheck,
       signOut: doSignOut,
       adoptPreferences: session.adoptPreferences,
       adoptProfileName: session.adoptProfileName,

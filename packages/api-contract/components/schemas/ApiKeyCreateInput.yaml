@@ -1,0 +1,19 @@
+type: object
+description: The name and lifetime of a full account key.
+additionalProperties: false
+required: [name]
+properties:
+  name:
+    type: string
+    writeOnly: true
+    description: Name of the program. Use no leading or trailing space.
+    minLength: 1
+    maxLength: 80
+    pattern: '^(?!.*[\p{Cc}\p{Cf}\u2028\u2029])\S(?:[\s\S]*\S)?$'
+  expiresInDays:
+    type: integer
+    writeOnly: true
+    description: Lifetime in whole days. The default is 90 days.
+    minimum: 1
+    maximum: 365
+    default: 90

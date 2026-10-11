@@ -40,6 +40,7 @@ export {
 } from './workspace-store/index.ts';
 export { readOnlyTransactionCode } from './workspace-store/publication-transaction.ts';
 export { markdownLimitCode } from './markdown-limits.ts';
+export { isLockedRefusal } from './workspace-store/errors.ts';
 export {
   openAttachmentStore,
   type AttachmentBytes,
@@ -48,6 +49,38 @@ export {
   type AttachmentStoreHandle,
   type AttachmentStoreOptions,
 } from './attachments.ts';
+export {
+  accountImportPrefix,
+  attachmentKey,
+  BodyLengthError,
+  importKey,
+  legacyStagingKey,
+  probePrefix,
+  isObjectKey,
+  openFileObjectStore,
+  type FileStoreOptions,
+  openObjectStore,
+  openS3ObjectStore,
+  defaultS3Timeouts,
+  s3CallKind,
+  type ObjectCallCounter,
+  type ObjectCallKind,
+  removeStaleObjects,
+  stagingKey,
+  stagingLifetimeMs,
+  stagingPrefix,
+  workspacePrefix,
+  type ObjectStore,
+  type ObjectStoreKind,
+  type ObjectStoreSettings,
+  type PendingUpload,
+  type S3StoreSettings,
+  type S3Timeouts,
+  type StaleObjectsRemoved,
+  type StoredObject,
+  type StoredPart,
+  type UploadCompletion,
+} from './object-store/index.ts';
 export {
   authRole,
   main as runMigrationCommand,
@@ -72,6 +105,7 @@ export {
   assertProfileDatabase,
   databaseName,
   isTestDatabaseName,
+  migrationVariables,
   parseProfile,
   testDatabasePrefix,
   withCredentials,
@@ -83,6 +117,7 @@ export {
   openIdentityStore,
   type IdentityStoreHandle,
   type IdentityStoreOptions,
+  type SessionStanding,
 } from './identity-store.ts';
 export {
   accountAuditEvents,

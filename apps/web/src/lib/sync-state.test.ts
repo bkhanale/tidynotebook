@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
+import {
+  downloadLimitCode,
+  transportFailedCode,
+  type SyncNotice,
+} from '@notesapp/sync';
 import {
   noticeReadsQueue,
+  noticeRechecksAccount,
   noticeStartsOver,
   startingSyncState,
   syncDot,
@@ -39,6 +44,7 @@ const notices: readonly SyncNotice[] = [
   { kind: 'snapshot-restart', reason: 'cursor' },
   { kind: 'snapshot-activated', count: 12 },
   { kind: 'changes-applied', count: 3 },
+  { kind: 'connected' },
   { kind: 'paused', reason: 'session' },
   { kind: 'paused', reason: 'other-account' },
   { kind: 'access-lost' },
@@ -89,9 +95,19 @@ await test('every notice that changes the queue reads the queue', () => {
     'preserved',
     'snapshot-activated',
     'changes-applied',
+    'connected',
     'resumed',
     'protocol',
   ]);
+});
+
+await test('a recovered connection rechecks the account without polling it on every change', () => {
+  assert.equal(noticeRechecksAccount({ kind: 'account-locked' }), true);
+  assert.equal(noticeRechecksAccount({ kind: 'connected' }), true);
+  for (const notice of notices) {
+    if (notice.kind !== 'connected')
+      assert.equal(noticeRechecksAccount(notice), false);
+  }
 });
 
 const states: readonly SyncState[] = [
@@ -99,6 +115,7 @@ const states: readonly SyncState[] = [
   { kind: 'in-step' },
   { kind: 'sending' },
   { kind: 'waiting' },
+  { kind: 'download-limit' },
   { kind: 'attention', parked: 1 },
   { kind: 'attention', parked: 3 },
   { kind: 'delete-refused', path: 'plans/old.md' },
@@ -360,6 +377,21 @@ await test('a lost connection says that there is no connection', () => {
   });
   assert.deepEqual(state, { kind: 'waiting' });
   assert.match(syncStateMessage(state ?? startingSyncState), /No connection/);
+});
+
+await test('a first sync past the download limit names its cause, not the connection', () => {
+  // Record 0193. A new device whose snapshot waits for the next month read
+  // that it had no connection, which was not the cause.
+  const state = syncStateOfNotice({
+    kind: 'cycle-error',
+    code: downloadLimitCode,
+  });
+  assert.deepEqual(state, { kind: 'download-limit' });
+  assert.equal(
+    syncStateMessage(state ?? startingSyncState),
+    'Sync waits for the next month. Saves wait here.',
+  );
+  assert.equal(syncDot(state ?? startingSyncState, true), 'pending');
 });
 
 await test('a refusal still says that saving stopped', () => {

@@ -108,6 +108,8 @@ export type SyncNotice =
   | { readonly kind: 'snapshot-restart'; readonly reason: string }
   | { readonly kind: 'snapshot-activated'; readonly count: number }
   | { readonly kind: 'changes-applied'; readonly count: number }
+  /** A complete pass proves the connection at start or after a retry. */
+  | { readonly kind: 'connected' }
   /**
    * Sync waits for the person of this engine. `session` means the session
    * ended. `other-account` means another account signed in on this browser,
@@ -118,6 +120,11 @@ export type SyncNotice =
       readonly reason: 'session' | 'other-account';
     }
   | { readonly kind: 'access-lost' }
+  /**
+   * The server refused a save because the account is locked (record 0201).
+   * The save waits in the queue, and the screen reads the account again.
+   */
+  | { readonly kind: 'account-locked' }
   /** The session serves this engine again after a pause or a lost access. */
   | { readonly kind: 'resumed' }
   | { readonly kind: 'lease-held' }
@@ -137,6 +144,11 @@ export type SyncContext = {
    */
   readonly owner?: string | undefined;
   readonly signal: AbortSignal;
+  /** The transport reports headers and body chunks, never a timing policy. */
+  readonly watchResponse?: (
+    signal: AbortSignal,
+    received: () => void,
+  ) => () => void;
   readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly random: () => number;
   readonly id: () => string;
@@ -152,6 +164,16 @@ export type SyncContext = {
  * report that it is online while the connection is already dead.
  */
 export const transportFailedCode = 'transport_failed';
+
+/**
+ * The code of a download that waits for the next month (record 0193).
+ *
+ * A sync snapshot past the download limit of the account or the cap of the
+ * installation answers it with 429. The limit holds until the next month in
+ * UTC, so a try again within one run cannot pass it, and the interface
+ * states this cause and not a lost connection.
+ */
+export const downloadLimitCode = 'download_limit';
 
 /** How one push run ended. `deferred` means transport failed; retry later. */
 export type PushOutcome = 'done' | 'deferred' | 'paused' | 'access-lost';
@@ -210,6 +232,15 @@ export const backoffCapMs = 8000;
 export const maxAttempts = 4;
 
 /**
+ * The longest gap without a sync response, in milliseconds.
+ *
+ * Before headers, allow the server's default receive window and its answer.
+ * After headers, each received chunk starts the bound again. A large slow
+ * download can take as long as it needs while data continues to arrive.
+ */
+export const requestIdleTimeoutMs = 120_000;
+
+/**
  * One bounded exponential backoff delay with jitter.
  *
  * `attempt` counts the failures so far, starting at zero. The delay doubles
@@ -223,12 +254,62 @@ export function backoffDelay(attempt: number, random: () => number): number {
 
 /** Whether an HTTP status is worth retrying within one run. */
 export function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+  return (
+    status === 0 ||
+    status === 408 ||
+    status === 429 ||
+    (status >= 500 && status <= 599)
+  );
 }
 
-/** Whether a thrown failure is a caller cancellation. */
-function isCancellation(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError';
+/**
+ * Bounds inactivity and stops the transport when the bound or caller ends.
+ *
+ * The race also ends an adapter that does not settle after an abort. A lost
+ * answer can still mean an accepted save, so the caller retries its frozen
+ * body. Only the run signal cancels the caller, not a request's error name.
+ */
+async function requestWithinBound<T>(
+  ctx: SyncContext,
+  run: (signal: AbortSignal) => Promise<ServiceOutcome<T>>,
+): Promise<ServiceOutcome<T>> {
+  const { signal } = ctx;
+  signal.throwIfAborted();
+  const attempt = new AbortController();
+  const cancel = (): void => {
+    attempt.abort(signal.reason);
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  const timeout = (): void => {
+    attempt.abort(
+      new DOMException('The sync request did not answer.', 'TimeoutError'),
+    );
+  };
+  let active = true;
+  let timer = setTimeout(timeout, requestIdleTimeoutMs);
+  const received = (): void => {
+    if (!active) return;
+    clearTimeout(timer);
+    timer = setTimeout(timeout, requestIdleTimeoutMs);
+  };
+  let unwatch: (() => void) | undefined;
+  let onAbort: () => void = () => {};
+  const ended = new Promise<never>((_resolve, reject) => {
+    onAbort = (): void => {
+      reject(attempt.signal.reason);
+    };
+    attempt.signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    unwatch = ctx.watchResponse?.(attempt.signal, received);
+    return await Promise.race([run(attempt.signal), ended]);
+  } finally {
+    active = false;
+    clearTimeout(timer);
+    unwatch?.();
+    signal.removeEventListener('abort', cancel);
+    attempt.signal.removeEventListener('abort', onAbort);
+  }
 }
 
 /**
@@ -246,9 +327,9 @@ export async function sendWithRetry<T>(
   for (let attempt = 0; ; attempt += 1) {
     let outcome: ServiceOutcome<T>;
     try {
-      outcome = await run(ctx.signal);
+      outcome = await requestWithinBound(ctx, run);
     } catch (error: unknown) {
-      if (ctx.signal.aborted || isCancellation(error)) throw error;
+      if (ctx.signal.aborted) throw error;
       if (attempt + 1 >= maxAttempts) return null;
       const delayMs = backoffDelay(attempt, ctx.random);
       ctx.announce({ kind: 'retry', attempt: attempt + 1, delayMs });
@@ -256,12 +337,21 @@ export async function sendWithRetry<T>(
       continue;
     }
     if (outcome.ok) return outcome;
-    if (!isRetryableStatus(outcome.problem.status)) return outcome;
+    if (
+      !isRetryableStatus(outcome.problem.status) ||
+      outcome.problem.code === downloadLimitCode
+    )
+      return outcome;
     if (attempt + 1 >= maxAttempts) return null;
     const delayMs = backoffDelay(attempt, ctx.random);
     ctx.announce({ kind: 'retry', attempt: attempt + 1, delayMs });
     await ctx.sleep(delayMs, ctx.signal);
   }
+}
+
+/** Whether the server refused a save because the account is locked. */
+function isLockedRefusal(problem: Problem): boolean {
+  return problem.status === 423 || problem.code === 'account_locked';
 }
 
 /** What one failed submission asks the queue to do next. */
@@ -270,8 +360,9 @@ type SubmissionAction = 'preserve' | 'leave' | 'paused' | 'access-lost';
 /**
  * Classifies one failed submission.
  *
- * A quota failure stays queued for a later cycle because space may appear.
- * Anything else the server can never accept is preserved as a conflict so it
+ * A quota failure stays queued for a later cycle because space may appear,
+ * and so does the refusal of a locked account, because the account may
+ * become active again (record 0201). Anything else the server can never accept is preserved as a conflict so it
  * is neither dropped nor retried forever. A refused precondition reaches
  * `preserve` as well, and `submitSingle` recovers it before it parks the
  * entry.
@@ -280,6 +371,7 @@ function submissionAction(problem: Problem): SubmissionAction {
   if (problem.status === 401) return 'paused';
   if (problem.status === 403 || problem.status === 404) return 'access-lost';
   if (problem.status === 413) return 'leave';
+  if (isLockedRefusal(problem)) return 'leave';
   return 'preserve';
 }
 
@@ -754,6 +846,8 @@ async function submitBatch(
   const action = submissionAction(outcome.problem);
   if (action === 'paused') return 'paused';
   if (action === 'access-lost') return 'access-lost';
+  if (isLockedRefusal(outcome.problem))
+    ctx.announce({ kind: 'account-locked' });
   if (action === 'leave') return 'done';
   for (const sent of batch) {
     // Each entry is read again, because the answer to the one before it can
@@ -821,6 +915,8 @@ async function submitSingle(
   const action = submissionAction(outcome.problem);
   if (action === 'paused') return 'paused';
   if (action === 'access-lost') return 'access-lost';
+  if (isLockedRefusal(outcome.problem))
+    ctx.announce({ kind: 'account-locked' });
   if (action === 'leave') return 'done';
   // A purged file is gone on the server for good. Its queued mutation can never
   // apply, and keeping the mutation, or its text as a recovery copy, would put

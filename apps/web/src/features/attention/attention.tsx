@@ -46,6 +46,7 @@ import {
   type ParkedPlace,
 } from './parked-actions.ts';
 import { useNow } from '../../shell/now.ts';
+import { productName } from '@notesapp/core';
 
 /** One row of the list with its four actions. */
 function ParkedSaveRow({
@@ -240,7 +241,7 @@ export function AttentionRoute(): ReactNode {
     <Page>
       <PageHeader
         title={attentionTitle}
-        description="Notesapp keeps text here when it cannot complete a save. Retry the save, or create a new note from its text."
+        description={`${productName} keeps text here when it cannot complete a save. Retry the save, or create a new note from its text.`}
       />
       <div className="space-y-4">
         {error === null ? null : <Notice tone="problem" message={error} />}

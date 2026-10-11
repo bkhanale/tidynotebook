@@ -31,7 +31,7 @@ import { solveChallenge } from '../../lib/proof-of-work.ts';
 import { consentTo } from '../../lib/legal.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { AuthFrame } from './accounts.tsx';
-import { LegalLinks, useLegalDocuments } from './legal-links.tsx';
+import { ConsentLabel, useLegalDocuments } from './legal-links.tsx';
 
 /** The one sentence of a verification link that opens nothing. */
 const invalidLink =
@@ -150,10 +150,9 @@ export function SignUpPage(): ReactNode {
         </div>
         {documents === null ? null : (
           <div className="mb-4">
-            <LegalLinks className="mb-2" documents={documents} />
             <Checkbox
               id="signup-consent"
-              label="I accept the terms and the privacy notice"
+              label={<ConsentLabel documents={documents} />}
               checked={accepted}
               onChange={setAccepted}
             />

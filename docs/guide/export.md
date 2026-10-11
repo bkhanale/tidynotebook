@@ -1,7 +1,7 @@
 # Export
 
 This page is for the person who writes the notes. It explains how to take your
-notes out of NotesApp.
+notes out of tidy notebook.
 
 Nothing is stored that cannot leave as plain Markdown files. Export needs a
 connection, because it reads the versions your server accepted.

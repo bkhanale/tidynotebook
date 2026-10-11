@@ -21,5 +21,9 @@ get:
       $ref: '../components/responses/Forbidden.yaml'
     '404':
       $ref: '../components/responses/NotFound.yaml'
+    '423':
+      $ref: '../components/responses/AccountLocked.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'

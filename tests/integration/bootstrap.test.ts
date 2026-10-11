@@ -75,7 +75,7 @@ await test('operator bootstrap seeds the welcome note', async () => {
       })),
       [
         {
-          path: 'Welcome to Notesapp.md',
+          path: 'Welcome to tidy notebook.md',
           kind: 'note',
           hasVersion: true,
         },

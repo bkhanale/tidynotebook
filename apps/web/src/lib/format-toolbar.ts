@@ -236,10 +236,8 @@ export function toolbarFocusTarget(
   return null;
 }
 
-/** One press of a pointer on a control of the band of tools. */
+/** One press of a pointer on a tool of the row. */
 export type ToolbarPress = {
-  /** A tool of the row, or a control that scrolls the row. */
-  readonly control: 'tool' | 'scroll';
   /** The `pointerType` of the press: `mouse`, `touch` or `pen`. */
   readonly pointerType: string;
   /** Whether the text holds an IME composition. */
@@ -249,17 +247,15 @@ export type ToolbarPress = {
 /**
  * Whether a press keeps the focus in the note text (issue 261).
  *
- * The band prevents the default of a press that keeps the focus, so the
- * control never takes it. A control that scrolls the row only moves the row,
- * so it never takes the focus. On a phone, a tool that took the focus would
- * close the keyboard and open it again, so a tool that a finger or a pen
- * presses keeps the focus in the text, and its action runs at the caret.
+ * The row prevents the default of a press that keeps the focus, so the tool
+ * never takes it. On a phone, a tool that took the focus would close the
+ * keyboard and open it again, so a tool that a finger or a pen presses keeps
+ * the focus in the text, and its action runs at the caret.
  * While the text composes, a tool takes the focus as a mouse tool does,
  * because that ends the composition, and a format action never runs inside
  * one. The action then gives the focus back to the text.
  */
 export function pressKeepsTextFocus(press: ToolbarPress): boolean {
-  if (press.control === 'scroll') return true;
   return press.pointerType !== 'mouse' && !press.composing;
 }
 
@@ -270,23 +266,15 @@ export function pressKeepsTextFocus(press: ToolbarPress): boolean {
  * region a person scrolls, as the footer does above itself
  * (`noteFooterClassName` in `./note-column.ts`). Its inline padding is the
  * one of the footer, so the row and the text start on one line.
+ *
+ * The row stands above the text at every width (record 0094). A row at the
+ * foot of a phone screen stood in the place where a swipe starts the gestures
+ * of the system, so a finger that scrolled the row left the application, and
+ * with the keyboard closed the row was out of reach.
  */
 export function formatToolbarFrameClassName(): string {
-  return `shrink-0 border-b border-edge-line px-2 ${phoneFormatRowClassName}`;
+  return 'shrink-0 border-b border-edge-line px-2';
 }
-
-/**
- * The place of the row on a phone (issue 261): a finger on a narrow screen.
- *
- * The keyboard of a phone covers the foot of the screen, and the text that a
- * person types stands just above it, so the row goes to the foot of the note,
- * last in the column, with the divider above it. The frame of the application
- * takes the height of the visual viewport (`./viewport-fit.ts`), so the foot
- * of the note is the top of the keyboard and the row stands on it. A desktop
- * keeps the row above the text.
- */
-export const phoneFormatRowClassName =
-  'max-md:pointer-coarse:order-last max-md:pointer-coarse:border-b-0 max-md:pointer-coarse:border-t';
 
 /** The classes of the column that holds the row, on the note measure (0055). */
 export function formatToolbarColumnClassName(): string {
@@ -307,55 +295,7 @@ export function formatToolbarClassName(): string {
   return `${controlStripClassName()} gap-1 md:gap-group`;
 }
 
-/**
- * The classes of the band that holds the row and its two scroll controls.
- *
- * A row wider than the screen hides tools at an end, so a control at that
- * end states it and scrolls the row (issue 261). The row takes the room
- * between the two.
- */
-export function formatToolbarBandClassName(): string {
-  return 'flex items-center';
-}
-
-/** The names of the two controls that scroll the row to its hidden tools. */
-export const formatToolbarScrollWords = {
-  start: 'Show the tools before',
-  end: 'Show more tools',
-} as const;
-
-/** The classes of the row inside the band, which takes the room left. */
-export function formatToolbarRowSlotClassName(): string {
-  return 'min-w-0 flex-1';
-}
-
 /** The classes of one group of the row, which never shrinks in the strip. */
 export function formatToolGroupClassName(): string {
   return 'flex shrink-0 items-center md:gap-1';
-}
-
-/** The sides of a row that scrolls sideways that hold more tools. */
-export type StripOverflow = {
-  /** Tools stand before the start of the row. */
-  readonly start: boolean;
-  /** Tools stand after the end of the row. */
-  readonly end: boolean;
-};
-
-/**
- * Which ends of the row of tools hide tools, from what the row measures.
- *
- * A pixel of rounding is not a tool, so the row reads full within one pixel.
- */
-export function stripOverflow(metrics: {
-  readonly scrollLeft: number;
-  readonly scrollWidth: number;
-  readonly clientWidth: number;
-}): StripOverflow {
-  const hidden = metrics.scrollWidth - metrics.clientWidth;
-  if (hidden <= 1) return { start: false, end: false };
-  return {
-    start: metrics.scrollLeft > 1,
-    end: metrics.scrollLeft < hidden - 1,
-  };
 }

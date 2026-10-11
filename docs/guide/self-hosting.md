@@ -8,7 +8,7 @@ For the shortest path from a clone to the setup screen, read
 [Backup and restore](backup-and-restore.md), [Upgrade](upgrade.md), and the
 [Security model](security-model.md).
 
-NotesApp runs as one application service and one PostgreSQL service. The
+tidy notebook runs as one application service and one PostgreSQL service. The
 application container applies the database migrations and then serves the web
 app, the REST API, and the authentication routes on one origin.
 
@@ -130,7 +130,7 @@ Use encrypted host storage before you create the data directories. The
 encryption boundary must include:
 
 1. PostgreSQL data and WAL.
-2. NotesApp attachment data.
+2. tidy notebook attachment data.
 3. Persistent temporary files.
 4. Swap.
 5. Core files and other crash output.
@@ -168,6 +168,45 @@ the image. PostgreSQL sets the owner of its own directory. Name both paths in
 `.env` with `NOTESAPP_DATABASE_DIR` and `NOTESAPP_STORAGE_DIR`. Both are
 required and neither has a default.
 
+## Object storage
+
+By default, the server keeps the images of the notes, an upload that waits for
+its note, and an import that arrives in parts in the storage directory. One
+server needs nothing more.
+
+You can keep them in an S3 compatible store instead, such as Cloudflare R2,
+MinIO or AWS S3. Use a store when more than one server runs the same
+installation, because each server must read what another server wrote. The
+object keys of the images are the paths in the storage directory, so you can
+move an installation between the two by copying the files.
+
+To use a store:
+
+1. Make a bucket, and a key pair that can read, write, list and delete in it.
+   Do not make the bucket public. The server sends each image itself, so it
+   gives no address of the store to a browser.
+2. Write the access key ID to `s3_access_key_id` and the secret access key to
+   `s3_secret_access_key` in the secret directory, with mode `0600` and owner
+   uid 10001.
+3. Set `NOTESAPP_S3_BUCKET` and `NOTESAPP_S3_REGION` in `.env`. For R2 or
+   MinIO, also set `NOTESAPP_S3_ENDPOINT`. R2 takes the region `auto`.
+4. Add `docker/compose.s3.yaml` to `COMPOSE_FILE`.
+
+The server still needs the storage directory, because it checks each upload and
+each import there for the time of one request. The readiness check reports
+`storage` as degraded when the store does not answer, or when it does not
+take a write. To check the write, each server writes and removes one small
+object under `probe/` at most once in ten minutes.
+
+Each day, the server removes an upload that nobody finished and an import that
+nobody completed, when they are older than one day. Also add a lifecycle rule
+to the bucket that aborts an incomplete multipart upload after one day. The
+rule removes an upload that the server can no longer find, for example after
+a stop in the middle of a start. R2, MinIO and AWS each have such a rule. The
+backup script of
+[Backup and restore](backup-and-restore.md) copies the storage directory and
+not a bucket, so back up the bucket with the tools of the store.
+
 ## Protected configuration
 
 Copy `.env.example` to `.env`. The `.env` file contains only nonsecret
@@ -180,14 +219,14 @@ one. One installation serves HTTP or HTTPS, not both, because one cookie policy
 serves all of its origins. An empty list serves `NOTESAPP_ORIGIN` and nothing
 else.
 
-A public installation shows published pages on an origin of their own. Set
+An empty `NOTESAPP_PUBLISHED_ORIGIN` shows published pages on
+`NOTESAPP_ORIGIN`. You can show them on an origin of their own instead. Set
 `NOTESAPP_PUBLISHED_ORIGIN` to that origin, for example
 `https://pages.example.net`, and point that host name at the same server. Use
 a host name that no other origin uses, and the scheme of `NOTESAPP_ORIGIN`. The
 published origin serves published pages and nothing else, and it sets no
-cookie, so a harmful page cannot reach an account. A browser block of one page
-then does not block the application. An empty value shows published pages on
-`NOTESAPP_ORIGIN`.
+cookie. When a browser blocks a harmful page that a person published, the
+block then stays on that origin and does not block the application.
 
 Set `NOTESAPP_SECRETS_DIR` and create the directory it names. This value is
 required and has no default, as `NOTESAPP_DATABASE_DIR` and
@@ -252,6 +291,42 @@ password of the first account, which is the administrator. The setup operation
 is available only until this account exists. Use `pnpm owner:bootstrap` only
 when an unattended installation must create the same first account before a
 browser opens.
+
+## Migrate and serve as two steps
+
+The entry point of the image takes one optional command. With no command, it
+applies the migrations and then serves, as above. A Compose installation needs
+no command, and nothing changes for it.
+
+A platform that runs more than one copy of the application can do the two
+steps apart. Then only the migration step holds the migration secret.
+
+- `migrate` applies the migrations with the migration role, and then the
+  container stops. It reads `migration_database_url`,
+  `runtime_database_password` and `auth_database_password`.
+- `serve` starts the server with the restricted runtime role. It reads no
+  migration setting, so a serving container needs no migration secret.
+
+A platform that mounts no file, such as a platform that gives a service
+variables only, sets each secret in a variable instead. `migrate` then reads
+`NOTESAPP_MIGRATION_DATABASE_URL`, `NOTESAPP_RUNTIME_PASSWORD` and
+`NOTESAPP_AUTH_PASSWORD`. `serve` reads `NOTESAPP_DATABASE_URL`,
+`NOTESAPP_AUTH_DATABASE_URL`, `NOTESAPP_AUTH_SECRET`, and the other secrets
+that you use. Each secret has a variable and a file. Set one of the two, never
+both. [Configuration](configuration.md) names each one.
+
+Run `migrate` once for each new version, and do not run it in each serving
+container. A serving container that starts before the migrations are complete
+does not report ready, so the platform sends it no traffic. It reports ready
+when the migrations are complete, with no restart.
+
+Give the command after the path of the entry point. On a platform, set it as
+the start command of the service, for example `/app/entrypoint.sh serve`. With
+Compose, run the migration step like this:
+
+```sh
+docker compose run --rm app /app/entrypoint.sh migrate
+```
 
 ## Accounts and invitations
 
@@ -337,7 +412,7 @@ change.
      `587`.
    - `NOTESAPP_SMTP_USERNAME`: the user name that signs in.
    - `NOTESAPP_MAIL_FROM`: the sender, for example
-     `NotesApp <no-reply@notes.example.com>`.
+     `tidy notebook <no-reply@notes.example.com>`.
 2. Write the password to the file `smtp_password` in `NOTESAPP_SECRETS_DIR`,
    with mode `0600` and owner uid 10001.
 3. Add `docker/compose.mail.yaml` to `COMPOSE_FILE` in `.env`, as
@@ -376,16 +451,19 @@ a program wrote it, so a vacation responder does not answer it.
 
 ## Open sign-up
 
-An installation lets anybody sign up only when it has a mail server, a
-separate address for published pages, and both legal documents. The accounts
-page names each part that is missing. Do these steps in order.
+An installation lets anybody sign up only when it has a mail server and both
+legal documents. The accounts page names each part that is missing. Do these
+steps in order.
 
 1. **Mail.** Set up the mail server and the three domain records, as
    [Mail](#mail) states.
-2. **Published pages.** Point a second host name at this server, for example
-   `pages.example.net`, and set `NOTESAPP_PUBLISHED_ORIGIN` to it. With the
-   `tls` profile, also set `NOTESAPP_PUBLISHED_DOMAIN` to that host name, so
-   that the proxy gets a certificate for it.
+2. **Published pages.** This step is optional. Without it, published pages
+   show on the address of the application. To show them on a second host
+   name, for example `pages.example.net`, point that name at this server and
+   set `NOTESAPP_PUBLISHED_ORIGIN` to it. With the `tls` profile, also set
+   `NOTESAPP_PUBLISHED_DOMAIN` to that host name, so that the proxy gets a
+   certificate for it. Then a browser block of a harmful page that a stranger
+   publishes does not block the application.
 3. **Legal documents.** Add the terms and the privacy notice on the accounts
    page, as [Accounts and invitations](accounts.md#legal-documents)
    states. Fill each blank of the template with the facts of your service:
@@ -405,7 +483,10 @@ page names each part that is missing. Do these steps in order.
 5. **Backups.** Check that the backup runs, and that a restore works. See
    [Backup and restore](backup-and-restore.md).
 6. **Turn it on.** Sign in as an administrator, open **Settings**, select
-   **Manage accounts**, and select **Let anybody sign up**.
+   **Manage accounts**, and select **Let anybody sign up**. An installation
+   that is set up from its environment sets `NOTESAPP_REGISTRATION_POLICY` to
+   `open` instead. It then needs the mail server and both documents in the
+   environment too.
 
 Then sign up yourself with a new address from a private window, open the link,
 and sign in. Select **Forgot password** once, and check that the reset works.
@@ -418,10 +499,13 @@ The application uses `/api/health` and `/api/ready`. The two addresses of
 each answer are one operation of the contract, so they always report the same
 result.
 
-The deployment answers the host name of each origin it serves, so the container
-health check sends the host name of the origin. A request that names another
-host is refused. Your reverse proxy must pass the original `Host` header to the
-application. See [Behind a reverse proxy](#behind-a-reverse-proxy).
+The deployment answers the host name of each origin it serves. A request that
+names another host is refused. Your reverse proxy must pass the original `Host`
+header to the application. See [Behind a reverse proxy](#behind-a-reverse-proxy).
+
+The four health and readiness addresses answer any host, because a platform
+such as Railway checks a container with a host name of its own. Their answers
+hold no address and set no cookie.
 
 ## Stopping the server
 
@@ -458,14 +542,19 @@ arriving is not refused, because the gap is what this value measures. It must be
 shorter than `NOTESAPP_REQUEST_TIMEOUT_MS`. The server refuses to start when it
 is not, and it names both values. `.env.example` holds both.
 
-An import takes a zip file of up to 4 GiB, and the whole file must arrive within
-`NOTESAPP_REQUEST_TIMEOUT_MS`. To import a large workspace over a slow link,
-raise the value for the time of the import. An import keeps its zip file on the
-storage volume while it runs, and the file goes when the request ends, also
-when the sender stops. The server refuses an import that the free space of the
-volume, less 512 MiB and less the zip files of the other imports that run now,
-cannot hold. An export writes no file on the server: it
-streams the zip file as it reads the notes.
+An import takes a zip file of up to 4 GiB. The browser sends it in parts of
+50 MiB, so a proxy that refuses a large request body does not stop it, and
+each part must arrive within `NOTESAPP_REQUEST_TIMEOUT_MS`. The parts wait in
+the object store until the last one arrives. One account has one open import:
+a new import removes an earlier one that did not end, and an import that fails
+removes its parts at once. With the storage directory as the object store, the
+server refuses an import, and each part of it, that the free space of the
+volume, less 512 MiB, cannot hold. The import then keeps its zip file on the
+storage volume while it runs, and the file goes when the import ends. The
+server refuses an import that the free space of the volume, less 512 MiB and
+less the zip files of the other imports that run now, cannot hold.
+An export writes no file on the server: it streams the zip file as it reads
+the notes.
 
 One account runs one import or export at a time, and the server runs two at a
 time for all accounts. A person who starts another one reads that the server is

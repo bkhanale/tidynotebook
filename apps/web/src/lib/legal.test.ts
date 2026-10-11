@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { consentTo, legalLinks, waitsForConsent } from './legal.ts';
+import {
+  consentParts,
+  consentTo,
+  legalLinks,
+  waitsForConsent,
+} from './legal.ts';
 
 await test('a consent names the versions that the page showed', () => {
   assert.deepEqual(
@@ -27,5 +32,30 @@ await test('every screen links the terms first and then the privacy notice', () 
       { label: 'Terms', href: 'https://notes.example.com/legal/terms' },
       { label: 'Privacy notice', href: 'https://example.test/privacy' },
     ],
+  );
+});
+
+await test('the consent sentence links each document in its own words', () => {
+  const parts = consentParts({
+    terms: { url: 'https://notes.example.com/legal/terms', version: '1' },
+    privacy: { url: 'https://example.test/privacy', version: '3' },
+  });
+  assert.deepEqual(parts, [
+    { kind: 'text', text: 'I accept the ' },
+    {
+      kind: 'link',
+      text: 'terms',
+      href: 'https://notes.example.com/legal/terms',
+    },
+    { kind: 'text', text: ' and the ' },
+    {
+      kind: 'link',
+      text: 'privacy notice',
+      href: 'https://example.test/privacy',
+    },
+  ]);
+  assert.equal(
+    parts.map((part) => part.text).join(''),
+    'I accept the terms and the privacy notice',
   );
 });

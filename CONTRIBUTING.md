@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in NotesApp. This page is the complete setup and
+Thank you for your interest in tidy notebook. This page is the complete setup and
 landing path. Read [AGENTS.md](AGENTS.md) for the full rule set and
 [docs/development/architecture.md](docs/development/architecture.md) for the
 current picture of the system.
@@ -11,9 +11,9 @@ Run `node tools/agent-context.mjs <paths you will touch>` before your first
 edit. It prints the reading list for those paths: the rules, the documents,
 the `AGENTS.md` of each directory, and the key files that the guide names.
 Read every file that it lists, then restate the task against them. The
-`build-it-right` skill drives the same steps in Claude Code and in Codex, and
+`prepare-change` skill drives the same steps in Claude Code and in Codex, and
 it also states how to build, verify and report the change. The skill is
-`.agents/skills/build-it-right/SKILL.md`, and `.claude/skills/build-it-right`
+`.agents/skills/prepare-change/SKILL.md`, and `.claude/skills/prepare-change`
 links to it.
 
 ## Requirements
@@ -39,6 +39,8 @@ pnpm verify
 `ensure-postgres.sh` starts the disposable PostgreSQL service from
 `compose.test.yaml` and applies the migrations. It is safe to run again, and
 it is safe to run while another checkout uses the same service.
+`pnpm test:integration` also starts the MinIO service of the same file with
+`tools/test-database/ensure-minio.sh`.
 
 `pnpm verify` runs the complete gate: contract lint, generated file
 comparison, typecheck, lint, format, unit tests, integration tests, all builds,
@@ -104,33 +106,41 @@ add a common thing, how to test it, and what is forbidden. **Read the
 [docs/decisions](docs/decisions/README.md) holds the architecture decision
 records. A new architectural choice gets a record before the code.
 
+## License and sign-off
+
+tidy notebook is under the GNU Affero General Public License, version 3 only
+([AGPL-3.0-only](LICENSE)). A contribution comes in under the same license.
+There is no contributor license agreement.
+
+Each commit of a contribution carries a sign-off. The sign-off states that you
+agree to the [Developer Certificate of Origin](https://developercertificate.org):
+you wrote the change, or you have the right to give it under the license of
+this repository. Git writes the sign-off for you:
+
+```bash
+git commit --signoff
+```
+
+The sign-off is a `Signed-off-by: Your Name <your address>` line at the end of
+the commit message. The address must be the author address of the commit. To
+add the sign-off to each commit of a branch that you already wrote, run:
+
+```bash
+git rebase --signoff origin/main
+```
+
+The `DCO` workflow in `.github/workflows/dco.yml` runs on each pull request.
+It fails when a commit has no sign-off of its author. A commit of the owner
+needs no sign-off, because the owner holds the copyright. The rule is in
+`tools/check-dco.mjs`.
+
 ## Workflow
 
-There are no pull requests. Work lands directly on `main`.
-
-1. Create a worktree on a short-lived branch:
-
-   ```bash
-   git worktree add ../notesapp-wt/my-change -b my-change main
-   cd ../notesapp-wt/my-change
-   pnpm install --frozen-lockfile --prefer-offline
-   ```
-
-2. Do all edits, commits and untracked work inside that worktree. Never edit
-   the main checkout while a worktree is open.
-3. Run `pnpm verify`, and take a screenshot of each screen that your change
-   touches in light and in dark.
-4. Rebase and land:
-
-   ```bash
-   git rebase main
-   git -C ../../notesapp merge --ff-only my-change
-   git worktree remove ../notesapp-wt/my-change
-   git branch -d my-change
-   ```
-
-If the rebase changed anything, run the checks again before you merge. Never
-force push.
+A change uses a worktree and a short-lived branch. The
+[agent lifecycle](docs/development/agent-lifecycle.md) holds the current PR,
+proof, review, and landing procedure. The owner and contributors use reviewed
+pull requests. An authorized exact head lands by non-force fast-forward push.
+A protection refusal is a stop. Worktree cleanup remains an owner action.
 
 ## Commit style
 

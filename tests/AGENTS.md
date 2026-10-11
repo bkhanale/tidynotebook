@@ -7,15 +7,21 @@ this directory. The recipe for a whole feature is in
 ## Purpose
 
 The one suite that needs more than one package: the integration tests against
-a real PostgreSQL service and a real server. This tree holds no browser test.
+a real PostgreSQL service and a real server. It also holds the image tests,
+which run the built container image. This tree holds no browser test.
 See
 [decision 0066](../docs/decisions/0066-the-browser-suite-is-retired.md).
 
 ## What lives here and what does not
 
 - `integration/` holds one file per area. `integration/support/` holds the
-  disposable database, the identity provider, the listening server, and the
-  Tailwind compiler of the web build.
+  disposable database, the bucket of the test MinIO service (0192), the
+  identity provider, the listening server, and the Tailwind compiler of the
+  web build.
+- `image/` holds the tests of the built image (record 0202). They drive the
+  Docker command line and a PostgreSQL of their own, import no workspace
+  package, and run in the image job of CI after the build, through
+  `pnpm test:image`. `pnpm verify` builds no image, so it does not run them.
 - A unit test does not live here. It lives next to its module in a package
   `src` tree and runs under `pnpm test:unit`.
 - A test that drives a browser does not live here, and no gate starts one.
@@ -41,10 +47,14 @@ a generated operation or `app.inject()`, never a handwritten HTTP call.
   link or a ticket past its life with the retention operation, never with a
   delay.
 
+- **An image test.** Add `image/<area>.test.ts`. Build the image with
+  `docker compose build`, then run `pnpm test:image`. `NOTESAPP_IMAGE` names
+  another image.
+
 ## Testing conventions here
 
 `integration` runs under `node --test` through `pnpm test:integration`, which
-starts the PostgreSQL service of `compose.test.yaml` and builds first. Each
+starts the PostgreSQL and MinIO services of `compose.test.yaml` and builds first. Each
 file makes its own disposable database. A test proves the result through a
 generated operation and checks the server state.
 
@@ -68,3 +78,4 @@ generated operation and checks the server state.
 | `integration/theme-variables.test.ts`         | The built stylesheet and the palette   |
 | `integration/web-delivery.test.ts`            | The served document and its headers    |
 | `integration/docs-site.test.ts`               | The built documentation site           |
+| `image/commands.test.ts`                      | The commands of the image entry point  |

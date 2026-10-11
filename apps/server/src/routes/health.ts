@@ -16,7 +16,11 @@
  * its own, because an orchestrator repeats it every few seconds forever.
  */
 import { access, constants } from 'node:fs/promises';
-import type { DatabaseProbeResult } from '@notesapp/storage-server';
+import type { OperationId } from '@notesapp/api-contract';
+import type {
+  DatabaseProbeResult,
+  ObjectStore,
+} from '@notesapp/storage-server';
 import { requiredSchemaVersion } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import type { ServiceLifecycle } from '../lifecycle.ts';
@@ -53,6 +57,9 @@ export type DatabaseRead = () => Promise<DatabaseProbeResult>;
 /** How long one readiness read of the database may take. */
 export const databaseReadTimeoutMs = 3000;
 
+/** How long one readiness read of the object store may take. */
+export const storeReadTimeoutMs = 3000;
+
 /** The answer of a read that did not complete. */
 const unreachableDatabase: DatabaseProbeResult = {
   reachable: false,
@@ -87,16 +94,18 @@ export function configurationProbe(config: ServerConfig): ReadinessProbe {
     );
 }
 
-/** Checks storage root accessibility and writability. */
-export function storageProbe(storageRoot: string): ReadinessProbe {
+/**
+ * Checks the storage of the server: the directory of the files of one
+ * request, and the object store that holds every byte a later request reads
+ * (record 0192). With the file store the two are one directory.
+ */
+export function storageProbe(
+  storageRoot: string,
+  objects: ObjectStore,
+): ReadinessProbe {
   return async () => {
     try {
       await access(storageRoot, constants.R_OK | constants.W_OK);
-      return {
-        name: 'storage',
-        status: 'ok',
-        detail: 'Storage directory is accessible and writable.',
-      };
     } catch {
       return {
         name: 'storage',
@@ -104,6 +113,22 @@ export function storageProbe(storageRoot: string): ReadinessProbe {
         detail: 'Storage directory is not accessible or writable.',
       };
     }
+    // A store that never answers must not hold the readiness answer, as a
+    // database that drops every packet does not (record 0192).
+    if (!(await withDeadline(() => objects.probe(), storeReadTimeoutMs, false)))
+      return {
+        name: 'storage',
+        status: 'degraded',
+        detail: 'The object store does not answer.',
+      };
+    return {
+      name: 'storage',
+      status: 'ok',
+      detail:
+        objects.kind === 'filesystem'
+          ? 'Storage directory is accessible and writable.'
+          : 'Storage directory is accessible and writable, and the object store answers.',
+    };
   };
 }
 
@@ -304,6 +329,20 @@ export async function readinessAnswer(
     }),
   };
 }
+
+/**
+ * The four probe operations of record 0040: liveness and readiness, each at
+ * its API address and at its root address.
+ *
+ * A platform probes a replica with a host of its own, so these operations
+ * answer any host (record 0199). `src/plugins/host.ts` reads this list.
+ */
+export const probeOperations = [
+  'getHealth',
+  'getRootHealth',
+  'getReadiness',
+  'getRootReadiness',
+] as const satisfies readonly OperationId[];
 
 /**
  * The service handlers, one implementation for each answer.

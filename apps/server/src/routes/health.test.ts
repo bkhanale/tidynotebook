@@ -9,7 +9,11 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DatabaseProbeResult } from '@notesapp/storage-server';
+import { tmpdir } from 'node:os';
+import type {
+  DatabaseProbeResult,
+  ObjectStore,
+} from '@notesapp/storage-server';
 import { requiredSchemaVersion } from '@notesapp/storage-server';
 import { createServiceLifecycle, runningLifecycle } from '../lifecycle.ts';
 import type { ProbeRequest, ReadinessCheck, ReadinessProbe } from './health.ts';
@@ -18,8 +22,11 @@ import {
   databaseProbes,
   evaluateReadiness,
   livenessAnswer,
+  probeOperations,
   readinessAnswer,
   singleFlight,
+  storageProbe,
+  storeReadTimeoutMs,
   withDeadline,
 } from './health.ts';
 import { problemMediaType } from '../plugins/problem.ts';
@@ -72,6 +79,14 @@ await test('one function answers both addresses of each question', () => {
   assert.equal(handlers.getReadiness, handlers.getRootReadiness);
   assert.notEqual(handlers.getHealth, undefined);
   assert.notEqual(handlers.getReadiness, undefined);
+});
+
+await test('the probe list names exactly the operations of the service handlers', () => {
+  // The Host allowlist skips the operations of this list (record 0199), so a
+  // probe that the list forgot would fail on the host of a platform, and an
+  // extra entry would answer any host for an operation that is no probe.
+  const handlers = createServiceHandlers([], runningLifecycle);
+  assert.deepEqual([...probeOperations].sort(), Object.keys(handlers).sort());
 });
 
 await test('liveness reports that the process runs', () => {
@@ -255,6 +270,73 @@ await test('a read that fails answers with the late value', async () => {
   );
   assert.equal(answer, 'late');
 });
+
+/** An object store whose probe answers what `probe` answers. */
+function storeWithProbe(probe: () => Promise<boolean>): ObjectStore {
+  const refuse = (): never => {
+    throw new Error('The probe calls nothing else.');
+  };
+  return {
+    kind: 's3',
+    probe,
+    write: refuse,
+    read: refuse,
+    size: refuse,
+    promote: refuse,
+    remove: refuse,
+    removePrefix: refuse,
+    list: refuse,
+    startUpload: refuse,
+    declaredSize: refuse,
+    writePart: refuse,
+    listParts: refuse,
+    completeUpload: refuse,
+    abortUpload: refuse,
+    listUploads: refuse,
+    room: refuse,
+    close: () => undefined,
+  };
+}
+
+await test(
+  'a store that never answers reports degraded at its deadline',
+  { timeout: 10_000 },
+  async (t) => {
+    // Review of record 0192. The probe of the object store had no deadline,
+    // so a store that dropped every packet held the readiness answer.
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const probe = storageProbe(
+      tmpdir(),
+      storeWithProbe(() => new Promise<boolean>(() => undefined)),
+    );
+    let settled = false;
+    const answer = probe().then((check) => {
+      settled = true;
+      return check;
+    });
+    // The deadline starts once the directory is checked, which is real I/O
+    // that takes as long as the machine needs. Each turn of the loop lets
+    // that I/O go on, and the timeout of the test bounds a probe that hangs.
+    while (!settled) {
+      await new Promise((resolve) => setImmediate(resolve));
+      t.mock.timers.tick(storeReadTimeoutMs);
+    }
+    assert.deepEqual(await answer, {
+      name: 'storage',
+      status: 'degraded',
+      detail: 'The object store does not answer.',
+    });
+    assert.equal(
+      (
+        await storageProbe(
+          tmpdir(),
+          storeWithProbe(async () => true),
+        )()
+      ).status,
+      'ok',
+    );
+  },
+);
 
 await test('one running read serves every caller that asks while it runs', async () => {
   let calls = 0;

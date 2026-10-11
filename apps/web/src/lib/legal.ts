@@ -49,3 +49,25 @@ export function legalLinks(documents: LegalDocuments): readonly LegalLink[] {
     { label: 'Privacy notice', href: documents.privacy.url },
   ];
 }
+
+/** One part of the consent sentence: plain words, or a link to a document. */
+export type ConsentPart =
+  | { readonly kind: 'text'; readonly text: string }
+  | { readonly kind: 'link'; readonly text: string; readonly href: string };
+
+/**
+ * The consent sentence of a form, with the name of each document as its link.
+ *
+ * The sentence holds the links, so a form needs no separate line for them.
+ * The documents come in the order of `legalLinks`.
+ */
+export function consentParts(
+  documents: LegalDocuments,
+): readonly ConsentPart[] {
+  return [
+    { kind: 'text', text: 'I accept the ' },
+    { kind: 'link', text: 'terms', href: documents.terms.url },
+    { kind: 'text', text: ' and the ' },
+    { kind: 'link', text: 'privacy notice', href: documents.privacy.url },
+  ];
+}

@@ -13,6 +13,7 @@ import {
   type IconAddresses,
 } from './src/pwa/icons.ts';
 import { precacheWorker } from './src/pwa/precache.ts';
+import { productName, productShortName } from '@notesapp/core';
 import { defaultThemeFor } from '@notesapp/ui';
 import { devicePaletteCss, themeRegistryData } from './src/lib/first-paint.ts';
 import { startFailureMarkup } from './src/start-failure.ts';
@@ -56,6 +57,9 @@ const framePath = 'src/diagram/frame.html';
 
 /** The placeholder that the theme data replaces inside the shell document. */
 const themePlaceholder = '__NOTESAPP_THEMES__';
+
+/** The placeholder of the product name in the title and the description. */
+const productNamePlaceholder = '__NOTESAPP_PRODUCT_NAME__';
 
 /** The placeholder of the first browser interface colour of the shell. */
 const themeColourPlaceholder = '__NOTESAPP_THEME_COLOUR__';
@@ -112,8 +116,8 @@ export function webManifestDocument(
 ): WebManifestDocument {
   const theme = defaultThemeFor('dark');
   return {
-    name: 'Notesapp',
-    short_name: 'Notes',
+    name: productName,
+    short_name: productShortName,
     description: 'Offline notes with versioned history.',
     start_url: '/',
     scope: '/',
@@ -226,6 +230,7 @@ function themeAssets(directory: string): Plugin {
       order: 'pre',
       handler(html: string): string {
         return html
+          .replaceAll(productNamePlaceholder, productName)
           .replace(themePlaceholder, () => themeRegistryData())
           .replace(
             themeColourPlaceholder,

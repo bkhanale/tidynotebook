@@ -1,4 +1,22 @@
-description: Too many attempts were made in a short time.
+description: >-
+  Too many requests. Too many attempts were made in a short time, the
+  account runs its limit of archive jobs, or the account or the
+  installation downloaded the most bytes or read the most objects that one
+  calendar month in UTC allows (record 0193). The code names the cause:
+  rate_limited, archive_job_running or download_limit. Nothing changed.
+headers:
+  retry-after:
+    description: The seconds after which the caller may try again.
+    schema:
+      type: string
+      maxLength: 16
+  notesapp-limit:
+    description: >-
+      The limit of the month that refused the request, on the codes
+      download_limit and storage_busy only, so the answer of a HEAD request
+      names it too (record 0193).
+    schema:
+      $ref: '../schemas/UsageLimit.yaml'
 content:
   application/problem+json:
     schema:

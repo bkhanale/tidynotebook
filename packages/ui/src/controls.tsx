@@ -15,6 +15,8 @@ import {
   checkboxClassNames,
   compactButtonVisualClassName,
   fieldClassName,
+  meterAlmostFull,
+  meterClassNames,
   selectClassName,
   textAreaClassName,
   type ButtonSize,
@@ -25,6 +27,38 @@ import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
 
 /** The label above a field, and the label beside a checkbox. */
 const fieldLabelClassName = 'mb-1.5 block text-control font-medium text-strong';
+
+/** A named value against a maximum, with no state or callback. */
+export function Meter({
+  label,
+  value,
+  max,
+  text,
+}: {
+  readonly label: string;
+  readonly value: number;
+  readonly max: number;
+  readonly text: string;
+}): ReactNode {
+  const classes = meterClassNames(value, max);
+  const words = meterAlmostFull(value, max) ? `${text}. Almost full` : text;
+  return (
+    <div>
+      <p className={classes.text}>{words}</p>
+      <div
+        className={classes.track}
+        role="meter"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={Math.min(value, max)}
+        aria-valuetext={words}
+      >
+        <div className={classes.fill} />
+      </div>
+    </div>
+  );
+}
 
 /**
  * A labeled push button.
@@ -431,7 +465,8 @@ export function Checkbox({
   disabled = false,
 }: {
   readonly id: string;
-  readonly label: string;
+  /** The words of the choice. A link in them opens without a change of the box. */
+  readonly label: ReactNode;
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;
   readonly describedBy?: string | undefined;

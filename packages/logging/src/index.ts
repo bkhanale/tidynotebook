@@ -25,10 +25,13 @@ export type LogEventFields = {
     readonly job:
       | 'sync'
       | 'attachments'
+      | 'objects'
       | 'publications'
       | 'attempts'
       | 'pending'
-      | 'streams';
+      | 'streams'
+      | 'removals'
+      | 'usage';
   };
   /**
    * One sync notice stream opened or closed, or one upgrade was refused

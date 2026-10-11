@@ -1,6 +1,6 @@
 /**
  * The one decider of the mail transport and of the legal documents
- * (record 0148).
+ * (record 0148), and of the lock of the registration policy (record 0206).
  *
  * Each group comes from the server environment or from the settings that an
  * administrator stores. A group that the environment sets wins and is
@@ -32,7 +32,6 @@ import {
   type LegalTexts,
   type ServerConfig,
 } from './config.ts';
-import { publishedOrigin } from './served-origins.ts';
 
 /** Where a group of settings comes from. */
 export type SettingSource = 'environment' | 'application' | 'none';
@@ -151,8 +150,10 @@ export function createInstallationSettings(
     sealed === null ? null : input.passwordSeal.open(sealed);
   const environment: InstallationEnvironment = {
     mail: input.environmentMail !== null,
-    publishedOrigin: publishedOrigin(config.servedOrigins) !== null,
     legalDocuments: config.legalDocuments !== null,
+    // A policy that the environment names is in the row from the start of
+    // the server, and the application cannot change it (record 0206).
+    registrationPolicy: config.registrationPolicy !== null,
     // A password that this key cannot open, after a change of the server
     // secret, is no transport. The accounts page then shows that the
     // password must be entered again.

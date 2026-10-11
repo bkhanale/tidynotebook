@@ -263,14 +263,18 @@ await test('the built shell holds the screen of a start that failed', async () =
   // application screen of each cause and the script that shows it.
   const shell = await readFile(join(distribution, 'index.html'), 'utf8');
   assert.doesNotMatch(shell, /__NOTESAPP_START_FAILURE_/);
+  // Record 0187. The title and the description read the product name.
+  assert.doesNotMatch(shell, /__NOTESAPP_PRODUCT_NAME__/);
+  assert.match(shell, /<title>tidy notebook<\/title>/);
+  assert.match(shell, /content="tidy notebook: offline notes/);
   const load = /<template id="start-failure-load">([\s\S]*?)<\/template>/.exec(
     shell,
   )?.[1];
   const stop = /<template id="start-failure-stop">([\s\S]*?)<\/template>/.exec(
     shell,
   )?.[1];
-  assert.ok(load?.includes('Notesapp did not load'), 'no load screen');
-  assert.ok(stop?.includes('Notesapp stopped'), 'no stop screen');
+  assert.ok(load?.includes('tidy notebook did not load'), 'no load screen');
+  assert.ok(stop?.includes('tidy notebook stopped'), 'no stop screen');
   for (const screen of [load, stop]) assert.match(screen ?? '', /Reload/);
   assert.match(shell, /addEventListener\(\s*'error'/);
   assert.match(shell, /'unhandledrejection'/);

@@ -16,6 +16,11 @@
 import { fail, ok, type Result } from '../files/model.ts';
 import type { Actor } from './actor.ts';
 import {
+  applyControlsChange,
+  controlsFitRole,
+  type ControlsChange,
+} from './controls.ts';
+import {
   accountStates,
   installationRoles,
   leavesNoAdministrator,
@@ -27,6 +32,7 @@ import {
 } from './installation.ts';
 import type {
   AccountRecord,
+  EnvironmentPolicyStore,
   InstallationStore,
   InstallationTransaction,
   InvitationRecord,
@@ -38,6 +44,7 @@ import {
   maxAccountLimitBytes,
   normalizeEmail,
   openRegistrationMissing,
+  type OpenRegistrationReadiness,
 } from './registration.ts';
 import {
   settingsReadiness,
@@ -75,6 +82,8 @@ export type AccountChange = {
   readonly role?: string | undefined;
   readonly state?: string | undefined;
   readonly limitBytes?: bigint | undefined;
+  /** A change of the controls with the revision that was read (0189). */
+  readonly controls?: ControlsChange | undefined;
 };
 
 /**
@@ -95,7 +104,14 @@ export function updateAccount(
     if (change.role !== undefined) needed.push('change-role');
     if (change.state !== undefined) needed.push('change-state');
     if (change.limitBytes !== undefined) needed.push('change-limit');
+    if (change.controls !== undefined) needed.push('change-controls');
     if (needed.length === 0) return fail<AccountRecord>('forbidden');
+    // The storage limit is one control, so one change names it once.
+    if (
+      change.limitBytes !== undefined &&
+      change.controls?.limitBytes !== undefined
+    )
+      return fail<AccountRecord>('forbidden');
     if (!needed.every((action) => mayAdminister(caller, action)))
       return fail<AccountRecord>('forbidden');
     const role =
@@ -124,7 +140,42 @@ export function updateAccount(
     };
     if (leavesNoAdministrator(target, after, await tx.enabledAdministrators()))
       return fail<AccountRecord>('last_administrator');
-    if (role !== undefined && role !== target.role)
+    // The controls are decided before anything is written, under the lock of
+    // the installation, so a change never lands in part.
+    const current = (await tx.accounts()).find(
+      (record) => record.accountId === accountId,
+    );
+    if (current === undefined) return fail<AccountRecord>('not_found');
+    let controls = current.controls;
+    if (change.controls !== undefined) {
+      const next = applyControlsChange(current.controls, change.controls);
+      if (!next.ok) return fail<AccountRecord>(next.error.code);
+      controls = next.value;
+    }
+    // An administrator is never locked, so a locked account becomes one only
+    // once it is active (record 0201).
+    if (!controlsFitRole(after.role, controls))
+      return fail<AccountRecord>('forbidden');
+    // The database holds that an administrator is active at every write, so
+    // the writes go in the order that never shows a locked administrator: a
+    // demotion writes the role before the controls, and a promotion writes
+    // the controls, which activate the account, before the role.
+    const roleChanges = role !== undefined && role !== target.role;
+    const demotion = roleChanges && role === 'member';
+    if (demotion) await tx.setRole(accountId, role);
+    if (change.controls !== undefined) {
+      // The revision was checked under the lock of the installation above. A
+      // change of the role raises it, so the write names the one after it.
+      const revision = demotion
+        ? ((await tx.accounts()).find(
+            (record) => record.accountId === accountId,
+          )?.controls.revision ?? change.controls.revision)
+        : change.controls.revision;
+      const written = await tx.setControls(accountId, revision, controls);
+      if (written === 'missing') return fail<AccountRecord>('not_found');
+      if (written === 'changed') return fail<AccountRecord>('controls_changed');
+    }
+    if (roleChanges && !demotion && role !== undefined)
       await tx.setRole(accountId, role);
     if (state !== undefined && state !== target.state)
       await tx.setState(accountId, state);
@@ -314,10 +365,12 @@ export function readRegistrationPolicy(
 /**
  * Changes the registration policy, for an administrator.
  *
- * The open policy needs every part that record 0114 names. The transport
- * states what the installation has, and the answer is
+ * The open policy needs every part that records 0114 and 0191 name. The
+ * transport states what the installation has, and the answer is
  * `open_registration_unavailable` while one part is missing, so no
- * installation opens to strangers before it can verify an address.
+ * installation opens to strangers before it can verify an address. A policy
+ * that the server environment names is locked, and the answer is
+ * `setting_locked` (record 0206).
  */
 export function setRegistrationPolicy(
   store: InstallationStore,
@@ -328,6 +381,8 @@ export function setRegistrationPolicy(
   return store.installation(actor, async (tx) => {
     if (!(await permitted(tx, actor, 'change-policy')))
       return fail<RegistrationPolicy>('forbidden');
+    if (environment.registrationPolicy)
+      return fail<RegistrationPolicy>('setting_locked');
     const known = registrationPolicies.find((entry) => entry === policy);
     if (known === undefined) return fail<RegistrationPolicy>('forbidden');
     // The stored settings are read under the installation lock, so a removal
@@ -338,4 +393,24 @@ export function setRegistrationPolicy(
     await tx.setRegistrationPolicy(known);
     return ok(known);
   });
+}
+
+/**
+ * Stores the registration policy that the server environment names, at the
+ * start of the server (record 0206).
+ *
+ * The open policy needs the parts that records 0114 and 0191 name, from the
+ * environment too, so the whole open set has one source and no change in the
+ * application can remove a part of it. The configuration refuses such an
+ * environment first, and this check holds the rule where the rule lives.
+ */
+export async function applyEnvironmentPolicy(
+  store: EnvironmentPolicyStore,
+  policy: RegistrationPolicy,
+  environment: OpenRegistrationReadiness,
+): Promise<Result<RegistrationPolicy>> {
+  if (policy === 'open' && openRegistrationMissing(environment).length > 0)
+    return fail<RegistrationPolicy>('open_registration_unavailable');
+  await store.applyRegistrationPolicy(policy);
+  return ok(policy);
 }

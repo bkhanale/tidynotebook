@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  allowedFenceLanguages,
   decisionIndexFailures,
+  fenceAllowFile,
   fenceLanguages,
   isSuperseded,
   maximumDevelopmentLines,
@@ -134,6 +142,66 @@ await test('a code block that is not a shell command fails', () => {
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /a "ts" block/);
+});
+
+// The root rule allows one code block: a shell command that the reader runs.
+// A block with no language and a text block are not shell commands.
+await test('a block with no language fails', () => {
+  const result = check({
+    'docs/development/architecture.md':
+      '# Architecture\n\n```\nconst copied = true;\n```\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /a block with no language/);
+});
+
+await test('a text block and a console block fail', () => {
+  for (const language of ['text', 'console']) {
+    const result = check({
+      'docs/guide/quickstart.md':
+        '# Quick start\n\nThis page is for the person who runs a server.\n\n' +
+        `\`\`\`${language}\nhttp://127.0.0.1:3000\n\`\`\`\n`,
+    });
+    assert.equal(result.status, 1, language);
+    assert.match(result.output, new RegExp(`a "${language}" block`));
+  }
+});
+
+await test('a sh, a bash and a shell block pass', () => {
+  const result = check({
+    'docs/guide/quickstart.md':
+      '# Quick start\n\nThis page is for the person who runs a server.\n\n' +
+      '```sh\na\n```\n\n```bash\nb\n```\n\n```shell\nc\n```\n',
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('an accepted audit keeps its block, and a stale entry fails', () => {
+  /** @param {string} file */
+  const allow = (file) =>
+    JSON.stringify({ allow: [{ file, reason: 'Accepted before the rule.' }] });
+  const audit = 'docs/audits/2026-01-01/report.md';
+  const kept = check({
+    [audit]:
+      '# Audit\n\nAudited on 2026-01-01 against commit `abc1234`.\n\n' +
+      '```\na | b\n```\n',
+    [fenceAllowFile]: allow(audit),
+  });
+  assert.equal(kept.status, 0, kept.output);
+  const stale = check({ [fenceAllowFile]: allow(audit) });
+  assert.equal(stale.status, 1);
+  assert.match(stale.output, /report\.md holds no refused block now/);
+});
+
+await test('the documentation index names exactly the allowed languages', () => {
+  const index = readFileSync(
+    fileURLToPath(new URL('../docs/README.md', import.meta.url)),
+    'utf8',
+  ).replace(/\s+/g, ' ');
+  const sentence = /a fenced block in ([^.]*)\bis allowed/.exec(index)?.[1];
+  assert.ok(sentence !== undefined, 'docs/README.md names no fence language.');
+  const named = [...sentence.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+  assert.deepEqual(new Set(named), new Set(allowedFenceLanguages));
 });
 
 await test('a superseded document may hold any code block', () => {

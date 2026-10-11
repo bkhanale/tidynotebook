@@ -140,6 +140,19 @@ await test('every family is identified once and names its source', () => {
   }
 });
 
+await test('a family of this application names its repository', () => {
+  // The repository moved to the organization of record 0187.
+  for (const id of ['default', 'ink']) {
+    const family = themeFamilies.find((candidate) => candidate.id === id);
+    assert.equal(
+      family?.source.url,
+      'https://github.com/tidynotebook/tidynotebook',
+    );
+    // Record 0188: the palettes of this repository carry its license.
+    assert.equal(family?.source.licence, 'AGPL-3.0-only');
+  }
+});
+
 await test('every variant belongs to its family and is identified once', () => {
   const seen = new Set<string>();
   for (const family of themeFamilies) {

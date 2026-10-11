@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { QueueEntry } from './local-port.ts';
-import { recoveredNotePath, takeBatchable } from './queue.ts';
+import {
+  isRetryableStatus,
+  recoveredNotePath,
+  sendWithRetry,
+  takeBatchable,
+  type SyncContext,
+} from './queue.ts';
 
 const workspaceId = 'w0000000-0000-4000-8000-000000000001';
 
@@ -97,4 +103,218 @@ await test('a recovered note avoids every held path in any case', () => {
     recoveredNotePath('notes/plan.md', ['notes/plan.md']),
     'notes/plan (recovered).md',
   );
+});
+
+/** One retry run with immediate backoff and a real cancellation signal. */
+function retryContext(signal: AbortSignal, delays: number[] = []): SyncContext {
+  return {
+    signal,
+    sleep: (ms) => {
+      delays.push(ms);
+      return Promise.resolve();
+    },
+    random: () => 0,
+    id: () => 'retry-test',
+    announce: () => {},
+  };
+}
+
+await test('only a transport failure and a temporary server answer retry', () => {
+  for (const status of [0, 408, 429, 500, 503, 599])
+    assert.equal(isRetryableStatus(status), true);
+  for (const status of [400, 401, 403, 404, 409, 410, 412, 413, 423, 600])
+    assert.equal(isRetryableStatus(status), false);
+});
+
+await test('a stalled sync request times out and the next attempt recovers', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  const delays: number[] = [];
+  const result = sendWithRetry(
+    retryContext(controller.signal, delays),
+    (signal) => {
+      signals.push(signal);
+      return signals.length === 1
+        ? new Promise(() => {})
+        : Promise.resolve({ ok: true as const, value: 'saved' });
+    },
+  );
+  try {
+    assert.equal(signals.length, 1);
+    t.mock.timers.tick(119_999);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 1, 'a slow request gets the whole bound');
+    t.mock.timers.tick(1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 2, 'a stalled adapter cannot hold the queue');
+    assert.equal(signals[0]?.aborted, true);
+    assert.equal(controller.signal.aborted, false);
+    assert.deepEqual(await result, { ok: true, value: 'saved' });
+    assert.deepEqual(delays, [500]);
+  } finally {
+    controller.abort();
+  }
+});
+
+await test('a slow answer inside the bound succeeds and clears its timer', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  let answer: (() => void) | undefined;
+  let attemptSignal: AbortSignal | undefined;
+  const result = sendWithRetry<string>(
+    retryContext(controller.signal),
+    (signal) => {
+      attemptSignal = signal;
+      return new Promise((resolve) => {
+        answer = () => resolve({ ok: true, value: 'saved' });
+      });
+    },
+  );
+  t.mock.timers.tick(119_999);
+  assert.equal(attemptSignal?.aborted, false);
+  assert.ok(answer !== undefined);
+  answer();
+  assert.deepEqual(await result, { ok: true, value: 'saved' });
+  t.mock.timers.tick(120_000);
+  assert.equal(
+    attemptSignal?.aborted,
+    false,
+    'the completed attempt has no timer',
+  );
+});
+
+await test('a valid slow sync answer past thirty seconds completes the same attempt', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let answer: (() => void) | undefined;
+  const result = sendWithRetry<string>(
+    retryContext(controller.signal),
+    (signal) => {
+      signals.push(signal);
+      return new Promise((resolve) => {
+        answer = () => resolve({ ok: true, value: 'saved' });
+      });
+    },
+  );
+  try {
+    // The server's default receive window allows this whole slow request.
+    t.mock.timers.tick(59_999);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 1, 'the slow transfer is not restarted');
+    assert.equal(signals[0]?.aborted, false);
+    assert.ok(answer !== undefined);
+    answer();
+    assert.deepEqual(await result, { ok: true, value: 'saved' });
+  } finally {
+    controller.abort();
+    await result.catch(() => {});
+  }
+});
+
+await test('stopping a stalled adapter ends the run without another attempt', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const result = sendWithRetry(retryContext(controller.signal), () => {
+    calls += 1;
+    return new Promise(() => {});
+  });
+  controller.abort();
+  await assert.rejects(result, { name: 'AbortError' });
+  assert.equal(calls, 1);
+});
+
+await test('a download that keeps receiving data can outlast the request limit', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let progress = (): void => {};
+  let answer: (() => void) | undefined;
+  let removed = 0;
+  const ctx = {
+    ...retryContext(controller.signal),
+    watchResponse: (_signal: AbortSignal, received: () => void) => {
+      progress = received;
+      return () => {
+        removed += 1;
+      };
+    },
+  };
+  const result = sendWithRetry<string>(ctx, (signal) => {
+    signals.push(signal);
+    return new Promise((resolve) => {
+      answer = () => resolve({ ok: true, value: 'downloaded' });
+    });
+  });
+  try {
+    // Every chunk arrives before the idle bound. Total time exceeds it.
+    for (let chunk = 0; chunk < 4; chunk += 1) {
+      t.mock.timers.tick(100_000);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      assert.equal(signals.length, 1, 'a live download is not restarted');
+      assert.equal(signals[0]?.aborted, false);
+      progress();
+    }
+    assert.ok(answer !== undefined);
+    answer();
+    assert.deepEqual(await result, { ok: true, value: 'downloaded' });
+    assert.equal(removed, 1);
+    progress();
+    t.mock.timers.tick(120_000);
+    assert.equal(signals[0]?.aborted, false, 'late progress starts no timer');
+  } finally {
+    controller.abort();
+    await result.catch(() => {});
+  }
+});
+
+await test('an abort error with a live run signal is a retryable request failure', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const result = await sendWithRetry(retryContext(controller.signal), () => {
+    calls += 1;
+    return calls === 1
+      ? Promise.reject(new DOMException('The connection ended.', 'AbortError'))
+      : Promise.resolve({ ok: true as const, value: 'saved' });
+  });
+  assert.deepEqual(result, { ok: true, value: 'saved' });
+  assert.equal(calls, 2);
+});
+
+await test('a download that stops receiving data retries after the last chunk', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const controller = new AbortController();
+  const signals: AbortSignal[] = [];
+  let progress = (): void => {};
+  const result = sendWithRetry(
+    {
+      ...retryContext(controller.signal),
+      watchResponse: (_signal: AbortSignal, received: () => void) => {
+        progress = received;
+        return () => {};
+      },
+    },
+    (signal) => {
+      signals.push(signal);
+      return signals.length === 1
+        ? new Promise(() => {})
+        : Promise.resolve({ ok: true as const, value: 'complete' });
+    },
+  );
+  try {
+    t.mock.timers.tick(100_000);
+    progress();
+    t.mock.timers.tick(119_999);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 1);
+    t.mock.timers.tick(1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(signals.length, 2);
+    assert.equal(signals[0]?.aborted, true);
+    assert.deepEqual(await result, { ok: true, value: 'complete' });
+  } finally {
+    controller.abort();
+    await result.catch(() => {});
+  }
 });

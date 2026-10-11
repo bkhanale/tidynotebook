@@ -6,6 +6,7 @@ import {
   lifetimeWords,
   passwordChangedMessage,
   passwordResetMessage,
+  removalNoticeMessage,
   signUpAttemptMessage,
   verificationMessage,
 } from './messages.ts';
@@ -19,6 +20,7 @@ const messages = [
   signUpAttemptMessage({ to: 'a@example.com', origin }),
   passwordResetMessage({ to: 'a@example.com', origin, link, lifetimeHours: 1 }),
   passwordChangedMessage({ to: 'a@example.com', origin }),
+  removalNoticeMessage({ to: 'a@example.com', origin, days: 30, portal: true }),
 ];
 
 await test('a life in hours reads as a whole phrase with its count', () => {
@@ -33,11 +35,14 @@ await test('every message names the product and the installation', () => {
   assert.equal(installationHost('http://127.0.0.1:3000'), '127.0.0.1:3000');
   for (const message of messages) {
     assert.equal(message.to, 'a@example.com');
-    assert.match(message.subject, /NotesApp at notes\.example\.com/);
-    assert.match(message.text, /NotesApp at notes\.example\.com/);
+    assert.match(message.subject, /tidy notebook at notes\.example\.com/);
+    assert.match(message.text, /tidy notebook at notes\.example\.com/);
     // The signature follows the delimiter of RFC 3676, so a mail program can
     // fold it away.
-    assert.match(message.text, /\n-- \nNotesApp at notes\.example\.com\n$/);
+    assert.match(
+      message.text,
+      /\n-- \ntidy notebook at notes\.example\.com\n$/,
+    );
     // No secret of a link reaches a subject, which a mailbox list shows.
     assert.equal(message.subject.includes('secret-token'), false);
     assert.equal(/[–—]/.test(message.text), false);
@@ -64,4 +69,37 @@ await test('a message that changes nothing says what to do next', () => {
       .split('\n')
       .includes('https://notes.example.com/forgot-password'),
   );
+});
+
+await test('the mail before a removal names the time, the way to keep the account and the export', () => {
+  const thirty = removalNoticeMessage({
+    to: 'a@example.com',
+    origin,
+    days: 30,
+    portal: true,
+  });
+  assert.equal(
+    thirty.subject,
+    'Your account on tidy notebook at notes.example.com is deleted in 30 days',
+  );
+  assert.match(thirty.text, /In 30 days, the account and every note/);
+  assert.match(thirty.text, /open billing/);
+  assert.ok(thirty.text.split('\n').includes(`${origin}/login`));
+  assert.match(thirty.text, /select Export my notes/);
+  const seven = removalNoticeMessage({
+    to: 'a@example.com',
+    origin,
+    days: 7,
+    portal: false,
+  });
+  assert.match(seven.subject, /is deleted in 7 days$/);
+  assert.match(seven.text, /ask the administrator/);
+  assert.doesNotMatch(seven.text, /billing|portal/);
+  const one = removalNoticeMessage({
+    to: 'a@example.com',
+    origin,
+    days: 1,
+    portal: false,
+  });
+  assert.match(one.subject, /is deleted in 1 day$/);
 });

@@ -83,8 +83,9 @@ Press Ctrl + Z or Cmd + Z to put the item back.
 
 ## Tools on a narrow screen and with a keyboard
 
-On a phone, the row stands at the foot of the note, just above the keyboard,
-so the tools are next to the text that you type. Swipe the row sideways to
+On a phone, the row stands above the note, as on a computer. While you type,
+the word count goes away to give the text more room. The slash menu and the
+other menus open above the keyboard. Swipe the row sideways to
 reach the other tools, or select the arrow at the end of the row that shows
 when more tools are there. Every tool is also in the command palette: open it
 with Ctrl + P or Cmd + P and type the name of the tool.

@@ -3,8 +3,10 @@ import test from 'node:test';
 import {
   afterChecks,
   beforeChecks,
+  buildFailure,
   compareVersions,
   imagePackage,
+  packageVersionsPath,
   isoDate,
   parseVersion,
 } from './release-check.mjs';
@@ -34,12 +36,15 @@ const before = {
   today: '2026-10-01',
   changelog,
   readme: '**Status:** 0.4.0 is the current release. See\n',
-  branch: 'main',
+  headSha: 'abc123',
+  mainSha: 'abc123',
+  holdsOriginMain: true,
   headSubject: 'chore(release): prepare 0.4.0',
   pending: '',
   localTag: false,
   remoteTag: false,
   signsTags: true,
+  imageBuild: '',
 };
 
 /** A published release that passes every check after the push. */
@@ -48,15 +53,15 @@ const after = {
   changelog,
   tagKind: 'tag',
   tagSigned: true,
-  tagSubject: 'NotesApp 0.4.0',
+  tagSubject: 'tidy notebook 0.4.0',
   tagCommitSubject: 'chore(release): prepare 0.4.0',
   localTagSha: 'abc123',
   remoteTagSha: 'abc123',
   mainHoldsTagCommit: true,
-  runStatus: 'completed',
-  runConclusion: 'success',
-  runUrl: 'https://example.test/run/1',
-  releaseName: 'NotesApp 0.4.0',
+  imageDigest: 'sha256:' + 'a'.repeat(64),
+  imageRevision: 'abc123',
+  assetsError: '',
+  releaseName: 'tidy notebook 0.4.0',
   releaseTag: 'v0.4.0',
   releaseDraft: false,
   releasePrerelease: false,
@@ -65,6 +70,8 @@ const after = {
   latestTag: 'v0.4.0',
   milestoneState: 'closed',
   milestoneOpenIssues: 0,
+  imageOwner: 'tidynotebook',
+  imageOwnerType: 'Organization',
   imageTags: ['0.4.0', 'latest'],
 };
 
@@ -88,9 +95,17 @@ await test('a whole prepare commit passes the before gate', () => {
 });
 
 await test('the before gate names each missing step', () => {
-  assert.deepEqual(failures(beforeChecks({ ...before, branch: 'fix-trash' })), [
+  assert.deepEqual(
+    failures(beforeChecks({ ...before, headSha: 'def456' })),
+    [],
+  );
+  assert.deepEqual(failures(beforeChecks({ ...before, mainSha: '' })), [
     'the branch',
   ]);
+  assert.deepEqual(
+    failures(beforeChecks({ ...before, holdsOriginMain: false })),
+    ['the branch'],
+  );
   assert.deepEqual(
     failures(beforeChecks({ ...before, pending: ' M README.md' })),
     ['the working tree'],
@@ -112,6 +127,43 @@ await test('the before gate names each missing step', () => {
   assert.deepEqual(failures(beforeChecks({ ...before, signsTags: false })), [
     'tag signing',
   ]);
+});
+
+// Record 0204: a release runs from its worktree, so the gate reads the commit
+// of main and not the name of the branch.
+await test('a worktree branch at the tip of main passes the branch check', () => {
+  const checks = beforeChecks(before);
+  assert.equal(
+    checks.find((check) => check.name === 'the branch')?.status,
+    'ok',
+  );
+});
+
+// Regression: the tag of 0.14.0 has no image. pnpm verify passed, and the
+// image build failed only after the tag was pushed (record 0204).
+await test('an image that does not build fails the before gate', () => {
+  const cause =
+    "tools/product-name.test.mjs(8,48): error TS2307: Cannot find module '../apps/docs/src/site.ts'.";
+  const checks = beforeChecks({ ...before, imageBuild: cause });
+  assert.deepEqual(failures(checks), ['the image build']);
+  assert.equal(
+    checks.find((check) => check.name === 'the image build')?.detail,
+    cause,
+  );
+});
+
+await test('the cause of a failed build is its first error line', () => {
+  assert.equal(
+    buildFailure(
+      [
+        '#34 [builder 21/22] RUN pnpm build',
+        "#34 2.074 tools/a.test.mjs(8,48): error TS2307: Cannot find module '../b.ts'.",
+        '#34 ERROR: process "/bin/sh -c pnpm build" did not complete successfully',
+      ].join('\n'),
+    ),
+    "tools/a.test.mjs(8,48): error TS2307: Cannot find module '../b.ts'.",
+  );
+  assert.equal(buildFailure('one\nlast line\n'), 'last line');
 });
 
 await test('an entry that is not written yet reports one cause', () => {
@@ -159,16 +211,6 @@ await test('the after gate names each missing step', () => {
     ['the pushed commit'],
   );
   assert.deepEqual(
-    failures(
-      afterChecks({
-        ...after,
-        runStatus: 'completed',
-        runConclusion: 'failure',
-      }),
-    ),
-    ['the image build'],
-  );
-  assert.deepEqual(
     failures(afterChecks({ ...after, releaseTag: '', releaseName: '' })),
     ['the GitHub release'],
   );
@@ -184,9 +226,10 @@ await test('the after gate names each missing step', () => {
     ),
     ['the release notes'],
   );
-  assert.deepEqual(failures(afterChecks({ ...after, latestTag: 'v0.3.3' })), [
-    'the latest release',
-  ]);
+  assert.deepEqual(
+    failures(afterChecks({ ...after, latestTag: 'v0.5.0' })),
+    [],
+  );
   assert.deepEqual(
     failures(afterChecks({ ...after, milestoneState: 'open' })),
     ['the milestone'],
@@ -195,30 +238,83 @@ await test('the after gate names each missing step', () => {
     failures(afterChecks({ ...after, milestoneOpenIssues: 2 })),
     ['the milestone'],
   );
-  assert.deepEqual(failures(afterChecks({ ...after, imageTags: ['0.4.0'] })), [
-    'the image tags',
+  assert.deepEqual(
+    failures(afterChecks({ ...after, imageTags: ['0.4.0'] })),
+    [],
+  );
+});
+
+await test('a missing registry image cannot pass the release check', () => {
+  assert.deepEqual(failures(afterChecks({ ...after, imageDigest: '' })), [
+    'the image identity',
   ]);
 });
 
-await test('a release with no milestone and no package scope skips those checks', () => {
+await test('a release needs a milestone and registry scope', () => {
   const checks = afterChecks({ ...after, milestoneState: '', imageTags: null });
-  assert.deepEqual(failures(checks), []);
+  assert.deepEqual(failures(checks), ['the milestone', 'the image tags']);
+});
+
+await test('an image owner that GitHub does not know fails the image check', () => {
+  // A failed lookup of the owner read the address of the user, found no
+  // package, and reported a skip, so a release with no image looked complete.
   assert.deepEqual(
-    checks
-      .filter((check) => check.status === 'skipped')
-      .map((check) => check.name),
-    ['the milestone', 'the image tags'],
+    failures(afterChecks({ ...after, imageOwnerType: '', imageTags: null })),
+    ['the image tags'],
   );
 });
 
 await test('the image package comes from the release workflow', () => {
-  assert.equal(
-    imagePackage('    env:\n      IMAGE: ghcr.io/owner/notesapp\n'),
-    'notesapp',
+  assert.deepEqual(
+    imagePackage('    env:\n      IMAGE: ghcr.io/tidynotebook/tidynotebook\n'),
+    { owner: 'tidynotebook', name: 'tidynotebook' },
   );
-  assert.equal(imagePackage('no image here\n'), '');
+  assert.deepEqual(imagePackage('no image here\n'), { owner: '', name: '' });
+});
+
+await test('the versions of an organization package are read from the organization', () => {
+  // The repository moved to an organization (record 0187). The package of
+  // the image belongs to that organization, and the address of the user
+  // finds no package there.
+  const image = { owner: 'tidynotebook', name: 'tidynotebook' };
+  assert.equal(
+    packageVersionsPath(image, 'Organization'),
+    'orgs/tidynotebook/packages/container/tidynotebook/versions?per_page=100',
+  );
+  assert.equal(
+    packageVersionsPath({ owner: 'someone', name: 'notes' }, 'User'),
+    'user/packages/container/notes/versions?per_page=100',
+  );
 });
 
 await test('the date of a release is the local day', () => {
   assert.equal(isoDate(new Date(2026, 0, 5)), '2026-01-05');
+});
+
+await test('the published artifact binds the signed source', () => {
+  assert.deepEqual(
+    failures(afterChecks({ ...after, imageRevision: 'another' })),
+    ['the image identity'],
+  );
+
+  assert.deepEqual(failures(afterChecks({ ...after, imageTags: ['latest'] })), [
+    'the image tags',
+  ]);
+});
+
+await test('a fixed release date stays valid after midnight without a new prepare commit', () => {
+  assert.deepEqual(
+    failures(
+      beforeChecks({
+        ...before,
+        today: '2026-10-02',
+        releaseDate: '2026-10-01',
+      }),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    failures(beforeChecks({ ...before, releaseDate: '2026-09-30' })),
+    ['the changelog entry'],
+  );
 });

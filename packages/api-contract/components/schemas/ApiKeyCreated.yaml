@@ -1,0 +1,14 @@
+type: object
+description: A new key. Copy the token now. The server never shows it again.
+additionalProperties: false
+required: [key, token]
+properties:
+  key:
+    $ref: './ApiKey.yaml'
+  token:
+    type: string
+    readOnly: true
+    description: The one secret. Send it as a bearer header through HTTPS.
+    pattern: '^tnk_[A-Za-z0-9_-]{43}$'
+    minLength: 47
+    maxLength: 47

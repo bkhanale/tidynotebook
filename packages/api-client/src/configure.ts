@@ -7,6 +7,10 @@
  */
 import { client } from './generated/client.gen.ts';
 import type { ProblemDetails } from './generated/types.gen.ts';
+import {
+  ResponseReadError,
+  responseWithProgress,
+} from './response-progress.ts';
 
 /** Returns the current bearer token, or undefined for a cookie session. */
 export type TokenProvider = () => Promise<string | undefined>;
@@ -41,7 +45,10 @@ export function normalizeProblem(
 ): ProblemDetails {
   if (isProblemDetails(error)) return error;
   const aborted = error instanceof Error && error.name === 'AbortError';
-  const status = response?.status ?? 0;
+  // Headers can say 200 while the body never finishes. That remains a
+  // transport failure, rather than a permanent successful-status refusal.
+  const status =
+    error instanceof ResponseReadError ? 0 : (response?.status ?? 0);
   return {
     type: 'about:blank',
     title: aborted
@@ -71,6 +78,9 @@ export function configureClient(
   client.setConfig({ baseUrl, credentials: 'include' });
   if (interceptorsInstalled) return;
   interceptorsInstalled = true;
+  client.interceptors.response.use((response, _request, options) =>
+    responseWithProgress(response, options.signal),
+  );
   client.interceptors.request.use(async (request) => {
     const value = await tokenProvider?.();
     if (value !== undefined && value !== '')

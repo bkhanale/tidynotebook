@@ -21,6 +21,7 @@ import {
   assertProfileDatabase,
   databaseName,
   parseProfile,
+  readDeploySecrets,
   type MigrationProfile,
 } from './profiles.ts';
 import { migratePortableMarkdown } from './portable-markdown-migration.ts';
@@ -46,7 +47,7 @@ export const authRole = 'notesapp_auth';
  * `migrations/meta/_journal.json`. The readiness probe compares its answer
  * with this constant, so one value describes the required set.
  */
-export const requiredSchemaVersion = 30;
+export const requiredSchemaVersion = 35;
 
 /**
  * One PostgreSQL advisory lock serializes every migration run.
@@ -202,21 +203,6 @@ export const testDatabaseUrl =
 export const testRuntimePassword = 'notesapp_app_test_password';
 export const testAuthPassword = 'notesapp_auth_test_password';
 
-/** Reads a required environment value. */
-function required(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value === '') {
-    throw new Error(`notesapp: set ${name}.`);
-  }
-  return value;
-}
-
-/** Reads a secret from a protected operator file. */
-async function readSecretFile(name: string): Promise<string> {
-  const path = required(name);
-  return (await readFile(path, 'utf8')).trim();
-}
-
 /** The connection URL and the runtime password of one profile. */
 async function loadProfile(profile: MigrationProfile): Promise<MigrationRun> {
   if (profile === 'test') {
@@ -229,10 +215,11 @@ async function loadProfile(profile: MigrationProfile): Promise<MigrationRun> {
       documents: createDocumentService(),
     };
   }
+  // Each secret comes from its variable or from its file (record 0207). The
+  // names belong to the migration alone, so the runtime address of a
+  // container that migrates and then serves never reaches the migration.
   return {
-    databaseUrl: await readSecretFile('NOTESAPP_DATABASE_URL_FILE'),
-    runtimePassword: await readSecretFile('NOTESAPP_RUNTIME_PASSWORD_FILE'),
-    authPassword: await readSecretFile('NOTESAPP_AUTH_PASSWORD_FILE'),
+    ...(await readDeploySecrets(process.env, (path) => readFile(path, 'utf8'))),
     documents: createDocumentService(),
   };
 }

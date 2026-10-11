@@ -23,6 +23,7 @@ import {
   signInWithPassword,
   signUpAccount,
   updateInstallation,
+  updateLegalDocument,
   verifyAddress,
 } from '@notesapp/api-client';
 import {
@@ -55,6 +56,7 @@ import {
 } from './support/database.ts';
 import {
   migrationsBefore,
+  registerFirstAccountOfEarlierRelease,
   writeIssuerAccount,
 } from './support/earlier-schema.ts';
 
@@ -395,8 +397,8 @@ await test('the hourly run removes a pending account that nobody verified', asyn
 });
 
 await test('the open policy needs every part it names', async () => {
-  // This installation has mail, but no published origin and no legal
-  // documents, so an administrator cannot open it (record 0114).
+  // This installation has mail and no legal documents, so an administrator
+  // cannot open it (record 0114).
   await setPolicy('invitation');
   const refused = await updateInstallation({
     headers: owner,
@@ -404,6 +406,60 @@ await test('the open policy needs every part it names', async () => {
   });
   assert.equal(responseOf(refused.response).status, 422);
   assert.equal(problemCode(refused.error), 'open_registration_unavailable');
+  assert.deepEqual(memberOf(refused.error, 'missing'), ['legal-documents']);
+});
+
+await test('the open policy opens with no published origin', async () => {
+  // Record 0191: mail and the legal documents are enough. This server names
+  // no published origin, so the application origin serves the reader path.
+  assert.ok(
+    config.servedOrigins.every((served) => served.role === 'application'),
+  );
+  for (const [document, version] of [
+    ['terms', 't1'],
+    ['privacy', 'p1'],
+  ] as const) {
+    const stored = await updateLegalDocument({
+      headers: owner,
+      path: { document },
+      body: {
+        kind: 'address',
+        url: `https://example.test/${document}`,
+        version,
+      },
+    });
+    assert.equal(responseOf(stored.response).status, 200);
+  }
+  const opened = await updateInstallation({
+    headers: owner,
+    body: { registrationPolicy: 'open' },
+  });
+  assert.equal(
+    responseOf(opened.response).status,
+    200,
+    JSON.stringify(opened.error),
+  );
+  assert.equal(opened.data?.registrationPolicy, 'open');
+  assert.equal((await getSetupStatus()).data?.openRegistration, true);
+  // A stranger signs up, opens the link, and signs in.
+  const email = `stranger-${randomUUID()}@notes.invalid`;
+  const password = 'stranger-password-12345';
+  const asked = await signUpAccount({
+    headers: origin,
+    body: {
+      email,
+      password,
+      proof: await proof(),
+      consent: { termsVersion: 't1', privacyVersion: 'p1' },
+    },
+  });
+  assert.equal(responseOf(asked.response).status, 202);
+  const verified = await verifyAddress({
+    headers: origin,
+    body: { token: lastToken(email) },
+  });
+  assert.deepEqual(verified.data, { email });
+  assert.equal(await signsIn(email, password), true);
 });
 
 await test('an upgraded installation still signs in its existing accounts', async () => {
@@ -447,15 +503,17 @@ await test('an upgraded installation still signs in its existing accounts', asyn
         passwordHash: await (await auth.auth.$context).password.hash(password),
         emailVerified: false,
       });
-      const account = await identity.register({
-        authUserId: userId,
-        ground: { kind: 'first-run' },
-        accountId: randomUUID(),
-        workspaceId: randomUUID(),
-        workspaceName: 'Personal',
-        limitBytes: defaultAccountLimitBytes,
-      });
-      assert.ok(account !== null);
+      const runtime = await openSession(upgraded.databaseUrl);
+      try {
+        const account = await registerFirstAccountOfEarlierRelease(
+          runtime,
+          userId,
+          defaultAccountLimitBytes,
+        );
+        assert.ok(account !== null);
+      } finally {
+        await runtime.close();
+      }
       const signIn = async (): Promise<number> => {
         const response: unknown = await auth.auth.api.signInEmail({
           body: { email, password },

@@ -9,8 +9,8 @@ info:
     generated from this document. Errors use RFC 9457 problem details with a
     stable application code.
   license:
-    name: MIT
-    identifier: MIT
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
   contact:
     name: notesapp maintainers
     url: https://notesapp.invalid/support
@@ -18,9 +18,10 @@ jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 servers:
   - url: https://notes.invalid
     description: >-
-      Documentation placeholder origin. Every deployment sets its real origin
-      through the client configuration, so no generated call depends on this
-      value.
+      This is a placeholder address. Use the HTTPS origin of your own
+      installation in your client or API tool. Replace the placeholder before
+      you send a request. The generated client takes the address from its
+      configuration.
 tags:
   - name: service
     description: Service state operations used by operators and load balancers.
@@ -51,9 +52,22 @@ tags:
     description: >-
       Authentication protocol endpoints. Better Auth implements them; the
       contract records their shapes so the generated client owns every call.
+  - name: operator
+    description: >-
+      Operations of a service of the operator, such as a billing service
+      (record 0190). They take the operator token and no session, set no
+      cookie, and never read or write a note, a workspace or a published
+      link.
 security:
   - sessionCookie: []
+  - personalApiKey: []
 paths:
+  /api/account/keys:
+    $ref: './paths/api_account_keys.yaml'
+  /api/account/keys/{keyId}:
+    $ref: './paths/api_account_keys_keyId.yaml'
+  /api/auth/update-user:
+    $ref: './paths/api_auth_update-user.yaml'
   /health:
     $ref: './paths/health.yaml'
   /ready:
@@ -118,6 +132,20 @@ paths:
     $ref: './paths/api_account_themes.yaml'
   /api/account/themes/{themeId}:
     $ref: './paths/api_account_themes_themeId.yaml'
+  /api/account/portal:
+    $ref: './paths/api_account_portal.yaml'
+  /api/operator/accounts:
+    $ref: './paths/api_operator_accounts.yaml'
+  /api/operator/accounts/{accountId}:
+    $ref: './paths/api_operator_accounts_accountId.yaml'
+  /api/operator/accounts/{accountId}/controls:
+    $ref: './paths/api_operator_accounts_accountId_controls.yaml'
+  /api/operator/totals:
+    $ref: './paths/api_operator_totals.yaml'
+  /api/operator/events:
+    $ref: './paths/api_operator_events.yaml'
+  /api/operator/handoffs:
+    $ref: './paths/api_operator_handoffs.yaml'
   /api/workspaces:
     $ref: './paths/api_workspaces.yaml'
   /api/workspaces/{workspaceId}:
@@ -160,8 +188,14 @@ paths:
     $ref: './paths/api_workspaces_workspaceId_sync_changes.yaml'
   /api/workspaces/{workspaceId}/export:
     $ref: './paths/api_workspaces_workspaceId_export.yaml'
-  /api/workspaces/{workspaceId}/import:
-    $ref: './paths/api_workspaces_workspaceId_import.yaml'
+  /api/workspaces/{workspaceId}/imports:
+    $ref: './paths/api_workspaces_workspaceId_imports.yaml'
+  /api/workspaces/{workspaceId}/imports/{importId}:
+    $ref: './paths/api_workspaces_workspaceId_imports_importId.yaml'
+  /api/workspaces/{workspaceId}/imports/{importId}/parts/{partNumber}:
+    $ref: './paths/api_workspaces_workspaceId_imports_importId_parts_partNumber.yaml'
+  /api/workspaces/{workspaceId}/imports/{importId}/complete:
+    $ref: './paths/api_workspaces_workspaceId_imports_importId_complete.yaml'
   /api/workspaces/{workspaceId}/files/{fileId}/export:
     $ref: './paths/api_workspaces_workspaceId_files_fileId_export.yaml'
   /api/workspaces/{workspaceId}/files/{fileId}/backlinks:
@@ -186,8 +220,12 @@ paths:
     $ref: './paths/published_token_attachments_fileId_revisionId.yaml'
 components:
   securitySchemes:
+    personalApiKey:
+      $ref: './components/securitySchemes/personalApiKey.yaml'
     sessionCookie:
       $ref: './components/securitySchemes/sessionCookie.yaml'
+    operatorToken:
+      $ref: './components/securitySchemes/operatorToken.yaml'
   parameters:
     MutationId:
       $ref: './components/parameters/MutationId.yaml'
@@ -205,6 +243,10 @@ components:
       $ref: './components/parameters/RevisionId.yaml'
     ObjectId:
       $ref: './components/parameters/ObjectId.yaml'
+    ImportId:
+      $ref: './components/parameters/ImportId.yaml'
+    PartNumber:
+      $ref: './components/parameters/PartNumber.yaml'
     PageCursor:
       $ref: './components/parameters/PageCursor.yaml'
     FilePageCursor:
@@ -255,6 +297,12 @@ components:
       $ref: './components/parameters/ReportId.yaml'
     LegalDocumentName:
       $ref: './components/parameters/LegalDocumentName.yaml'
+    AccountAddress:
+      $ref: './components/parameters/AccountAddress.yaml'
+    UsageMonthQuery:
+      $ref: './components/parameters/UsageMonthQuery.yaml'
+    AccountEventAfter:
+      $ref: './components/parameters/AccountEventAfter.yaml'
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
@@ -276,8 +324,10 @@ components:
       $ref: './components/requestBodies/Changeset.yaml'
     UploadAttachment:
       $ref: './components/requestBodies/UploadAttachment.yaml'
-    ImportWorkspace:
-      $ref: './components/requestBodies/ImportWorkspace.yaml'
+    StartWorkspaceImport:
+      $ref: './components/requestBodies/StartWorkspaceImport.yaml'
+    WorkspaceImportPart:
+      $ref: './components/requestBodies/WorkspaceImportPart.yaml'
     FinalizeAttachment:
       $ref: './components/requestBodies/FinalizeAttachment.yaml'
     RestoreRevision:
@@ -310,6 +360,12 @@ components:
       $ref: './components/requestBodies/LegalDocumentUpdate.yaml'
     AccountRemoval:
       $ref: './components/requestBodies/AccountRemoval.yaml'
+    AccountControlsUpdate:
+      $ref: './components/requestBodies/AccountControlsUpdate.yaml'
+    HandoffRedeem:
+      $ref: './components/requestBodies/HandoffRedeem.yaml'
+    PortalOpen:
+      $ref: './components/requestBodies/PortalOpen.yaml'
   responses:
     Health:
       $ref: './components/responses/Health.yaml'
@@ -393,6 +449,10 @@ components:
       $ref: './components/responses/WorkspaceArchive.yaml'
     WorkspaceImported:
       $ref: './components/responses/WorkspaceImported.yaml'
+    WorkspaceImportStarted:
+      $ref: './components/responses/WorkspaceImportStarted.yaml'
+    WorkspaceImportPartReceived:
+      $ref: './components/responses/WorkspaceImportPartReceived.yaml'
     AttachmentBinary:
       $ref: './components/responses/AttachmentBinary.yaml'
     HistoryPage:
@@ -479,7 +539,39 @@ components:
       $ref: './components/responses/AccountSessionList.yaml'
     SessionsRevoked:
       $ref: './components/responses/SessionsRevoked.yaml'
+    AccountLocked:
+      $ref: './components/responses/AccountLocked.yaml'
+    OperatorOff:
+      $ref: './components/responses/OperatorOff.yaml'
+    OperatorNotFound:
+      $ref: './components/responses/OperatorNotFound.yaml'
+    ControlsChanged:
+      $ref: './components/responses/ControlsChanged.yaml'
+    AccountChangeConflict:
+      $ref: './components/responses/AccountChangeConflict.yaml'
+    OperatorAccount:
+      $ref: './components/responses/OperatorAccount.yaml'
+    OperatorTotals:
+      $ref: './components/responses/OperatorTotals.yaml'
+    AccountEventList:
+      $ref: './components/responses/AccountEventList.yaml'
+    HandoffAccount:
+      $ref: './components/responses/HandoffAccount.yaml'
+    PortalAddress:
+      $ref: './components/responses/PortalAddress.yaml'
   schemas:
+    ApiKey:
+      $ref: './components/schemas/ApiKey.yaml'
+    ApiKeyCreateInput:
+      $ref: './components/schemas/ApiKeyCreateInput.yaml'
+    ApiKeyCreated:
+      $ref: './components/schemas/ApiKeyCreated.yaml'
+    ApiKeyList:
+      $ref: './components/schemas/ApiKeyList.yaml'
+    ProfileUpdateInput:
+      $ref: './components/schemas/ProfileUpdateInput.yaml'
+    ProfileUpdated:
+      $ref: './components/schemas/ProfileUpdated.yaml'
     HealthReport:
       $ref: './components/schemas/HealthReport.yaml'
     ReadinessReport:
@@ -496,6 +588,8 @@ components:
       $ref: './components/schemas/SyncNoticeReady.yaml'
     SyncNoticeReconcile:
       $ref: './components/schemas/SyncNoticeReconcile.yaml'
+    SyncNoticeAccount:
+      $ref: './components/schemas/SyncNoticeAccount.yaml'
     SyncNoticeRefused:
       $ref: './components/schemas/SyncNoticeRefused.yaml'
     SyncNoticeStop:
@@ -620,8 +714,14 @@ components:
       $ref: './components/schemas/ChangesetInput.yaml'
     UploadAttachmentInput:
       $ref: './components/schemas/UploadAttachmentInput.yaml'
-    ImportWorkspaceInput:
-      $ref: './components/schemas/ImportWorkspaceInput.yaml'
+    StartWorkspaceImportInput:
+      $ref: './components/schemas/StartWorkspaceImportInput.yaml'
+    WorkspaceImportStarted:
+      $ref: './components/schemas/WorkspaceImportStarted.yaml'
+    WorkspaceImportPart:
+      $ref: './components/schemas/WorkspaceImportPart.yaml'
+    WorkspaceImportPartReceived:
+      $ref: './components/schemas/WorkspaceImportPartReceived.yaml'
     ImportWorkspaceResult:
       $ref: './components/schemas/ImportWorkspaceResult.yaml'
     AttachmentUploadResult:
@@ -812,3 +912,49 @@ components:
       $ref: './components/schemas/AccountSessionList.yaml'
     SessionsRevoked:
       $ref: './components/schemas/SessionsRevoked.yaml'
+    AccountStanding:
+      $ref: './components/schemas/AccountStanding.yaml'
+    ControlRevision:
+      $ref: './components/schemas/ControlRevision.yaml'
+    ByteLimit:
+      $ref: './components/schemas/ByteLimit.yaml'
+    AccountFeatures:
+      $ref: './components/schemas/AccountFeatures.yaml'
+    AccountFeaturesInput:
+      $ref: './components/schemas/AccountFeaturesInput.yaml'
+    AccountControls:
+      $ref: './components/schemas/AccountControls.yaml'
+    AccountControlsInput:
+      $ref: './components/schemas/AccountControlsInput.yaml'
+    UsageMonth:
+      $ref: './components/schemas/UsageMonth.yaml'
+    AccountUsage:
+      $ref: './components/schemas/AccountUsage.yaml'
+    AccountMonth:
+      $ref: './components/schemas/AccountMonth.yaml'
+    UsageLimit:
+      $ref: './components/schemas/UsageLimit.yaml'
+    OperatorAccount:
+      $ref: './components/schemas/OperatorAccount.yaml'
+    OperatorTotals:
+      $ref: './components/schemas/OperatorTotals.yaml'
+    AccountEventKind:
+      $ref: './components/schemas/AccountEventKind.yaml'
+    AccountEventCursor:
+      $ref: './components/schemas/AccountEventCursor.yaml'
+    AccountEvent:
+      $ref: './components/schemas/AccountEvent.yaml'
+    AccountEventList:
+      $ref: './components/schemas/AccountEventList.yaml'
+    HandoffToken:
+      $ref: './components/schemas/HandoffToken.yaml'
+    HandoffRedeemInput:
+      $ref: './components/schemas/HandoffRedeemInput.yaml'
+    HandoffAccount:
+      $ref: './components/schemas/HandoffAccount.yaml'
+    PortalPath:
+      $ref: './components/schemas/PortalPath.yaml'
+    PortalOpenInput:
+      $ref: './components/schemas/PortalOpenInput.yaml'
+    PortalAddress:
+      $ref: './components/schemas/PortalAddress.yaml'

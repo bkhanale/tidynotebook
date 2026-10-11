@@ -35,7 +35,9 @@ import {
 import { acquireWorkerLease, releaseWorkerLease } from './lease.ts';
 import {
   backoffDelay,
+  downloadLimitCode,
   pushQueue,
+  SyncFailedError,
   type CommitResult,
   type Problem,
   type PushOutcome,
@@ -1437,6 +1439,45 @@ await test('transport failures back off with bounded delays and then defer', asy
   assert.equal(store.queued()?.state, 'sending');
 });
 
+await test('a generated transport failure stays queued and retries the frozen save', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let connected = false;
+  const ops = stubOperations({
+    commit: (input) =>
+      Promise.resolve(
+        connected
+          ? {
+              ok: true as const,
+              value: accepted(input.mutationId, ['rev-a'], '11'),
+            }
+          : {
+              ok: false as const,
+              problem: { status: 0, code: 'transport_failed', fileIds: [] },
+            },
+      ),
+  });
+  const ctx = testContext(notices, delays);
+  assert.equal(
+    await pushQueue(store, accountId, workspaceId, ops, ctx, noPull),
+    'deferred',
+  );
+  assert.equal(ops.commitCalls.length, 4);
+  assert.deepEqual(delays, [500, 1000, 2000]);
+  assert.equal(store.queued()?.state, 'sending');
+  assert.equal(store.recovery.length, 0);
+  const frozen = ops.commitCalls[0];
+  connected = true;
+  assert.equal(
+    await pushQueue(store, accountId, workspaceId, ops, ctx, noPull),
+    'done',
+  );
+  assert.equal(store.queued(), null);
+  assert.ok(ops.commitCalls.every((input) => input === frozen));
+});
+
 await test('backoff delays grow exponentially within the cap', async () => {
   assert.equal(
     backoffDelay(0, () => 0),
@@ -1459,6 +1500,31 @@ await test('backoff delays grow exponentially within the cap', async () => {
     999,
   );
   assert.ok(backoffDelay(3, () => 0.5) <= 8500);
+});
+
+await test('a snapshot past the download limit of the month fails at once with its code', async () => {
+  // Record 0193. The limit holds until the next month, so a try again in
+  // the same run only waits, and the interface names the cause.
+  const store = new FakeStore();
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let starts = 0;
+  const ops = stubOperations({
+    start: () => {
+      starts += 1;
+      return Promise.resolve({
+        ok: false as const,
+        problem: { status: 429, code: downloadLimitCode, fileIds: [] },
+      });
+    },
+  });
+  await assert.rejects(
+    pullNew(store, accountId, workspaceId, ops, testContext(notices, delays)),
+    (error: unknown) =>
+      error instanceof SyncFailedError && error.code === downloadLimitCode,
+  );
+  assert.equal(starts, 1);
+  assert.deepEqual(delays, []);
 });
 
 await test('the first pull stages, fetches, and activates a snapshot', async () => {
@@ -2288,7 +2354,9 @@ await test('a server with a later protocol gets no push and no pull', async () =
   controller.abort();
   await running;
   assert.equal(ops.commitCalls.length, 0);
-  assert.equal(store.queued()?.state, 'pending');
+  // The save waits with its frozen body, so the next send repeats it.
+  assert.notEqual(store.queued(), null);
+  assert.notEqual(store.queued()?.state, 'conflict');
   assert.equal(store.recovery.length, 0);
   assert.deepEqual(
     notices.filter((notice) => notice.kind === 'protocol'),
@@ -2432,6 +2500,64 @@ await test('a stop answer of 503 keeps a queued save queued', async () => {
   assert.equal(store.discarded.length, 0);
 });
 
+await test('a save refused for a locked account stays queued and goes once it is active', async () => {
+  // Record 0201. A locked account keeps a refused save in its queue, as a
+  // full account does, because the account can become active again.
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
+  let locked = true;
+  const ops = stubOperations({
+    commit: () =>
+      locked
+        ? Promise.resolve({
+            ok: false as const,
+            problem: { status: 423, code: 'account_locked', fileIds: [] },
+          })
+        : Promise.resolve({
+            ok: true as const,
+            value: accepted('mutation-2', ['rev-b'], '8'),
+          }),
+  });
+  const notices: SyncNotice[] = [];
+  const refused = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, []),
+    noPull,
+  );
+  assert.equal(refused, 'done');
+  assert.equal(ops.commitCalls.length, 1);
+  // The save waits with its frozen body, so the next send repeats it.
+  assert.notEqual(store.queued(), null);
+  assert.notEqual(store.queued()?.state, 'conflict');
+  assert.equal(store.recovery.length, 0);
+  assert.equal(store.discarded.length, 0);
+  assert.deepEqual(
+    notices.filter((notice) => notice.kind === 'preserved'),
+    [],
+  );
+  // The screen hears it, and reads the account again.
+  assert.deepEqual(
+    notices.filter((notice) => notice.kind === 'account-locked'),
+    [{ kind: 'account-locked' }],
+  );
+  // The account is active again, and the next cycle sends the same save.
+  locked = false;
+  await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext([], []),
+    noPull,
+  );
+  assert.equal(ops.commitCalls.length, 2);
+  assert.deepEqual(store.acks, [accepted('mutation-2', ['rev-b'], '8')]);
+  assert.equal((await store.pending(accountId, workspaceId)).length, 0);
+});
+
 await test('the worker lease is exclusive, renewable, and taken over on expiry', async () => {
   const store = new FakeStore();
   store.nowMs = 1_000_000;
@@ -2545,6 +2671,93 @@ function endlessSleep(_ms: number, signal: AbortSignal): Promise<void> {
     };
     if (signal.aborted) stop();
     else signal.addEventListener('abort', stop, { once: true });
+  });
+}
+
+for (const failedRead of ['session', 'protocol', 'changes'] as const) {
+  await test(`a failed ${failedRead} read keeps retrying and clears a quiet connection status`, async () => {
+    const store = new FakeStore();
+    store.cursors.set(`${accountId}/${workspaceId}`, '20');
+    const notices: SyncNotice[] = [];
+    const rests: { ms: number; resume: () => void }[] = [];
+    let connected = false;
+    const failed = {
+      ok: false as const,
+      problem: { status: 0, code: 'transport_failed', fileIds: [] },
+    };
+    const engine = createSyncEngine(store, accountId, workspaceId, {
+      ownerId: `recover-${failedRead}`,
+      operations: stubOperations({
+        verifySession: () =>
+          Promise.resolve(
+            !connected && failedRead === 'session'
+              ? failed
+              : { ok: true as const, value: { accountId } },
+          ),
+        syncProtocol: () =>
+          Promise.resolve(
+            !connected && failedRead === 'protocol'
+              ? failed
+              : {
+                  ok: true as const,
+                  value: { versions: [syncProtocolVersion] },
+                },
+          ),
+        changes: (cursor) =>
+          Promise.resolve(
+            !connected && failedRead === 'changes'
+              ? failed
+              : {
+                  ok: true as const,
+                  value: { changes: [], nextCursor: cursor },
+                },
+          ),
+      }),
+      interval: () => 300_000,
+      lease: {
+        hold: () => Promise.resolve(true),
+        release: () => Promise.resolve(),
+      },
+      random: () => 0,
+      sleep: (ms, signal) =>
+        ms < 15_000
+          ? Promise.resolve()
+          : new Promise<void>((resolve, reject) => {
+              rests.push({ ms, resume: resolve });
+              signal.addEventListener('abort', () => reject(signal.reason), {
+                once: true,
+              });
+            }),
+      announce: (notice) => {
+        notices.push(notice);
+      },
+    });
+    const controller = new AbortController();
+    const running = engine.run(controller.signal);
+    try {
+      await waitFor(() => rests.length === 1);
+      assert.equal(
+        rests[0]?.ms,
+        15_000,
+        'a live socket cannot delay retries to its safety interval',
+      );
+      assert.ok(notices.some((notice) => notice.kind === 'retry'));
+      assert.ok(!notices.some((notice) => notice.kind === 'access-lost'));
+      // The first cycle ends with no connection. The next also fails, so
+      // the bounded attempts do not stop the engine. No browser event wakes it.
+      rests[0]?.resume();
+      await waitFor(() => rests.length === 2);
+      connected = true;
+      rests[1]?.resume();
+      await waitFor(() =>
+        notices.some((notice) => notice.kind === 'connected'),
+      );
+      assert.equal(store.cursors.get(`${accountId}/${workspaceId}`), '20');
+    } finally {
+      controller.abort();
+      engine.stop();
+      await running;
+    }
   });
 }
 

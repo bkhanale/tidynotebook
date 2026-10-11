@@ -19,6 +19,14 @@ import {
 /** The namespace that the renderer gives each heading identifier. */
 const headingNamespace = '#user-content-';
 
+/** The contract source also opens its generated reference on the site. */
+export const apiContractSource = 'packages/api-contract/openapi.yaml';
+
+/** The client generator's bundled contract and its downloadable address. */
+export const apiDocumentFile =
+  'packages/api-contract/src/generated/openapi.json';
+export const apiDownload = 'api/openapi.json';
+
 /** The address of one page, with a fragment when one is given. */
 export function pageHref(
   settings: SiteSettings,
@@ -75,6 +83,9 @@ export function htmlDestination(
   inRepository: (path: string) => boolean = () => true,
 ): string | null {
   if (target.path === null) return null;
+  if (target.path === apiContractSource)
+    return pageHref(settings, 'api-reference', target.fragment);
+  if (target.path === apiDocumentFile) return `${settings.base}${apiDownload}`;
   const file = guideFileOf(target.path);
   if (file === null && !inRepository(target.path))
     throw new Error(
@@ -104,6 +115,10 @@ export function markdownDestination(
   path: string,
   fragment: string,
 ): string {
+  if (path === apiContractSource)
+    return absoluteAddress(settings, markdownHref(settings, 'api-reference'));
+  if (path === apiDocumentFile)
+    return absoluteAddress(settings, `${settings.base}${apiDownload}`);
   const file = guideFileOf(path);
   if (file === null) return repositoryHref(path, fragment);
   if (!files.has(file)) throw deadLink(path);

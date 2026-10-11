@@ -30,6 +30,7 @@ import {
   takeDownReportedLink,
   updateAccount,
   updateInstallation,
+  type AccountControlsInput,
   type AccountSummary,
   type Installation,
   type Invitation,
@@ -55,6 +56,7 @@ import {
   pageListClassName,
   PlusIcon,
   ReadOnlyField,
+  SelectField,
   TextField,
   UsersIcon,
 } from '@notesapp/ui';
@@ -82,15 +84,20 @@ import {
   accountFacts,
   accountName,
   accountsTitle,
-  bytesOfGigabytes,
   enabledAdministrators,
-  gigabytesOf,
   invitationFacts,
   missingPartsOf,
   openRegistrationMissingText,
+  registrationPolicyLocked,
   registrationPolicyText,
   type AccountAction,
 } from '../../lib/accounts.ts';
+import {
+  controlsChangeOf,
+  controlsFormOf,
+  type ControlsForm,
+  type ControlsProblem,
+} from '../../lib/account-controls.ts';
 import {
   canTakeDown,
   reportFacts,
@@ -118,7 +125,7 @@ type PageState =
 type OpenDialog =
   | { readonly kind: 'none' }
   | { readonly kind: 'invite' }
-  | { readonly kind: 'limit'; readonly account: AccountSummary }
+  | { readonly kind: 'controls'; readonly account: AccountSummary }
   | { readonly kind: 'remove'; readonly account: AccountSummary };
 
 /** The accounts page. Only an administrator opens it. */
@@ -249,8 +256,9 @@ function AccountsPage(): ReactNode {
 
   const runAction = (account: AccountSummary, action: AccountAction): void => {
     const name = accountName(account);
-    if (action === 'change-limit') {
-      setDialog({ kind: 'limit', account });
+    if (action === 'change-controls') {
+      setFailure('');
+      setDialog({ kind: 'controls', account });
       return;
     }
     if (action === 'remove') {
@@ -297,14 +305,21 @@ function AccountsPage(): ReactNode {
               registration: {
                 description: registrationPolicyText(
                   state.installation.registrationPolicy,
+                  state.installation.registrationPolicySource,
                 ),
                 body: (
-                  // The choice applies at once, as every setting does.
+                  // The choice applies at once, as every setting does. A
+                  // policy that the environment names is locked (0206).
                   <Checkbox
                     id="registration-open"
                     label="Let anybody sign up"
                     checked={state.installation.registrationPolicy === 'open'}
-                    disabled={busy}
+                    disabled={
+                      busy ||
+                      registrationPolicyLocked(
+                        state.installation.registrationPolicySource,
+                      )
+                    }
                     onChange={(open) => {
                       changePolicy(open ? 'open' : 'invitation');
                     }}
@@ -579,22 +594,23 @@ function AccountsPage(): ReactNode {
           }}
         />
       ) : null}
-      {dialog.kind === 'limit' ? (
-        <LimitDialog
+      {dialog.kind === 'controls' ? (
+        <ControlsDialog
           account={dialog.account}
+          now={now}
           busy={busy}
           failure={failure}
           onClose={() => {
             setDialog({ kind: 'none' });
           }}
-          onSave={(limitBytes) => {
+          onSave={(controls) => {
             change(
               () =>
                 updateAccount({
                   path: { accountId: dialog.account.accountId },
-                  body: { limitBytes },
+                  body: { controls },
                 }),
-              `The storage limit of ${accountName(dialog.account)} is changed.`,
+              `The limits and access of ${accountName(dialog.account)} are changed.`,
             );
           }}
         />
@@ -602,7 +618,7 @@ function AccountsPage(): ReactNode {
       {dialog.kind === 'remove' ? (
         <Dialog
           open
-          title={`Remove ${accountName(dialog.account)}?`}
+          title={`Delete ${accountName(dialog.account)}?`}
           titleId="remove-account-title"
           width="small"
           onClose={() => {
@@ -611,7 +627,7 @@ function AccountsPage(): ReactNode {
         >
           <DialogBody>
             <p className="m-0 text-ui text-strong">
-              This removes the account and every note in its workspaces for
+              This deletes the account and every note in its workspaces for
               good. The person is signed out on every device.
             </p>
           </DialogBody>
@@ -633,11 +649,11 @@ function AccountsPage(): ReactNode {
                     removeAccount({
                       path: { accountId: dialog.account.accountId },
                     }),
-                  `${accountName(dialog.account)} is removed.`,
+                  `${accountName(dialog.account)} is deleted.`,
                 );
               }}
             >
-              {busy ? 'Removing the account' : 'Remove account'}
+              {busy ? 'Deleting the account' : 'Delete account'}
             </Button>
           </DialogFooter>
         </Dialog>
@@ -781,55 +797,152 @@ function InviteDialog({
   );
 }
 
-/** The dialog that changes the storage limit of one account. */
-function LimitDialog({
+/**
+ * The dialog that changes the limits and the access of one account (record
+ * 0189).
+ *
+ * The form states each value as a person types it, and `lib/account-controls`
+ * turns it into the change, with the revision that the page read. A change
+ * that another administrator or the operator made first is refused, and the
+ * failure says so.
+ */
+function ControlsDialog({
   account,
+  now,
   busy,
   failure,
   onClose,
   onSave,
 }: {
   readonly account: AccountSummary;
+  readonly now: number;
   readonly busy: boolean;
   readonly failure: string;
   readonly onClose: () => void;
-  readonly onSave: (limitBytes: number) => void;
+  readonly onSave: (controls: AccountControlsInput) => void;
 }): ReactNode {
-  const [text, setText] = useState(gigabytesOf(account.storage.limitBytes));
-  const [error, setError] = useState('');
+  const [form, setForm] = useState<ControlsForm>(() =>
+    controlsFormOf(account.controls, now),
+  );
+  const [problem, setProblem] = useState<ControlsProblem | null>(null);
+  const errorOf = (field: keyof ControlsForm): string | undefined =>
+    problem?.field === field ? problem.message : undefined;
+  const set = (patch: Partial<ControlsForm>): void => {
+    setForm((current) => ({ ...current, ...patch }));
+  };
+  const administrator = account.installationRole === 'administrator';
   return (
     <Dialog
       open
-      title="Change storage limit"
-      titleId="limit-title"
+      title="Change limits and access"
+      titleId="controls-title"
       width="small"
       onClose={onClose}
     >
       <form
         onSubmit={(event): void => {
           event.preventDefault();
-          const bytes = bytesOfGigabytes(text);
-          if (bytes === null) {
-            setError('Enter a number of gigabytes above zero.');
+          const read = controlsChangeOf(form, account.controls, now);
+          if (!read.ok) {
+            setProblem(read.problem);
             return;
           }
-          setError('');
-          onSave(bytes);
+          setProblem(null);
+          onSave(read.change);
         }}
       >
         <DialogBody>
           <p className="mb-4 mt-0 text-control text-muted">
-            The limit counts every workspace that {accountName(account)} owns.
+            The limits count every workspace that {accountName(account)} owns.
+            An empty limit is no limit.
           </p>
-          <TextField
-            id="limit-gigabytes"
-            label="Limit in gigabytes"
-            value={text}
-            required
-            autoFocus
-            error={error === '' ? failure : error}
-            onChange={setText}
+          {failure === '' ? null : (
+            <Notice className="mb-4" tone="problem" message={failure} />
+          )}
+          <SelectField
+            id="controls-standing"
+            label="Access"
+            value={form.standing}
+            options={[
+              { value: 'active', label: 'Active' },
+              ...(administrator ? [] : [{ value: 'locked', label: 'Locked' }]),
+            ]}
+            hint={
+              administrator
+                ? 'An administrator is always active. Make the account a member to lock it.'
+                : 'A locked account can only export its notes, delete itself, or open billing.'
+            }
+            onChange={(value) => {
+              set({ standing: value === 'locked' ? 'locked' : 'active' });
+            }}
           />
+          {form.standing === 'locked' ? (
+            <TextField
+              id="controls-removal"
+              label="Remove after this many days"
+              value={form.removeInDays}
+              hint="Leave it empty to keep the locked account."
+              error={errorOf('removeInDays')}
+              onChange={(value) => {
+                set({ removeInDays: value });
+              }}
+            />
+          ) : null}
+          <TextField
+            id="controls-storage"
+            label="Storage limit in gigabytes"
+            value={form.storageGigabytes}
+            required
+            error={errorOf('storageGigabytes')}
+            onChange={(value) => {
+              set({ storageGigabytes: value });
+            }}
+          />
+          <TextField
+            id="controls-text"
+            label="Text and history limit in gigabytes"
+            value={form.textGigabytes}
+            error={errorOf('textGigabytes')}
+            onChange={(value) => {
+              set({ textGigabytes: value });
+            }}
+          />
+          <TextField
+            id="controls-transfer"
+            label="Published pages each month, in gigabytes"
+            value={form.transferGigabytes}
+            error={errorOf('transferGigabytes')}
+            onChange={(value) => {
+              set({ transferGigabytes: value });
+            }}
+          />
+          <TextField
+            id="controls-download"
+            label="Downloads each month, in gigabytes"
+            value={form.downloadGigabytes}
+            error={errorOf('downloadGigabytes')}
+            onChange={(value) => {
+              set({ downloadGigabytes: value });
+            }}
+          />
+          <div className="flex flex-wrap gap-cluster">
+            <Checkbox
+              id="controls-teams"
+              label="Teams"
+              checked={form.teams}
+              onChange={(checked) => {
+                set({ teams: checked });
+              }}
+            />
+            <Checkbox
+              id="controls-collaboration"
+              label="Collaboration"
+              checked={form.collaboration}
+              onChange={(checked) => {
+                set({ collaboration: checked });
+              }}
+            />
+          </div>
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>

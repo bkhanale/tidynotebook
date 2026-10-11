@@ -400,3 +400,164 @@ await test('a settings write names only the settings it changes', () => {
   assert.equal(validate({ spellCheck: 'no' }), false);
   assert.equal(validate({ spellCheck: true, language: 'en' }), false);
 });
+
+await test('a number in a path arrives as text and is read as a number', () => {
+  // The number of a part of an import is a path segment (record 0192).
+  const validate = requestValidator('sendWorkspaceImportPart', 'params');
+  assert.ok(validate !== undefined);
+  const params: Json = {
+    workspaceId: '00000000-0000-4000-8000-000000000001',
+    importId: '00000000-0000-4000-8000-000000000002',
+    partNumber: '3',
+  };
+  assert.equal(validate(params), true);
+  assert.equal(params['partNumber'], 3);
+  for (const partNumber of ['0', '10001', 'x', '1.5'])
+    assert.equal(validate({ ...params, partNumber }), false, partNumber);
+  // A text path segment stays text.
+  assert.equal(typeof params['workspaceId'], 'string');
+});
+
+await test('a write of the controls names the revision that it read', () => {
+  const validate = requestValidator('setOperatorAccountControls', 'body');
+  assert.ok(validate !== undefined);
+  assert.equal(validate({ revision: 3, standing: 'locked' }), true);
+  assert.equal(
+    validate({
+      revision: 1,
+      standing: 'locked',
+      removalAt: '2026-11-04T00:00:00Z',
+      limitBytes: 10_000_000_000,
+      textLimitBytes: 2_000_000_000,
+      publishedTransferLimitBytes: null,
+      downloadLimitBytes: 20_000_000_000,
+      features: { teams: false },
+    }),
+    true,
+  );
+  // A write with no revision could replace a newer state (record 0189).
+  assert.equal(validate({ standing: 'active' }), false);
+  // A revision alone changes nothing, so it is not a write.
+  assert.equal(validate({ revision: 1 }), false);
+  assert.equal(validate({ revision: 0, standing: 'active' }), false);
+  assert.equal(validate({ revision: 1, standing: 'paused' }), false);
+  // The storage limit is never absent, so it takes no null.
+  assert.equal(validate({ revision: 1, limitBytes: null }), false);
+  assert.equal(validate({ revision: 1, textLimitBytes: 0 }), false);
+  assert.equal(validate({ revision: 1, features: {} }), false);
+  assert.equal(validate({ revision: 1, features: { sharing: true } }), false);
+  assert.equal(validate({ revision: 1, accountId: 'x' }), false);
+  // An administrator writes the same shape through updateAccount.
+  const update = requestValidator('updateAccount', 'body');
+  assert.ok(update !== undefined);
+  assert.equal(update({ controls: { revision: 2, standing: 'active' } }), true);
+  assert.equal(update({ controls: { standing: 'active' } }), false);
+});
+
+await test('a portal path cannot leave the portal', () => {
+  const validate = requestValidator('openAccountPortal', 'body');
+  assert.ok(validate !== undefined);
+  assert.equal(validate({ path: '/' }), true);
+  assert.equal(validate({ path: '/plans' }), true);
+  assert.equal(validate({ path: '/billing/plans/' }), true);
+  // A second slash would name another host once it follows the portal.
+  assert.equal(validate({ path: '//evil.example' }), false);
+  assert.equal(validate({ path: '/a//b' }), false);
+  assert.equal(validate({ path: '/../admin' }), false);
+  assert.equal(validate({ path: '/plans?x=1' }), false);
+  assert.equal(validate({ path: 'plans' }), false);
+  assert.equal(validate({ path: '/' + 'a'.repeat(256) }), false);
+  assert.equal(validate({}), false);
+});
+
+await test('a handoff is redeemed with its token alone', () => {
+  const validate = requestValidator('redeemAccountHandoff', 'body');
+  assert.ok(validate !== undefined);
+  assert.equal(validate({ token: 'a'.repeat(43) }), true);
+  assert.equal(validate({ token: 'a'.repeat(42) }), false);
+  assert.equal(validate({ token: 'a'.repeat(42) + '=' }), false);
+  assert.equal(validate({ token: 'a'.repeat(43), accountId: 'x' }), false);
+});
+
+await test('operator account answers include the existing installation role', () => {
+  const account = {
+    accountId: '00000000-0000-4000-8000-000000000000',
+    email: 'member@notes.invalid',
+    state: 'enabled',
+    createdAt: '2026-10-08T00:00:00.000Z',
+    controls: {
+      revision: 1,
+      standing: 'active',
+      removalAt: null,
+      limitBytes: 1,
+      textLimitBytes: null,
+      publishedTransferLimitBytes: null,
+      downloadLimitBytes: null,
+      features: { teams: true, collaboration: true },
+    },
+    usage: {
+      usedBytes: 0,
+      textBytes: 0,
+      month: '2026-10',
+      publishedTransferBytes: 0,
+      downloadBytes: 0,
+    },
+  };
+  for (const id of [
+    'findOperatorAccount',
+    'readOperatorAccount',
+    'setOperatorAccountControls',
+  ] as const) {
+    const validate = responseValidator(id, 200, 'application/json');
+    assert.ok(validate !== undefined, id);
+    assert.equal(validate({ ...account, role: 'member' }), true, id);
+    assert.equal(validate({ ...account, role: 'administrator' }), true, id);
+    assert.equal(validate(account), false, id);
+    assert.equal(validate({ ...account, role: 'owner' }), false, id);
+    assert.equal(validate({ ...account, role: null }), false, id);
+    assert.equal(
+      validate({ ...account, role: 'member', workspaceId: account.accountId }),
+      false,
+      id,
+    );
+  }
+  const write = requestValidator('setOperatorAccountControls', 'body');
+  assert.ok(write !== undefined);
+  assert.equal(write({ revision: 1, standing: 'active' }), true);
+  assert.equal(
+    write({ revision: 1, standing: 'active', role: 'administrator' }),
+    false,
+  );
+});
+
+await test('every operator operation takes the operator token alone', () => {
+  const operator = operations.filter((operation) =>
+    operation.path.startsWith('/api/operator/'),
+  );
+  assert.deepEqual(operator.map((operation) => operation.id).sort(), [
+    'findOperatorAccount',
+    'listOperatorAccountEvents',
+    'readOperatorAccount',
+    'readOperatorTotals',
+    'redeemAccountHandoff',
+    'removeOperatorAccount',
+    'setOperatorAccountControls',
+  ]);
+  for (const operation of operator) {
+    assert.deepEqual(operation.security, [{ operatorToken: [] }], operation.id);
+    // The operator API reaches no note, no workspace and no published link
+    // (record 0190), so no operator address names one.
+    assert.doesNotMatch(operation.path, /workspace|file|publication/);
+    assert.ok(responseMediaTypes(operation.id, 404).length > 0, operation.id);
+    assert.ok(responseMediaTypes(operation.id, 401).length > 0, operation.id);
+  }
+  // No other operation takes the operator token.
+  for (const operation of operations)
+    if (!operation.path.startsWith('/api/operator/'))
+      assert.ok(
+        operation.security.every(
+          (requirement) => !('operatorToken' in requirement),
+        ),
+        operation.id,
+      );
+});

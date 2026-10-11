@@ -1,0 +1,12 @@
+type: object
+description: The keys of the account, including expired keys. No token is included.
+additionalProperties: false
+required: [keys]
+properties:
+  keys:
+    type: array
+    readOnly: true
+    description: Keys of the account, newest first.
+    maxItems: 25
+    items:
+      $ref: './ApiKey.yaml'

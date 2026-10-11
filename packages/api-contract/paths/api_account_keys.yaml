@@ -1,0 +1,63 @@
+get:
+  operationId: listApiKeys
+  summary: List the API keys of the account.
+  description: >-
+    Lists the names, creation, expiry and last use of all keys. No secret is returned.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      description: List the API keys of the account.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ApiKeyList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+post:
+  operationId: createApiKey
+  summary: Create an API key.
+  description: >-
+    Makes one key with full access to the account and current rights. The secret appears in this answer only. The account keeps at most 25 keys. Create a replacement before revoking an old key to rotate it.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  requestBody:
+    required: true
+    description: Create an API key.
+    content:
+      application/json:
+        schema:
+          $ref: '../components/schemas/ApiKeyCreateInput.yaml'
+  responses:
+    '201':
+      description: Create an API key.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ApiKeyCreated.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '423':
+      $ref: '../components/responses/AccountLocked.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

@@ -12,8 +12,11 @@ import {
   type DomainErrorCode,
   type NoteRefusal,
   type Result,
+  type UsageLimit,
+  type UsageRefusal,
 } from '@notesapp/core';
 import {
+  isLockedRefusal,
   markdownLimitCode,
   WorkspaceUnavailableError,
 } from '@notesapp/storage-server';
@@ -24,6 +27,7 @@ export const problemMediaType = 'application/problem+json';
 
 /** Stable application error codes. Add a code, never reuse one. */
 export type ProblemCode =
+  | 'api_key_limit'
   | 'invalid_request'
   | 'host_not_allowed'
   | 'payload_too_large'
@@ -84,7 +88,12 @@ export type ProblemCode =
   | 'setting_required'
   | 'legal_document_unfinished'
   | 'mail_password_required'
-  | 'mail_failed';
+  | 'mail_failed'
+  | 'account_locked'
+  | 'controls_changed'
+  | 'operator_off'
+  | 'download_limit'
+  | 'storage_busy';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -106,9 +115,12 @@ export type Problem = {
   readonly reason?: string;
   /** The limit of the grammar that a refused note is over (record 0182). */
   readonly noteRefusal?: NoteRefusal;
+  /** The limit of the month that refused the request (record 0193). */
+  readonly limit?: UsageLimit;
 };
 
 const titles: Readonly<Record<ProblemCode, string>> = {
+  api_key_limit: 'The account keeps as many API keys as it may.',
   invalid_request: 'The request did not match the contract.',
   host_not_allowed: 'The Host header is not served by this deployment.',
   payload_too_large: 'The request body is larger than the configured limit.',
@@ -176,6 +188,11 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   mail_password_required: 'A user name of the mail server needs its password.',
   mail_failed: 'The mail server did not take the message.',
   rate_limited: 'Too many attempts were made in a short time.',
+  account_locked: 'The account is locked.',
+  controls_changed: 'The controls of the account changed.',
+  operator_off: 'This installation serves no operator API.',
+  download_limit: 'A limit of this month stops this download.',
+  storage_busy: 'The object store takes no more writes this month.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
   shutting_down: 'The service is stopping and accepts no new traffic.',
@@ -519,6 +536,7 @@ const domainStatus: Readonly<
   // sign-up gave no consent (record 0120).
   consent_required: { status: 409, code: 'consent_required' },
   // The account keeps as many imported themes as it may (record 0143).
+  api_key_limit: { status: 409, code: 'api_key_limit' },
   theme_limit: { status: 409, code: 'theme_limit' },
   // A group that the environment sets, and a part that open registration
   // needs, do not change in the application (record 0148).
@@ -529,10 +547,16 @@ const domainStatus: Readonly<
     code: 'legal_document_unfinished',
   },
   mail_password_required: { status: 400, code: 'mail_password_required' },
+  // A locked account keeps a fixed list of operations (record 0201).
+  account_locked: { status: 423, code: 'account_locked' },
+  // A write of the controls named an old revision (record 0189).
+  controls_changed: { status: 409, code: 'controls_changed' },
 };
 
 /** The explanation of one domain failure. It names no path and no content. */
 const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
+  api_key_limit:
+    'The account keeps 25 API keys. Revoke one before you create another.',
   forbidden: 'The actor may not perform this operation.',
   not_found: 'The requested resource does not exist.',
   stale_head:
@@ -604,6 +628,10 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
     'The text still holds a blank of the template. Fill each blank first.',
   mail_password_required:
     'A user name of the mail server needs its password. Enter the password, or leave the user name empty.',
+  account_locked:
+    'The account is locked. It keeps only the operations that unlock it, export its notes or remove it.',
+  controls_changed:
+    'The controls of the account changed after they were read. Read them again, then write the change.',
 };
 
 /**
@@ -667,6 +695,72 @@ export class PublishedLinkUnavailableError extends Error {
   }
 }
 
+/**
+ * The account of the session is locked, and the operation is not one that a
+ * locked account keeps (record 0201). The list of `packages/core` decides.
+ */
+export class AccountLockedError extends Error {
+  constructor() {
+    super(
+      'The account is locked. It keeps only the operations that unlock it, export its notes or remove it.',
+    );
+    this.name = 'AccountLockedError';
+  }
+}
+
+/** The detail of each limit of the month that refuses a request. */
+const usageDetails: Readonly<Record<UsageLimit, string>> = {
+  downloads:
+    'The download limit of this month is reached. Downloads start again next month.',
+  object_reads:
+    'The object store took the most reads of this month. Attachments start again next month.',
+  object_writes:
+    'The object store took the most writes of this month. Uploads and imports start again next month.',
+};
+
+/**
+ * A request past a limit of the month (record 0193). An export, an
+ * attachment or a sync snapshot past the download limit, and an attachment
+ * past the object read cap, answer `download_limit` with 429. An upload or
+ * an import past the object write cap answers `storage_busy` with 503. The
+ * problem and the `notesapp-limit` header name the limit, so a client names
+ * the cause, and `retry-after` names the start of the next month in UTC.
+ */
+export class UsageRefusedError extends Error {
+  readonly refusal: UsageRefusal;
+
+  constructor(refusal: UsageRefusal) {
+    super(usageDetails[refusal.limit]);
+    this.name = 'UsageRefusedError';
+    this.refusal = refusal;
+  }
+}
+
+/**
+ * The installation names no operator token, so the operator API is off
+ * (record 0190). The answer is the not-found answer of the operation, with
+ * its own code.
+ */
+export class OperatorOffError extends Error {
+  constructor() {
+    super('This installation serves no operator API.');
+    this.name = 'OperatorOffError';
+  }
+}
+
+/**
+ * A caller that failed a credential too often in one window of the attempt
+ * counter (record 0121). The answer is the one of the attempt limit.
+ */
+export class AttemptsExceededError extends Error {
+  readonly statusCode = 429;
+
+  constructor() {
+    super(titles.rate_limited);
+    this.name = 'AttemptsExceededError';
+  }
+}
+
 /** The named resource does not exist, or the actor may not see that it does. */
 export class NotFoundError extends Error {
   constructor(detail = 'The requested resource does not exist.') {
@@ -706,6 +800,7 @@ export function createProblem(input: {
   readonly blanks?: readonly string[];
   readonly reason?: string;
   readonly noteRefusal?: NoteRefusal;
+  readonly limit?: UsageLimit;
 }): Problem {
   const issues = input.issues ?? [];
   const fileIds = input.fileIds ?? [];
@@ -727,6 +822,7 @@ export function createProblem(input: {
     ...(input.noteRefusal === undefined
       ? {}
       : { noteRefusal: input.noteRefusal }),
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
   };
 }
 
@@ -741,6 +837,7 @@ export function classifyError(error: unknown): {
   blanks?: readonly string[];
   reason?: string;
   noteRefusal?: NoteRefusal;
+  limit?: UsageLimit;
 } {
   if (error instanceof LegalDocumentUnfinishedError)
     return {
@@ -823,6 +920,37 @@ export function classifyError(error: unknown): {
       status: 500,
       code: 'invalid_response',
       detail: titles.invalid_response,
+      issues: [],
+    };
+  // The database refused a write to a workspace whose owner is locked, for
+  // example the write of a member (records 0189 and 0201).
+  if (isLockedRefusal(error))
+    return {
+      status: 423,
+      code: 'account_locked',
+      detail: domainTitles.account_locked,
+      issues: [],
+    };
+  if (error instanceof AccountLockedError)
+    return {
+      status: 423,
+      code: 'account_locked',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof UsageRefusedError)
+    return {
+      status: error.refusal.code === 'download_limit' ? 429 : 503,
+      code: error.refusal.code,
+      detail: error.message,
+      issues: [],
+      limit: error.refusal.limit,
+    };
+  if (error instanceof OperatorOffError)
+    return {
+      status: 404,
+      code: 'operator_off',
+      detail: error.message,
       issues: [],
     };
   if (error instanceof UnauthenticatedError)

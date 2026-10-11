@@ -13,11 +13,18 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { LogController } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { ReaderRefusalCause } from '@notesapp/core';
+import type { ReaderRefusalCause, UsageMeter } from '@notesapp/core';
+import {
+  applyEnvironmentPolicy,
+  createUsageMeter,
+  lockedAccountKeeps,
+} from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
 import { findChannel, findOperation } from '@notesapp/api-contract';
 import {
+  ConfigError,
   loadLegalTexts,
+  objectStoreSettings,
   type LegalTexts,
   type ServerConfig,
 } from './config.ts';
@@ -41,7 +48,7 @@ import {
   createAuthPool,
   createAuthProtocol,
 } from './auth/better-auth.ts';
-import { createIdentityAdapter } from './auth/actor.ts';
+import { createIdentityAdapter, refuseLocked } from './auth/actor.ts';
 import { createPublicationHasher } from './auth/publication-secrets.ts';
 import { createSetupHandlers } from './auth/setup.ts';
 import { passwordMatches, sessionAllowedBy } from './auth/registration.ts';
@@ -59,8 +66,10 @@ import {
   openCoordination,
   openSyncListener,
   openIdentityStore,
+  openObjectStore,
   openWorkspaceStore,
   type ListenerSchedule,
+  type ObjectStoreSettings,
 } from '@notesapp/storage-server';
 import {
   classifyError,
@@ -87,7 +96,10 @@ import {
   redactUrl,
 } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
+import { createObjectCleanup } from './jobs/object-cleanup.ts';
+import { scratchFolder } from './routes/scratch.ts';
 import { createPublicationCleanup } from './jobs/publication-cleanup.ts';
+import { createAccountRemoval } from './jobs/account-removal.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 import { createServerLogger, errorName } from './logging.ts';
 import {
@@ -123,7 +135,7 @@ export function requestId(supplied: unknown): string {
     : randomUUID();
 }
 
-import { hostName } from './plugins/host.ts';
+import { answersAnyHost, hostName } from './plugins/host.ts';
 export { hostName } from './plugins/host.ts';
 import {
   publishedOrigin,
@@ -141,6 +153,12 @@ import { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
 import { createNoticeGateway } from './notices/gateway.ts';
 import { registerWebSocket } from './plugins/websocket.ts';
 import { coordinatedArchiveJobs } from './routes/archive-jobs.ts';
+import { checkUsageGate, countAnswer } from './usage/boundary.ts';
+import {
+  closeWithLastWrite,
+  startUsageWrites,
+  usageWriteIntervalMs,
+} from './usage/writes.ts';
 
 /**
  * How many messages one address takes in an hour from a person with no
@@ -238,6 +256,13 @@ export type AppOptions = {
    */
   readonly legalTexts?: LegalTexts;
   /**
+   * The object store of the installation, with the key pair of an S3 store
+   * (record 0192). `main.ts` reads it before the start, so a refusal names
+   * its file. A caller that passes nothing gets the store of the
+   * configuration.
+   */
+  readonly objectStore?: ObjectStoreSettings;
+  /**
    * The bounds of the notice gateway. A test passes shorter times, and a
    * deployment takes `defaultNoticeBounds` (record 0129).
    */
@@ -248,6 +273,17 @@ export type AppOptions = {
    * listener lasts until the test ends it.
    */
   readonly listenerSchedule?: ListenerSchedule;
+  /**
+   * The meter of the limits of each month (record 0193). `createApp` builds
+   * the meter of the installation. A caller of `createAppWithHandlers` that
+   * passes none counts nothing and refuses nothing.
+   */
+  readonly usage?: UsageMeter;
+  /**
+   * How often this process writes its counts of the month, in milliseconds.
+   * A deployment takes `usageWriteIntervalMs`, and a test a shorter time.
+   */
+  readonly usageWriteIntervalMs?: number;
 };
 
 /** Builds the application with an explicit handler map. */
@@ -356,11 +392,15 @@ export async function createAppWithHandlers(
   // rewriting through a forged Host header. The list is the host name of each
   // served origin, because a Host header carries no scheme. The origin itself
   // is checked by the cookie write check and by the identity routes, which
-  // both read the same served origin list.
+  // both read the same served origin list. An operation that a caller outside
+  // the served origins asks for, such as a probe of the platform, answers any
+  // host, and `answersAnyHost` is the one rule that names it (records 0190
+  // and 0199).
   const servedHosts = servedHostNames(config.servedOrigins);
   app.addHook('onRequest', async (request, reply) => {
     if (servedHosts.includes(hostName(request.headers.host))) return;
     const id = request.routeOptions.config.operationId;
+    if (answersAnyHost(id)) return;
     const status = contractStatus(id, 400);
     await reply
       .status(status)
@@ -503,6 +543,19 @@ export async function createAppWithHandlers(
     const status = contractStatus(id, classified.status);
     const code =
       status === classified.status ? classified.code : 'internal_error';
+    if (
+      status === 401 &&
+      id !== undefined &&
+      findOperation(id)?.security.some(
+        (requirement) => 'personalApiKey' in requirement,
+      )
+    )
+      reply.header(
+        'www-authenticate',
+        request.headers.authorization === undefined
+          ? 'Bearer realm="tidy notebook"'
+          : 'Bearer realm="tidy notebook", error="invalid_token"',
+      );
     // `setErrorHandler` replaces Fastify's own error logging, so a fault that
     // the client never sees in detail would otherwise leave no trace at all.
     // Every answer that classifies as an unexpected server error is logged
@@ -544,6 +597,9 @@ export async function createAppWithHandlers(
           status === classified.status
             ? { noteRefusal: classified.noteRefusal }
             : {}),
+          ...(classified.limit !== undefined && status === classified.status
+            ? { limit: classified.limit }
+            : {}),
         }),
       );
   });
@@ -572,6 +628,14 @@ export async function createAppWithHandlers(
       );
     },
   });
+  // The closures of a month refuse an operation before its handler runs,
+  // and the last hook of each route counts the bytes that leave (record
+  // 0193).
+  const usage = options.usage;
+  if (usage !== undefined)
+    app.addHook('preHandler', async (request, reply) => {
+      await checkUsageGate(usage, () => new Date(), request, reply);
+    });
   registerOperations(
     app,
     options.handlers,
@@ -579,6 +643,7 @@ export async function createAppWithHandlers(
     protocols,
     config.rateLimit,
     config.limits,
+    usage === undefined ? undefined : countAnswer(usage),
   );
   return app;
 }
@@ -654,18 +719,36 @@ async function composeApp(
     createDocumentService(),
   );
   opened.push(() => content.close());
+  // The counts of each month and their limits (record 0193). The sums live
+  // in the memory of this process and reach the monthly table, which every
+  // process shares, at each write. A check keeps the limits of an account
+  // for one interval of the writes.
+  const writeIntervalMs = options?.usageWriteIntervalMs ?? usageWriteIntervalMs;
+  const usage = createUsageMeter({
+    store: coordination,
+    caps: config.usageCaps,
+    clock: () => new Date(),
+    subjectTtlMs: writeIntervalMs,
+  });
+  // Every byte that a later request reads lives in the object store, so any
+  // process of the installation answers that request (record 0192). An S3
+  // store tells the meter each call that it makes.
+  const objects = openObjectStore(
+    options?.objectStore ?? objectStoreSettings(config),
+    (kind) => {
+      usage.countObjectCall(kind);
+    },
+  );
+  opened.push(() => Promise.resolve(objects.close()));
   // The database probes read through the pool that serves the workspace
   // traffic, so a probe that an orchestrator repeats forever opens no
   // connection of its own and proves the path that a request takes.
   const probes = options?.probes ?? [
     configurationProbe(config),
-    storageProbe(config.storageRoot),
+    storageProbe(config.storageRoot, objects),
     ...databaseProbes(() => content.probeDatabase()),
   ];
-  const attachments = openAttachmentStore(
-    config.databaseUrl,
-    config.storageRoot,
-  );
+  const attachments = openAttachmentStore(config.databaseUrl, objects);
   opened.push(() => attachments.close());
   // The mail transport and the legal documents come from the environment or
   // from the settings of the application, and this one decider answers which
@@ -684,6 +767,21 @@ async function composeApp(
       : { connect: options.connectMail }),
   });
   const mail = settings.mailer;
+  // A registration policy that the environment names goes into the row at
+  // each start, so the SQL gate of a sign-up, the sign-up and the accounts
+  // page read one value, and the decider locks it (record 0206). The
+  // configuration refused an open policy with a part missing.
+  if (config.registrationPolicy !== null) {
+    const applied = await applyEnvironmentPolicy(
+      identity,
+      config.registrationPolicy,
+      settings.environment,
+    );
+    if (!applied.ok)
+      throw new ConfigError([
+        'NOTESAPP_REGISTRATION_POLICY: the open policy needs a mail server and both legal documents in the environment.',
+      ]);
+  }
   // The published page reads the stylesheet of the built shell document, so
   // the page cannot drift from the theme (decision 0031). A deployment that
   // serves no built assets, which is what a development run and most tests
@@ -797,6 +895,15 @@ async function composeApp(
     auth: auth.auth,
     identity,
     servedOrigins: config.servedOrigins,
+    // The operator API of record 0190. With no secret every operator
+    // operation answers operator_off, and a wrong token counts in the shared
+    // attempt counter.
+    operator: {
+      token: config.operatorToken,
+      attempts,
+      windowMs: config.rateLimit.windowSeconds * 1000,
+      max: config.rateLimit.max,
+    },
   });
   const app = await createAppWithHandlers(config, {
     handlers: {
@@ -807,6 +914,8 @@ async function composeApp(
           passwordMatches(auth.auth, authUserId, password),
         content,
         attachments,
+        operator: identity,
+        usage,
         archiveJobs: coordinatedArchiveJobs(coordination),
         publications: {
           store: content,
@@ -840,7 +949,7 @@ async function composeApp(
         identity,
         content,
         servedOrigins: config.servedOrigins,
-        accountLimitBytes: config.accounts.limitBytes,
+        newAccount: config.accounts,
         open: {
           mail: strangerMail,
           origin: config.origin,
@@ -860,7 +969,14 @@ async function composeApp(
     },
     identity: adapter.resolver,
     protocols: [
-      createAuthProtocol(config, auth.auth),
+      // A locked account keeps the identity operations of the library and
+      // not the change of its profile (record 0201).
+      createAuthProtocol(config, auth.auth, async (request) => {
+        const id = request.routeOptions.config.operationId;
+        if (id === undefined || lockedAccountKeeps(id)) return;
+        const resolved = await adapter.resolveActor(request);
+        if (resolved !== null) refuseLocked(resolved.standing, id);
+      }),
       createSyncNoticesProtocol({
         gateway,
         servedOrigins: config.servedOrigins,
@@ -875,6 +991,7 @@ async function composeApp(
       ? { noticeBounds: options.noticeBounds }
       : {}),
     attempts,
+    usage,
   });
   const logger = createServerLogger(app.log);
   noticeLog.logger = logger;
@@ -883,7 +1000,22 @@ async function composeApp(
   };
   const cleanupSync = createSyncCleanup(content);
   const cleanupAttachments = createAttachmentCleanup(attachments);
+  const cleanupObjects = createObjectCleanup(
+    objects,
+    scratchFolder(config.storageRoot),
+  );
   const cleanupPublications = createPublicationCleanup(content);
+  // The removal of a locked account past its time, with its mails (record
+  // 0201). The mail is the transport of the installation, because the
+  // operator, and not a stranger, causes it.
+  const removeAccounts = createAccountRemoval({
+    store: identity,
+    mailer: mail,
+    origin: config.origin,
+    portal: config.accountPortal !== null,
+    // The run is daily (record 0201): one process claims each day in UTC.
+    claimDay: (day) => coordination.claimDailyRun('removals', day),
+  });
   let cleanupRunning = false;
   // Each job runs under a lock that one process takes, so two processes of
   // one installation never run one job at once (record 0121). A process that
@@ -892,14 +1024,18 @@ async function composeApp(
     readonly name:
       | 'sync'
       | 'attachments'
+      | 'objects'
       | 'publications'
       | 'attempts'
       | 'pending'
-      | 'streams';
+      | 'streams'
+      | 'removals';
     readonly run: () => Promise<unknown>;
   }[] = [
     { name: 'sync', run: () => cleanupSync() },
     { name: 'attachments', run: () => cleanupAttachments() },
+    // Each staged upload and each import that nobody finished (record 0192).
+    { name: 'objects', run: () => cleanupObjects() },
     { name: 'publications', run: () => cleanupPublications() },
     {
       name: 'pending',
@@ -922,6 +1058,7 @@ async function composeApp(
     // A process that stopped without its drain leaves reservations that
     // expired (record 0129).
     { name: 'streams', run: () => coordination.pruneStreams() },
+    { name: 'removals', run: () => removeAccounts() },
   ];
   const runCleanup = async (): Promise<void> => {
     if (cleanupRunning) return;
@@ -954,19 +1091,36 @@ async function composeApp(
       logger.emit('auth.info', { source: 'better-auth' });
     else logger.emit('auth.debug', { source: 'better-auth' });
   };
+  // The sums of this process reach the monthly table at each interval, and
+  // once more at the stop (record 0193).
+  const usageWrites = startUsageWrites(usage, writeIntervalMs, () => {
+    logger.emit('maintenance.failed', { job: 'usage' });
+  });
   // The listener starts once the instance exists. A stream opens only after
   // it listens, so no stream can miss a commit that follows its admission.
   gateway.start();
   app.addHook('onClose', async () => {
-    // The streams stop first, while the stores that they release still run.
-    await gateway.close();
-    clearInterval(cleanupTimer);
-    await auth.close();
-    await authPool.end();
-    await attachments.close();
-    await content.close();
-    await coordination.close();
-    await identity.close();
+    // The last sums of this process are written after every answer and
+    // every call to the object store that it counts, and before the store
+    // of the counts closes, even when an earlier step fails.
+    await closeWithLastWrite(
+      async () => {
+        // The streams stop first, while the stores that they release still
+        // run.
+        await gateway.close();
+        clearInterval(cleanupTimer);
+        await auth.close();
+        await authPool.end();
+        await attachments.close();
+        objects.close();
+        await content.close();
+      },
+      usageWrites,
+      async () => {
+        await coordination.close();
+        await identity.close();
+      },
+    );
   });
   return app;
 }

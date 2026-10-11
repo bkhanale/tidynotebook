@@ -1,0 +1,12 @@
+type: string
+description: >-
+  The limit of the month that refused a request (record 0193), on the codes
+  download_limit and storage_busy only. downloads is the download limit of
+  the account or the download cap of the installation, object_reads the
+  object read cap and object_writes the object write cap of the
+  installation. A client names the cause from it, and never shows the
+  value.
+enum:
+  - downloads
+  - object_reads
+  - object_writes

@@ -128,6 +128,10 @@ function createFakeStore(): FakeStore {
     run: (tx: AccountTransaction) => Promise<T>,
   ): Promise<T> => {
     const tx: AccountTransaction = {
+      apiKeys: () => Promise.resolve([]),
+      createApiKey: () => Promise.resolve(null),
+      revokeApiKey: () => Promise.resolve(false),
+      setProfileName: () => Promise.resolve(),
       workspaces: (): Promise<readonly WorkspaceSummary[]> =>
         Promise.resolve(
           memberships(actor.accountId).map((entry) => ({
@@ -139,7 +143,21 @@ function createFakeStore(): FakeStore {
         ),
       memberships: () => Promise.resolve(memberships(actor.accountId)),
       standing: () =>
-        Promise.resolve({ role: 'member', usedBytes: 0n, limitBytes: 1n }),
+        Promise.resolve({
+          role: 'member',
+          usedBytes: 0n,
+          limitBytes: 1n,
+          controls: {
+            revision: 1,
+            standing: 'active',
+            removalAt: null,
+            limitBytes: 1n,
+            textLimitBytes: null,
+            publishedTransferLimitBytes: null,
+            downloadLimitBytes: null,
+            features: { teams: true, collaboration: true },
+          },
+        }),
       sessions: () => Promise.resolve([]),
       revokeSession: () => Promise.resolve(false),
       revokeOtherSessions: () => Promise.resolve(0),
@@ -188,6 +206,7 @@ function createFakeStore(): FakeStore {
         return Promise.resolve(kept.length < held.length);
       },
       consent: () => Promise.resolve(consents.get(actor.accountId) ?? null),
+      openHandoff: () => Promise.resolve(),
       recordConsent: (versions) => {
         consents.set(actor.accountId, {
           ...versions,

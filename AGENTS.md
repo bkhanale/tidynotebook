@@ -26,8 +26,14 @@ Edit files in `rules/` and run `rules/link.sh`.
   issue.
 - Work happens in a git worktree on a short-lived branch.
 - Before a branch lands, `pnpm verify` must pass.
-- To land a branch, rebase it onto `main`, fast-forward merge it, then delete
-  it. Pull requests are not required.
+- A change lands through a pull request. Prove its exact head with
+  `pnpm verify`. A review is optional (record 0218). The owner may ask for one,
+  and then fix each open finding of it. The current remote main must be an
+  ancestor of the head. Push that exact head to main without force. A rejected
+  push is a stop, never a reason to bypass a protection.
+- `tools/lifecycle.mjs` reads the PR and merged tree before it saves landing
+  proof. A build request includes this landing only when the session
+  permits landing. A build request never permits release or live deployment.
 - A pull request shows its screenshots through `tools/pr-screenshots.mjs`,
   which adds them to the `pr-screenshots` branch. Never delete that branch.
 - Stay inside the active worktree. All edits, commits, and untracked files
@@ -35,10 +41,10 @@ Edit files in `rules/` and run `rules/link.sh`.
 - Only the owner starts the `cleaning-up-after-a-task` skill. Never run it on
   your own, and never remove another worktree, another branch, or Docker data
   outside it.
-- A release follows the `releasing-a-version` skill, from the changelog entry
-  to the signed tag, the GitHub release, and the milestone. Prove each step
-  with `node tools/release-check.mjs`. A pushed tag is never moved and never
-  deleted.
+- Preparation follows the `release-core` skill for notes, source review and
+  tests. Publication uses its remote prepared image and official assets. It
+  runs no source gate, image test, review or milestone work (record 0215).
+  A pushed signed tag is never moved and never deleted.
 
 # Product design
 
@@ -64,6 +70,10 @@ Edit files in `rules/` and run `rules/link.sh`.
 - Use the named type steps only: `text-kbd`, `text-control`, `text-ui`,
   `text-base`, `text-xl`, `text-3xl` and the note steps. Two weights,
   `font-medium` and `font-semibold`. No capitals, no wide tracking.
+- Every page is the note column (record 0137). Only the home page of the
+  landing site may use `max-w-5xl`, a `text-3xl` hero headline, a 20 px feature
+  icon, and a real screenshot in `rounded-lg`, `edge-subtle` and
+  `shadow-overlay` (record 0217).
 - Use the standard Tailwind spacing scale. Do not add one-off pixel or rem
   spacing values.
 - `edge-line` is the resting edge of a control and the one divider. `edge` is
@@ -107,6 +117,11 @@ Edit files in `rules/` and run `rules/link.sh`.
   structure of the server, `core`, the stores, and the web application.
 - Do not write a type assertion. Only `as const` is allowed. Reach a type
   through a type guard or a parser that fails loudly (decision record 0019).
+- Before a change to the interface that a service of the operator depends on,
+  read `docs/development/operator-api.md`. It names that interface and the
+  changes that break it. When a checkout of the cloud repository sits beside
+  this one at `../cloud`, read its `AGENTS.md` too, and state the effect on
+  the cloud in the commit body. `tools/agent-context.mjs` lists both files.
 
 # Verification
 
@@ -121,7 +136,7 @@ Edit files in `rules/` and run `rules/link.sh`.
 - Take a screenshot of each changed screen in light and in dark before a
   landing.
 - To run the application of a worktree and drive it in a browser, follow the
-  `testing-changes-end-to-end` skill. Each worktree runs its own application,
+  `test-application` skill. Each worktree runs its own application,
   so worktrees do not conflict.
 - Run focused tests while work is in progress. Run `pnpm verify` before a
   change is ready to merge.
@@ -176,9 +191,10 @@ Edit files in `rules/` and run `rules/link.sh`.
 - A document points at code by path and never copies it. Do not copy source, a
   configuration value, a schema, a column list, SQL, TypeScript, YAML, a
   version number, or a measured result.
-- The one allowed code block is a shell command that the reader runs. Any other
-  fenced language fails `pnpm lint`, except in a document whose status line
-  says that it is superseded.
+- The one allowed code block is a shell command that the reader runs, in `sh`,
+  `bash` or `shell`. A block with no language or with any other language
+  fails `pnpm lint`, except in a document whose status line says that it is
+  superseded.
 - Every `.md` file under `docs/` sits in `guide`, `development`, `design`,
   `decisions`, `audits`, or `plans`.
 - A file in `docs/plans/` or `docs/design/` carries `Status: active`,

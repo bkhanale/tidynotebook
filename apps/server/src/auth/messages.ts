@@ -17,10 +17,8 @@
  * No function here sends a message or reads a store. `mail.ts` sends, and the
  * caller decides whether a message goes at all.
  */
+import { productName } from '@notesapp/core';
 import type { MailMessage } from './mail.ts';
-
-/** The name of the product, in its own case. */
-export const productName = 'NotesApp';
 
 /** The host of the installation, as a person reads it in a message. */
 export function installationHost(origin: string): string {
@@ -166,6 +164,36 @@ export function testMessage(input: {
       `This message checks the mail settings of ${name}.`,
       'It arrived, so invitations, sign-up links and password resets can reach a person too.',
       'If it is in your spam folder, check the SPF, DKIM and DMARC records of the domain of the sender.',
+      `-- \n${name}`,
+    ]),
+  };
+}
+
+/**
+ * The message before the removal of a locked account (record 0201). It goes
+ * 30 days and 7 days before the removal, and says how to keep the account
+ * and how to take the notes out.
+ */
+export function removalNoticeMessage(input: {
+  readonly to: string;
+  readonly origin: string;
+  /** The whole days until the removal. */
+  readonly days: number;
+  /** Whether the installation names an account portal that unlocks it. */
+  readonly portal: boolean;
+}): MailMessage {
+  const name = signature(input.origin);
+  const when = lifetimeWords(input.days * 24);
+  return {
+    to: input.to,
+    subject: `Your account on ${name} is deleted in ${when}`,
+    text: body([
+      `Your account on ${name} is locked. In ${when}, the account and every note in it are deleted for good.`,
+      input.portal
+        ? `To keep the account, sign in on this page and open billing:\n${input.origin}/login`
+        : `To keep the account, ask the administrator of ${name} to unlock it. You can sign in on this page:\n${input.origin}/login`,
+      'To keep your notes without the account, sign in and select Export my notes.',
+      'If you do not want the account, you need to do nothing.',
       `-- \n${name}`,
     ]),
   };

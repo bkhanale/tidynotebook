@@ -27,8 +27,8 @@ from a path file, `'./<Name>.yaml'` in one section, and `'../<section>/<Name>.ya
 - `asyncapi.yaml` is the message root (0126), and `channels/` holds one file
   per channel. A payload is a schema that `openapi.yaml` also lists, in the
   keywords that AsyncAPI 3.0 and JSON Schema 2020-12 share.
-- `src/generated/` holds the operation index and the compiled validators. Never
-  edit a file there. `pnpm generate` writes it and `generated:check` compares it.
+- `src/generated/` holds the operation index and the compiled validators.
+  Its `openapi.json` feeds the generated API reference (0209). Never edit it. `pnpm generate` writes it and `generated:check` compares it.
 - `src/operations.ts` gives the registry lookups, `src/messages.ts` checks
   each frame both ways (0128), and `src/schema.ts` compiles a schema. No route, no handler, and no client code lives here. The generator
   lives in `tools/sdk-codegen`.

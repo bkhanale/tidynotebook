@@ -21,6 +21,9 @@ the contract in `packages/api-contract/`.
 - `src/configure.ts` sets the base URL, the cookie behaviour, the token
   provider, and it normalizes a problem answer. `src/socket.ts` is the one
   browser transport of the notice stream over PartySocket (0130).
+- `src/response-progress.ts` reports received headers and body chunks through
+  the generated response hook. The sync caller owns the timing and retry rule.
+  It adds no request, URL, or parser.
 - `src/index.ts` re-exports the generated operations and the configuration.
   No consumer may import a file under `src/generated/` directly.
 - No domain rule, no retry policy, and no queue lives here. Those live in
@@ -58,8 +61,9 @@ build output, so the consumer tests hold those proofs.
 
 ## Key files
 
-| File               | Purpose                                 |
-| ------------------ | --------------------------------------- |
-| `src/index.ts`     | The one public entry point              |
-| `src/configure.ts` | Base URL, cookies, tokens, problem text |
-| `src/generated/`   | Generated operations, never edited      |
+| File                       | Purpose                                 |
+| -------------------------- | --------------------------------------- |
+| `src/index.ts`             | The one public entry point              |
+| `src/configure.ts`         | Base URL, cookies, tokens, problem text |
+| `src/response-progress.ts` | Received data of an observed operation  |
+| `src/generated/`           | Generated operations, never edited      |

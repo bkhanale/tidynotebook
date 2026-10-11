@@ -1,4 +1,4 @@
-# Production Compose file for one NotesApp instance.
+# Production Compose file for one tidy notebook instance.
 #
 # Five values are required and have no default: NOTESAPP_ORIGIN and the three
 # host directories that hold the database, the stored files, and the secrets.
@@ -100,6 +100,30 @@ services:
       NOTESAPP_INVITATION_LIFETIME_HOURS: ${NOTESAPP_INVITATION_LIFETIME_HOURS:-}
       NOTESAPP_PENDING_ACCOUNT_HOURS: ${NOTESAPP_PENDING_ACCOUNT_HOURS:-}
       NOTESAPP_SIGNUP_DIFFICULTY: ${NOTESAPP_SIGNUP_DIFFICULTY:-}
+      # The standing of a new account and, for a locked one, its life before
+      # the daily run removes it (record 0189). An empty value keeps every new
+      # account active with no removal time.
+      NOTESAPP_NEW_ACCOUNT_STANDING: ${NOTESAPP_NEW_ACCOUNT_STANDING:-}
+      NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER: ${NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER:-}
+      # Who can make an account, invitation or open (record 0206). A value here
+      # wins over the accounts page and locks it there. Open needs the mail
+      # server and both legal documents in the environment too. An empty value
+      # leaves the choice to an administrator.
+      NOTESAPP_REGISTRATION_POLICY: ${NOTESAPP_REGISTRATION_POLICY:-}
+      # The operator API of a service such as a billing service (record 0190).
+      # The file holds one secret, so mount it and name its path in the
+      # container. An empty value turns the operator API off.
+      NOTESAPP_OPERATOR_TOKEN_FILE: ${NOTESAPP_OPERATOR_TOKEN_FILE:-}
+      # The account portal that every account opens from Settings, and that a
+      # locked account opens to unlock itself.
+      NOTESAPP_ACCOUNT_PORTAL_URL: ${NOTESAPP_ACCOUNT_PORTAL_URL:-}
+      # The caps of the whole installation for one month (record 0193): the
+      # bytes of the published pages, the bytes of the downloads, and the
+      # write and read calls to an S3 store. An empty value sets no cap.
+      NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES: ${NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES:-}
+      NOTESAPP_DOWNLOAD_CAP_BYTES: ${NOTESAPP_DOWNLOAD_CAP_BYTES:-}
+      NOTESAPP_OBJECT_WRITE_CAP: ${NOTESAPP_OBJECT_WRITE_CAP:-}
+      NOTESAPP_OBJECT_READ_CAP: ${NOTESAPP_OBJECT_READ_CAP:-}
       # The mail transport has a secret, so `docker/compose.mail.yaml` adds
       # it with its sender, or `docker/compose.mail-url.yaml` as one URL.
       # The terms and the privacy notice of a public installation. Name both

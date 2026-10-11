@@ -16,12 +16,12 @@ await test('a start that did not load states the screen of a module that did not
   });
   assert.ok(markup.includes(screen.title), markup);
   assert.ok(markup.includes(screen.description), markup);
-  assert.equal(screen.title, 'Notesapp did not load');
+  assert.equal(screen.title, 'tidy notebook did not load');
 });
 
 await test('a start that stopped states the screen of an error', () => {
   const markup = startFailureMarkup('stop');
-  assert.ok(markup.includes('Notesapp stopped'), markup);
+  assert.ok(markup.includes('tidy notebook stopped'), markup);
 });
 
 await test('each screen offers Reload as the one button of the recipe', () => {

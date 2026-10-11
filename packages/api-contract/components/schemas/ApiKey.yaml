@@ -1,0 +1,34 @@
+type: object
+description: One key of the account. No secret or digest is included.
+additionalProperties: false
+required: [keyId, name, createdAt, expiresAt, lastUsedAt]
+properties:
+  keyId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Identifier used to revoke the key. It is not the secret.
+  name:
+    type: string
+    readOnly: true
+    description: Name of the program that uses the key.
+    minLength: 1
+    maxLength: 80
+  createdAt:
+    type: string
+    readOnly: true
+    description: Time when the key was made.
+    format: date-time
+    maxLength: 64
+  expiresAt:
+    type: string
+    readOnly: true
+    description: Time after which the key is refused.
+    format: date-time
+    maxLength: 64
+  lastUsedAt:
+    type: [string, 'null']
+    readOnly: true
+    description: Last use of the key, or null when it has not been used.
+    format: date-time
+    maxLength: 64

@@ -7,6 +7,48 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { bootstrapOwner, loadServerConfig } from '@notesapp/server';
 import { createDisposableDatabase, type TestDatabase } from './database.ts';
+import { createTestBucket, type TestBucket } from './object-store.ts';
+
+/**
+ * The name of the variable that carries more settings of a local run.
+ *
+ * The run passes no `NOTESAPP_` variable of the shell to the server, so a
+ * setting of the shell of a developer never reaches it by chance. A setting
+ * that a run needs, such as the account portal of a check in a browser, comes
+ * in this one variable instead, as a JSON object, and `app.mjs start
+ * --setting NAME=VALUE` writes it.
+ */
+export const devSettingsVariable = 'DEV_APP_SETTINGS';
+
+/**
+ * The extra settings of a local run, from the text of `DEV_APP_SETTINGS`.
+ *
+ * Each name is a `NOTESAPP_` setting and each value a text. A setting that
+ * the run states itself, such as the database or the origin, cannot be
+ * replaced, because the run owns those. Anything else stops the start.
+ */
+export function devSettings(
+  text: string | undefined,
+  owned: readonly string[],
+): Record<string, string> {
+  if (text === undefined || text === '') return {};
+  const value: unknown = JSON.parse(text);
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    throw new Error(`${devSettingsVariable} must be a JSON object.`);
+  const settings: Record<string, string> = {};
+  for (const [name, setting] of Object.entries(value)) {
+    if (!/^NOTESAPP_[A-Z0-9_]+$/.test(name) || typeof setting !== 'string')
+      throw new Error(
+        `${devSettingsVariable} names ${name}, which is not a NOTESAPP_ setting with a text value.`,
+      );
+    if (owned.includes(name))
+      throw new Error(
+        `${devSettingsVariable} cannot replace ${name}, which the local run sets.`,
+      );
+    settings[name] = setting;
+  }
+  return settings;
+}
 
 /** Keep the public origin and listening socket on the same local port. */
 export function devEnvironment(
@@ -134,10 +176,19 @@ export async function startLocalApplication(
   }
 }
 
-/** Creates and removes only the state that belongs to this run. */
-export async function main(port: number): Promise<void> {
+/**
+ * Creates and removes only the state that belongs to this run.
+ *
+ * With `s3` the run keeps its objects in a bucket of its own on the test
+ * MinIO service, which it removes at the end (record 0192).
+ */
+export async function main(
+  port: number,
+  objectStore: 'filesystem' | 's3',
+): Promise<void> {
   let database: TestDatabase | undefined;
   let storageRoot: string | undefined;
+  let bucket: TestBucket | undefined;
   let server: Awaited<ReturnType<typeof serve>> | undefined;
   let child: ReturnType<typeof spawn> | undefined;
   let interrupted = false;
@@ -150,12 +201,20 @@ export async function main(port: number): Promise<void> {
   try {
     database = await createDisposableDatabase();
     storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-dev-'));
-    const environment = devEnvironment(
-      database,
-      storageRoot,
-      port,
-      randomBytes(32).toString('base64url'),
-    );
+    if (objectStore === 's3') bucket = await createTestBucket();
+    const base = {
+      ...devEnvironment(
+        database,
+        storageRoot,
+        port,
+        randomBytes(32).toString('base64url'),
+      ),
+      ...bucket?.environment,
+    };
+    const environment = {
+      ...base,
+      ...devSettings(process.env[devSettingsVariable], Object.keys(base)),
+    };
     const email = 'owner@notes.invalid';
     const password = randomBytes(18).toString('base64url');
     await bootstrapOwner({
@@ -191,6 +250,7 @@ export async function main(port: number): Promise<void> {
     if (database !== undefined) await database.destroy();
     if (storageRoot !== undefined)
       await rm(storageRoot, { recursive: true, force: true });
+    if (bucket !== undefined) await bucket.destroy();
     process.off('SIGINT', stop);
     process.off('SIGTERM', stop);
   }
@@ -198,7 +258,10 @@ export async function main(port: number): Promise<void> {
 
 if (import.meta.main) {
   try {
-    await main(Number(process.argv[2]));
+    await main(
+      Number(process.argv[2]),
+      process.argv[3] === 's3' ? 's3' : 'filesystem',
+    );
   } catch (error) {
     process.stderr.write(
       `${error instanceof Error ? error.message : 'The local application could not start.'}\n`,

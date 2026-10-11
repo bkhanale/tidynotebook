@@ -7,7 +7,7 @@ change an operation, read [Adding an API operation](api-contract.md).
 
 ## One surface
 
-NotesApp serves one application interface, the HTTP API under `/api`. The web
+tidy notebook serves one application interface, the HTTP API under `/api`. The web
 application and the browser sync engine are its only callers, and both reach it
 through the operations that `packages/api-client` generates from the contract.
 

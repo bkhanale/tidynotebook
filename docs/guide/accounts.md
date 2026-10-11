@@ -7,8 +7,8 @@ other people and manages their accounts.
 
 The first account of an installation is an administrator. An administrator can
 make another account an administrator too. An installation always keeps at
-least one enabled administrator, so NotesApp does not let the last one lose the
-role, disable the account, or remove it.
+least one enabled administrator, so tidy notebook does not let the last one lose the
+role, disable the account, or delete it.
 
 An administrator manages accounts and does not read notes. You see the address,
 the name, the state, the last activity and the storage of each account. You
@@ -24,12 +24,15 @@ exists after the person opens the link, and then the person signs in. A sign-up
 that nobody finishes goes away after a time that the server sets.
 
 By default, a person needs an invitation. Turn on **Let anybody sign up** in
-this section of the accounts page. The server allows this only when the installation has a mail
-server, a separate address for published pages, and the terms and the
-privacy notice of the service. If a part is missing, the page names it. You set
-the mail server and the two documents on the same page. The person who runs
-the server sets the address for published pages. Turn the choice off to
-require an invitation again.
+this section of the accounts page. The server allows this only when the
+installation has a mail server and the terms and the privacy notice of the
+service. If a part is missing, the page names it. You set the mail server and
+the two documents on the same page. Turn the choice off to require an
+invitation again.
+
+When the server environment names the policy, in
+`NOTESAPP_REGISTRATION_POLICY`, the section states that and offers no change.
+See [Configuration reference](configuration.md#accounts).
 
 While anybody can sign up, the page does not let you remove the mail server or
 a legal document, because sign-up needs them.
@@ -46,7 +49,7 @@ reset a password alone.
    change it. Leave the user name and the password empty for a server that
    takes mail with no sign-in.
 2. Enter the sender, an address that the mail server lets you send from, for
-   example `NotesApp <no-reply@notes.example.com>`.
+   example `tidy notebook <no-reply@notes.example.com>`.
 3. Select **Save**, then select **Send a test message**. The message goes to
    your own address. Check that it arrives in the inbox and not in spam.
 
@@ -65,7 +68,7 @@ When the installation names its terms and its privacy notice, each person
 accepts them. The sign-up form and the invitation form link both and ask for
 consent. The sign-in screen and **Settings** link them too. When a new version
 comes out, each person accepts it at the next visit, before the notes open. A
-person who does not accept can export their notes, remove their account, or
+person who does not accept can export their notes, delete their account, or
 sign out.
 
 You add both documents in this section of the accounts page. They apply when
@@ -75,7 +78,7 @@ both exist.
 2. Choose the source. **Text on this server** shows the document on a page of
    the installation. **Page on another site** links a page that you host
    elsewhere.
-3. A text starts from the template of NotesApp. The template states what the
+3. A text starts from the template of tidy notebook. The template states what the
    product keeps, for how long, and where it sends data. Each blank in double
    braces shows as a field under **Facts of your service**. Type the facts of
    your service, for example who runs it and the law that applies. Each fact
@@ -129,7 +132,7 @@ state, the last activity, the storage and the address. Each account row has a me
   The notes stay. **Enable** lets the person sign in again.
 - **Change storage limit** sets the space of the account, in gigabytes. The
   limit counts every workspace that the account owns.
-- **Remove account** removes the account and every note in its workspaces for
+- **Delete account** deletes the account and every note in its workspaces for
   good. The person cannot undo it, and neither can you.
 
 The menu does not show a change that would leave the installation without an
@@ -154,7 +157,7 @@ links**, with its reason and the words of the reader.
 row to sign out a device that you lost. Select **Sign out every other device**
 if another person can know your password, then change your password.
 
-You remove your own account in **Settings**, under **Remove account**, with your
+You delete your own account in **Settings**, under **Delete account**, with your
 password. If you are the last administrator, first make another account an
 administrator.
 

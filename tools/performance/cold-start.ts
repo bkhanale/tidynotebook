@@ -2,7 +2,7 @@
  * Measures the start of the web application on a new device and a known one.
  *
  * Usage: `pnpm perf:start`, which builds, installs the browser of the
- * `testing-changes-end-to-end` skill and runs this file. `--runs <n>` sets
+ * `test-application` skill and runs this file. `--runs <n>` sets
  * the number of starts of each kind, 8 by default.
  *
  * The run starts the built application on a new database and seeds the

@@ -8,6 +8,7 @@ export type {
   LegalTexts,
   LogLevel,
   MailConfig,
+  ObjectStoreConfig,
   ServerConfig,
 } from './config.ts';
 export {
@@ -15,6 +16,7 @@ export {
   loadLegalTexts,
   loadProtectedEnvironment,
   loadServerConfig,
+  objectStoreSettings,
   serverVariables,
   templateBlanks,
 } from './config.ts';
@@ -45,6 +47,7 @@ export {
   coordinatedArchiveJobs,
   type ArchiveJobs,
 } from './routes/archive-jobs.ts';
+export { archiveDiskReserveBytes } from './routes/import.ts';
 export type {
   DatabaseRead,
   ProbeRequest,
@@ -102,6 +105,11 @@ export {
   mailInvitation,
 } from './auth/invitations.ts';
 export { createAdministrationHandlers } from './routes/administration.ts';
+export {
+  createAccountRemoval,
+  type AccountRemovalDependencies,
+  type AccountRemovalResult,
+} from './jobs/account-removal.ts';
 export { authProblemCode } from './auth/better-auth.ts';
 export {
   authBasePath,
@@ -130,10 +138,11 @@ export {
 } from './routes/files.ts';
 export type {
   ApplicationMail,
+  Mailer,
   MailMessage,
   MailTransport,
 } from './auth/mail.ts';
-export { createMailTransport } from './auth/mail.ts';
+export { createMailTransport, noMailer } from './auth/mail.ts';
 export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { inviteAccount, type InviteResult } from './cli/invite-account.ts';
@@ -142,6 +151,10 @@ export { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
 export { syncNoticesProtocol } from './routes/sync-notices.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
+export {
+  createObjectCleanup,
+  objectCleanupIntervalMs,
+} from './jobs/object-cleanup.ts';
 export { createPublicationCleanup } from './jobs/publication-cleanup.ts';
 export {
   createPublicationHasher,

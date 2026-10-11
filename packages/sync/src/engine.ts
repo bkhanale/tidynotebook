@@ -40,6 +40,7 @@ import {
   getSnapshotPage,
   getSyncProtocol,
   startSnapshot,
+  observeResponseProgress,
   type AcceptedChangeset as GeneratedAccepted,
 } from '@notesapp/api-client';
 import {
@@ -57,6 +58,7 @@ import {
   SyncFailedError,
   pushQueue,
   sendWithRetry,
+  transportFailedCode,
   type PushOutcome,
   type QueueNetwork,
   type ServiceOutcome,
@@ -291,6 +293,11 @@ export function createSyncEngine(
   const internal = new AbortController();
   let wakeRequested = false;
   let wake: (() => void) | null = null;
+  let connectionPending = true;
+  const report = (notice: SyncNotice): void => {
+    if (notice.kind === 'retry') connectionPending = true;
+    announce(notice);
+  };
 
   /**
    * One session verification: whether the session serves this engine, or why
@@ -301,13 +308,24 @@ export function createSyncEngine(
    * stays where it is and nothing goes to recovery (record 0113).
    */
   async function verifyOnce(signal: AbortSignal): Promise<SessionCheck> {
-    let outcome: ServiceOutcome<{ readonly accountId: string }>;
+    let outcome: ServiceOutcome<{ readonly accountId: string }> | null;
     try {
-      outcome = await operations.verifySession(signal);
+      outcome = await sendWithRetry(
+        {
+          signal,
+          sleep,
+          random,
+          id: newId,
+          announce: report,
+          watchResponse: observeResponseProgress,
+        },
+        (attempt) => operations.verifySession(attempt),
+      );
     } catch (error: unknown) {
       if (signal.aborted) throw error;
       return 'deferred';
     }
+    if (outcome === null) return 'deferred';
     if (outcome.ok)
       return outcome.value.accountId === accountId ? 'ok' : 'other-account';
     if (outcome.problem.status === 401) return 'paused';
@@ -403,6 +421,11 @@ export function createSyncEngine(
     }
   }
 
+  /** A failed pass uses the polling rest even with a live notice stream. */
+  function retryRest(signal: AbortSignal): Promise<boolean> {
+    return rest(Math.min(interval(), pollIntervalMs), signal);
+  }
+
   /**
    * Whether a save waits while a pull runs: a wake came, and the queue of
    * this workspace holds work. A wake for a notice alone lets the pull read
@@ -468,8 +491,12 @@ export function createSyncEngine(
       let session = await verifyOnce(signal);
       while (session !== 'ok') {
         if (signal.aborted) return;
-        noteSession(session === 'deferred' ? 'access-lost' : session);
-        if (!(await rest(interval(), signal))) return;
+        if (session === 'deferred') {
+          if (!(await retryRest(signal))) return;
+        } else {
+          noteSession(session);
+          if (!(await rest(interval(), signal))) return;
+        }
         session = await verifyOnce(signal);
       }
       let lost = false;
@@ -502,7 +529,8 @@ export function createSyncEngine(
             sleep,
             random,
             id: newId,
-            announce,
+            announce: report,
+            watchResponse: observeResponseProgress,
           };
           // The session and the protocol are read at the same time, which
           // saves one round trip before a save (record 0176). Nothing is
@@ -522,8 +550,12 @@ export function createSyncEngine(
           }
           if (check !== 'ok') {
             endPass();
-            noteSession('access-lost');
-            if (!(await rest(interval(), signal))) return;
+            if (check === 'deferred') {
+              if (!(await retryRest(signal))) return;
+            } else {
+              noteSession('access-lost');
+              if (!(await rest(interval(), signal))) return;
+            }
             continue;
           }
           noteSession('ok');
@@ -531,7 +563,7 @@ export function createSyncEngine(
           if (!protocol.read) throw protocol.error;
           const fit = protocol.fit;
           if (fit === null) {
-            if (!(await rest(interval(), signal))) return;
+            if (!(await retryRest(signal))) return;
             continue;
           }
           noteFit(fit);
@@ -562,7 +594,7 @@ export function createSyncEngine(
             continue;
           }
           if (pushed === 'deferred') {
-            if (!(await rest(interval(), signal))) return;
+            if (!(await retryRest(signal))) return;
             continue;
           }
           // One pass reads until an empty page proves the end of the feed. A
@@ -583,19 +615,31 @@ export function createSyncEngine(
             noteSession('paused');
           } else if (pulled === 'access-lost') {
             noteSession(await refusalCause(signal));
-          } else {
+          } else if (pulled === 'done') {
             lastCycleError = '';
+            // An empty feed proves recovery too. It changes no file, so the
+            // pull emits no notice of its own and a quiet device would keep
+            // the lost-connection sentence with no browser online event.
+            if (connectionPending) {
+              connectionPending = false;
+              announce({ kind: 'connected' });
+            }
           }
-          if (!(await rest(interval(), signal))) return;
+          if (
+            !(await (pulled === 'deferred'
+              ? retryRest(signal)
+              : rest(interval(), signal)))
+          )
+            return;
         } catch (error: unknown) {
           if (signal.aborted) return;
-          if (error instanceof DOMException && error.name === 'AbortError')
-            return;
-          if (error instanceof SyncFailedError) noteCycleError(error.code);
-          else if (isLocalStorageError(error))
+          if (error instanceof SyncFailedError) {
+            if (error.code === transportFailedCode) connectionPending = true;
+            noteCycleError(error.code);
+          } else if (isLocalStorageError(error))
             noteCycleError(`local-${error.kind}`);
           else throw error;
-          if (!(await rest(interval(), signal))) return;
+          if (!(await retryRest(signal))) return;
         } finally {
           endPass();
           signal.removeEventListener('abort', endPass);
@@ -613,9 +657,13 @@ export function createSyncEngine(
         internal.abort();
       };
       signal.addEventListener('abort', onExternalAbort, { once: true });
-      return loop(internal.signal).finally(() => {
-        signal.removeEventListener('abort', onExternalAbort);
-      });
+      return loop(internal.signal)
+        .catch((error: unknown) => {
+          if (!internal.signal.aborted) throw error;
+        })
+        .finally(() => {
+          signal.removeEventListener('abort', onExternalAbort);
+        });
     },
     requestSync(): void {
       if (internal.signal.aborted) return;

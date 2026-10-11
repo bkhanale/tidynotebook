@@ -9,10 +9,10 @@
 import process from 'node:process';
 import { createApp } from './app.ts';
 import {
-  ConfigError,
   loadLegalTexts,
   loadProtectedEnvironment,
   loadServerConfig,
+  startFailureMessage,
 } from './config.ts';
 import type { DrainEvent, StartEvent } from './lifecycle.ts';
 import {
@@ -84,24 +84,20 @@ export async function main(): Promise<void> {
   let config;
   let legalTexts;
   try {
+    // Every secret, from its variable or from its file, is read here, so a
+    // secret that cannot be used stops the start before any connection
+    // (record 0207).
     config = loadServerConfig(await loadProtectedEnvironment(process.env));
     // The legal documents are part of the configuration: a file that cannot
     // be read, or a template with a blank left, stops the start here.
     legalTexts = await loadLegalTexts(config);
   } catch (error) {
-    // A configuration error already states one line for each value it
-    // refused, in the words of this server. Anything else is the message of a
-    // library or of the operating system, which names a file, a code, or a
-    // stack, and an operator can act on none of those.
-    if (error instanceof ConfigError) {
-      process.stderr.write(
-        `notesapp: configuration error:\n${error.issues.join('\n')}\n`,
-      );
-    } else {
-      process.stderr.write(
-        'notesapp: the configuration could not be read. Check that every NOTESAPP_ value is set and that each file a _FILE value names exists and can be read.\n',
-      );
-    }
+    process.stderr.write(
+      startFailureMessage(
+        error,
+        'the configuration could not be read. Check that every NOTESAPP_ value is set and that each file a _FILE value names exists and can be read.',
+      ),
+    );
     process.exit(1);
   }
 
@@ -112,14 +108,19 @@ export async function main(): Promise<void> {
   let app;
   try {
     app = await createApp(config, { lifecycle, legalTexts });
-  } catch {
-    // The failure here is a database that refuses a connection, a storage
-    // directory that cannot be written, or a mail transport that will not
-    // build. Each one arrives as the message of a driver, which carries a
-    // code and sometimes a stack, so the operator reads the one sentence that
-    // states where to look instead.
+  } catch (error) {
+    // The composition finds some configuration errors itself, such as the
+    // start check of the registration policy (record 0206), and each one
+    // names its variable. Any other failure here is a database that refuses
+    // a connection, a storage directory that cannot be written, or a mail
+    // transport that will not build. Each one arrives as the message of a
+    // driver, which carries a code and sometimes a stack, so the operator
+    // reads the one sentence that states where to look instead.
     process.stderr.write(
-      'notesapp: the server could not start. Check that the database accepts connections, that NOTESAPP_STORAGE_ROOT exists and can be written, and that the mail settings are complete.\n',
+      startFailureMessage(
+        error,
+        'the server could not start. Check that the database accepts connections, that NOTESAPP_STORAGE_ROOT exists and can be written, that the object store answers, and that the mail settings are complete.',
+      ),
     );
     process.exit(1);
   }

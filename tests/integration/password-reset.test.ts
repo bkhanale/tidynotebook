@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   configureClient,
+  createApiKey,
   createInvitation,
   createOwner,
   getAccount,
@@ -204,13 +205,21 @@ await test('the sign-in screen offers a reset when the server sends mail', async
 
 await test('a reset link opens the application and replaces the password', async () => {
   const person = await member('first-password-123456');
+  const key = await createApiKey({
+    headers: { ...origin, cookie: person.cookie },
+    body: { name: 'Recovery program' },
+  });
+  assert.ok(key.data);
   const before = mailsTo(person.email).length;
   const asked = await askReset(person.email);
   assert.equal(asked.status, 200);
   // The answer does not wait for the message, so the test waits for it.
   await until(() => mailsTo(person.email).length === before + 1);
   const [reset] = mailsTo(person.email).slice(before);
-  assert.equal(reset?.subject, 'Reset your password on NotesApp at 127.0.0.1');
+  assert.equal(
+    reset?.subject,
+    'Reset your password on tidy notebook at 127.0.0.1',
+  );
   const token = lastToken(person.email, '/reset-password');
 
   const changed = await resetPassword({
@@ -225,12 +234,16 @@ await test('a reset link opens the application and replaces the password', async
     headers: { ...origin, cookie: person.cookie },
   });
   assert.equal(responseOf(stale.response).status, 401);
+  const keyAfterReset = await getAccount({
+    headers: { authorization: `Bearer ${key.data.token}` },
+  });
+  assert.equal(responseOf(keyAfterReset.response).status, 401);
   // The owner of the address learns that the password changed.
   await until(() => mailsTo(person.email).length === before + 2);
   const notice = mailsTo(person.email).at(-1);
   assert.equal(
     notice?.subject,
-    'Your password on NotesApp at 127.0.0.1 changed',
+    'Your password on tidy notebook at 127.0.0.1 changed',
   );
   assert.ok(
     notice?.text.split('\n').includes('http://127.0.0.1/forgot-password'),

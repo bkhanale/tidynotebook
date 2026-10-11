@@ -9,11 +9,20 @@
 
 /** A sentence for one known problem code. */
 const sentences: Readonly<Record<string, string>> = {
+  api_key_limit:
+    'Your account has 25 API keys. Revoke a key before you create another.',
   account_exists: 'An account already uses this address.',
+  account_locked:
+    'Your account is locked. Your notes are safe. Open the account page to unlock it.',
   account_unavailable:
     'This account cannot sign in. Ask an administrator of this installation.',
   address_unverified:
     'Open the link in the message that went to this address to finish your account. To get a new link, sign up again.',
+  // Record 0193: each holds until the next month in UTC.
+  download_limit:
+    'The download limit of this month is used. Downloads start again next month. You can still write and save notes.',
+  storage_busy:
+    'The file storage of this server is busy this month. New images and imports start again next month. You can still write and save notes.',
   deleted_remotely:
     'This note was deleted on another device. Open Trash to restore it.',
   forbidden: 'This account cannot do that.',
@@ -30,6 +39,8 @@ const sentences: Readonly<Record<string, string>> = {
   verification_invalid:
     'This link is not valid any more. Sign up again to get a new link.',
   proof_invalid: 'The check of this browser did not finish. Try again.',
+  controls_changed:
+    'Somebody changed this account at the same time. Read the page again, then make the change.',
   consent_required:
     'The terms or the privacy notice changed. Read them again and accept them.',
   setting_locked:
@@ -68,15 +79,40 @@ const sentences: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The sentence of each limit of the month that refused a request (record
+ * 0193). An attachment answers `download_limit` past the download limit of
+ * the person and past the read cap of the server, and the problem names
+ * which, so one cause has one message.
+ */
+const limitSentences: Readonly<Record<string, string>> = {
+  downloads: sentences['download_limit'] ?? '',
+  object_reads:
+    'The file storage of this server is busy this month. Images load again next month. You can still write and save notes.',
+  object_writes: sentences['storage_busy'] ?? '',
+};
+
+/** The codes whose problem names a limit of the month. */
+const limitCodes: ReadonlySet<string> = new Set([
+  'download_limit',
+  'storage_busy',
+]);
+
+/**
  * One plain sentence for a problem code and an HTTP status.
  *
  * The code itself never appears in the result. A caller that wants the code
- * for a log writes it to the console.
+ * for a log writes it to the console. `limit` is the limit of the month that
+ * the problem names, if any.
  */
 export function problemSentence(
   code: string | null,
   status: number | null,
+  limit: string | null = null,
 ): string {
+  if (code !== null && limit !== null && limitCodes.has(code)) {
+    const named = limitSentences[limit];
+    if (named !== undefined) return named;
+  }
   if (code !== null) {
     const known = sentences[code];
     if (known !== undefined) return known;
@@ -117,6 +153,12 @@ function readProperty(error: unknown, key: string): unknown {
 export function problemCode(error: unknown): string | null {
   const code = readProperty(error, 'code');
   return typeof code === 'string' && code !== '' ? code : null;
+}
+
+/** The limit of the month that a generated failure names, or `null`. */
+export function problemLimit(error: unknown): string | null {
+  const limit = readProperty(error, 'limit');
+  return typeof limit === 'string' && limit !== '' ? limit : null;
 }
 
 /** The HTTP status of a generated failure, or `null`. */

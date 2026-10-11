@@ -14,7 +14,9 @@ before a change is ready.
 
 Start the disposable database once with `tools/test-database/ensure-postgres.sh`.
 It is safe to run again and safe to run while another checkout uses the same
-service.
+service. `pnpm test:integration` also starts the MinIO service of the object
+store tests with `tools/test-database/ensure-minio.sh`, and each test file
+makes a bucket of its own there.
 
 Select a subset by name while you work, for example
 `pnpm test:integration -- browser-storage`. Every supplied selector must exist,
@@ -91,6 +93,7 @@ deleted branch, or a commit that no branch holds, fails to load.
 | Design rules                    | `tools/check-design-rules.mjs` and `tools/check-design-rules.test.mjs`.              |
 | Parallel migrations             | `tests/integration/concurrent-migrations.test.ts` over two databases of one cluster. |
 | A test with each change         | `tools/check-change-tests.mjs` against `main`, and its test (record 0154).           |
+| The commands of the image       | `pnpm test:image` in the image job of CI, over the built image (record 0202).        |
 
 ## Performance
 
@@ -123,7 +126,7 @@ the issue and not to a document.
 `pnpm perf:typing`, `pnpm perf:save` and `pnpm perf:start` hold no budget
 either. Each starts the built application on a disposable database, seeds
 the same workspace, and drives the headless Chromium of the
-`testing-changes-end-to-end` skill, because the repository holds no browser
+`test-application` skill, because the repository holds no browser
 dependency (record 0066). `perf:typing` states the time from a key to its
 frame and the changes of the page outside the editor, `perf:save` the time
 from Ctrl + S to the server and to a second device and the time of a move to

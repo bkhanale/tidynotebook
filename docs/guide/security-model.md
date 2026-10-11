@@ -1,7 +1,7 @@
 # Security model
 
 This page is for the person who runs the server, and for the person who trusts
-that server with their notes. Read it before you decide whether NotesApp fits
+that server with their notes. Read it before you decide whether tidy notebook fits
 your situation, and before you report a vulnerability.
 
 To report a problem privately, read [SECURITY.md](../../SECURITY.md).

@@ -60,9 +60,9 @@ function cookieHeader(values: readonly string[]): string {
 
 const database = await createDisposableDatabase();
 const storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-settings-test-'));
+// No published origin: the open policy needs none (record 0191).
 const environment = {
   NOTESAPP_ORIGIN: 'http://127.0.0.1',
-  NOTESAPP_PUBLISHED_ORIGIN: 'http://pages.test',
   NOTESAPP_DATABASE_URL: database.runtimeUrl,
   NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
   NOTESAPP_STORAGE_ROOT: storageRoot,
@@ -227,7 +227,7 @@ await test('a test message goes to the administrator and a failure names its kin
   assert.equal(responseOf(tested.response).status, 200);
   assert.deepEqual(tested.data, { to: ownerEmail });
   assert.equal(sent.at(-1)?.to, ownerEmail);
-  assert.match(sent.at(-1)?.subject ?? '', /^Test message from NotesApp/);
+  assert.match(sent.at(-1)?.subject ?? '', /^Test message from tidy notebook/);
   failure = Object.assign(new Error('535 5.7.8 rejected for notes'), {
     code: 'EAUTH',
     responseCode: 535,
@@ -293,7 +293,7 @@ await test('the template fills what the server knows and a blank is refused', as
   assert.equal(read.data?.document, null);
   assert.equal(read.data?.source, 'none');
   const template = read.data?.template ?? '';
-  assert.match(template, /NotesApp at 127\.0\.0\.1/);
+  assert.match(template, /tidy notebook at 127\.0\.0\.1/);
   // The breach check is off here, so the template names no such service.
   assert.doesNotMatch(template, /Have I Been Pwned/);
   const refused = await updateLegalDocument({
@@ -526,6 +526,52 @@ await test('the environment wins and locks each group it sets', async () => {
     (await getSetupStatus()).data?.legalDocuments?.terms.version,
     'e1',
   );
+});
+
+await test('the environment names the registration policy, wins and locks it', async () => {
+  // Record 0206. The row says invitation, and the environment says open
+  // with the mail server and both documents that open needs.
+  assert.equal((await storedRow())['registration_policy'], 'invitation');
+  await current.served.close();
+  current = await serve(
+    {
+      NOTESAPP_REGISTRATION_POLICY: 'open',
+      NOTESAPP_SMTP_URL: 'smtp://relay.example.test:25',
+      NOTESAPP_MAIL_FROM: 'Notes <no-reply@example.test>',
+      NOTESAPP_TERMS_URL: 'https://example.test/env-terms',
+      NOTESAPP_TERMS_VERSION: 'e1',
+      NOTESAPP_PRIVACY_URL: 'https://example.test/env-privacy',
+      NOTESAPP_PRIVACY_VERSION: 'e2',
+    },
+    { send: () => Promise.resolve() },
+  );
+  // The start wrote the policy into the row, so the SQL gate of a sign-up
+  // reads it too.
+  assert.equal((await storedRow())['registration_policy'], 'open');
+  const installation = await getInstallation({ headers: owner });
+  assert.equal(installation.data?.registrationPolicy, 'open');
+  assert.equal(installation.data?.registrationPolicySource, 'environment');
+  assert.equal((await getSetupStatus()).data?.openRegistration, true);
+  const changed = await updateInstallation({
+    headers: owner,
+    body: { registrationPolicy: 'invitation' },
+  });
+  assert.equal(responseOf(changed.response).status, 409);
+  assert.equal(memberOf(changed.error, 'code'), 'setting_locked');
+  assert.equal((await storedRow())['registration_policy'], 'open');
+
+  // With no variable the setting unlocks, and the row keeps the last policy.
+  await current.served.close();
+  current = await serve();
+  const unlocked = await getInstallation({ headers: owner });
+  assert.equal(unlocked.data?.registrationPolicy, 'open');
+  assert.equal(unlocked.data?.registrationPolicySource, 'application');
+  const back = await updateInstallation({
+    headers: owner,
+    body: { registrationPolicy: 'invitation' },
+  });
+  assert.equal(responseOf(back.response).status, 200);
+  assert.equal(back.data?.registrationPolicy, 'invitation');
 });
 
 await current.served.close();

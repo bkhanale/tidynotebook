@@ -339,10 +339,16 @@ export function panelRules(): Record<
       ...menuSurfaceStyle,
       color: 'var(--notes-text)',
     },
+    // The list fills the height that the room at the caret gives the tooltip
+    // and scrolls inside it, so a short room above the keyboard of a phone
+    // cuts no row out of reach.
     '.cm-tooltip.cm-tooltip-autocomplete': {
       overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
     },
     '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+      minHeight: '0',
       fontFamily: 'var(--font-sans)',
       fontSize: 'var(--text-control)',
       maxHeight: 'calc(var(--spacing) * 72)',

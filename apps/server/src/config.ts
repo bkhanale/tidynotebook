@@ -23,15 +23,26 @@ import {
   mailSecurities,
   readMailSettings,
   maxArchiveBytes,
+  importPartBytes,
   maxLegalTextBytes,
   templateBlanks,
   type LegalDocumentName,
   type LegalDocuments,
   type MailSettingsProblem,
+  type OpenRegistrationPart,
+  type RegistrationPolicy,
   type StoredMailSettings,
+  openRegistrationMissing,
+  registrationPolicies,
+  productName,
+  controlStandings,
+  maxRemoveAfterDays,
+  type NewAccountSettings,
+  type UsageCaps,
 } from '@notesapp/core';
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
+import type { ObjectStoreSettings } from '@notesapp/storage-server';
 import { readServedOrigins, type ServedOrigin } from './served-origins.ts';
 import { readTrustedProxies } from './trusted-proxies.ts';
 
@@ -98,8 +109,17 @@ export type ServerConfig = {
    * token, a password hash, or a reset token through any query.
    */
   readonly authDatabaseUrl: string;
-  /** Directory that holds immutable attachment content. */
+  /**
+   * The directory of the server for the files of one request, and the
+   * object store itself when `objectStore` names the file store.
+   */
   readonly storageRoot: string;
+  /**
+   * Where every byte that outlives one request lives (record 0192): the
+   * directory of `storageRoot`, or an S3 compatible store with its key pair
+   * (record 0207).
+   */
+  readonly objectStore: ObjectStoreConfig;
   /** Secret that signs sessions and tokens. */
   readonly authSecret: string;
   /**
@@ -152,8 +172,11 @@ export type ServerConfig = {
     readonly uploadBodyBytes: number;
     /** The largest workspace archive of one import. */
     readonly archiveBytes: number;
-    /** The largest body of one import. */
-    readonly importBodyBytes: number;
+    /**
+     * The largest body of one part of an import (record 0192). A part is
+     * the bytes alone, with no form around them.
+     */
+    readonly importPartBytes: number;
     readonly headerBytes: number;
     /**
      * The total receive bound of every request.
@@ -199,9 +222,12 @@ export type ServerConfig = {
    * `pendingHours` is how long a sign-up of open registration waits for its
    * verification before the hourly run removes it (record 0114).
    * `proofDifficulty` is how many leading zero bits the proof of work of a
-   * sign-up needs (record 0115).
+   * sign-up needs (record 0115). `standing` and `removeAfterSeconds` are the
+   * controls that a new account starts with (record 0189): with no setting
+   * it is active with no removal time, as before. These three members are
+   * the `NewAccountSettings` of a registration.
    */
-  readonly accounts: {
+  readonly accounts: NewAccountSettings & {
     readonly limitBytes: bigint;
     readonly invitationLifetimeHours: number;
     readonly pendingHours: number;
@@ -227,6 +253,36 @@ export type ServerConfig = {
    */
   readonly legalFiles: LegalFiles;
   /**
+   * The one secret of the operator API, or `null` for none (record 0190).
+   * With no secret every operator operation answers 404 with the code
+   * `operator_off`. It comes from `NOTESAPP_OPERATOR_TOKEN` or from the file
+   * of `NOTESAPP_OPERATOR_TOKEN_FILE` (record 0207).
+   */
+  readonly operatorToken: string | null;
+  /**
+   * The account portal of the operator, as a full address with no query, or
+   * `null` (record 0190). `openAccountPortal` answers a path of it with a
+   * handoff token, and a locked account links it (record 0201). A portal
+   * needs `operatorToken`, because it redeems the handoff through the
+   * operator API, so startup stops when it has none.
+   */
+  readonly accountPortal: string | null;
+  /**
+   * The registration policy that the environment names, or `null` for none
+   * (record 0206). A named policy wins over the setting of the application
+   * and locks it, and the server writes it into the stored row at its start.
+   * The open policy needs the mail transport and both legal documents of the
+   * environment, so startup stops without them.
+   */
+  readonly registrationPolicy: RegistrationPolicy | null;
+  /**
+   * The caps of the installation for one calendar month in UTC (record
+   * 0193), each `null` for none: the bytes of the published pages, the bytes
+   * of the downloads, and the write calls and the read calls to an S3 store.
+   * With no cap and no limit of an account, nothing is checked.
+   */
+  readonly usageCaps: UsageCaps;
+  /**
    * The stop of this process.
    *
    * `gracePeriodMs` is the wait between the moment the readiness answer
@@ -245,6 +301,19 @@ export type ServerConfig = {
   };
 };
 
+/** The object store that the environment names (record 0192). */
+export type ObjectStoreConfig =
+  | { readonly kind: 'filesystem' }
+  | {
+      readonly kind: 's3';
+      readonly bucket: string;
+      readonly region: string;
+      /** The address of the service, or `null` for AWS itself. */
+      readonly endpoint: string | null;
+      readonly accessKeyId: string;
+      readonly secretAccessKey: string;
+    };
+
 /** Startup failure that names every rejected configuration entry. */
 export class ConfigError extends Error {
   readonly issues: readonly string[];
@@ -254,6 +323,23 @@ export class ConfigError extends Error {
     this.name = 'ConfigError';
     this.issues = issues;
   }
+}
+
+/**
+ * What the operator reads when the start of the server fails.
+ *
+ * A configuration error states one line for each value that it refused, in
+ * the words of this server. Each line names the variable and the form that it
+ * needs, and never the value, so the operator reads it as it is, also when
+ * the composition found it after the configuration was read. Any other
+ * failure is the message of a library or of the operating system, which names
+ * a file, a code or a stack, so the operator reads the one sentence of
+ * `general` instead.
+ */
+export function startFailureMessage(error: unknown, general: string): string {
+  return error instanceof ConfigError
+    ? `notesapp: configuration error:\n${error.issues.join('\n')}\n`
+    : `notesapp: ${general}\n`;
 }
 
 const variables = [
@@ -307,15 +393,63 @@ export const optionalVariables = [
   'NOTESAPP_PRIVACY_FILE',
   'NOTESAPP_PRIVACY_VERSION',
   'NOTESAPP_BREACH_CHECK',
+  'NOTESAPP_OBJECT_STORE',
+  'NOTESAPP_S3_BUCKET',
+  'NOTESAPP_S3_REGION',
+  'NOTESAPP_S3_ENDPOINT',
+  'NOTESAPP_S3_ACCESS_KEY_ID',
+  'NOTESAPP_S3_SECRET_ACCESS_KEY',
+  'NOTESAPP_NEW_ACCOUNT_STANDING',
+  'NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER',
+  'NOTESAPP_OPERATOR_TOKEN',
+  'NOTESAPP_ACCOUNT_PORTAL_URL',
+  'NOTESAPP_REGISTRATION_POLICY',
+  'NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES',
+  'NOTESAPP_DOWNLOAD_CAP_BYTES',
+  'NOTESAPP_OBJECT_WRITE_CAP',
+  'NOTESAPP_OBJECT_READ_CAP',
 ] as const;
 
-const protectedFiles = {
+/**
+ * Every secret of the server and the variable of its file.
+ *
+ * An operator names each secret as the variable or as its file, never both
+ * (record 0207). A file suits Compose, which mounts each secret, and the
+ * variable suits a platform that gives a service variables only.
+ * `loadProtectedEnvironment` reads each file before the configuration, so
+ * every secret of the server follows one rule.
+ */
+export const protectedFiles = {
   NOTESAPP_DATABASE_URL: 'NOTESAPP_DATABASE_URL_FILE',
   NOTESAPP_AUTH_DATABASE_URL: 'NOTESAPP_AUTH_DATABASE_URL_FILE',
   NOTESAPP_AUTH_SECRET: 'NOTESAPP_AUTH_SECRET_FILE',
   NOTESAPP_SMTP_URL: 'NOTESAPP_SMTP_URL_FILE',
   NOTESAPP_SMTP_PASSWORD: 'NOTESAPP_SMTP_PASSWORD_FILE',
+  NOTESAPP_S3_ACCESS_KEY_ID: 'NOTESAPP_S3_ACCESS_KEY_ID_FILE',
+  NOTESAPP_S3_SECRET_ACCESS_KEY: 'NOTESAPP_S3_SECRET_ACCESS_KEY_FILE',
+  NOTESAPP_OPERATOR_TOKEN: 'NOTESAPP_OPERATOR_TOKEN_FILE',
 } as const;
+
+/** The name of one secret of the server. */
+type ProtectedName = keyof typeof protectedFiles;
+
+/** Whether a variable holds a value. An empty value is not set. */
+function isSet(value: string | undefined): value is string {
+  return value !== undefined && value !== '';
+}
+
+/**
+ * The variable that the operator set for one secret: its file variable when
+ * that names a file, or else the variable itself. A message about a secret
+ * names this one, so the operator reads the name that they wrote.
+ */
+function secretSource(
+  environment: Readonly<Record<string, string | undefined>>,
+  name: ProtectedName,
+): string {
+  const file = protectedFiles[name];
+  return isSet(environment[file]) ? file : name;
+}
 
 /**
  * Every variable that this server reads, each name once.
@@ -385,6 +519,7 @@ const positiveInteger = { type: 'string', pattern: '^[1-9][0-9]{0,9}$' };
 // front, so nothing has to observe the readiness answer before the listener
 // closes.
 const wholeNumber = { type: 'string', pattern: '^(0|[1-9][0-9]{0,9})$' };
+const monthlyCap = { type: 'string', pattern: '^[1-9][0-9]{0,15}$' };
 
 /**
  * The stop of a deployment that names no value of its own.
@@ -538,6 +673,44 @@ const configSchema: SchemaObject = {
       maxLength: maxLegalVersionLength,
     },
     NOTESAPP_BREACH_CHECK: { type: 'string', enum: ['on', 'off'] },
+    NOTESAPP_OBJECT_STORE: { type: 'string', enum: ['filesystem', 's3'] },
+    // The rule of a bucket name that every S3 compatible store shares.
+    NOTESAPP_S3_BUCKET: {
+      type: 'string',
+      pattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$',
+    },
+    // R2 names `auto`, and AWS and MinIO name a region such as `us-east-1`.
+    NOTESAPP_S3_REGION: { type: 'string', pattern: '^[a-z0-9-]{1,32}$' },
+    NOTESAPP_S3_ENDPOINT: {
+      type: 'string',
+      format: 'uri',
+      pattern: '^https?://',
+      maxLength: 1024,
+    },
+    // A secret is checked where it is read, so no message of the schema
+    // describes it.
+    NOTESAPP_S3_ACCESS_KEY_ID: { type: 'string' },
+    NOTESAPP_S3_SECRET_ACCESS_KEY: { type: 'string' },
+    NOTESAPP_NEW_ACCOUNT_STANDING: {
+      type: 'string',
+      enum: [...controlStandings],
+    },
+    NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER: {
+      type: 'string',
+      pattern: '^[1-9][0-9]{0,3}d$',
+    },
+    NOTESAPP_OPERATOR_TOKEN: { type: 'string' },
+    NOTESAPP_ACCOUNT_PORTAL_URL: { type: 'string', maxLength: 2048 },
+    NOTESAPP_REGISTRATION_POLICY: {
+      type: 'string',
+      enum: [...registrationPolicies],
+    },
+    // A cap of a month is a whole count that a JSON number carries (record
+    // 0193), so at most sixteen digits.
+    NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES: monthlyCap,
+    NOTESAPP_DOWNLOAD_CAP_BYTES: monthlyCap,
+    NOTESAPP_OBJECT_WRITE_CAP: monthlyCap,
+    NOTESAPP_OBJECT_READ_CAP: monthlyCap,
   },
 };
 
@@ -550,6 +723,16 @@ const validate = compileSchema<RawConfig>(configSchema);
 export function loadServerConfig(
   environment: Readonly<Record<string, string | undefined>>,
 ): ServerConfig {
+  // A file of a secret that nobody read would leave its secret unset in
+  // silence, and the operator API or the object store would then be off.
+  // Every caller reads the files through `loadProtectedEnvironment` first.
+  const unread = Object.entries(protectedFiles).filter(
+    ([name, file]) => isSet(environment[file]) && !isSet(environment[name]),
+  );
+  if (unread.length > 0)
+    throw new Error(
+      `notesapp: ${unread.map(([, file]) => file).join(', ')} names a file that was not read. Read the environment through loadProtectedEnvironment first.`,
+    );
   const removed = removedVariables.flatMap(([name, advice]) => {
     const value = environment[name];
     return value === undefined || value === '' ? [] : [`${name}: ${advice}`];
@@ -627,11 +810,29 @@ export function loadServerConfig(
       'NOTESAPP_AUTH_DATABASE_URL: the identity connection must use its own role, not the runtime role.',
     );
   if (partial.length > 0) throw new ConfigError(partial);
+  const accountPortal = readAccountPortal(raw.NOTESAPP_ACCOUNT_PORTAL_URL);
+  const operatorToken = readOperatorToken(
+    raw.NOTESAPP_OPERATOR_TOKEN,
+    secretSource(environment, 'NOTESAPP_OPERATOR_TOKEN'),
+  );
+  // The portal gives each handoff token back to the operator API, so a
+  // portal with the API off could never unlock an account (record 0190).
+  if (accountPortal !== null && operatorToken === null)
+    throw new ConfigError([
+      'NOTESAPP_ACCOUNT_PORTAL_URL: the portal needs the operator API to unlock an account. Set NOTESAPP_OPERATOR_TOKEN or NOTESAPP_OPERATOR_TOKEN_FILE too, or remove NOTESAPP_ACCOUNT_PORTAL_URL.',
+    ]);
+  const legal = readLegalDocuments(raw, canonical);
+  const registrationPolicy = readRegistrationPolicy(
+    raw,
+    mail.mail,
+    legal.legalDocuments,
+  );
   return {
     origin: canonical,
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
+    objectStore: readObjectStore(raw, environment),
     authSecret: raw.NOTESAPP_AUTH_SECRET,
     servedOrigins: served.origins,
     listen,
@@ -644,7 +845,7 @@ export function loadServerConfig(
       attachmentBytes,
       uploadBodyBytes: attachmentBytes + multipartEnvelopeBytes,
       archiveBytes,
-      importBodyBytes: archiveBytes + multipartEnvelopeBytes,
+      importPartBytes,
       headerBytes: Number(raw.NOTESAPP_MAX_HEADER_BYTES),
       requestTimeoutMs,
       uploadIdleTimeoutMs,
@@ -667,7 +868,174 @@ export function loadServerConfig(
     shutdown,
     accounts: readAccounts(raw),
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
-    ...readLegalDocuments(raw, canonical),
+    operatorToken,
+    accountPortal,
+    registrationPolicy,
+    usageCaps: readUsageCaps(raw),
+    ...legal,
+  };
+}
+
+/** What a missing part of the open policy names (records 0114, 0191). */
+const openPolicyIssues: Readonly<Record<OpenRegistrationPart, string>> = {
+  mail: 'NOTESAPP_REGISTRATION_POLICY: the open policy needs a mail server in the environment, so a sign-up can prove its address. Set NOTESAPP_SMTP_URL or the NOTESAPP_SMTP_HOST fields, or set NOTESAPP_REGISTRATION_POLICY to invitation.',
+  'legal-documents':
+    'NOTESAPP_REGISTRATION_POLICY: the open policy needs the terms and the privacy notice in the environment. Set the NOTESAPP_TERMS_ and NOTESAPP_PRIVACY_ variables, or set NOTESAPP_REGISTRATION_POLICY to invitation.',
+};
+
+/**
+ * The registration policy of the environment, or `null` (record 0206).
+ *
+ * The open policy needs every part that records 0114 and 0191 name, and the
+ * environment must name each one, so the whole open set has one source and
+ * no change in the application can remove a part of it. A missing part stops
+ * startup. Each message names the variable and never its value.
+ */
+function readRegistrationPolicy(
+  raw: RawConfig,
+  mail: MailConfig | null,
+  legalDocuments: LegalDocuments | null,
+): RegistrationPolicy | null {
+  const policy = registrationPolicies.find(
+    (entry) => entry === raw.NOTESAPP_REGISTRATION_POLICY,
+  );
+  if (policy === undefined) return null;
+  if (policy === 'invitation') return policy;
+  const missing = openRegistrationMissing({
+    mail: mail !== null,
+    legalDocuments: legalDocuments !== null,
+  });
+  if (missing.length > 0)
+    throw new ConfigError(missing.map((part) => openPolicyIssues[part]));
+  return policy;
+}
+
+/**
+ * The caps of the installation for one month (record 0193). Each is a whole
+ * number above zero that a JSON number carries, and an empty value is no cap.
+ */
+function readUsageCaps(raw: RawConfig): UsageCaps {
+  const issues: string[] = [];
+  const read = (name: (typeof capVariables)[number]): number | null => {
+    const value = raw[name];
+    if (value === undefined) return null;
+    const cap = Number(value);
+    if (Number.isSafeInteger(cap)) return cap;
+    issues.push(
+      `${name}: name at most ${String(Number.MAX_SAFE_INTEGER)}, or leave it empty for no cap.`,
+    );
+    return null;
+  };
+  const caps = {
+    publishedTransferBytes: read('NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES'),
+    downloadBytes: read('NOTESAPP_DOWNLOAD_CAP_BYTES'),
+    objectWrites: read('NOTESAPP_OBJECT_WRITE_CAP'),
+    objectReads: read('NOTESAPP_OBJECT_READ_CAP'),
+  };
+  if (issues.length > 0) throw new ConfigError(issues);
+  return caps;
+}
+
+/** The four caps of a month, in the order of the guide. */
+const capVariables = [
+  'NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES',
+  'NOTESAPP_DOWNLOAD_CAP_BYTES',
+  'NOTESAPP_OBJECT_WRITE_CAP',
+  'NOTESAPP_OBJECT_READ_CAP',
+] as const;
+
+/** The settings of an S3 store that are not secret, in the order of the guide. */
+const s3Settings = [
+  'NOTESAPP_S3_BUCKET',
+  'NOTESAPP_S3_REGION',
+  'NOTESAPP_S3_ENDPOINT',
+] as const;
+
+/** The key pair of an S3 store, each a secret (record 0207). */
+const s3Secrets = [
+  'NOTESAPP_S3_ACCESS_KEY_ID',
+  'NOTESAPP_S3_SECRET_ACCESS_KEY',
+] as const;
+
+/**
+ * The object store of the environment (record 0192).
+ *
+ * The file store is the default and needs nothing more. An S3 store needs
+ * its bucket, its region and its key pair, and names its endpoint unless it
+ * is AWS itself. A setting of an S3 store beside the file store stops
+ * startup, because the operator meant one of the two and the server cannot
+ * tell which. A message about a key names the variable that the operator
+ * set, the key or its file, and never the key.
+ */
+function readObjectStore(
+  raw: RawConfig,
+  environment: Readonly<Record<string, string | undefined>>,
+): ObjectStoreConfig {
+  if (raw.NOTESAPP_OBJECT_STORE !== 's3') {
+    const named = [
+      ...s3Settings.filter((name) => raw[name] !== undefined),
+      ...s3Secrets
+        .filter((name) => raw[name] !== undefined)
+        .map((name) => secretSource(environment, name)),
+    ];
+    if (named.length > 0)
+      throw new ConfigError(
+        named.map(
+          (name) =>
+            `${name}: set NOTESAPP_OBJECT_STORE to s3 to use an S3 compatible store, or remove ${name}.`,
+        ),
+      );
+    return { kind: 'filesystem' };
+  }
+  const {
+    NOTESAPP_S3_BUCKET: bucket,
+    NOTESAPP_S3_REGION: region,
+    NOTESAPP_S3_ACCESS_KEY_ID: accessKeyId,
+    NOTESAPP_S3_SECRET_ACCESS_KEY: secretAccessKey,
+  } = raw;
+  if (
+    bucket === undefined ||
+    region === undefined ||
+    accessKeyId === undefined ||
+    secretAccessKey === undefined
+  )
+    throw new ConfigError([
+      ...s3Settings
+        .filter(
+          (name) => name !== 'NOTESAPP_S3_ENDPOINT' && raw[name] === undefined,
+        )
+        .map((name) => `${name}: an S3 compatible store needs it.`),
+      ...s3Secrets
+        .filter((name) => raw[name] === undefined)
+        .map(
+          (name) =>
+            `${name}: an S3 compatible store needs it. Set ${name} or ${protectedFiles[name]}.`,
+        ),
+    ]);
+  return {
+    kind: 's3',
+    bucket,
+    region,
+    endpoint: raw.NOTESAPP_S3_ENDPOINT ?? null,
+    accessKeyId,
+    secretAccessKey,
+  };
+}
+
+/** The settings that open the object store of a configuration. */
+export function objectStoreSettings(
+  config: Pick<ServerConfig, 'objectStore' | 'storageRoot'>,
+): ObjectStoreSettings {
+  const store = config.objectStore;
+  if (store.kind === 'filesystem')
+    return { kind: 'filesystem', root: config.storageRoot };
+  return {
+    kind: 's3',
+    bucket: store.bucket,
+    region: store.region,
+    endpoint: store.endpoint,
+    accessKeyId: store.accessKeyId,
+    secretAccessKey: store.secretAccessKey,
   };
 }
 
@@ -689,8 +1057,7 @@ const mailFieldIssues: Readonly<Record<MailSettingsProblem, string>> = {
     'NOTESAPP_SMTP_USERNAME: the user name holds a character that a mail server cannot take.',
   password:
     'NOTESAPP_SMTP_PASSWORD: the password holds a character that a mail server cannot take.',
-  sender:
-    'NOTESAPP_MAIL_FROM: name one address, or a name and an address, for example NotesApp <no-reply@example.com>.',
+  sender: `NOTESAPP_MAIL_FROM: name one address, or a name and an address, for example ${productName} <no-reply@example.com>.`,
 };
 
 /**
@@ -766,6 +1133,65 @@ function readMail(
   });
   if (!read.ok) return { ok: false, issues: [mailFieldIssues[read.problem]] };
   return { ok: true, mail: { kind: 'fields', fields: read.value } };
+}
+
+/**
+ * The account portal of the operator, or `null` (record 0190).
+ *
+ * A path joins it as text, so it is a full http or https address with no
+ * query, no fragment, no user and no final slash. Any other value stops
+ * startup rather than sending a person to an address that nobody named.
+ */
+function readAccountPortal(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigError([
+      'NOTESAPP_ACCOUNT_PORTAL_URL: name a full http or https address.',
+    ]);
+  }
+  if (
+    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    url.username !== '' ||
+    url.password !== ''
+  )
+    throw new ConfigError([
+      'NOTESAPP_ACCOUNT_PORTAL_URL: name a full http or https address with no query, no fragment and no user, for example https://billing.example.com.',
+    ]);
+  return url.href.replace(/\/+$/, '');
+}
+
+/** The shortest operator token that the server takes. */
+export const minOperatorTokenLength = 32;
+
+/**
+ * The one secret of the operator API (record 0190), or `null` when the
+ * environment names none.
+ *
+ * It comes from the variable or from its file (record 0207), and a file
+ * loses the space around its value. A value shorter than 32 characters and a
+ * value with a space or a control character inside it stop startup, so the
+ * API never opens with a guessable or a broken secret. `source` is the
+ * variable that the operator set, and the error never repeats the value.
+ */
+function readOperatorToken(
+  value: string | undefined,
+  source: string,
+): string | null {
+  if (value === undefined) return null;
+  if (value.length < minOperatorTokenLength || value.length > 512)
+    throw new ConfigError([
+      `${source}: the operator secret must have ${String(minOperatorTokenLength)} to 512 characters.`,
+    ]);
+  if (!/^[\x21-\x7e]+$/.test(value))
+    throw new ConfigError([
+      `${source}: the operator secret must hold no space and no control character.`,
+    ]);
+  return value;
 }
 
 /** The address of one document: a full http or https URL, or `null`. */
@@ -957,6 +1383,32 @@ function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
     issues.push(
       `NOTESAPP_PENDING_ACCOUNT_HOURS: name at most ${String(maxPendingAccountHours)} hours.`,
     );
+  // The controls of a new account (record 0189). With no setting a new
+  // account is active and has no removal time, as before. Only a locked
+  // account has a removal time, so a time with no locked standing stops
+  // startup rather than doing nothing.
+  const standing =
+    raw.NOTESAPP_NEW_ACCOUNT_STANDING === 'locked' ? 'locked' : 'active';
+  const removeAfterDays =
+    raw.NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER === undefined
+      ? null
+      : Number(raw.NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER.slice(0, -1));
+  if (removeAfterDays !== null && standing !== 'locked')
+    issues.push(
+      'NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER: only a locked account has a removal time. Set NOTESAPP_NEW_ACCOUNT_STANDING to locked, or remove this setting.',
+    );
+  if (removeAfterDays !== null && removeAfterDays > maxRemoveAfterDays)
+    issues.push(
+      `NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER: name at most ${String(maxRemoveAfterDays)} days, for example 30d.`,
+    );
   if (issues.length > 0) throw new ConfigError(issues);
-  return { limitBytes, invitationLifetimeHours, pendingHours, proofDifficulty };
+  return {
+    limitBytes,
+    standing,
+    removeAfterSeconds:
+      removeAfterDays === null ? null : removeAfterDays * 24 * 60 * 60,
+    invitationLifetimeHours,
+    pendingHours,
+    proofDifficulty,
+  };
 }

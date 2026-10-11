@@ -3,6 +3,7 @@ description: The settings of the installation that an administrator reads.
 additionalProperties: false
 required:
   - registrationPolicy
+  - registrationPolicySource
   - mailConfigured
   - invitationLifetimeHours
   - defaultLimitBytes
@@ -14,6 +15,14 @@ properties:
       - $ref: './RegistrationPolicy.yaml'
     readOnly: true
     description: Who can make an account.
+  registrationPolicySource:
+    allOf:
+      - $ref: './SettingSource.yaml'
+    readOnly: true
+    description: >-
+      Where the registration policy comes from (record 0206). With
+      environment, the server environment names it and the application
+      cannot change it.
   mailConfigured:
     type: boolean
     readOnly: true

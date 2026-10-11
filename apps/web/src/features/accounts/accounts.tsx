@@ -18,7 +18,7 @@
  * `app.tsx`.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import {
   acceptLegalDocuments,
   createOwner,
@@ -48,6 +48,15 @@ import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
 import { forgotPasswordRoute, signUpRoute } from '../../lib/accounts.ts';
 import { consentTo, waitsForConsent } from '../../lib/legal.ts';
+import {
+  isLocked,
+  lockedSentences,
+  signedInSentence,
+} from '../../lib/locked.ts';
+import { portalHome } from '../../lib/portal.ts';
+import { returnOf } from '../../lib/sign-in-return.ts';
+import { useOpenPortal } from './open-portal.ts';
+import { useNow } from '../../shell/now.ts';
 import { LegalLinks } from './legal-links.tsx';
 
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
@@ -55,6 +64,7 @@ import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { downloadAll, transferFailureMessage } from '../export/export.ts';
 
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import { productName } from '@notesapp/core';
 
 /** The title of the settings page, which is also its breadcrumb part. */
 export const settingsTitle = 'Settings';
@@ -79,7 +89,187 @@ export function RequireSession({
   // The application opens after consent to the current legal documents
   // (record 0120).
   if (waitsForConsent(session.account)) return <ConsentPage />;
+  // A locked account signs in to one screen (record 0201).
+  if (isLocked(session.account)) return <LockedPage />;
   return children;
+}
+
+/**
+ * Downloads the archive of each workspace that the account owns.
+ *
+ * A person who does not accept the terms, and a locked account, can still
+ * take the notes out (records 0120 and 0201).
+ */
+async function exportOwnedWorkspaces(): Promise<void> {
+  const listed = await listWorkspaces();
+  for (const workspace of listed.data?.workspaces ?? [])
+    if (workspace.role === 'owner') await downloadAll(workspace.workspaceId);
+}
+
+/**
+ * The account that is signed in, and Sign out, under the card of a screen
+ * that keeps a person out of the notes.
+ *
+ * Sign out leaves the screen and changes nothing of the account, so it sits
+ * outside the card with the other ways out, and the card keeps the choices
+ * about the account. `signedInSentence` decides the words.
+ */
+function SignedInFooter({
+  email,
+  disabled,
+  onSignOut,
+}: {
+  readonly email: string | null | undefined;
+  readonly disabled: boolean;
+  readonly onSignOut: () => void;
+}): ReactNode {
+  const sentence = signedInSentence(email);
+  return (
+    <div className="flex items-center justify-between gap-cluster">
+      <p
+        className="m-0 min-w-0 truncate text-control text-muted"
+        title={sentence}
+      >
+        {sentence}
+      </p>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<SignOutIcon />}
+        disabled={disabled}
+        onClick={onSignOut}
+      >
+        Sign out
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The one screen of a locked account (record 0201).
+ *
+ * When the installation names an account portal, the one filled action opens
+ * it, and the portal unlocks the account. The person can also export the
+ * notes, delete the account, or sign out. The stream of the account says
+ * when it changes, and the screen reads it again then and when the person
+ * comes back to the tab, so an unlock opens the application with no reload.
+ */
+function LockedPage(): ReactNode {
+  const session = useSession();
+  const store = useLocalStore();
+  const now = useNow();
+  const portal = useOpenPortal();
+  const [working, setWorking] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const busy = working || portal.busy;
+  // One message for one cause: each action clears the message of the other.
+  const error = portal.error === '' ? exportError : portal.error;
+  useDocumentTitle('Your account is locked');
+
+  // The stream says when the account changes. A return to the tab reads it
+  // again too, for a browser whose stream is closed, and a removed account
+  // or an ended session goes to sign-in.
+  const recheck = session.recheck;
+  useEffect(() => {
+    const check = (): void => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [recheck]);
+
+  const account = session.account;
+  if (account === null) return <Navigate to="/login" replace />;
+
+  const exportNotes = async (): Promise<void> => {
+    setWorking(true);
+    setExportError('');
+    portal.reset();
+    try {
+      await exportOwnedWorkspaces();
+    } catch (failure: unknown) {
+      setExportError(transferFailureMessage(failure));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <AuthFrame
+      title="Your account is locked"
+      footer={
+        <SignedInFooter
+          email={account.email}
+          disabled={busy}
+          onSignOut={session.signOut}
+        />
+      }
+    >
+      {lockedSentences(account, now).map((sentence) => (
+        <p key={sentence} className="mb-3 mt-0 text-control text-muted">
+          {sentence}
+        </p>
+      ))}
+      {error === '' ? null : (
+        <Notice className="mb-4" tone="problem" message={error} />
+      )}
+      {account.accountPortal ? (
+        <Button
+          className="mt-2 w-full"
+          disabled={busy}
+          onClick={() => {
+            setExportError('');
+            void portal.open(portalHome);
+          }}
+        >
+          Open billing
+        </Button>
+      ) : null}
+      <p className="mb-2 mt-5 text-control text-muted">
+        You can export your notes or delete your account.
+      </p>
+      <div className="flex flex-wrap gap-cluster">
+        <Button
+          variant="secondary"
+          icon={<DownloadIcon />}
+          disabled={busy}
+          onClick={() => {
+            void exportNotes();
+          }}
+        >
+          Export my notes
+        </Button>
+        <Button
+          variant="secondary"
+          tone="danger"
+          icon={actionIcon(deleteGlyph)}
+          disabled={busy}
+          onClick={() => {
+            setRemoving(true);
+          }}
+        >
+          Delete my account
+        </Button>
+      </div>
+      {removing ? (
+        <RemoveOwnAccountDialog
+          store={store.store}
+          accountId={account.accountId}
+          onClose={() => {
+            setRemoving(false);
+          }}
+          onRemoved={() => {
+            session.refresh();
+          }}
+        />
+      ) : null}
+    </AuthFrame>
+  );
 }
 
 /** How far the read of the legal documents got. */
@@ -93,7 +283,7 @@ type DocumentsState =
  * of the terms or of the privacy notice (record 0120).
  *
  * The one filled action accepts. A person who does not accept can export
- * their notes, remove their account, or sign out, and the application stays
+ * their notes, delete their account, or sign out, and the application stays
  * closed until they accept.
  */
 function ConsentPage(): ReactNode {
@@ -144,10 +334,7 @@ function ConsentPage(): ReactNode {
     setBusy(true);
     setError('');
     try {
-      const listed = await listWorkspaces();
-      for (const workspace of listed.data?.workspaces ?? [])
-        if (workspace.role === 'owner')
-          await downloadAll(workspace.workspaceId);
+      await exportOwnedWorkspaces();
     } catch (failure: unknown) {
       setError(transferFailureMessage(failure));
     } finally {
@@ -156,7 +343,16 @@ function ConsentPage(): ReactNode {
   };
 
   return (
-    <AuthFrame title="Accept the terms">
+    <AuthFrame
+      title="Accept the terms"
+      footer={
+        <SignedInFooter
+          email={account.email}
+          disabled={busy}
+          onSignOut={session.signOut}
+        />
+      }
+    >
       {state.kind === 'loading' ? (
         <LoadingState label="The terms are loading." />
       ) : state.kind === 'failed' ? (
@@ -192,7 +388,7 @@ function ConsentPage(): ReactNode {
             {busy ? 'Saving your answer' : 'Accept and continue'}
           </Button>
           <p className="mb-2 mt-5 text-control text-muted">
-            If you do not accept them, you can export your notes and remove your
+            If you do not accept them, you can export your notes and delete your
             account.
           </p>
           <div className="flex flex-wrap gap-cluster">
@@ -215,17 +411,7 @@ function ConsentPage(): ReactNode {
                 setRemoving(true);
               }}
             >
-              Remove my account
-            </Button>
-            <Button
-              variant="ghost"
-              icon={<SignOutIcon />}
-              disabled={busy}
-              onClick={() => {
-                session.signOut();
-              }}
-            >
-              Sign out
+              Delete my account
             </Button>
           </div>
         </>
@@ -274,6 +460,8 @@ type SetupStatus =
 export function LoginPage(): ReactNode {
   const session = useSession();
   const navigate = useNavigate();
+  // Where sign-in goes back to: a path of this origin, or the root.
+  const back = returnOf(useLocation().search);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -348,16 +536,16 @@ export function LoginPage(): ReactNode {
       return;
     }
     session.refresh();
-    void navigate('/');
+    void navigate(back);
   }
 
-  if (session.status === 'signed-in') return <Navigate to="/" replace />;
+  if (session.status === 'signed-in') return <Navigate to={back} replace />;
 
   const title = setup ? 'Create your account' : 'Sign in';
   const documents = status.kind === 'ready' ? status.legalDocuments : null;
   return (
     <AuthFrame
-      title={status.kind === 'loading' ? 'Notesapp' : title}
+      title={status.kind === 'loading' ? productName : title}
       footer={
         documents === null ? null : (
           <LegalLinks className="justify-center" documents={documents} />
@@ -491,7 +679,7 @@ export function AuthFrame({
         >
           <AppMarkIcon />
         </span>
-        <span>Notesapp</span>
+        <span>{productName}</span>
       </div>
       <Card className="w-full max-w-sm sm:p-6">
         <h1 className="mb-2 mt-0 text-xl font-semibold tracking-heading text-strong">

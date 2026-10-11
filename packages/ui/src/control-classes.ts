@@ -679,6 +679,59 @@ export function badgeClassName(): string {
   return 'inline-flex items-center rounded-sm bg-hover px-1.5 text-kbd font-medium text-muted';
 }
 
+/** Whole classes that Tailwind can read, from empty to full. */
+const meterWidths = [
+  'w-0',
+  'w-1/12',
+  'w-2/12',
+  'w-3/12',
+  'w-4/12',
+  'w-5/12',
+  'w-6/12',
+  'w-7/12',
+  'w-8/12',
+  'w-9/12',
+  'w-10/12',
+  'w-11/12',
+  'w-full',
+] as const;
+
+/**
+ * The nearest twelfth of a meter. A positive value shows at least one step.
+ * Only a value at or above the maximum shows the full track.
+ */
+export function meterWidthClassName(value: number, max: number): string {
+  if (!Number.isFinite(value) || value < 0 || !Number.isFinite(max) || max <= 0)
+    throw new RangeError(
+      'A meter needs a nonnegative value and a positive maximum.',
+    );
+  if (value === 0) return meterWidths[0];
+  if (value >= max) return meterWidths[12];
+  const step = Math.max(1, Math.min(11, Math.round((value / max) * 12)));
+  return meterWidths[step] ?? meterWidths[0];
+}
+
+/** Whether the meter needs its warning in words and in its fill. */
+export function meterAlmostFull(value: number, max: number): boolean {
+  return value / max >= 0.9;
+}
+
+/** The one recipe of a static meter, including its text and warning. */
+export function meterClassNames(
+  value: number,
+  max: number,
+): {
+  readonly text: string;
+  readonly track: string;
+  readonly fill: string;
+} {
+  return {
+    text: 'mb-1 mt-0 text-control text-muted',
+    track: 'h-1.5 w-full rounded-sm bg-hover',
+    fill: `h-1.5 rounded-sm ${meterWidthClassName(value, max)} ${meterAlmostFull(value, max) ? 'bg-danger-fill' : 'bg-accent-fill'}`,
+  };
+}
+
 /**
  * The appearance of one day of a month calendar, as classes.
  *

@@ -11,7 +11,9 @@
  * same workspace lock as a content write, so the two have a defined order.
  */
 import type { Actor, Role } from '../identity/actor.ts';
+import type { ApiKeyRecord, NewApiKey } from '../identity/api-keys.ts';
 import type { InstallationRole } from '../identity/installation.ts';
+import type { AccountControls } from '../identity/controls.ts';
 import type { ConsentRecord, ConsentVersions } from '../identity/legal.ts';
 
 /** The three appearance choices that an account can store. */
@@ -85,6 +87,11 @@ export type AccountOwnStanding = {
   readonly role: InstallationRole;
   readonly usedBytes: bigint;
   readonly limitBytes: bigint;
+  /**
+   * The controls of the account (record 0189). A locked account reads them
+   * too, because the one screen that it opens names them (record 0201).
+   */
+  readonly controls: AccountControls;
 };
 
 /** One session of an account, as the account sees it. It holds no token. */
@@ -114,6 +121,14 @@ export type WorkspaceSummary = {
  * mistake.
  */
 export type AccountTransaction = {
+  /** Key metadata of this account only. No token or digest is returned. */
+  apiKeys(): Promise<readonly ApiKeyRecord[]>;
+  /** Creates a key under the account lock. Null means the count is full. */
+  createApiKey(input: NewApiKey): Promise<ApiKeyRecord | null>;
+  /** Removes this account's key. False means no such key. */
+  revokeApiKey(keyId: string): Promise<boolean>;
+  /** Changes the name of the identity user linked to this account. */
+  setProfileName(name: string): Promise<void>;
   /** Every workspace of the account, with the account's role in each. */
   workspaces(): Promise<readonly WorkspaceSummary[]>;
   /** The current role of the account in each of its workspaces. */
@@ -154,6 +169,11 @@ export type AccountTransaction = {
    * default family in the same write, so no setting names a removed theme.
    */
   removeTheme(themeId: string): Promise<boolean>;
+  /**
+   * Stores the digest of one portal handoff of the account, which lives 60
+   * seconds and works once (record 0190).
+   */
+  openHandoff(tokenDigest: string): Promise<void>;
   /** The legal documents that the account accepted, or `null` (0120). */
   consent(): Promise<ConsentRecord | null>;
   /** Stores the consent of the account to two versions, with the time. */

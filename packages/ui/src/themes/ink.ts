@@ -11,9 +11,9 @@
 import type { Theme, ThemeFamily, ThemeSource } from '../theme.ts';
 
 const source: ThemeSource = {
-  project: 'notesapp',
-  url: 'https://github.com/bkhanale/notesapp',
-  licence: 'MIT',
+  project: 'tidy notebook',
+  url: 'https://github.com/tidynotebook/tidynotebook',
+  licence: 'AGPL-3.0-only',
 };
 
 const variants: readonly Theme[] = [

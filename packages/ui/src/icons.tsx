@@ -810,14 +810,22 @@ export function CheckIcon(props: IconProps): ReactNode {
   );
 }
 
-/** The product mark: an N with an underline, the same mark as the install icon. */
+/**
+ * The product mark: the ring bound page of the install icon. The install icon
+ * writes tn on the page. At 16 pixels the two letters run together, so the
+ * mark draws lines of text in their place.
+ */
 export function AppMarkIcon(props: IconProps): ReactNode {
   return (
     <IconFrame {...props}>
-      <path d="M7 17V5" />
-      <path d="M17 5V17" />
-      <path d="M7 5L17 17" />
-      <path d="M7 20.5H17" />
+      <path d="M8.5 3H15.5L20 7.5V18.5A2.5 2.5 0 0 1 17.5 21H8.5A2.5 2.5 0 0 1 6 18.5V5.5A2.5 2.5 0 0 1 8.5 3z" />
+      <path d="M15.5 3V6A1.5 1.5 0 0 0 17 7.5H20" />
+      <path d="M4 7.5h3.5" />
+      <path d="M4 12h3.5" />
+      <path d="M4 16.5h3.5" />
+      <path d="M9.5 10.5h7" />
+      <path d="M9.5 14h7" />
+      <path d="M9.5 17.5h4" />
     </IconFrame>
   );
 }

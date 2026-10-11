@@ -2,7 +2,7 @@
  * Measures a save and its way to a second device, and a move to All notes.
  *
  * Usage: `pnpm perf:save`, which builds, installs the browser of the
- * `testing-changes-end-to-end` skill and runs this file. `--saves <n>` and
+ * `test-application` skill and runs this file. `--saves <n>` and
  * `--moves <n>` set the number of trials, 200 and 100 by default.
  *
  * The run starts the built application on a new database, seeds the corpus

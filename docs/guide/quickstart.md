@@ -56,9 +56,7 @@ runtime role.
 
 ## Open the application
 
-```text
-http://127.0.0.1:3000
-```
+Open `http://127.0.0.1:3000` in a browser.
 
 The first visit shows the setup screen. Enter an email address and a password
 for the first account, which is the administrator. The setup operation closes

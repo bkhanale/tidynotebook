@@ -13,6 +13,7 @@
  * the person must hear about.
  */
 import type { LocalStorageErrorKind } from '@notesapp/sync';
+import { productName } from '@notesapp/core';
 
 /** Whether a failed local write leaves the typed text only in this tab. */
 export function localWriteFailed(kind: LocalStorageErrorKind | null): boolean {
@@ -34,6 +35,6 @@ export function localWriteFailureMessage(
   if (kind === 'unavailable')
     return 'Local storage stopped in this tab, so your changes are not saved. Copy your text, then reload the tab.';
   if (kind === 'corrupt')
-    return 'Local storage cannot be read, so your changes are not saved. Copy your text, close the other tabs of Notesapp, then reload this tab.';
+    return `Local storage cannot be read, so your changes are not saved. Copy your text, close the other tabs of ${productName}, then reload this tab.`;
   return 'Your last change is not saved on this device. Type again to save it, and keep this tab open until then.';
 }

@@ -19,3 +19,8 @@
   structure of the server, `core`, the stores, and the web application.
 - Do not write a type assertion. Only `as const` is allowed. Reach a type
   through a type guard or a parser that fails loudly (decision record 0019).
+- Before a change to the interface that a service of the operator depends on,
+  read `docs/development/operator-api.md`. It names that interface and the
+  changes that break it. When a checkout of the cloud repository sits beside
+  this one at `../cloud`, read its `AGENTS.md` too, and state the effect on
+  the cloud in the commit body. `tools/agent-context.mjs` lists both files.

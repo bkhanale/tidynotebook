@@ -22,6 +22,12 @@ import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { serverVariables } from '@notesapp/server';
+import { migrationVariables } from '@notesapp/storage-server';
+import { operations } from '@notesapp/api-contract';
+import {
+  apiDocumentFile,
+  apiDownload,
+} from '../../apps/docs/src/api-reference.ts';
 import { buildSite } from '../../apps/docs/src/build.ts';
 import {
   administrationSections,
@@ -78,7 +84,13 @@ await test('the built documentation site', async (t) => {
       const files = (await readdir(guide)).filter((name) =>
         name.endsWith('.md'),
       );
-      assert.equal(result.pages.length, files.length);
+      assert.deepEqual(
+        result.pages
+          .filter((page) => files.includes(page.file))
+          .map((page) => page.file)
+          .sort(),
+        files.sort(),
+      );
       for (const { page } of pages) {
         const copy = await readFile(
           join(output, `${page.slug === '' ? 'index' : page.slug}.md`),
@@ -95,6 +107,86 @@ await test('the built documentation site', async (t) => {
               `${page.file}: ${destination}`,
             );
         }
+      }
+    },
+  );
+
+  await t.test(
+    'the API reference covers every runtime operation and publishes the exact client bundle',
+    async () => {
+      const source = await readFile(join(root, apiDocumentFile), 'utf8');
+      const download = await served(`${base}${apiDownload}`);
+      assert.notEqual(download, null);
+      assert.equal(await readFile(download ?? '', 'utf8'), source);
+      const apiPages = pages.filter(({ page }) =>
+        page.file.startsWith('api-reference-'),
+      );
+      const documented = apiPages.flatMap(({ page }) =>
+        page.headings
+          .filter((heading) => heading.depth === 2)
+          .map((heading) => heading.text),
+      );
+      assert.deepEqual(
+        documented.sort(),
+        operations.map((operation) => operation.id).sort(),
+      );
+      for (const operation of operations) {
+        const found = apiPages.find(({ page }) =>
+          page.headings.some((heading) => heading.text === operation.id),
+        );
+        assert.ok(found, operation.id);
+        assert.ok(
+          found.page.source.includes(
+            `\`${operation.method.toUpperCase()} ${operation.path}\``,
+          ),
+        );
+        const section =
+          found.page.source
+            .split(`## ${operation.id}\n`)[1]
+            ?.split('\n## ')[0] ?? '';
+        const schemes = new Set(
+          operation.security.flatMap((requirement) => Object.keys(requirement)),
+        );
+        for (const scheme of new Set(
+          operations.flatMap((entry) =>
+            entry.security.flatMap((requirement) => Object.keys(requirement)),
+          ),
+        ))
+          assert.equal(
+            section.includes(`[${scheme}]`),
+            schemes.has(scheme),
+            `${operation.id}: ${scheme}`,
+          );
+      }
+      const overview = pages.find(
+        ({ page }) => page.file === 'api-reference.md',
+      );
+      assert.ok(overview);
+      assert.ok(overview.html.includes(`${base}${apiDownload}`));
+      assert.match(
+        overview.html,
+        /Use the HTTPS origin of your own installation/,
+      );
+      assert.match(
+        overview.html,
+        /Replace the placeholder before you send a request/,
+      );
+      assert.match(overview.html, /notes\.invalid/);
+      assert.match(overview.html, /Authorization: Bearer/);
+      assert.match(overview.html, /Keys expire and can be revoked at once/);
+      for (const { html } of pages.filter(
+        ({ page }) =>
+          !page.file.startsWith('api-reference') &&
+          page.file !== 'api-schemas.md',
+      ))
+        assert.ok(
+          html.includes(`href="${base}api-reference/"`),
+          'the reference is in guide navigation',
+        );
+      for (const { html } of [...apiPages, overview]) {
+        assert.match(html, /Source on GitHub<\/a>/);
+        assert.doesNotMatch(html, /edit\/main\/docs\/guide\/api-reference/);
+        assert.doesNotMatch(html, /data-blocked="link"/);
       }
     },
   );
@@ -215,7 +307,7 @@ await test('the built documentation site', async (t) => {
     const index = await readFile(join(output, 'llms.txt'), 'utf8');
     const full = await readFile(join(output, 'llms-full.txt'), 'utf8');
     const map = await readFile(join(output, 'sitemap.xml'), 'utf8');
-    assert.ok(index.startsWith('# NotesApp docs\n\n> '));
+    assert.ok(index.startsWith('# tidy notebook docs\n\n> '));
     for (const { page, address } of pages) {
       if (page.slug !== '')
         assert.ok(
@@ -304,7 +396,13 @@ await test('the built documentation site', async (t) => {
         ),
         ...interpolated,
       ];
-      const known = new Set([...serverVariables, ...compose]);
+      // The migrate command of the image reads its own secrets, which the
+      // server never reads (records 0202 and 0207).
+      const known = new Set([
+        ...serverVariables,
+        ...migrationVariables,
+        ...compose,
+      ]);
       const missing = [...known].filter((name) => !page.has(name)).sort();
       assert.deepEqual(missing, []);
       const unknown = [...page].filter((name) => !known.has(name)).sort();

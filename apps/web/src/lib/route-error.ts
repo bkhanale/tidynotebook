@@ -13,6 +13,7 @@
  * none of it helps the person. The log record names the boundary, the cause
  * and the name of the error, and nothing else.
  */
+import { productName } from '@notesapp/core';
 
 /** The boundary that held the failure. */
 export type RouteErrorScope = 'application' | 'page';
@@ -112,13 +113,13 @@ export function routeErrorScreen(input: {
   const notesPath = trimmed(input.pathname) === notes ? null : notes;
   if (cause === 'load')
     return {
-      title: page ? 'This page did not load' : 'Notesapp did not load',
-      description: `A part of ${page ? 'this page' : 'Notesapp'} did not load. Make sure that the device has a connection, then reload the page.`,
+      title: page ? 'This page did not load' : `${productName} did not load`,
+      description: `A part of ${page ? 'this page' : productName} did not load. Make sure that the device has a connection, then reload the page.`,
       notesPath,
     };
   return {
-    title: page ? 'This page stopped' : 'Notesapp stopped',
-    description: `An error stopped ${page ? 'this page' : 'Notesapp'}. Your saved work did not change. Reload the page to try again.`,
+    title: page ? 'This page stopped' : `${productName} stopped`,
+    description: `An error stopped ${page ? 'this page' : productName}. Your saved work did not change. Reload the page to try again.`,
     notesPath,
   };
 }

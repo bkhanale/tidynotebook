@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restore one encrypted NotesApp backup into an empty target.
+# Restore one encrypted tidy notebook backup into an empty target.
 set -euo pipefail
 
 BACKUP_FILE=""

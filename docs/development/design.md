@@ -1,17 +1,13 @@
 # Interface design
 
-This page is the system that every screen of the product follows. It states the
-intent and the invariant of each part and points at the code that holds it.
-Read it before you touch anything a person sees. The reasons are in
-[design 012](../design/012-a-finished-interface.md) and its records. `pnpm lint`
-fails on each rule that `tools/check-design-rules.mjs` holds.
+This page states the design rules of every screen and points at their code. The
+reasons are in [design 012](../design/012-a-finished-interface.md) and its
+records. `tools/check-design-rules.mjs` holds these rules in `pnpm lint`.
 
 ## The principle
 
-Hierarchy comes from type, space and fill before it comes from an edge. A person
-reads the weight and the size of a word, the distance between two groups and
-the shift of a plane, and only then a line. Use few values, and make each one a
-decision you can name. When two treatments would do, take the quieter one.
+Type, space and fill show order before an edge does. Use few values, and make
+each one a decision you can name. When two treatments work, use the quieter one.
 
 ## The face
 
@@ -30,7 +26,8 @@ The named steps live in `apps/web/src/tailwind.css`. Use no other size.
 - `text-ui` is body text outside a note, a list row title and a dialog title.
 - `text-base` is the title of a card or a section.
 - `text-xl` is the title of a page.
-- `text-3xl` is the name of a note on the published page, the largest step.
+- `text-3xl` is the largest step: a note name on the published page and the
+  landing home headline (record 0217).
 - The `text-note` steps are the note text and its heading ramp.
 
 Two weights in the chrome: `font-medium` for a control label and a selected
@@ -53,21 +50,22 @@ count. Separate everything else with space or fill.
 
 Elevation is `shadow-raised`, `shadow-overlay` and `shadow-modal`, from the
 scrim of the palette (record 0052). A raised surface is `bg-card`,
-`edge-subtle` and one step.
-
-Radius: `rounded-sm` for a keyboard hint and a task box, `rounded-md` for a
-control and a row, `rounded-lg` for a card, a menu, a toast and a code block,
-`rounded-xl` for a dialog, `rounded-full` for an avatar alone.
+`edge-subtle` and one step. Radius: `rounded-sm` for a keyboard hint, a task box
+and a meter, `rounded-md` for a control and a row, `rounded-lg` for a card, a
+menu, a toast and a code block, `rounded-xl` for a dialog, `rounded-full` for an
+avatar alone.
 
 Space comes from the named steps `gutter`, `gutter-wide`, `cluster` and
 `group`, plus the numeric scale inside one control. `pageGutter` in
 `packages/ui/src/layout.tsx` is the one distance from the screen edge to the
-content. Every page is the note column and a side region (record 0137).
+content. Every page is the note column and a side region (record 0137). Only the
+landing home page may use `max-w-5xl`, a 20 px feature icon, and a real
+screenshot in `rounded-lg`, `edge-subtle`, `shadow-overlay`, light and dark by
+`prefers-color-scheme` (record 0217).
 
 ## Controls
 
-`packages/ui/src/control-classes.ts` writes the classes of every control, and
-no screen writes its own (record 0065).
+Every control reads `packages/ui/src/control-classes.ts` (record 0065).
 
 - `buttonClassName`: `primary` is the one action of a screen, ink on the page.
   `secondary` is every other button, `bg-card` with `edge-line` and
@@ -89,13 +87,18 @@ no screen writes its own (record 0065).
 - `kbdClassName`: one cap in `text-kbd font-mono` with `edge-line` for each
   key, from `KeyHint` (`apps/web/src/shell/key-hint.tsx`) with the device cap
   of `apps/web/src/shell/modifier-key.ts` and the full name for a reader.
+- `meterClassNames`: `Meter` in `packages/ui/src/controls.tsx` shows a value
+  against a maximum with no state or callback. The track is `bg-hover`, the
+  fill is `bg-accent-fill`, and both use `h-1.5 rounded-sm`.
+  `meterWidthClassName` gives the nearest twelfth and keeps positive use
+  visible. Only use at or above the maximum fills the track. At `90%`,
+  `meterAlmostFull` gives the fill `bg-danger-fill` and adds Almost full to the
+  text. The named meter states its minimum, maximum and current value.
 
-Focus is one treatment: a two pixel outline in the focus colour, offset outward
-on a control and inward on a row in a scroller. Always `focus-visible:`.
-
-A primary button appears once on a screen, inside the route and not in the
-sidebar. A hover changes the fill to the derived hover of the palette and
-nothing else (record 0057), and nothing scales on press.
+Focus uses `focus-visible:` with one outline, outward on a control and inward on
+a row in a scroller, two pixels in the focus colour. A primary button appears
+once, inside the route, never in the sidebar. A hover changes only the fill
+(record 0057). Nothing scales on press.
 
 ## Icons
 
@@ -111,13 +114,13 @@ toggle, the breadcrumb, the route actions of `HeaderSlot`, the last part of
 `HeaderLeafSlot` (`apps/web/src/shell/header-slot.tsx`), Search and the avatar.
 The note route writes its name in that part and gives the header one menu, with
 History and Publish as rows (record 0069). An icon-only control there is
-compact, and one at an end takes the pull of `edgeControlClassName`. The
-sidebar is a bar of view buttons and a panel of rows (record 0105): the
-switcher, the tree (records 0093, 0164) or the calendar (0100), and the footer.
-The wordmark belongs to sign in and setup. The note has one row of formatting
-tools above its text (record 0094), at the foot above the keyboard on a phone,
-and `apps/web/src/lib/format-toolbar.ts` is the one list that the row, the
-command palette and the slash menu read.
+compact, and one at an end takes the pull of `edgeControlClassName`. The sidebar
+is a bar of view buttons and a panel of rows (record 0105): the switcher, the
+tree (records 0093, 0164) or the calendar (0100), and the footer. The wordmark
+belongs to sign in and setup. The note has one row of formatting tools above its
+text at every width (record 0094), and `apps/web/src/lib/format-toolbar.ts` is
+the one list that the row, the command palette and the slash menu read. An
+overlay opens above the keyboard of a phone.
 
 ## Surfaces a person waits on or reads
 
@@ -127,8 +130,7 @@ command palette and the slash menu read.
   `bg-danger-surface`, a mark in the tone colour and text in `text-strong`. No
   edge, and one notice for one cause.
 - A loading state is the placeholder in `packages/ui/src/loading.tsx`.
-- A toast is `Toast` in `packages/ui`, a raised surface at the bottom of the
-  screen with one sentence and one action.
+- `Toast` in `packages/ui` sits at the bottom with one sentence and one action.
 - A menu and a dialog are raised surfaces of `packages/ui`, but the image
   viewer is a picture on the scrim (0145). A dialog title is `text-ui`, Cancel
   is `ghost`, and the confirming action at the end is `primary` or `danger`.
@@ -136,15 +138,13 @@ command palette and the slash menu read.
 
 ## Copy
 
-Sentence case everywhere. Name a thing by what a person does with it. One term
-for one thing: Save, Trash, Move to Trash, Restore, Delete, History, Publish.
-Delete removes a note for good, in Trash only (record 0164). A row shows one
-name and one fact. The rules of user facing text in `AGENTS.md` hold here.
+Use sentence case. Name a thing by its action. Keep one term: Save, Trash, Move
+to Trash, Restore, Delete, History, Publish. Delete removes a note for good, in
+Trash only (record 0164). A row shows one name and one fact.
 
 ## Before a screen lands
 
-- Every control reads a recipe from `control-classes.ts`.
 - One primary button, every icon 16 or 20, every label in sentence case.
 - Light and dark both read: take a screenshot of each.
-- The keyboard reaches every action and the focus is visible on each.
+- The keyboard reaches every action, and the focus is visible.
 - `pnpm lint` passes with no new entry in `tools/design-rules-allow.json`.

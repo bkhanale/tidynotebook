@@ -19,7 +19,7 @@ Your browser chooses the languages and holds the dictionary. To check a
 different language, add that language to the spell check settings of your
 browser. A browser with its spell check turned off shows no marks.
 
-NotesApp does not check grammar. Some browsers can check grammar through the
+tidy notebook does not check grammar. Some browsers can check grammar through the
 same marks when you turn that on in the browser.
 
 ## Turn the spell check off

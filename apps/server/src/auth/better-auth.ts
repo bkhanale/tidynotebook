@@ -35,7 +35,7 @@
 import { Buffer } from 'node:buffer';
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { passwordBounds } from '@notesapp/core';
+import { passwordBounds, productName } from '@notesapp/core';
 import { checkBreach, type RangeQuery } from './breach-check.ts';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -84,7 +84,6 @@ export const authRoutes: readonly {
 }[] = [
   { method: 'POST', path: `${authBasePath}/sign-in/email` },
   { method: 'POST', path: `${authBasePath}/sign-out` },
-  { method: 'POST', path: `${authBasePath}/update-user` },
   { method: 'GET', path: `${authBasePath}/get-session` },
   { method: 'POST', path: `${authBasePath}/request-password-reset` },
   // The reset link of a message opens the reset page of the application with
@@ -185,7 +184,7 @@ export const pwnedRangeQuery: RangeQuery = async (prefix) => {
     const answer = await fetch(
       `https://api.pwnedpasswords.com/range/${prefix}`,
       {
-        headers: { 'add-padding': 'true', 'user-agent': 'NotesApp' },
+        headers: { 'add-padding': 'true', 'user-agent': productName },
         signal: AbortSignal.timeout(breachTimeoutMs),
       },
     );
@@ -684,11 +683,18 @@ function parseJson(text: string): { ok: true; value: unknown } | { ok: false } {
 export function createAuthProtocol(
   config: ServerConfig,
   auth: NotesappAuth,
+  /**
+   * Runs before the library and refuses a request by throwing, for example
+   * the change of a profile of a locked account (record 0201). A composition
+   * with no account store leaves it out.
+   */
+  before?: (request: FastifyRequest) => Promise<void>,
 ): ProtocolAdapter {
   return {
     protocol: betterAuthProtocol,
     routes: authRoutes,
     handle: async (request): Promise<ProtocolResult> => {
+      await before?.(request);
       const response = await auth.handler(toWebRequest(config.origin, request));
       const headers: [string, string][] = [];
       for (const [name, value] of response.headers) {

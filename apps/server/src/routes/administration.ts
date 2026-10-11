@@ -59,6 +59,7 @@ import {
 } from '../plugins/problem.ts';
 import { readProperty } from '../values.ts';
 import { readParameter, readString } from './accounts.ts';
+import { controlsBody, controlsChangeOf } from './account-controls.ts';
 
 /** Media type of every answer in this module. */
 const jsonMediaType = 'application/json';
@@ -112,6 +113,7 @@ function accountBody(
       usedBytes: byteNumber(record.usedBytes),
       limitBytes: byteNumber(record.limitBytes),
     },
+    controls: controlsBody(record.controls),
     self: record.accountId === selfId,
   };
 }
@@ -150,6 +152,9 @@ export function createAdministrationHandlers(
     const legal = await settings.legal(stored);
     return {
       registrationPolicy: policy,
+      registrationPolicySource: environment.registrationPolicy
+        ? 'environment'
+        : 'application',
       mailConfigured: await settings.mailer.available(),
       invitationLifetimeHours: dependencies.invitationLifetimeHours,
       defaultLimitBytes: byteNumber(dependencies.defaultLimitBytes),
@@ -503,6 +508,7 @@ export function createAdministrationHandlers(
       const role = readProperty(request.body, 'installationRole');
       const state = readProperty(request.body, 'state');
       const limit = readProperty(request.body, 'limitBytes');
+      const controls = readProperty(request.body, 'controls');
       const changed = unwrapDomain(
         await updateAccount(
           store,
@@ -515,6 +521,8 @@ export function createAdministrationHandlers(
               typeof limit === 'number' && Number.isSafeInteger(limit)
                 ? BigInt(limit)
                 : undefined,
+            controls:
+              controls === undefined ? undefined : controlsChangeOf(controls),
           },
         ),
       );

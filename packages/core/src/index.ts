@@ -13,6 +13,7 @@
  * record without its four checks, so the reader path of decision 0031 stays
  * closed.
  */
+export { productName, productShortName } from './product.ts';
 export type {
   Action,
   Actor,
@@ -22,6 +23,19 @@ export type {
 } from './identity/actor.ts';
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
+export type { ApiKeyRecord, NewApiKey } from './identity/api-keys.ts';
+export {
+  apiKeyDaysHold,
+  apiKeyNameProblem,
+  createApiKey,
+  defaultApiKeyDays,
+  listApiKeys,
+  maxApiKeyDays,
+  maxApiKeyNameLength,
+  maxApiKeys,
+  revokeApiKey,
+  updateProfile,
+} from './identity/api-keys.ts';
 export type { PasswordProblem } from './identity/password.ts';
 export type { SessionView } from './identity/sessions.ts';
 export {
@@ -46,7 +60,66 @@ export {
   registrationPolicies,
 } from './identity/installation.ts';
 export type {
+  AccountControls,
+  AccountFeatures,
+  ControlStanding,
+  ControlsChange,
+  ControlsWrite,
+  NewAccountSettings,
+} from './identity/controls.ts';
+export type {
+  RemovalCandidate,
+  RemovalNotifier,
+  RemovalRun,
+  RemovalStep,
+  RemovalStore,
+} from './identity/removal.ts';
+export {
+  removalHorizonDays,
+  removalNoticeDays,
+  removalStep,
+  runRemovals,
+} from './identity/removal.ts';
+export {
+  lockedAccountKeeps,
+  lockedAccountOperations,
+} from './identity/locked.ts';
+export {
+  applyControlsChange,
+  controlsFitRole,
+  controlStandings,
+  maxRemoveAfterDays,
+  newAccountSettingsHold,
+} from './identity/controls.ts';
+export type {
+  AccountEvent,
+  AccountEventKind,
+  AccountUsage,
+  HandoffAccount,
+  HandoffStore,
+  OperatorAccountRecord,
+  OperatorRemoval,
+  OperatorStore,
+  OperatorTotals,
+  OperatorTransaction,
+} from './identity/operator.ts';
+export {
+  defaultAccountEventPage,
+  findOperatorAccount,
+  listAccountEvents,
+  maxAccountEventPage,
+  openAccountPortal,
+  portalAddress,
+  readOperatorAccount,
+  readOperatorTotals,
+  redeemHandoff,
+  removeOperatorAccount,
+  setOperatorControls,
+  usageMonth,
+} from './identity/operator.ts';
+export type {
   AccountRecord,
+  EnvironmentPolicyStore,
   InstallationSettingsReader,
   InstallationStore,
   InstallationTransaction,
@@ -85,6 +158,7 @@ export type {
   InvitationView,
 } from './identity/administration.ts';
 export {
+  applyEnvironmentPolicy,
   createInvitation,
   dismissReport,
   listAccounts,
@@ -177,6 +251,16 @@ export {
   maxArchiveEntries,
   maxArchiveNameBytes,
 } from './files/archive.ts';
+export {
+  importPartBytes,
+  importPartRanges,
+  importPartSize,
+  importPartsProblem,
+  maxImportParts,
+  type ImportPart,
+  type ImportPartRange,
+  type ImportPartsProblem,
+} from './files/import-parts.ts';
 export {
   emptySubscription,
   noticeBatch,
@@ -492,3 +576,51 @@ export {
   maxLegalVersionLength,
   readConsent,
 } from './identity/legal.ts';
+export type {
+  MonthlyCounts,
+  TransferLimits,
+  UsageCaps,
+} from './usage/model.ts';
+export {
+  noTransferLimits,
+  noUsageCaps,
+  sumCounts,
+  zeroCounts,
+} from './usage/model.ts';
+export {
+  monthFirstDay,
+  nextMonthStart,
+  secondsToNextMonth,
+} from './usage/month.ts';
+export type {
+  UsageGate,
+  UsageLimit,
+  UsageRefusal,
+  UsageState,
+} from './usage/limits.ts';
+export {
+  checksNothing,
+  gateRefusal,
+  openUsage,
+  reached,
+  usageGateOf,
+  usageGates,
+  usageLimits,
+  usageState,
+} from './usage/limits.ts';
+export type { UsageEntry, UsageTally } from './usage/tally.ts';
+export { createUsageTally } from './usage/tally.ts';
+export type {
+  MonthlyUsageStore,
+  StoredUsage,
+  UsageSubject,
+  UsageSubjectKey,
+} from './usage/ports.ts';
+export type {
+  AccountMonthView,
+  ObjectCall,
+  PublishedUsage,
+  UsageMeter,
+  UsageMeterOptions,
+} from './usage/meter.ts';
+export { createUsageMeter, maxKeptSubjects } from './usage/meter.ts';

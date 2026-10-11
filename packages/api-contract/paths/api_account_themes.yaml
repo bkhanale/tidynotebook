@@ -10,6 +10,7 @@ post:
     - accounts
   security:
     - sessionCookie: []
+    - personalApiKey: []
   parameters:
     - $ref: '../components/parameters/RequestId.yaml'
   requestBody:
@@ -29,5 +30,7 @@ post:
       $ref: '../components/responses/PayloadTooLarge.yaml'
     '415':
       $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '423':
+      $ref: '../components/responses/AccountLocked.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'

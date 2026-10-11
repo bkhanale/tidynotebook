@@ -44,9 +44,13 @@ statements are written and reviewed by hand.
   container that serves without its migrations never reports ready.
 - `pnpm db:migrate` requires an explicit profile, and each profile refuses a
   database whose name does not match it, so no default can point a developer
-  command at an operator database. The deployment profile reads protected
-  operator files rather than environment values, so a URL and a password never
-  reach a process list or a shell history.
+  command at an operator database. The deployment profile reads each of its
+  three secrets from a variable or from its file, never both, by names that
+  only the migration reads
+  ([record 0207](../decisions/0207-every-secret-of-the-image-has-an-environment-form.md)).
+  `readDeploySecrets` in `src/profiles.ts` holds the rule. A file is the form
+  for Compose, and a variable the form for a platform that mounts no file. No
+  secret reaches a process argument or a message.
 - Three data migrations run after the SQL, under the same lock:
   `src/portable-markdown-migration.ts`, `src/note-document-migration.ts` and
   `src/search-index-migration.ts`. The second starts the document of every
@@ -83,11 +87,16 @@ no markup reaches a reader.
 
 ## Attachment bytes and the reclaim
 
-Attachment bytes live on the private volume, not in the database, and finalized
-bytes are content addressed, so several objects of one workspace can share one
-file. `reclaimAttachments` in `src/attachments.ts` is the only code that
-deletes them, and the daily job in `apps/server/src/jobs` calls it. Nothing
-else unlinks a file, so there is one place to reason about and one to test. A
+Attachment bytes live in the object store of
+[record 0192](../decisions/0192-uploads-and-attachments-can-live-in-an-s3-compatible-store.md),
+not in the database: the private volume, or an S3 compatible store. The port
+and both adapters are in `src/object-store/`, and `keys.ts` names every key.
+Finalized bytes are content addressed, so several objects of one workspace can
+share one object. `reclaimAttachments` in `src/attachments.ts` is the only code
+that deletes them, and the job in `apps/server/src/jobs` calls it. Nothing
+else removes a finished object, so there is one place to reason about and one
+to test. An upload stages its bytes under `staging/`, and
+`removeStaleObjects` takes what waits there for more than a day. A
 run takes only what is dead: an abandoned upload, a finalized object that no
 revision has named for a whole day, and an object a purge already decided is
 gone. A claim marks the row in one statement that matches only an unclaimed
@@ -95,8 +104,8 @@ row, so a second run and a second process get nothing and delete nothing.
 
 The check that a shared file is still needed and the deletion itself stay in
 one transaction that holds the workspace lock. A finalize takes the same lock,
-so it cannot pass between the two: it waits, finds no file at the immutable
-path, and moves its own upload there. A check after the commit reopens that
+so it cannot pass between the two: it waits, finds no object at the key of the
+digest, and promotes its own staged bytes there. A check after the commit reopens that
 race and leaves a row whose file is gone. A purge skips an object finalized
 seconds ago for the same reason: it sits between its finalize call and the
 commit that will reference it. A workspace deletion copies the object
@@ -105,8 +114,10 @@ rows outlive the workspace row.
 
 ## The test database
 
-`compose.test.yaml` runs one pinned PostgreSQL service on a port that cannot
-collide with an installed one. Its superuser initializes the service only, and
+`compose.test.yaml` runs one pinned PostgreSQL service and one pinned MinIO
+service on ports that cannot collide with an installed one. Each test file of
+the object store makes a bucket of its own through
+`tests/integration/support/object-store.ts`. Its superuser initializes the service only, and
 `tools/test-database/init.sql` creates the non superuser migration role, so
 every check runs under the production role model.
 `tests/integration/support/database.ts` makes one disposable database per test

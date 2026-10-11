@@ -12,9 +12,13 @@ you need a setting. This page is the list to look a name up in.
   example value for each line, and change the values.
 - **The secret directory**, `NOTESAPP_SECRETS_DIR`, holds one file for each
   secret. A secret never goes in `.env`.
-- **The accounts page** of the application holds the mail server and the two
-  legal documents, unless the environment names them. See
-  [Accounts and invitations](accounts.md).
+- **A platform that mounts no file**, such as a platform that gives a service
+  variables only, sets each secret in its variable instead of its file. Each
+  secret has a variable and a `_FILE` variable. Set one of the two, never
+  both. With Compose, use the file.
+- **The accounts page** of the application holds the mail server, the two
+  legal documents and who can make an account, unless the environment names
+  them. See [Accounts and invitations](accounts.md).
 
 An empty value is a value that is not set. A setting applies at the next start:
 
@@ -31,7 +35,7 @@ the form that it needs.
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NOTESAPP_ORIGIN`             | Required. The public address of the installation, with its scheme, for example `https://notes.example.com`. Cookies and every full address belong to it.                                                                                                |
 | `NOTESAPP_ADDITIONAL_ORIGINS` | More addresses that reach this installation, separated by commas. Write each one in full, with the scheme of `NOTESAPP_ORIGIN`. Empty serves `NOTESAPP_ORIGIN` alone.                                                                                   |
-| `NOTESAPP_PUBLISHED_ORIGIN`   | The address that shows published pages and nothing else, on a host name of its own. A public installation needs it before anybody can sign up. Empty shows published pages on `NOTESAPP_ORIGIN`.                                                        |
+| `NOTESAPP_PUBLISHED_ORIGIN`   | The address that shows published pages and nothing else, on a host name of its own. Open sign-up does not need it. Empty shows published pages on `NOTESAPP_ORIGIN`.                                                                                    |
 | `NOTESAPP_BIND_HOST`          | The address of the host where Compose publishes the application. Keep the loopback address behind a reverse proxy.                                                                                                                                      |
 | `NOTESAPP_PORT`               | In `.env`, the port of the host where Compose publishes the application. Inside the container the server always listens on port 3000. Without Compose, it is the port that the server listens on, and an origin with a port requires it.                |
 | `NOTESAPP_TRUSTED_PROXIES`    | The proxies whose forwarded headers the server believes: an address, a range in CIDR form, or `loopback`, `linklocal` or `uniquelocal`, separated by commas. Empty believes none. See [Behind a reverse proxy](self-hosting.md#behind-a-reverse-proxy). |
@@ -68,6 +72,26 @@ content of each one and a command that writes them.
   `auth_secret`, for every installation.
 - `smtp_password`, with `docker/compose.mail.yaml`.
 - `smtp_url`, with `docker/compose.mail-url.yaml`.
+- `s3_access_key_id` and `s3_secret_access_key`, with
+  `docker/compose.s3.yaml`.
+
+## Object storage
+
+The server keeps the images of the notes, an upload that waits for its note,
+and an import that arrives in parts in an object store. To use an S3
+compatible store, add `docker/compose.s3.yaml` to `COMPOSE_FILE`, then set
+these values. See [Object storage](self-hosting.md#object-storage).
+
+| Setting                              | What it does                                                                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTESAPP_OBJECT_STORE`              | `filesystem`, the default, keeps everything in the storage directory. `s3` uses an S3 compatible store. `docker/compose.s3.yaml` sets it. |
+| `NOTESAPP_S3_BUCKET`                 | The bucket of the store.                                                                                                                  |
+| `NOTESAPP_S3_REGION`                 | The region of the bucket, for example `auto` for Cloudflare R2 or `us-east-1` for AWS.                                                    |
+| `NOTESAPP_S3_ENDPOINT`               | The address of the store, for example the address of R2 or of a MinIO server. Empty uses AWS itself.                                      |
+| `NOTESAPP_S3_ACCESS_KEY_ID`          | The access key ID, on a platform that mounts no file. Compose reads it from the `s3_access_key_id` file.                                  |
+| `NOTESAPP_S3_ACCESS_KEY_ID_FILE`     | The file that holds the access key ID, from `s3_access_key_id`. Compose sets it.                                                          |
+| `NOTESAPP_S3_SECRET_ACCESS_KEY`      | The secret access key, on a platform that mounts no file. Compose reads it from the `s3_secret_access_key` file.                          |
+| `NOTESAPP_S3_SECRET_ACCESS_KEY_FILE` | The file that holds the secret access key, from `s3_secret_access_key`. Compose sets it.                                                  |
 
 ## Requests and limits
 
@@ -93,13 +117,46 @@ See [Stopping the server](self-hosting.md#stopping-the-server).
 
 ## Accounts
 
-| Setting                              | What it does                                                                                                              |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `NOTESAPP_ACCOUNT_LIMIT_BYTES`       | The storage limit that a new account starts with, in bytes. An administrator changes the limit of one account.            |
-| `NOTESAPP_INVITATION_LIFETIME_HOURS` | How long a new invitation works, in hours.                                                                                |
-| `NOTESAPP_PENDING_ACCOUNT_HOURS`     | How long a sign-up waits for the person to open the link in its message, in hours.                                        |
-| `NOTESAPP_SIGNUP_DIFFICULTY`         | How hard the check of the browser is at a sign-up, from 8 to 28. Each step doubles the time that it takes.                |
-| `NOTESAPP_BREACH_CHECK`              | `on` checks a new password against the range service of Have I Been Pwned. `off` suits a server with no outbound network. |
+| Setting                              | What it does                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOTESAPP_ACCOUNT_LIMIT_BYTES`       | The storage limit that a new account starts with, in bytes. An administrator changes the limit of one account.                                                                                                                                                                                                                                                           |
+| `NOTESAPP_INVITATION_LIFETIME_HOURS` | How long a new invitation works, in hours.                                                                                                                                                                                                                                                                                                                               |
+| `NOTESAPP_PENDING_ACCOUNT_HOURS`     | How long a sign-up waits for the person to open the link in its message, in hours.                                                                                                                                                                                                                                                                                       |
+| `NOTESAPP_SIGNUP_DIFFICULTY`         | How hard the check of the browser is at a sign-up, from 8 to 28. Each step doubles the time that it takes.                                                                                                                                                                                                                                                               |
+| `NOTESAPP_BREACH_CHECK`              | `on` checks a new password against the range service of Have I Been Pwned. `off` suits a server with no outbound network.                                                                                                                                                                                                                                                |
+| `NOTESAPP_NEW_ACCOUNT_STANDING`      | `active` or `locked`, the standing that a new account starts with. Empty is `active`, so a new account uses every operation, as before. A `locked` account signs in to one screen and can only export its notes, delete itself, or open billing. The first account is always `active`.                                                                                   |
+| `NOTESAPP_NEW_ACCOUNT_REMOVE_AFTER`  | How long a new `locked` account lives before the daily run removes it, as a number of days and `d`, for example `30d`. It needs `NOTESAPP_NEW_ACCOUNT_STANDING` set to `locked`. Empty sets no removal time.                                                                                                                                                             |
+| `NOTESAPP_REGISTRATION_POLICY`       | Who can make an account: `invitation` or `open`. A value here wins over the accounts page, which then offers no change. The server writes it at each start. `open` needs a mail server and both legal documents in the environment too, or the server does not start. Empty leaves the choice to an administrator, who keeps the last policy that the environment named. |
+
+## The operator API
+
+A service of the operator, such as a billing service, can read and set the
+controls of an account with one secret. With no setting, the operator API is
+off and the installation sends nothing anywhere.
+
+| Setting                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTESAPP_OPERATOR_TOKEN`      | The one secret of the operator API, of at least 32 characters with no space. A service sends it as a bearer token to the operations under `/api/operator/`. These operations answer on any host name, so a service on a private network can reach them. Set it here on a platform that mounts no file, or set the file below. Empty in both turns the operator API off, and each of its operations answers that it is off.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `NOTESAPP_OPERATOR_TOKEN_FILE` | The file that holds that secret. Use it with Compose.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `NOTESAPP_ACCOUNT_PORTAL_URL`  | The full address of the account portal of that service, with no query, for example `https://billing.example.com`. The application calls it Billing. Every account opens it from the Billing section of Settings, and a locked account opens it to unlock itself. A page or a message of the portal can send a person back to `/portal?path=<path>` of the application, for example `/portal?path=/account`. The application signs the person in first when needed, then opens that path of the portal. A path that the portal cannot take opens the root of the portal. The server adds a single-use token that works for 60 seconds, and the portal gives the token back to the operator API to learn the account. The portal needs the operator API, so set its secret too, or the server does not start. Empty shows no portal. |
+
+## Limits of each month
+
+The server counts, for each calendar month in UTC, the bytes that the published
+pages send, the bytes that each account downloads, and each write and read
+call to an S3 store. An administrator or the operator API can give one account
+a published transfer limit and a download limit. The settings below are caps
+for the whole installation. A count stays in the memory of the server for at
+most 10 seconds, so two servers can pass a cap by the traffic of 10 seconds.
+Each cap holds until the first day of the next month. With no cap and no limit
+of an account, the server refuses nothing.
+
+| Setting                                 | What it does                                                                                                                                                                                                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NOTESAPP_PUBLISHED_TRANSFER_CAP_BYTES` | The most bytes that all published pages send in one month. Past it, each published link shows a page that says that the link opens nothing. Empty sets no cap.                                                                                                                             |
+| `NOTESAPP_DOWNLOAD_CAP_BYTES`           | The most bytes that all accounts download in one month. Past it, an export, an image and the first copy of the notes on a new device wait for the next month. The rest of the application still works. Empty sets no cap.                                                                  |
+| `NOTESAPP_OBJECT_WRITE_CAP`             | The most write calls to the S3 store in one month: a write, a copy, a part of an upload and a list. Past it, an image upload and a workspace import wait for the next month. The file store of the storage directory makes no call, so this cap holds an S3 store only. Empty sets no cap. |
+| `NOTESAPP_OBJECT_READ_CAP`              | The most read calls to the S3 store in one month. Past it, an image does not load, and a published page shows no image. This cap holds an S3 store only. Empty sets no cap.                                                                                                                |
 
 ## Mail
 
@@ -157,6 +214,23 @@ the server shows. See [Open sign-up](self-hosting.md#open-sign-up).
 | `NOTESAPP_LOG_MAX_FILE` | How many log files of each container Docker keeps.             |
 
 See [Logs](self-hosting.md#logs).
+
+## The migration
+
+The `migrate` command of the image applies the migrations and stops. It reads
+three secrets and no setting of the server, and the `serve` command reads none
+of them. See [Migrate and serve as two steps](self-hosting.md#migrate-and-serve-as-two-steps).
+Each secret comes from its variable or from its file, never both. When neither
+is set, the command reads the file that Compose puts in the container.
+
+| Setting                                | What it does                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `NOTESAPP_MIGRATION_DATABASE_URL`      | The database address of the administrator or of the migration role.                       |
+| `NOTESAPP_MIGRATION_DATABASE_URL_FILE` | The file that holds that address. Empty reads `migration_database_url`.                   |
+| `NOTESAPP_RUNTIME_PASSWORD`            | The password that the migration gives `notesapp_app`, of at least 12 characters.          |
+| `NOTESAPP_RUNTIME_PASSWORD_FILE`       | The file that holds that password. Empty reads `runtime_database_password`.               |
+| `NOTESAPP_AUTH_PASSWORD`               | The password that the migration gives `notesapp_auth`. It must differ from the other one. |
+| `NOTESAPP_AUTH_PASSWORD_FILE`          | The file that holds that password. Empty reads `auth_database_password`.                  |
 
 ## Settings that the Compose file sets
 

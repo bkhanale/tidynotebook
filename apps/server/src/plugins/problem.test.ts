@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MarkdownLimitError } from '@notesapp/markdown';
+import { DatabaseFailure } from '@notesapp/storage-server';
 import {
   classifyError,
   createProblem,
@@ -10,6 +11,7 @@ import {
   RequestContractError,
   RequestMediaTypeError,
   ResponseContractError,
+  UsageRefusedError,
 } from './problem.ts';
 
 await test('a request contract failure becomes a 400 with its issues', () => {
@@ -233,5 +235,62 @@ await test('the one reader refusal names no cause', () => {
   assert.equal(
     problem.type,
     'https://notesapp.invalid/problems/published_link_unavailable',
+  );
+});
+
+await test('a write that the database refuses for a locked owner answers account_locked', () => {
+  // The refusal of the database itself, as the driver reports it, and as the
+  // store keeps it in the cause of an operational failure (record 0201).
+  const driver = Object.assign(new Error('the owner account is locked'), {
+    code: 'NA004',
+  });
+  const kept = new Error('notesapp: the workspace store failed.', {
+    cause: new DatabaseFailure(
+      { code: 'NA004', constraint: null, table: null, routine: null },
+      'a write',
+    ),
+  });
+  for (const error of [driver, kept]) {
+    const classified = classifyError(error);
+    assert.equal(classified.status, 423);
+    assert.equal(classified.code, 'account_locked');
+  }
+  assert.equal(
+    classifyError(Object.assign(new Error('x'), { code: 'NA003' })).status,
+    500,
+  );
+});
+
+await test('a closure of the month answers its own code and status (record 0193)', () => {
+  const downloads = classifyError(
+    new UsageRefusedError({ code: 'download_limit', limit: 'downloads' }),
+  );
+  assert.equal(downloads.status, 429);
+  assert.equal(downloads.code, 'download_limit');
+  assert.equal(downloads.limit, 'downloads');
+  // The read cap answers the same code and names its own limit, so a client
+  // does not blame the download limit of the person.
+  const reads = classifyError(
+    new UsageRefusedError({ code: 'download_limit', limit: 'object_reads' }),
+  );
+  assert.equal(reads.status, 429);
+  assert.equal(reads.limit, 'object_reads');
+  assert.notEqual(reads.detail, downloads.detail);
+  const uploads = classifyError(
+    new UsageRefusedError({ code: 'storage_busy', limit: 'object_writes' }),
+  );
+  assert.equal(uploads.status, 503);
+  assert.equal(uploads.code, 'storage_busy');
+  assert.equal(uploads.limit, 'object_writes');
+  assert.equal(
+    createProblem({
+      code: 'download_limit',
+      status: 429,
+      detail: reads.detail,
+      instance: '/api/x',
+      requestId: 'r',
+      limit: 'object_reads',
+    }).limit,
+    'object_reads',
   );
 });

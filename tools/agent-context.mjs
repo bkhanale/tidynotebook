@@ -4,13 +4,17 @@
  * Several agent harnesses work on this repository, and each one holds its
  * context in its own file format. No harness feature can carry the rule that
  * an agent reads the context first, so this script is the portable form: the
- * core list for every change, then the nested `AGENTS.md` that owns each
- * given path, then the `Key files` rows of that guide. The status is non-zero
+ * core list for every change, the guide of an area that a path touches, then
+ * the nested `AGENTS.md` that owns each given path, then the `Key files` rows
+ * of that guide. A path of the operator interface also lists its page and,
+ * when a checkout of the cloud repository sits beside this one, the guide of
+ * that repository. The status is non-zero
  * when a listed file is gone, so `tools/check-agents-md.mjs` runs the list
  * for every guide and fails on a stale pointer.
  */
+import { execFileSync } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { filesIn, root } from './workspace.mjs';
 
 /** The files an agent reads before any change. @type {[string, string][]} */
@@ -40,9 +44,182 @@ export const areaReadingList = [
   ],
 ];
 
+/**
+ * The interface that a service of the operator depends on.
+ *
+ * A private service reaches the core only through this interface (records
+ * 0186 and 0190), and it pins one release of it. A change to one of these
+ * files can break that service, so the page that states the compatibility
+ * rule joins the list for each of them. The contract files are the operator
+ * path items, the portal path item, and every file that they reach through a
+ * `$ref`, so a shared schema that the interface uses is part of it.
+ *
+ * @type {{
+ *   guide: [string, string];
+ *   sibling: [string, string];
+ *   contractEntries: RegExp[];
+ *   files: string[];
+ * }}
+ */
+export const operatorInterface = {
+  guide: [
+    'docs/development/operator-api.md',
+    'The interface that a service of the operator depends on.',
+  ],
+  sibling: [
+    '../cloud/AGENTS.md',
+    'The rules of the cloud repository, which pins this interface.',
+  ],
+  contractEntries: [
+    /^packages\/api-contract\/paths\/api_operator_[^/]+\.yaml$/,
+    /^packages\/api-contract\/paths\/api_account_portal\.yaml$/,
+  ],
+  files: [
+    'apps/server/src/routes/operator.ts',
+    'apps/server/src/routes/account-controls.ts',
+    'packages/core/src/identity/operator.ts',
+    'docker/entrypoint.sh',
+    'apps/server/src/config.ts',
+  ],
+};
+
+/** Public semantic, storage, migration, configuration, and image inputs.
+ * Conservative coverage is intentional: operator consumers depend on results.
+ * @param {string} path
+ */
+export function operatorSurfacePath(path) {
+  return (
+    operatorInterface.files.includes(path) ||
+    /^(?:packages\/core\/src\/|packages\/storage-server\/|apps\/server\/src\/(?:identity|routes|services)\/|docker\/|Dockerfile$|compose\.yaml$|docker-compose\.yml$|\.dockerignore$|package\.json$|pnpm-lock\.yaml$|\.github\/workflows\/release\.yml$)/.test(
+      path,
+    )
+  );
+}
+
+/** Classifies an actual diff without a private dependency.
+ * @param {string[]} paths
+ * @param {Set<string>} contract
+ */
+export function classifyImpact(paths, contract = new Set()) {
+  return {
+    paths: [...new Set(paths)].sort(),
+    operator: paths.some(
+      (path) => operatorSurfacePath(path) || contract.has(path),
+    ),
+    contract: paths.some((path) => contract.has(path)),
+    migration: paths.some((path) =>
+      /^packages\/storage-server\/(?:drizzle|migrations|src\/(?:schema|migrate))/.test(
+        path,
+      ),
+    ),
+    image: paths.some((path) =>
+      /^(?:Dockerfile|docker\/|compose\.yaml|docker-compose\.yml|\.dockerignore|package\.json|pnpm-lock\.yaml|\.github\/workflows\/release\.yml)/.test(
+        path,
+      ),
+    ),
+    ui: paths.some((path) =>
+      /^(?:apps\/(?:web|docs)\/|packages\/(?:ui|editor|markdown)\/|apps\/server\/src\/routes\/(?:published(?:-[\w-]+)?|legal(?:-[\w-]+)?)\.ts$)/.test(
+        path,
+      ),
+    ),
+  };
+}
+
+/** @param {string} directory @param {string} base */
+export async function diffImpact(directory, base) {
+  const paths = execFileSync(
+    'git',
+    ['diff', '--name-only', '-z', `${base}...HEAD`],
+    { cwd: directory, encoding: 'utf8' },
+  )
+    .split('\0')
+    .filter(Boolean);
+  return classifyImpact(paths, await operatorContractFiles(directory));
+}
+
 /** @param {string} file @returns {Promise<boolean>} */
 async function exists(file) {
   return (await stat(file).catch(() => null)) !== null;
+}
+
+/**
+ * The relative `$ref` targets of one contract file, as tree paths.
+ *
+ * @param {string} file A tree path with `/` separators.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function contractReferences(file, text) {
+  /** @type {string[]} */
+  const targets = [];
+  for (const match of text.matchAll(/\$ref:\s*['"]?(\.[^'"#\s]*)/g))
+    targets.push(posix.join(posix.dirname(file), match[1] ?? ''));
+  return targets;
+}
+
+/**
+ * The contract files of the operator interface in one tree.
+ *
+ * @param {string} directory
+ * @returns {Promise<Set<string>>}
+ */
+export async function operatorContractFiles(directory) {
+  const top = resolve(directory);
+  const paths = await filesIn(join(top, 'packages/api-contract/paths'));
+  const pending = paths
+    .map((file) => relative(top, file).split(sep).join('/'))
+    .filter((file) =>
+      operatorInterface.contractEntries.some((entry) => entry.test(file)),
+    );
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
+    if (found.has(file)) continue;
+    found.add(file);
+    const text = await readFile(join(top, file), 'utf8').catch(() => '');
+    pending.push(...contractReferences(file, text));
+  }
+  return found;
+}
+
+/**
+ * The root of the main checkout that holds a tree.
+ *
+ * A worktree has a `.git` file that names its git directory, and that
+ * directory names the common one in `commondir`. The main checkout holds the
+ * common directory, so a sibling repository sits beside the main checkout
+ * and not beside the worktree. Any other tree is its own root.
+ *
+ * @param {string} directory
+ * @returns {Promise<string>}
+ */
+export async function checkoutRoot(directory) {
+  const top = resolve(directory);
+  const pointer = await readFile(join(top, '.git'), 'utf8').catch(() => '');
+  const gitDirectory = /^gitdir:\s*(.+)$/m.exec(pointer)?.[1]?.trim();
+  if (gitDirectory === undefined) return top;
+  const absolute = resolve(top, gitDirectory);
+  const common = await readFile(join(absolute, 'commondir'), 'utf8').catch(
+    () => null,
+  );
+  return common === null ? top : dirname(resolve(absolute, common.trim()));
+}
+
+/**
+ * The guide of the cloud repository beside a tree, or `null` when no
+ * checkout of it is there.
+ *
+ * @param {string} directory
+ * @returns {Promise<string | null>}
+ */
+export async function siblingGuide(directory) {
+  const top = resolve(directory);
+  const [path] = operatorInterface.sibling;
+  for (const base of new Set([top, await checkoutRoot(top)])) {
+    const candidate = resolve(base, path);
+    if (await exists(candidate)) return relative(top, candidate);
+  }
+  return null;
 }
 
 /**
@@ -110,12 +287,25 @@ export async function readingList(directory, paths) {
   /** @type {Map<string, string>} */
   const list = new Map();
   for (const [file, purpose] of coreReadingList) list.set(file, purpose);
-  for (const path of paths) {
-    const normalised = relative(resolve(directory), resolve(directory, path))
-      .split(sep)
-      .join('/');
+  const normalisedPaths = paths.map((path) =>
+    relative(resolve(directory), resolve(directory, path)).split(sep).join('/'),
+  );
+  for (const normalised of normalisedPaths)
     for (const [area, file, purpose] of areaReadingList)
       if (area.test(normalised) && !list.has(file)) list.set(file, purpose);
+  /** @type {Set<string>} */
+  let contract = new Set();
+  if (normalisedPaths.some((path) => path.startsWith('packages/api-contract/')))
+    contract = await operatorContractFiles(directory);
+  if (
+    normalisedPaths.some(
+      (path) => operatorSurfacePath(path) || contract.has(path),
+    )
+  ) {
+    const [file, purpose] = operatorInterface.guide;
+    list.set(file, purpose);
+    const sibling = await siblingGuide(directory);
+    if (sibling !== null) list.set(sibling, operatorInterface.sibling[1]);
   }
   for (const guide of guides) {
     const owner = dirname(guide);

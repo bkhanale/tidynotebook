@@ -7,11 +7,15 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   baseImages,
+  contextImportFailures,
   imageFailures,
+  installCopyFailures,
+  outsideContext,
+  dependencyFolderFailures,
   parseCatalogs,
-  patchCopyFailures,
   patchFiles,
   resolveVersion,
+  versionPolicy,
 } from './check-versions.mjs';
 
 // The fixtures below are disposable trees under the system temporary
@@ -57,6 +61,14 @@ const digest = `sha256:${'a'.repeat(64)}`;
 /** The one base image of the fixture, at the release of `.node-version`. */
 const image = `node:2.3.4-bookworm-slim@${digest}`;
 
+/** The lines that copy each manifest of the fixture before the install. */
+const manifestCopies = [
+  'COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./',
+  'COPY packages/core/package.json ./packages/core/',
+  'COPY packages/storage-server/package.json ./packages/storage-server/',
+  'COPY tools/sdk-codegen/package.json ./tools/sdk-codegen/',
+];
+
 /**
  * A Dockerfile of two stages over the given base images.
  *
@@ -68,6 +80,8 @@ function dockerfile(build, run = build) {
   return [
     `FROM ${build} AS base`,
     'FROM base AS builder',
+    ...manifestCopies,
+    'RUN pnpm install --frozen-lockfile',
     'RUN pnpm build',
     `FROM ${run} AS runner`,
     'COPY --from=builder /app /app',
@@ -96,6 +110,7 @@ function rootManifest(serviceImage) {
 
 /** A passing workspace: every shared version sits once, in a catalog. */
 const baseline = {
+  '.dockerignore': '**/node_modules\n',
   '.node-version': '2.3.4\n',
   Dockerfile: dockerfile(image),
   'package.json': rootManifest(image),
@@ -376,7 +391,7 @@ await test('a Dockerfile that installs before it copies a patch is refused', () 
     'RUN pnpm install --frozen-lockfile',
     'COPY patches ./patches',
   ].join('\n');
-  assert.deepEqual(patchCopyFailures(before, [patch]), [
+  assert.deepEqual(installCopyFailures(before, [patch]), [
     `Dockerfile installs before it copies ${patch}; copy it before pnpm install.`,
   ]);
   const after = [
@@ -384,6 +399,114 @@ await test('a Dockerfile that installs before it copies a patch is refused', () 
     'COPY patches ./patches',
     'RUN pnpm install --frozen-lockfile',
   ].join('\n');
-  assert.deepEqual(patchCopyFailures(after, [patch]), []);
-  assert.deepEqual(patchCopyFailures(before, []), []);
+  assert.deepEqual(installCopyFailures(after, [patch]), []);
+  assert.deepEqual(installCopyFailures(before, []), []);
+});
+
+await test('the build context follows the rules of .dockerignore', () => {
+  const ignore = [
+    '# a comment',
+    'apps/docs',
+    '**/dist',
+    'tools/*.test.mjs',
+    'docs',
+    '!docs/keep.md',
+  ].join('\n');
+  assert.equal(outsideContext(ignore, 'apps/docs/src/site.ts'), true);
+  assert.equal(outsideContext(ignore, 'apps/web/src/main.ts'), false);
+  assert.equal(outsideContext(ignore, 'packages/ui/dist/index.js'), true);
+  assert.equal(outsideContext(ignore, 'tools/a.test.mjs'), true);
+  assert.equal(outsideContext(ignore, 'tools/a.mjs'), false);
+  assert.equal(outsideContext(ignore, 'docs/other.md'), true);
+  assert.equal(outsideContext(ignore, 'docs/keep.md'), false);
+});
+
+// Regression: the tag of 0.14.0 has no image. The root tsc of the image build
+// read a tool test that imports the docs site, which the context leaves out.
+await test('a type-checked file that imports outside the build context is refused', () => {
+  const file = {
+    path: 'tools/product-name.test.mjs',
+    text: [
+      "import { productName } from '../packages/core/src/product.ts';",
+      "import { productName as docs } from '../apps/docs/src/site.ts';",
+      "const later = await import('../tests/fixture.mjs');",
+    ].join('\n'),
+  };
+  assert.deepEqual(contextImportFailures('apps/docs\ntests', [file]), [
+    'tools/product-name.test.mjs imports apps/docs/src/site.ts, which .dockerignore keeps out of the image build.',
+    'tools/product-name.test.mjs imports tests/fixture.mjs, which .dockerignore keeps out of the image build.',
+  ]);
+  assert.deepEqual(
+    contextImportFailures('apps/docs\ntests\ntools/*.test.mjs', [file]),
+    [],
+  );
+});
+
+await test('the checker refuses a tree whose image build cannot read an import', () => {
+  const result = check({
+    '.dockerignore': '**/node_modules\napps/docs\n',
+    'tsconfig.json': JSON.stringify({ include: ['tools/*.mjs'] }),
+    'tools/a.mjs': "import { name } from '../apps/docs/src/site.ts';\n",
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(
+    result.output,
+    /tools\/a\.mjs imports apps\/docs\/src\/site\.ts/,
+  );
+});
+
+// Regression: the Dockerfile did not copy the manifests of packages/logging
+// and packages/note-document before pnpm install, so the frozen install could
+// not compare them with the lockfile, and a manifest that drifted from the
+// lockfile still built an image.
+await test('a Dockerfile that installs before it copies a manifest is refused', () => {
+  const result = check({
+    Dockerfile: dockerfile(image).replace(
+      'COPY packages/storage-server/package.json ./packages/storage-server/\n',
+      '',
+    ),
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(
+    result.output,
+    /Dockerfile installs before it copies packages\/storage-server\/package\.json/,
+  );
+});
+
+await test('a manifest that the build context leaves out needs no copy', () => {
+  const result = check({
+    '.dockerignore': '**/node_modules\napps/docs\n',
+    'apps/docs/package.json': manifest('docs', {
+      typescript: 'catalog:toolchain',
+    }),
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('a manifest that the build context keeps needs a copy', () => {
+  const result = check({
+    'apps/web/package.json': manifest('web', {
+      typescript: 'catalog:toolchain',
+    }),
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /copies apps\/web\/package\.json/);
+});
+
+await test('the Dockerfile of this repository copies each manifest before the install', async () => {
+  const { failures } = await versionPolicy();
+  assert.deepEqual(
+    failures.filter((failure) => failure.includes('installs before')),
+    [],
+  );
+});
+
+await test('a dependency folder of a workspace member stays out of the image build', () => {
+  const members = ['apps/web', 'packages/ui'];
+  assert.deepEqual(dependencyFolderFailures('**/node_modules\n', members), []);
+  assert.deepEqual(dependencyFolderFailures('node_modules\n', members), [
+    '.dockerignore keeps apps/web/node_modules in the image build; ignore **/node_modules.',
+    '.dockerignore keeps packages/ui/node_modules in the image build; ignore **/node_modules.',
+  ]);
+  assert.equal(dependencyFolderFailures('', []).length, 1);
 });

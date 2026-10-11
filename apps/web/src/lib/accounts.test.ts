@@ -12,6 +12,7 @@ import {
   gigabytesOf,
   invitationFacts,
   invitationTokenOf,
+  registrationPolicyLocked,
   registrationPolicyText,
   missingPartsOf,
   openRegistrationMissingText,
@@ -42,6 +43,16 @@ function account(extra: Partial<AccountSummary> = {}): AccountSummary {
     createdAt: '2026-09-01T12:00:00.000Z',
     lastActiveAt: '2026-09-26T10:00:00.000Z',
     storage: { usedBytes: 1536, limitBytes: 5 * 1024 * 1024 * 1024 },
+    controls: {
+      revision: 1,
+      standing: 'active',
+      removalAt: null,
+      limitBytes: 5 * 1024 * 1024 * 1024,
+      textLimitBytes: null,
+      publishedTransferLimitBytes: null,
+      downloadLimitBytes: null,
+      features: { teams: true, collaboration: true },
+    },
     self: false,
     ...extra,
   };
@@ -49,6 +60,9 @@ function account(extra: Partial<AccountSummary> = {}): AccountSummary {
 
 await test('a byte count reads in one unit with at most one decimal', () => {
   assert.equal(formatBytes(0), '0 bytes');
+  // A count of one takes the whole phrase of one, as a limit of one byte
+  // reads on the account page (record 0193).
+  assert.equal(formatBytes(1), '1 byte');
   assert.equal(formatBytes(512), '512 bytes');
   assert.equal(formatBytes(1536), '1.5 KB');
   assert.equal(formatBytes(15 * 1024 * 1024), '15 MB');
@@ -113,33 +127,50 @@ await test('the facts of a row name the role, the state and the activity', () =>
       'ada@example.test',
     ],
   );
+  // A locked account says so beside its role (record 0201).
+  const base = account();
+  assert.deepEqual(
+    accountFacts(
+      account({
+        controls: {
+          ...base.controls,
+          standing: 'locked',
+          removalAt: '2026-10-26T12:00:00.000Z',
+        },
+      }),
+      now,
+    ).slice(0, 2),
+    ['Member', 'Locked'],
+  );
 });
 
 await test('the last enabled administrator offers no change that would lose it', () => {
   const last = account({ installationRole: 'administrator', self: true });
   assert.equal(enabledAdministrators([last, account()]), 1);
-  assert.deepEqual(accountActions(last, 1), ['change-limit']);
+  assert.deepEqual(accountActions(last, 1), ['change-controls']);
   // With a second administrator the same row offers the changes, and the
   // own account still offers no removal here.
   assert.deepEqual(accountActions(last, 2), [
     'make-member',
     'disable',
-    'change-limit',
+    'change-controls',
   ]);
   assert.deepEqual(accountActions(account(), 1), [
     'make-administrator',
     'disable',
-    'change-limit',
+    'change-controls',
     'remove',
   ]);
   assert.deepEqual(accountActions(account({ state: 'disabled' }), 1), [
     'make-administrator',
     'enable',
-    'change-limit',
+    'change-controls',
     'remove',
   ]);
   for (const action of accountActions(account(), 1))
     assert.match(accountActionLabel(action), /^[A-Z][a-z ]+$/);
+  // One term for one thing: an account that goes for good is deleted.
+  assert.equal(accountActionLabel('remove'), 'Delete account');
 });
 
 await test('an invitation row says when it expires and how it travelled', () => {
@@ -163,10 +194,22 @@ await test('an invitation row says when it expires and how it travelled', () => 
 
 await test('the registration policy reads as one sentence', () => {
   assert.equal(
-    registrationPolicyText('invitation'),
+    registrationPolicyText('invitation', 'application'),
     'Only a person with an invitation can make an account.',
   );
-  assert.match(registrationPolicyText('open'), /proves their address/);
+  assert.match(
+    registrationPolicyText('open', 'application'),
+    /proves their address/,
+  );
+  assert.equal(registrationPolicyLocked('application'), false);
+});
+
+await test('a policy that the environment names says where it changes', () => {
+  assert.equal(
+    registrationPolicyText('open', 'environment'),
+    'A person who proves their address can make an account. The server environment sets this, so it changes there and not on this page.',
+  );
+  assert.equal(registrationPolicyLocked('environment'), true);
 });
 
 await test('a verification link reads its token from the fragment only', () => {
@@ -187,12 +230,14 @@ await test('a refused open policy names each missing part in words', () => {
     'Anybody can sign up only when the installation has the terms and the privacy notice. Set up the legal documents on this page.',
   );
   assert.equal(
-    openRegistrationMissingText([
-      'mail',
-      'published-origin',
-      'legal-documents',
-    ]),
-    'Anybody can sign up only when the installation has a mail server, a separate address for published pages and the terms and the privacy notice. Set up the mail server and the legal documents on this page. The operator of the server sets the address for published pages.',
+    openRegistrationMissingText(['mail', 'legal-documents']),
+    'Anybody can sign up only when the installation has a mail server and the terms and the privacy notice. Set up the mail server and the legal documents on this page.',
+  );
+  // Record 0191: open registration needs no address for published pages, so
+  // the page never sends the administrator to the operator for one.
+  assert.doesNotMatch(
+    openRegistrationMissingText(['mail', 'legal-documents']),
+    /published|operator/,
   );
 });
 

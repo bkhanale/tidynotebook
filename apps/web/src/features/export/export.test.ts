@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applicationName } from '../../shell/document-title.ts';
 import {
+  completeWithRetries,
+  completionRefusalPasses,
+  completionRetryDelaysMs,
   downloadName,
   downloadRefusalMessage,
+  exportCheckCause,
   exportCheckMessage,
   importRefusalMessage,
   transferFailureMessage,
@@ -44,11 +47,11 @@ await test('each refusal of an import names its cause and the next step', () => 
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_too_large' }),
-    `A file in the zip file is larger than ${applicationName} can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
+    `A file in the zip file is larger than tidy notebook can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
   );
   assert.equal(
     importRefusalMessage({ code: 'archive_invalid' }),
-    `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
+    `This file is not a zip file that tidy notebook can read. Make the zip file again and import it.`,
   );
   const messages = [
     'path_conflict',
@@ -60,6 +63,8 @@ await test('each refusal of an import names its cause and the next step', () => 
     'unsupported_media_type',
     'quota_exceeded',
     'unrenderable_note',
+    'request_timeout',
+    'not_found',
   ].map((code) => importRefusalMessage({ code }));
   assert.equal(
     new Set(messages).size,
@@ -68,6 +73,19 @@ await test('each refusal of an import names its cause and the next step', () => 
   );
   for (const message of messages)
     assert.doesNotMatch(message, /[\u2013\u2014]|_/);
+});
+
+await test('a part that stops and a lost import ask for the zip file again', () => {
+  // Record 0192. The zip file goes up in parts, so a part can stop on its
+  // way and the server can lose an import that waited for a day.
+  assert.equal(
+    importRefusalMessage({ code: 'request_timeout' }),
+    'The zip file stopped on its way to the server. Check the connection, then import again.',
+  );
+  assert.equal(
+    importRefusalMessage({ code: 'not_found' }),
+    'The server no longer holds this import. Import the zip file again.',
+  );
 });
 
 await test('a refused note of an import shows the note and the cause that the server names', () => {
@@ -105,7 +123,7 @@ await test('a screen shows the sentence of a refused transfer', () => {
     transferFailureMessage(
       new Error(importRefusalMessage({ code: 'archive_invalid' })),
     ),
-    `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
+    `This file is not a zip file that tidy notebook can read. Make the zip file again and import it.`,
   );
   assert.equal(
     transferFailureMessage({ code: 'internal_error' }),
@@ -176,4 +194,90 @@ await test('the check of an export names its cause by the status of its answer',
     exportCheckMessage(500),
     'The download did not start. Try again.',
   );
+});
+
+await test('a completion that a busy server refused tries again, a few times', async () => {
+  // Codex review of PR 288. The server keeps the parts when it refuses a
+  // completion for another running job, and the client removed the import
+  // at once, so a short wait cost a large upload.
+  const waits: number[] = [];
+  const wait = (milliseconds: number): Promise<void> => {
+    waits.push(milliseconds);
+    return Promise.resolve();
+  };
+  const answers = [
+    { error: { code: 'archive_job_running' } },
+    { error: { code: 'archive_jobs_busy' } },
+    { error: undefined, data: 'imported' },
+  ];
+  let calls = 0;
+  const done = await completeWithRetries(
+    () => Promise.resolve(answers[calls++] ?? { error: undefined }),
+    wait,
+  );
+  assert.equal(done.error, undefined);
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, completionRetryDelaysMs.slice(0, 2));
+});
+
+await test('a completion stops trying after the last wait, and at a final refusal', async () => {
+  const waits: number[] = [];
+  const wait = (milliseconds: number): Promise<void> => {
+    waits.push(milliseconds);
+    return Promise.resolve();
+  };
+  let calls = 0;
+  const busy = await completeWithRetries(() => {
+    calls += 1;
+    return Promise.resolve({ error: { code: 'archive_jobs_busy' } });
+  }, wait);
+  assert.equal(readCode(busy.error), 'archive_jobs_busy');
+  assert.equal(calls, completionRetryDelaysMs.length + 1);
+  assert.deepEqual(waits, completionRetryDelaysMs);
+  // No room does not come back in seconds, and a refusal of the zip file
+  // never passes, so neither waits.
+  for (const code of ['storage_full', 'archive_invalid', 'path_conflict']) {
+    waits.length = 0;
+    calls = 0;
+    const answer = await completeWithRetries(() => {
+      calls += 1;
+      return Promise.resolve({ error: { code } });
+    }, wait);
+    assert.equal(readCode(answer.error), code);
+    assert.equal(calls, 1);
+    assert.deepEqual(waits, []);
+    assert.equal(completionRefusalPasses({ code }), false);
+  }
+});
+
+/** The code of a problem in a test answer. */
+function readCode(error: unknown): unknown {
+  return error !== null && typeof error === 'object'
+    ? Object.fromEntries(Object.entries(error))['code']
+    : undefined;
+}
+
+await test('a limit of the month names its own cause and when it ends', () => {
+  // Record 0193. An export past the download limit, and an import past the
+  // object write cap, each have a sentence of their own.
+  assert.equal(
+    downloadRefusalMessage({ code: 'download_limit' }),
+    'The download limit of this month is used. Downloads start again next month. You can still write and save notes.',
+  );
+  assert.equal(
+    importRefusalMessage({ code: 'storage_busy' }),
+    'The file storage of this server is busy this month. Imports start again next month. You can still write and save notes.',
+  );
+});
+
+await test('the check of an export reads the limit that the server names', () => {
+  // Review of PR 290. The cause of a 429 came from a read of the account,
+  // which another process may not see yet, or which may fail. The server
+  // names the limit in a header of the answer.
+  assert.equal(exportCheckCause(429, 'downloads'), 'downloads');
+  // No header is a job that runs, unless the account says otherwise.
+  assert.equal(exportCheckCause(429, null), 'ask');
+  assert.equal(exportCheckCause(429, 'object_reads'), 'status');
+  assert.equal(exportCheckCause(503, 'downloads'), 'status');
+  assert.equal(exportCheckCause(404, null), 'status');
 });

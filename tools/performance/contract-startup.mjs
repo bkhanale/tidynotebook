@@ -12,6 +12,7 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { record } from '../workspace.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const entry = resolve(root, 'packages/api-contract/src/index.ts');
@@ -54,11 +55,13 @@ for (let run = 0; run < samples; run += 1) {
   );
   if (result.status !== 0)
     throw new Error(`Sample ${String(run + 1)} failed: ${result.stderr}`);
-  const measured = /** @type {Record<string, unknown>} */ (
-    JSON.parse(result.stdout)
-  );
-  times.push(Number(measured.elapsedMs));
-  resident.push(Number(measured.rssBytes));
+  const { elapsedMs, rssBytes } = record(JSON.parse(result.stdout));
+  if (typeof elapsedMs !== 'number' || typeof rssBytes !== 'number')
+    throw new Error(
+      `Sample ${String(run + 1)} answered no measurement: ${result.stdout}`,
+    );
+  times.push(elapsedMs);
+  resident.push(rssBytes);
 }
 
 process.stdout.write(

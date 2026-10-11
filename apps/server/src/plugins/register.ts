@@ -528,7 +528,14 @@ function throttleGroup(id: OperationId): string | null {
   // The removal of an own account takes the password again, like a sign-in.
   if (id === 'removeOwnAccount') return 'password';
   // An import and an export share one bucket of the account (record 0170).
-  if (id === 'importWorkspace' || id === 'exportWorkspace') return 'archive';
+  // The parts of an import do not count: an import sends many, and only
+  // the start and the completion of one begin work of their own.
+  if (
+    id === 'startWorkspaceImport' ||
+    id === 'completeWorkspaceImport' ||
+    id === 'exportWorkspace'
+  )
+    return 'archive';
   // A report counts per client address and per /64 prefix (record 0119).
   if (id === 'reportPublishedLink') return 'report';
   // A sign-up and its verification count the same way (record 0115).
@@ -547,10 +554,21 @@ function throttleGroup(id: OperationId): string | null {
  */
 const prefixGroups: ReadonlySet<string> = new Set(['report', 'signup']);
 
+/**
+ * The `onSend` hook that runs last on every contract route, after the
+ * compression of a large read, so it reads the bytes that leave the server.
+ * The meter of record 0193 counts there.
+ */
+export type AnswerHook = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+  payload: unknown,
+) => Promise<unknown>;
+
 /** The body bounds of the routes that carry a file, from `config.limits`. */
 export type RouteBodyLimits = {
   readonly uploadBodyBytes: number;
-  readonly importBodyBytes: number;
+  readonly importPartBytes: number;
 };
 
 /**
@@ -564,7 +582,7 @@ export function routeBodyLimit(
   limits: RouteBodyLimits,
 ): number | null {
   if (id === 'uploadAttachment') return limits.uploadBodyBytes;
-  if (id === 'importWorkspace') return limits.importBodyBytes;
+  if (id === 'sendWorkspaceImportPart') return limits.importPartBytes;
   return null;
 }
 
@@ -588,6 +606,7 @@ export function registerOperations(
     readonly max: number;
   },
   limits: RouteBodyLimits,
+  answered?: AnswerHook,
 ): void {
   checkRegistration(
     operations,
@@ -621,6 +640,18 @@ export function registerOperations(
   if (!app.hasContentTypeParser('multipart/form-data')) {
     app.addContentTypeParser(
       'multipart/form-data',
+      (_request, payload, done) => {
+        done(null, payload);
+      },
+    );
+  }
+
+  // A part of an import is the bytes alone (record 0192). The handler reads
+  // the stream itself against the length that the request states, so the
+  // part never waits whole in memory.
+  if (!app.hasContentTypeParser('application/octet-stream')) {
+    app.addContentTypeParser(
+      'application/octet-stream',
       (_request, payload, done) => {
         done(null, payload);
       },
@@ -744,9 +775,12 @@ export function registerOperations(
       querystring: operation.request.query,
       headers: operation.request.headers,
     };
+    // A form and a stream of bytes reach the handler unread, so no schema
+    // can read their members here. The handler reads each one.
     if (
       operation.request.body !== null &&
-      operation.request.bodyMediaType !== 'multipart/form-data'
+      operation.request.bodyMediaType !== 'multipart/form-data' &&
+      operation.request.bodyMediaType !== 'application/octet-stream'
     ) {
       schema.body = operation.request.body;
     }
@@ -793,8 +827,12 @@ export function registerOperations(
             }),
       },
       ...(bodyLimit === null ? {} : { bodyLimit }),
-      // A large JSON read leaves compressed (record 0169).
-      ...(operation.method === 'get' ? { onSend: compressAnswer } : {}),
+      // A large JSON read leaves compressed (record 0169), and the last hook
+      // reads the bytes that leave (record 0193).
+      onSend: [
+        ...(operation.method === 'get' ? [compressAnswer] : []),
+        ...(answered === undefined ? [] : [answered]),
+      ],
       schema,
       handler: async (request, reply) => {
         const result = await handler(request, reply);

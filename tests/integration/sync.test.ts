@@ -28,6 +28,7 @@ import {
   getAccount,
   getFile,
   getRevision,
+  observeResponseProgress,
   listHistory,
   listWorkspaces,
   purgeFiles,
@@ -57,6 +58,7 @@ import {
 import {
   createDocumentService,
   openAttachmentStore,
+  openFileObjectStore,
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -65,6 +67,7 @@ import {
   createNote,
   createSyncEngine,
   parkRefusedSave,
+  sendWithRetry,
   type Draft,
   type LocalStore,
   type SyncEngine,
@@ -74,6 +77,8 @@ import { createDisposableDatabase, openSession } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
 import { markdownLimits } from '@notesapp/markdown';
 import { freeNotePath } from '../../apps/web/src/lib/new-note-draft.ts';
+import { createAccountRecheck } from '../../apps/web/src/lib/locked.ts';
+import { noticeRechecksAccount } from '../../apps/web/src/lib/sync-state.ts';
 import { parkedSaves } from '../../apps/web/src/lib/parked-saves.ts';
 import {
   discardParked,
@@ -123,9 +128,13 @@ const content = openWorkspaceStore(
   createDocumentService(),
   { poolSize: 4 },
 );
-const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
-  poolSize: 4,
-});
+const attachments = openAttachmentStore(
+  database.runtimeUrl,
+  openFileObjectStore(storageRoot),
+  {
+    poolSize: 4,
+  },
+);
 
 /** The environment of this test deployment. */
 function environment(): Record<string, string> {
@@ -155,6 +164,19 @@ const adapter = createIdentityAdapter({
   identity,
   servedOrigins: config.servedOrigins,
 });
+
+/** A connection fault of one device, while the other clients still work. */
+let connectionFault: {
+  path: RegExp;
+  remaining: number;
+  afterCommit: boolean;
+} | null = null;
+const faultRequestId = 'sync-network-recovery';
+let downloadFault: {
+  remaining: number;
+  readonly release: Promise<void>;
+} | null = null;
+
 const server = await startTestServer({
   environment: environment(),
   handlers: (value) =>
@@ -165,6 +187,58 @@ const server = await startTestServer({
     }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
+  onApp: (app) => {
+    app.addHook('onRequest', async (request, reply) => {
+      const fault = connectionFault;
+      if (
+        fault === null ||
+        fault.afterCommit ||
+        fault.remaining === 0 ||
+        request.headers['x-request-id'] !== faultRequestId ||
+        !fault.path.test(request.url)
+      )
+        return;
+      fault.remaining -= 1;
+      reply.hijack();
+      request.raw.destroy();
+    });
+    app.addHook('onSend', async (request, reply, payload) => {
+      const download = downloadFault;
+      if (
+        download !== null &&
+        download.remaining > 0 &&
+        request.headers['x-request-id'] === faultRequestId &&
+        /\/revisions\/[^/]+$/.test(request.url) &&
+        reply.statusCode === 200
+      ) {
+        download.remaining -= 1;
+        reply.hijack();
+        reply.raw.writeHead(200, { 'content-type': 'application/json' });
+        if (typeof payload === 'string' || Buffer.isBuffer(payload))
+          reply.raw.write(payload.slice(0, 64));
+        else throw new Error('The revision must have a serialized body.');
+        // The client confirms that it received a body chunk before the
+        // fault closes this socket. No timer stands in for that handshake.
+        await download.release;
+        reply.raw.destroy();
+        return payload;
+      }
+      const fault = connectionFault;
+      if (
+        fault !== null &&
+        fault.afterCommit &&
+        fault.remaining > 0 &&
+        request.headers['x-request-id'] === faultRequestId &&
+        fault.path.test(request.url) &&
+        reply.statusCode === 200
+      ) {
+        fault.remaining -= 1;
+        reply.hijack();
+        request.raw.destroy();
+      }
+      return payload;
+    });
+  },
 });
 configureClient(server.baseUrl, undefined);
 
@@ -359,6 +433,231 @@ async function waitFor(
 async function queuedOf(store: LocalStore, account = ownerAccountId) {
   return store.pending(account, workspaceId);
 }
+
+for (const [read, path] of [
+  ['session', /\/api\/account$/],
+  ['protocol', /\/api\/sync\/protocol$/],
+  ['commit', /\/changesets$/],
+  ['snapshot', /\/sync\/snapshots$/],
+  ['snapshot page', /\/sync\/snapshots\/[^/]+(?:\?|$)/],
+  ['revision', /\/revisions\/[^/]+$/],
+  ['changes', /\/sync\/changes(?:\?|$)/],
+] as const) {
+  await test(`the default engine recovers after repeated ${read} connection failures with no wake`, async () => {
+    const store = await openStore(`network-${read}`, `device-${read}`);
+    const fileId = randomUUID();
+    const text = `# Network recovery ${read}\n`;
+    if (read === 'commit' || read === 'changes')
+      await syncPull(store, ownerCookie, `pull-${read}`);
+    await createNote(
+      store,
+      draftOf(
+        ownerAccountId,
+        randomUUID(),
+        fileId,
+        null,
+        text,
+        `recovery/${read}.md`,
+        1,
+      ),
+    );
+    const notices: SyncNotice[] = [];
+    let recheckedAccount: string | null = null;
+    const recheckAccount = createAccountRecheck<{ readonly accountId: string }>(
+      {
+        read: async () => {
+          const read = await getAccount({ headers: browser(ownerCookie) });
+          return { status: read.response?.status ?? 0, account: read.data };
+        },
+        epoch: () => 1,
+        adopt: (account) => {
+          recheckedAccount = account.accountId;
+        },
+        signOut: () => {
+          throw new Error('The connection fault cannot end the session.');
+        },
+      },
+    );
+    const fault = { path, remaining: 6, afterCommit: false };
+    connectionFault = fault;
+    const controller = new AbortController();
+    const engine = createSyncEngine(store, ownerAccountId, workspaceId, {
+      headers: () => ({
+        ...browser(ownerCookie),
+        'x-request-id': faultRequestId,
+      }),
+      pollIntervalMs: 50,
+      interval: () => 300_000,
+      // The tab's keeper holds the lease through the connection fault.
+      lease: {
+        hold: () => Promise.resolve(true),
+        release: () => Promise.resolve(),
+      },
+      random: () => 0,
+      announce: (notice) => {
+        notices.push(notice);
+        if (noticeRechecksAccount(notice)) recheckAccount();
+      },
+    });
+    const running = engine.run(controller.signal);
+    try {
+      await waitFor(
+        () => fault.remaining < 6,
+        `${read} to meet the connection fault`,
+      );
+      const other = await getAccount({ headers: browser(ownerCookie) });
+      assert.equal(
+        other.data?.accountId,
+        ownerAccountId,
+        'a new device still reaches the server',
+      );
+      await waitFor(
+        async () =>
+          fault.remaining === 0 &&
+          (await queuedOf(store)).length === 0 &&
+          (await store.readCursor(ownerAccountId, workspaceId)) !== null &&
+          notices.some((notice) => notice.kind === 'connected'),
+        `${read} to recover without an online or focus event`,
+      );
+      assert.equal(
+        (await store.recover(ownerAccountId, workspaceId)).length,
+        0,
+      );
+      assert.ok(!notices.some((notice) => notice.kind === 'access-lost'));
+      await waitFor(
+        () => recheckedAccount === ownerAccountId,
+        'the account banner to read the recovered server',
+      );
+      const saved = await getFile({
+        headers: browser(ownerCookie),
+        path: { workspaceId, fileId },
+      });
+      assert.equal(saved.data?.head?.text, text);
+    } finally {
+      connectionFault = null;
+      controller.abort();
+      engine.stop();
+      await running;
+      await store.close();
+    }
+  });
+}
+
+await test('a lost commit answer retries the accepted save and makes one server version', async () => {
+  const store = await openStore('lost-answer', 'device-lost-answer');
+  const fileId = randomUUID();
+  await syncPull(store, ownerCookie, 'pull-lost-answer');
+  await createNote(
+    store,
+    draftOf(
+      ownerAccountId,
+      randomUUID(),
+      fileId,
+      null,
+      '# Kept after a lost answer\n',
+      'recovery/lost-answer.md',
+      1,
+    ),
+  );
+  const queued = await queuedOf(store);
+  connectionFault = { path: /\/changesets$/, remaining: 1, afterCommit: true };
+  const engine = createSyncEngine(store, ownerAccountId, workspaceId, {
+    headers: () => ({
+      ...browser(ownerCookie),
+      'x-request-id': faultRequestId,
+    }),
+    pollIntervalMs: 50,
+    random: () => 0,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  try {
+    await waitFor(
+      async () => (await queuedOf(store)).length === 0,
+      'the accepted save to be acknowledged after its lost answer',
+    );
+    assert.equal(connectionFault.remaining, 0);
+    const history = await listHistory({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId },
+    });
+    assert.equal(history.data?.revisions.length, 1);
+    assert.equal(
+      history.data?.revisions[0]?.revisionId,
+      queued[0]?.input.revisions[0]?.id,
+    );
+  } finally {
+    connectionFault = null;
+    controller.abort();
+    engine.stop();
+    await running;
+    await store.close();
+  }
+});
+
+await test('a revision download retries a lost body after successful response headers', async () => {
+  const text = '# A complete revision after a lost body\n';
+  const file = await newFile('recovery/partial-download.md', text);
+  let release = (): void => {};
+  const fault = {
+    remaining: 1,
+    release: new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  };
+  downloadFault = fault;
+  const controller = new AbortController();
+  let progress = 0;
+  let attempts = 0;
+  try {
+    const result = await sendWithRetry(
+      {
+        signal: controller.signal,
+        sleep: () => Promise.resolve(),
+        random: () => 0,
+        id: () => 'partial-download',
+        announce: () => {},
+        watchResponse: (signal, received) =>
+          observeResponseProgress(signal, () => {
+            received();
+            progress += 1;
+            if (progress === 2) release();
+          }),
+      },
+      async (signal) => {
+        attempts += 1;
+        const read = await getRevision({
+          headers: { ...browser(ownerCookie), 'x-request-id': faultRequestId },
+          path: { workspaceId, revisionId: file.revisionId },
+          signal,
+        });
+        if (read.data !== undefined)
+          return { ok: true as const, value: read.data };
+        return {
+          ok: false as const,
+          problem: {
+            status: read.error?.status ?? 0,
+            code: read.error?.code ?? 'transport_failed',
+            fileIds: [],
+          },
+        };
+      },
+    );
+    assert.equal(
+      attempts,
+      2,
+      'a lost body after 200 is still a transport failure',
+    );
+    assert.equal(fault.remaining, 0);
+    assert.ok(progress >= 4, 'both attempts report headers and body data');
+    assert.equal(result?.ok, true);
+    assert.equal(result?.ok ? result.value.text : null, text);
+  } finally {
+    downloadFault = null;
+    release();
+    controller.abort();
+  }
+});
 
 await test('a note that a device makes reaches the server with no edit', async () => {
   const store = await openStore('create', 'device-create');

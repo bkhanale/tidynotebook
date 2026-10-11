@@ -11,13 +11,21 @@
  */
 import type { ImportResult } from '../../lib/import-result.ts';
 import {
+  abortWorkspaceImport,
+  completeWorkspaceImport,
   exportNote,
+  getAccount,
   exportWorkspaceAddress,
-  importWorkspace,
   inspectWorkspaceExport,
+  sendWorkspaceImportPart,
+  startWorkspaceImport,
 } from '@notesapp/api-client';
-import { applicationName } from '../../shell/document-title.ts';
-import { maxArchiveBytes, maxArchiveEntries } from '@notesapp/core';
+import {
+  importPartRanges,
+  maxArchiveBytes,
+  maxArchiveEntries,
+  productName,
+} from '@notesapp/core';
 
 /** The byte bound of one archive, in whole MiB, as a person reads it. */
 const archiveMiB = Math.floor(maxArchiveBytes / (1024 * 1024));
@@ -51,6 +59,9 @@ export function downloadRefusalMessage(error: unknown): string {
   if (code === 'not_found') return 'This note is not on the server any more.';
   if (code === 'unauthenticated')
     return 'Sign in again to download your notes.';
+  // Record 0193. The limit holds until the next month in UTC.
+  if (code === 'download_limit')
+    return 'The download limit of this month is used. Downloads start again next month. You can still write and save notes.';
   // Issue 243. The export refuses a workspace past the bounds that the import
   // reads too, so every zip file that it writes comes back.
   if (code === 'export_too_large')
@@ -79,16 +90,25 @@ const importRefusals: Readonly<Record<string, string>> = {
   payload_too_large:
     'The zip file is too large. Put the files in smaller zip files and import each one.',
   archive_too_many_files: `The zip file has more than ${String(maxArchiveEntries)} files. Put the files in smaller zip files and import each one.`,
-  archive_too_large: `A file in the zip file is larger than ${applicationName} can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
-  archive_invalid: `This file is not a zip file that ${applicationName} can read. Make the zip file again and import it.`,
+  archive_too_large: `A file in the zip file is larger than ${productName} can take, or all the files together are. Remove the large files or put the files in smaller zip files, then import again.`,
+  archive_invalid: `This file is not a zip file that ${productName} can read. Make the zip file again and import it.`,
   unsupported_media_type:
     'The zip file can hold only Markdown files and images. Remove the other files and import again.',
   storage_full:
     'The server has no room for this zip file now. Try again later, or ask the administrator for more room.',
+  // Record 0193. The cap holds until the next month in UTC.
+  storage_busy:
+    'The file storage of this server is busy this month. Imports start again next month. You can still write and save notes.',
   quota_exceeded:
     'Your account has no room for these files. Delete some notes or images, then import again.',
   unrenderable_note:
     'A note in the zip file cannot be read as Markdown. Change the note, then import again.',
+  // The zip file goes up in parts (record 0192). A part that stops, and an
+  // import that the server no longer holds, both ask for the whole file.
+  request_timeout:
+    'The zip file stopped on its way to the server. Check the connection, then import again.',
+  not_found:
+    'The server no longer holds this import. Import the zip file again.',
 };
 
 /** The message of a refused import. */
@@ -229,8 +249,15 @@ export function exportCheckMessage(status: number): string {
 export async function downloadAll(workspaceId: string): Promise<void> {
   const checked = await inspectWorkspaceExport({ path: { workspaceId } });
   const status = checked.response?.status ?? 0;
-  if (checked.error !== undefined || status !== 200)
+  if (checked.error !== undefined || status !== 200) {
+    const cause = exportCheckCause(
+      status,
+      checked.response?.headers.get(usageLimitHeader) ?? null,
+    );
+    if (cause === 'downloads' || (cause === 'ask' && (await downloadsPaused())))
+      throw new Error(downloadRefusalMessage({ code: 'download_limit' }));
     throw new Error(exportCheckMessage(status));
+  }
   const anchor = document.createElement('a');
   anchor.href = exportWorkspaceAddress({ workspaceId });
   // An empty name keeps the name that the answer states.
@@ -241,20 +268,133 @@ export async function downloadAll(workspaceId: string): Promise<void> {
   anchor.remove();
 }
 
+/** The header that names the limit of the month of a refusal (record 0193). */
+export const usageLimitHeader = 'notesapp-limit';
+
+/**
+ * What a refused check of an export says about its cause.
+ *
+ * A 429 is an archive job that runs or the download limit of the month
+ * (record 0193). The answer of a check is a HEAD with no body, so the server
+ * names the limit in a header: `downloads` is the download limit, and no
+ * header is a job that runs. A server that names no limit, for example
+ * behind a proxy that drops the header, answers `ask`, and the account then
+ * states whether its downloads wait.
+ */
+export function exportCheckCause(
+  status: number,
+  limit: string | null,
+): 'downloads' | 'ask' | 'status' {
+  if (status !== 429) return 'status';
+  if (limit === 'downloads') return 'downloads';
+  return limit === null ? 'ask' : 'status';
+}
+
+/** Whether the account reads that its downloads wait for the next month. */
+async function downloadsPaused(): Promise<boolean> {
+  try {
+    const account = await getAccount();
+    return account.data?.month.downloadsPaused === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The waits before each new try of a completion that a busy server refused.
+ *
+ * The server keeps the parts when it refuses a completion because another
+ * import or export runs (record 0170), so the import tries again a few times
+ * before it gives up, and a short wait never costs the person the upload of
+ * a large zip file.
+ */
+export const completionRetryDelaysMs: readonly number[] = [
+  5_000, 10_000, 20_000,
+];
+
+/**
+ * Whether a refusal of the completion passes when another archive job ends.
+ *
+ * A server with no room (`storage_full`) does not gain room in seconds, and
+ * every other refusal names the zip file, so only these two wait.
+ */
+export function completionRefusalPasses(error: unknown): boolean {
+  const code = problemCode(error);
+  return code === 'archive_job_running' || code === 'archive_jobs_busy';
+}
+
+/**
+ * Completes an import, and tries again after each wait of `delays` while the
+ * server refuses it for a job that passes. It answers the last answer.
+ *
+ * @param wait the clock of the waits, which a test replaces.
+ */
+export async function completeWithRetries<
+  T extends { readonly error?: unknown },
+>(
+  complete: () => Promise<T>,
+  wait: (milliseconds: number) => Promise<void>,
+  delays: readonly number[] = completionRetryDelaysMs,
+): Promise<T> {
+  let answer = await complete();
+  for (const delay of delays) {
+    if (answer.error === undefined || !completionRefusalPasses(answer.error))
+      return answer;
+    await wait(delay);
+    answer = await complete();
+  }
+  return answer;
+}
+
+/** A wait on the clock of the browser. */
+function waitFor(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 /**
  * Imports one portable workspace archive. The server moves a picture into
  * the attachments folder and turns a wiki link into a standard link, and
  * names the files that it left out (record 0172).
+ *
+ * The archive goes up in parts of the size that the server states, because
+ * a proxy in front of the server refuses a large body (record 0192). Each
+ * part is a slice of the file, so the browser never holds the whole archive
+ * in memory, and the completion reads it on the server. A completion that a
+ * busy server refused tries again, by `completeWithRetries`. When a part or
+ * the completion fails for good, the import is removed at once, so its parts
+ * do not hold the storage of the server.
  */
 export async function importAll(
   workspaceId: string,
   file: File,
 ): Promise<ImportResult> {
-  const answer = await importWorkspace({
+  const started = await startWorkspaceImport({
     path: { workspaceId },
-    body: { file },
+    body: { size: file.size },
   });
+  if (started.error !== undefined || started.data === undefined)
+    throw refuseImport(started.error);
+  const { importId, partBytes } = started.data;
+  const abandon = async (error: unknown): Promise<never> => {
+    // The removal is a courtesy: the daily cleanup of the server takes an
+    // import that it leaves, so its own failure changes no answer.
+    await abortWorkspaceImport({ path: { workspaceId, importId } }).catch(
+      () => undefined,
+    );
+    throw refuseImport(error);
+  };
+  for (const part of importPartRanges(file.size, partBytes)) {
+    const sent = await sendWorkspaceImportPart({
+      path: { workspaceId, importId, partNumber: part.partNumber },
+      body: file.slice(part.start, part.end),
+    }).catch((failure: unknown) => ({ error: failure }));
+    if (sent.error !== undefined) return abandon(sent.error);
+  }
+  const answer = await completeWithRetries(
+    () => completeWorkspaceImport({ path: { workspaceId, importId } }),
+    waitFor,
+  );
   if (answer.error !== undefined || answer.data === undefined)
-    throw refuseImport(answer.error);
+    return abandon(answer.error);
   return answer.data;
 }

@@ -1,0 +1,37 @@
+post:
+  operationId: updateProfile
+  summary: Change the display name of the account.
+  description: >-
+    Stores the name of the authenticated account for either a session or an API key.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  requestBody:
+    required: true
+    description: Change the display name of the account.
+    content:
+      application/json:
+        schema:
+          $ref: '../components/schemas/ProfileUpdateInput.yaml'
+  responses:
+    '200':
+      description: Change the display name of the account.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ProfileUpdated.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '423':
+      $ref: '../components/responses/AccountLocked.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

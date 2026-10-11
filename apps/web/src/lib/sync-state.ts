@@ -13,10 +13,12 @@
  * disagree.
  */
 import {
+  downloadLimitCode,
   transportFailedCode,
   type QueueState,
   type SyncNotice,
 } from '@notesapp/sync';
+import { productName } from '@notesapp/core';
 
 /** Where sync stands right now. */
 export type SyncState =
@@ -28,6 +30,11 @@ export type SyncState =
   | { readonly kind: 'sending' }
   /** The device has no connection, so saves wait here. */
   | { readonly kind: 'waiting' }
+  /**
+   * The first sync of this device waits for the next month, because the
+   * download limit of the month is used (record 0193). Saves wait here.
+   */
+  | { readonly kind: 'download-limit' }
   /**
    * The server refused saves for good, so they are parked and wait in the
    * Needs attention list. Nothing sends them until the person acts.
@@ -55,12 +62,14 @@ export const startingSyncState: SyncState = { kind: 'starting' };
 /**
  * Whether one notice proves only that sync can run again.
  *
- * A fit after a misfit, and a session that serves the engine again after a
- * pause, say nothing about the queue. The state starts over, and the caller
- * reads the queue at once, because nothing else may announce for a while.
+ * A connection proof, a fit after a misfit, and a session that serves the
+ * engine again after a pause say nothing about the queue. The state starts
+ * over, and the caller reads the queue at once, because nothing else may
+ * announce for a while.
  */
 export function noticeStartsOver(notice: SyncNotice): boolean {
   return (
+    notice.kind === 'connected' ||
     notice.kind === 'resumed' ||
     (notice.kind === 'protocol' && notice.fit === 'compatible')
   );
@@ -83,6 +92,15 @@ export function noticeReadsQueue(notice: SyncNotice): boolean {
     notice.kind === 'snapshot-activated' ||
     notice.kind === 'changes-applied'
   );
+}
+
+/**
+ * A connection proof also clears an account read kept from an offline start.
+ * Ordinary feed notices cost no account read. A locked refusal still reads
+ * the account at once, so the locked screen keeps its existing rule.
+ */
+export function noticeRechecksAccount(notice: SyncNotice): boolean {
+  return notice.kind === 'account-locked' || notice.kind === 'connected';
 }
 
 /**
@@ -131,7 +149,9 @@ export function syncStateOfNotice(notice: SyncNotice): SyncState | null {
   if (notice.kind === 'cycle-error')
     return notice.code === transportFailedCode
       ? { kind: 'waiting' }
-      : { kind: 'stopped' };
+      : notice.code === downloadLimitCode
+        ? { kind: 'download-limit' }
+        : { kind: 'stopped' };
   return null;
 }
 
@@ -152,6 +172,8 @@ export function syncStateMessage(
   if (state.kind === 'sending') return 'Sending your save to the server.';
   if (state.kind === 'waiting')
     return 'No connection. Saves wait on this device.';
+  if (state.kind === 'download-limit')
+    return 'Sync waits for the next month. Saves wait here.';
   // The status only states the fact. The Needs attention link below it is
   // the way to the saves, so the cause has one message and one action.
   if (state.kind === 'attention')
@@ -164,7 +186,7 @@ export function syncStateMessage(
   if (state.kind === 'other-account')
     return 'Another account signed in. Your work waits.';
   if (state.kind === 'update-required')
-    return 'Update Notesapp to save to the server.';
+    return `Update ${productName} to save to the server.`;
   if (state.kind === 'server-behind') return 'Saves wait for a server update.';
   return 'Saving stopped. Your work is on this device.';
 }

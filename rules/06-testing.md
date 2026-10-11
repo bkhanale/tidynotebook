@@ -11,7 +11,7 @@
 - Take a screenshot of each changed screen in light and in dark before a
   landing.
 - To run the application of a worktree and drive it in a browser, follow the
-  `testing-changes-end-to-end` skill. Each worktree runs its own application,
+  `test-application` skill. Each worktree runs its own application,
   so worktrees do not conflict.
 - Run focused tests while work is in progress. Run `pnpm verify` before a
   change is ready to merge.

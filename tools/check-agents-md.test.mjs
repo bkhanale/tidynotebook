@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { areaReadingList, coreReadingList } from './agent-context.mjs';
@@ -19,6 +19,7 @@ import {
   maximumGuideLines,
   skillsDirectory,
 } from './check-agents-md.mjs';
+import { root, workspaces } from './workspace.mjs';
 
 /** The `SKILL.md` of one skill directory. */
 const skillFile = (/** @type {string} */ name) =>
@@ -45,7 +46,7 @@ function guide(lines = 3) {
 
 /** A skill file that holds valid frontmatter. */
 const skill = `---
-name: build-it-right
+name: prepare-change
 description: Loads the repository context and lists every file to read. Use it before the first edit of a change.
 ---
 
@@ -72,7 +73,7 @@ function check(overrides, options = {}) {
     for (const [, file] of areaReadingList)
       if (!(file in files)) files[file] = '# Fixture\n';
     files['CLAUDE.md'] = claudeEntry;
-    files[skillFile('build-it-right')] = skill;
+    files[skillFile('prepare-change')] = skill;
     for (const guided of guidedDirectories)
       files[`${guided}/AGENTS.md`] = guide();
     for (const [name, content] of Object.entries({ ...files, ...overrides })) {
@@ -84,8 +85,8 @@ function check(overrides, options = {}) {
     if (options.link !== false) {
       mkdirSync(join(directory, '.claude/skills'), { recursive: true });
       symlinkSync(
-        '../../.agents/skills/build-it-right',
-        join(directory, '.claude/skills/build-it-right'),
+        '../../.agents/skills/prepare-change',
+        join(directory, '.claude/skills/prepare-change'),
       );
     }
     const result = spawnSync(process.execPath, [checker, '--root', directory], {
@@ -173,8 +174,8 @@ await test('an entry file with more than the import fails', () => {
 
 await test('a skill name outside the allowed shape fails', () => {
   const result = check({
-    [skillFile('build-it-right')]: skill.replace(
-      'name: build-it-right',
+    [skillFile('prepare-change')]: skill.replace(
+      'name: prepare-change',
       'name: build_it_right',
     ),
   });
@@ -184,7 +185,7 @@ await test('a skill name outside the allowed shape fails', () => {
 
 await test('a skill description in the first person fails', () => {
   const result = check({
-    [skillFile('build-it-right')]: skill.replace('Loads', 'I load'),
+    [skillFile('prepare-change')]: skill.replace('Loads', 'I load'),
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /third person/);
@@ -198,22 +199,44 @@ await test('a skill that the second harness cannot reach fails', () => {
 
 await test('a second skill is checked as well, and it needs its own link', () => {
   const result = check({
-    [skillFile('releasing-a-version')]: skill.replace(
-      'name: build-it-right',
-      'name: releasing-a-version',
+    [skillFile('release-core')]: skill.replace(
+      'name: prepare-change',
+      'name: release-core',
     ),
   });
   assert.equal(result.status, 1);
-  assert.match(result.output, /\.claude\/skills\/releasing-a-version/);
+  assert.match(result.output, /\.claude\/skills\/release-core/);
 });
 
 await test('a skill whose name differs from its directory fails', () => {
   const result = check({
-    [skillFile('build-it-right')]: skill.replace(
-      'name: build-it-right',
+    [skillFile('prepare-change')]: skill.replace(
+      'name: prepare-change',
       'name: building-it-right',
     ),
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /They are one name/);
+});
+
+// Regression: packages/logging carried a guide that no check read, because
+// the list of guided directories did not name it.
+await test('a workspace directory that the list does not name fails', () => {
+  const result = check({
+    'packages/extra/package.json': '{"name":"@notesapp/extra"}\n',
+    'packages/extra/AGENTS.md': guide(),
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /packages\/extra: a workspace directory that the guided list does not name/,
+  );
+});
+
+await test('every workspace directory of this repository is guided', async () => {
+  for (const { path } of await workspaces())
+    assert.ok(
+      guidedDirectories.includes(relative(root, path).split(sep).join('/')),
+      `${path} is not a guided directory.`,
+    );
 });

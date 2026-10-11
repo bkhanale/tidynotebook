@@ -2,10 +2,11 @@
  * The Settings page of the workspace frame (record 0091).
  *
  * Settings is the one place for the profile, the palette, the spell check,
- * offline availability, and sign-out. It reads as sections and not as a
- * stack of cards: each section states its name and its sentence in a column
- * of its own and holds its controls beside them, and a hairline separates one
- * from the next. Theme changes apply locally first and sync in the background
+ * offline availability, and sign-out. When the installation names an account
+ * portal, the Billing section opens it for any standing (record 0211). It
+ * reads as sections and not as a stack of cards: each section states its name
+ * and its sentence in a column of its own and holds its controls beside them,
+ * and a hairline separates one from the next. Theme changes apply locally first and sync in the background
  * through the provider in `app.tsx`.
  *
  * The page loads when it opens, so the first screen of the frame reads none
@@ -36,7 +37,9 @@ import {
   ListRow,
   ComputerIcon,
   DownloadIcon,
+  ExternalLinkIcon,
   LoadingState,
+  Meter,
   Notice,
   Page,
   PageHeader,
@@ -58,6 +61,7 @@ import {
 } from '../../app.tsx';
 
 import { profileNameProblem, storageLine } from '../../lib/accounts.ts';
+import { monthNotices, transferUsage } from '../../lib/monthly-limits.ts';
 
 import { LegalLinks, useLegalDocuments } from './legal-links.tsx';
 import {
@@ -79,10 +83,12 @@ import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx'
 import { TemplateSettingsFields } from '../templates/template-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { SettingsSection } from './settings-section.tsx';
+import { ApiKeySettings } from './api-keys.tsx';
 import { ThemeSettings } from './theme-settings.tsx';
 import {
   sectionOf,
   settingsSections,
+  visibleSettingsSections,
   type SettingsSectionKey,
 } from '../../lib/page-sections.ts';
 import { useNow } from '../../shell/now.ts';
@@ -90,6 +96,8 @@ import { useNow } from '../../shell/now.ts';
 import { importResultSentence } from '../../lib/import-result.ts';
 import { settingsTitle } from './accounts.tsx';
 import { RemoveOwnAccountDialog } from './remove-account-dialog.tsx';
+import { useOpenPortal } from './open-portal.ts';
+import { portalHome } from '../../lib/portal.ts';
 
 /** One section of Settings, by its name in the list of the page. */
 function settingsSection(key: SettingsSectionKey): PageSection {
@@ -557,7 +565,14 @@ export function AccountSettingsPage(): ReactNode {
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
   const offline = useOfflineChoices(store.store, accountId, workspaceId);
   const documents = useLegalDocuments();
+  const portal = useOpenPortal();
   useDocumentTitle(settingsTitle);
+  // The limits of the month change with no notice to this device, so the
+  // page reads the account again when it opens (record 0193).
+  const recheckAccount = session.recheck;
+  useEffect(() => {
+    recheckAccount();
+  }, [recheckAccount]);
 
   useEffect(() => {
     if (store.store === null || accountId === null || workspaceId === null) {
@@ -760,11 +775,24 @@ export function AccountSettingsPage(): ReactNode {
         section={settingsSection('account')}
         description="Your account owns every note in your workspaces. No other account can read them."
       >
+        {monthNotices(account.month).map((notice) => (
+          <Notice key={notice} className="mb-3" tone="info" message={notice} />
+        ))}
         {storageLine(account.storage) === '' ? null : (
-          <p className="mb-0 mt-1 text-control text-muted">
-            {storageLine(account.storage)}
-          </p>
+          <div className="mt-3">
+            <Meter
+              label="Storage"
+              value={account.storage.usedBytes}
+              max={account.storage.limitBytes}
+              text={storageLine(account.storage)}
+            />
+          </div>
         )}
+        {transferUsage(account.month, account.controls).map((usage) => (
+          <div key={usage.label} className="mt-3">
+            <Meter {...usage} />
+          </div>
+        ))}
         {account.installationRole === 'administrator' &&
         workspaceId !== null ? (
           <Link
@@ -782,6 +810,31 @@ export function AccountSettingsPage(): ReactNode {
         )}
       </SettingsSection>
     ),
+    billing: (
+      // The account portal of the operator, for any standing (records 0190
+      // and 0211). The one filled action of the page stays Save, so this is
+      // secondary. `visibleSettingsSections` shows the section only when the
+      // installation names a portal.
+      <SettingsSection
+        section={settingsSection('billing')}
+        description="See and change your plan, your payment method and your invoices."
+      >
+        {portal.error === '' ? null : (
+          <Notice className="mb-3" tone="problem" message={portal.error} />
+        )}
+        <Button
+          variant="secondary"
+          icon={<ExternalLinkIcon />}
+          disabled={portal.busy}
+          onClick={() => {
+            void portal.open(portalHome);
+          }}
+        >
+          Open billing
+        </Button>
+      </SettingsSection>
+    ),
+    'api-keys': <ApiKeySettings />,
     sessions: <SessionsSettings />,
     'sign-out': (
       <SettingsSection
@@ -825,7 +878,7 @@ export function AccountSettingsPage(): ReactNode {
     'remove-account': (
       <SettingsSection
         section={settingsSection('remove-account')}
-        description="This removes your account and every note in your workspaces for good. Export your notes first if you want to keep them."
+        description="This deletes your account and every note in your workspaces for good. Export your notes first if you want to keep them."
       >
         <Button
           variant="secondary"
@@ -835,17 +888,18 @@ export function AccountSettingsPage(): ReactNode {
             setRemoving(true);
           }}
         >
-          Remove my account
+          Delete my account
         </Button>
       </SettingsSection>
     ),
   };
 
+  const sections = visibleSettingsSections(account);
   return (
-    <Page sections={settingsSections}>
+    <Page sections={sections}>
       <PageHeader title={settingsTitle} />
       <div>
-        {settingsSections.map((section) => (
+        {sections.map((section) => (
           <Fragment key={section.key}>{sectionBodies[section.key]}</Fragment>
         ))}
       </div>

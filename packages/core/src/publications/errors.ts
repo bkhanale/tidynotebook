@@ -30,8 +30,10 @@ import type { DomainError, Result } from '../files/model.ts';
  *
  * The first four are the four causes of decision 0030. `out_of_scope` and
  * `no_reference` name the two refusals of a link that opens, which decision
- * 0031 holds to the same answer. A cause reaches the log module of decision
- * 0020 and reaches no response body.
+ * 0031 holds to the same answer. `monthly_limit` names a link that opens
+ * past a limit of the month of record 0193, which answers the closed page
+ * too. A cause reaches the log module of decision 0020 and reaches no
+ * response body.
  */
 export const readerRefusalCauses = [
   'unknown',
@@ -40,6 +42,7 @@ export const readerRefusalCauses = [
   'locked',
   'out_of_scope',
   'no_reference',
+  'monthly_limit',
 ] as const;
 
 /** One cause of a reader refusal. */

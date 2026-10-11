@@ -14,7 +14,7 @@ so they carry no upstream author and their values are original.
 
 - Upstream: [Geist by Vercel](https://github.com/vercel/geist-font)
 - License: SIL Open Font License 1.1
-  ([full text](https://github.com/vercel/geist-font/blob/main/LICENSE.TXT))
+  ([full text](https://github.com/vercel/geist-font/blob/main/OFL.txt))
 - Used files: the latin and the latin extended subsets that Google Fonts
   publishes, served as published with no change to the bytes.
   `apps/web/public/fonts/` holds `geist-latin.woff2`,
@@ -51,7 +51,7 @@ theme that fails a rule cannot ship.
 ## Default
 
 - The family a new account starts with. No upstream palette.
-- License: MIT ([this repository](https://github.com/bkhanale/notesapp))
+- License: AGPL-3.0-only ([this repository](https://github.com/tidynotebook/tidynotebook))
 - Original: every value of both variants. The family states no taste, so its
   surfaces and its text are neutral. The fill of the one action is ink, near
   black under a white label on the light page and near white under a near
@@ -64,7 +64,7 @@ theme that fails a rule cannot ship.
 ## Ink
 
 - Signature family of this application. No upstream palette.
-- License: MIT ([this repository](https://github.com/bkhanale/notesapp))
+- License: AGPL-3.0-only ([this repository](https://github.com/tidynotebook/tidynotebook))
 - Original: every value of both variants. The warm graphite dark and the warm
   paper light carry one brass accent, and every token meets the contrast rules
   in `src/theme.ts` that `src/theme.test.ts` proves.

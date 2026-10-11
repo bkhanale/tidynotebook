@@ -44,8 +44,8 @@ await test('a sender is an address, or a name and an address', () => {
   );
   assert.equal(mailSender('<no-reply@example.com>'), 'no-reply@example.com');
   assert.equal(
-    mailSender('"NotesApp" <no-reply@example.com>'),
-    'NotesApp <no-reply@example.com>',
+    mailSender('"tidy notebook" <no-reply@example.com>'),
+    'tidy notebook <no-reply@example.com>',
   );
   for (const refused of [
     'nobody',
@@ -236,13 +236,12 @@ await test('the readiness takes either source of each part', () => {
   const empty = { mail: null, terms: null, privacy: null };
   const environment = {
     mail: false,
-    publishedOrigin: true,
     legalDocuments: false,
+    registrationPolicy: false,
     mailUsable: () => true,
   };
   assert.deepEqual(settingsReadiness(environment, empty), {
     mail: false,
-    publishedOrigin: true,
     legalDocuments: false,
   });
   // A stored transport counts only while the server can open it.
@@ -267,7 +266,7 @@ await test('the readiness takes either source of each part', () => {
       { ...environment, mail: true, legalDocuments: true },
       empty,
     ),
-    { mail: true, publishedOrigin: true, legalDocuments: true },
+    { mail: true, legalDocuments: true },
   );
   const document = { kind: 'text' as const, text: 'x', version: '1' };
   assert.equal(
@@ -295,8 +294,8 @@ await test('a template fills the facts of the server and keeps the other blanks'
   const terms = legalTemplate('terms', facts);
   assert.match(privacy, /^# Privacy notice\n/);
   assert.match(terms, /^# Terms\n/);
-  assert.match(privacy, /NotesApp at notes\.example\.com/);
-  assert.match(terms, /NotesApp at notes\.example\.com/);
+  assert.match(privacy, /tidy notebook at notes\.example\.com/);
+  assert.match(terms, /tidy notebook at notes\.example\.com/);
   assert.match(privacy, /goes after 48 hours/);
   assert.match(privacy, /Have I Been Pwned/);
   assert.doesNotMatch(
@@ -311,6 +310,11 @@ await test('a template fills the facts of the server and keeps the other blanks'
       assert.ok(blankLabel(blank).length <= 100, blank);
   }
   assert.ok(!templateBlanks(privacy).includes('{{pending sign-up hours}}'));
+  // The documents name the action that Settings shows (record 0211), and one
+  // term for it: an account is deleted, never removed.
+  assert.match(privacy, /Select Delete my account in Settings\./);
+  assert.match(terms, /You can delete your account in Settings/);
+  for (const text of [privacy, terms]) assert.doesNotMatch(text, /remov/i);
   // The page states the version, so no template names one.
   for (const text of [privacy, terms])
     assert.ok(!templateBlanks(text).includes('{{version}}'));

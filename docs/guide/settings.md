@@ -105,6 +105,20 @@ An administrator also sees **Manage accounts**, which opens the accounts page.
 See [Accounts and invitations](accounts.md). When the installation has terms
 and a privacy notice, this section links them.
 
+## Billing
+
+This section shows only when the installation has a billing service. Select
+**Open billing** to see and change your plan, your payment method and your
+invoices. The billing pages open in the same tab and know your account, so
+you do not sign in again.
+A locked account opens billing from the screen that it signs in to.
+
+## API keys
+
+Create a separate key for each program that needs your account. Each key has
+all your current access and stops at its expiry. A new key appears once.
+Select **Revoke** to stop a program at once. See [API keys and programs](api.md).
+
 ## Sessions
 
 Each device that is signed in to your account has one row, with its browser,
@@ -124,9 +138,9 @@ have not reached the server yet, the section says so, and you choose:
   sign-in.
 - **Sign out and remove them** removes them from this device for good.
 
-## Remove account
+## Delete account
 
-**Remove my account** removes your account and every note in your workspaces
+**Delete my account** deletes your account and every note in your workspaces
 for good, and signs you out on every device. Enter your password to confirm.
 Export your notes first if you want to keep them. The last administrator of an
 installation first makes another account an administrator.

@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyActor, type Actor } from './actor.ts';
 import {
+  applyEnvironmentPolicy,
   createInvitation,
   dismissReport,
   listAccounts,
@@ -51,10 +52,11 @@ const ada = '11111111-1111-4111-8111-111111111111';
 const bea = '22222222-2222-4222-8222-222222222222';
 const cai = '33333333-3333-4333-8333-333333333333';
 const digest = 'a'.repeat(64);
+// No published origin: record 0191 opens an installation without one.
 const ready = {
   mail: true,
-  publishedOrigin: true,
   legalDocuments: true,
+  registrationPolicy: false,
   mailUsable: () => true,
 };
 
@@ -75,6 +77,16 @@ type FakeInstallation = InstallationStore & {
   transactions: number;
 };
 
+/**
+ * The check of the account row: an administrator is active at every write,
+ * so a write that shows a locked administrator throws, as the database does.
+ */
+function holdsAdministratorActive(record: AccountRecord): AccountRecord {
+  if (record.role === 'administrator' && record.controls.standing === 'locked')
+    throw new Error('accounts_administrator_active_check');
+  return record;
+}
+
 function createStore(seed: readonly AccountStanding[]): FakeInstallation {
   const accounts = new Map<string, AccountRecord>(
     seed.map((standing) => [
@@ -89,6 +101,16 @@ function createStore(seed: readonly AccountStanding[]): FakeInstallation {
         lastActiveAt: null,
         usedBytes: 0n,
         limitBytes: 100n,
+        controls: {
+          revision: 1,
+          standing: 'active',
+          removalAt: null,
+          limitBytes: 100n,
+          textLimitBytes: null,
+          publishedTransferLimitBytes: null,
+          downloadLimitBytes: null,
+          features: { teams: true, collaboration: true },
+        },
       },
     ]),
   );
@@ -126,7 +148,19 @@ function createStore(seed: readonly AccountStanding[]): FakeInstallation {
         accounts: () => Promise.resolve([...accounts.values()]),
         setRole: (accountId, role) => {
           const found = accounts.get(accountId);
-          if (found !== undefined) accounts.set(accountId, { ...found, role });
+          if (found !== undefined)
+            accounts.set(
+              accountId,
+              holdsAdministratorActive({
+                ...found,
+                role,
+                // The database raises the revision with the role.
+                controls: {
+                  ...found.controls,
+                  revision: found.controls.revision + 1,
+                },
+              }),
+            );
           return Promise.resolve();
         },
         setState: (accountId, state) => {
@@ -137,8 +171,31 @@ function createStore(seed: readonly AccountStanding[]): FakeInstallation {
         setLimit: (accountId, limitBytes) => {
           const found = accounts.get(accountId);
           if (found !== undefined)
-            accounts.set(accountId, { ...found, limitBytes });
+            accounts.set(accountId, {
+              ...found,
+              limitBytes,
+              controls: {
+                ...found.controls,
+                limitBytes,
+                revision: found.controls.revision + 1,
+              },
+            });
           return Promise.resolve();
+        },
+        setControls: (accountId, revision, controls) => {
+          const found = accounts.get(accountId);
+          if (found === undefined) return Promise.resolve('missing' as const);
+          if (found.controls.revision !== revision)
+            return Promise.resolve('changed' as const);
+          accounts.set(
+            accountId,
+            holdsAdministratorActive({
+              ...found,
+              limitBytes: controls.limitBytes,
+              controls: { ...controls, revision: revision + 1 },
+            }),
+          );
+          return Promise.resolve('written' as const);
         },
         remove: (accountId) => {
           accounts.delete(accountId);
@@ -218,6 +275,7 @@ await test('an administrator takes every action and a member takes none', () => 
     'remove-account',
     'change-role',
     'change-limit',
+    'change-controls',
     'change-policy',
     'change-settings',
     'list-reports',
@@ -274,6 +332,79 @@ await test('an administrator promotes, disables and limits another account', asy
   assert.equal(changed.value.role, 'administrator');
   assert.equal(changed.value.state, 'disabled');
   assert.equal(changed.value.limitBytes, 42n);
+});
+
+await test('an administrator locks a member with the revision that it read', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const locked = await updateAccount(store, actorFor(ada), bea, {
+    controls: {
+      revision: 1,
+      standing: 'locked',
+      removalAt: '2030-01-01T00:00:00Z',
+      textLimitBytes: 50n,
+    },
+  });
+  assert.ok(locked.ok);
+  assert.equal(locked.value.controls.standing, 'locked');
+  assert.equal(locked.value.controls.textLimitBytes, 50n);
+  assert.equal(locked.value.controls.revision, 2);
+  // A second write that read the first revision changes nothing.
+  assert.deepEqual(
+    await updateAccount(store, actorFor(ada), bea, {
+      controls: { revision: 1, standing: 'active' },
+    }),
+    { ok: false, error: { code: 'controls_changed', fileIds: [] } },
+  );
+  assert.equal(store.accounts.get(bea)?.controls.standing, 'locked');
+  // A locked member becomes an administrator only once it is active.
+  assert.deepEqual(
+    await updateAccount(store, actorFor(ada), bea, { role: 'administrator' }),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+  const unlocked = await updateAccount(store, actorFor(ada), bea, {
+    controls: { revision: 2, standing: 'active' },
+  });
+  assert.ok(unlocked.ok);
+  assert.equal(unlocked.value.controls.removalAt, null);
+});
+
+await test('one change demotes and locks, or unlocks and promotes, in an order the database takes', async () => {
+  const store = createStore([admin(ada), admin(bea)]);
+  // A demotion writes the role first, so no write shows a locked
+  // administrator.
+  const demoted = await updateAccount(store, actorFor(ada), bea, {
+    role: 'member',
+    controls: { revision: 1, standing: 'locked' },
+  });
+  assert.ok(demoted.ok);
+  assert.equal(demoted.value.role, 'member');
+  assert.equal(demoted.value.controls.standing, 'locked');
+  // A promotion activates the account first.
+  const promoted = await updateAccount(store, actorFor(ada), bea, {
+    role: 'administrator',
+    controls: { revision: demoted.value.controls.revision, standing: 'active' },
+  });
+  assert.ok(promoted.ok);
+  assert.equal(promoted.value.role, 'administrator');
+  assert.equal(promoted.value.controls.standing, 'active');
+});
+
+await test('an administrator is never locked, and one change names the limit once', async () => {
+  const store = createStore([admin(ada), admin(bea)]);
+  assert.deepEqual(
+    await updateAccount(store, actorFor(ada), bea, {
+      controls: { revision: 1, standing: 'locked' },
+    }),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+  assert.deepEqual(
+    await updateAccount(store, actorFor(ada), bea, {
+      limitBytes: 10n,
+      controls: { revision: 1, limitBytes: 20n },
+    }),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+  assert.equal(store.accounts.get(bea)?.controls.revision, 1);
 });
 
 await test('a change of an account is refused whole when one part is not allowed', async () => {
@@ -422,7 +553,6 @@ await test('the open policy needs every part and a member changes nothing', asyn
   const store = createStore([admin(ada), member(bea)]);
   for (const readiness of [
     { ...ready, mail: false },
-    { ...ready, publishedOrigin: false },
     { ...ready, legalDocuments: false },
   ])
     assert.deepEqual(
@@ -454,10 +584,65 @@ await test('the open policy needs every part and a member changes nothing', asyn
 
 const none = {
   mail: false,
-  publishedOrigin: true,
   legalDocuments: false,
+  registrationPolicy: false,
   mailUsable: () => true,
 };
+await test('a policy that the environment names is locked', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const named = { ...ready, registrationPolicy: true };
+  const locked = { ok: false, error: { code: 'setting_locked', fileIds: [] } };
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(ada), 'open', named),
+    locked,
+  );
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(ada), 'invitation', named),
+    locked,
+  );
+  assert.equal(store.policy, 'invitation');
+  // A member is still forbidden first, so the lock tells a member nothing.
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(bea), 'open', named),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+});
+
+await test('the policy of the environment is stored, and open needs its parts', async () => {
+  const written: string[] = [];
+  const store = {
+    applyRegistrationPolicy: (policy: string) => {
+      written.push(policy);
+      return Promise.resolve();
+    },
+  };
+  for (const readiness of [
+    { mail: false, legalDocuments: true },
+    { mail: true, legalDocuments: false },
+  ])
+    assert.deepEqual(await applyEnvironmentPolicy(store, 'open', readiness), {
+      ok: false,
+      error: { code: 'open_registration_unavailable', fileIds: [] },
+    });
+  assert.deepEqual(written, []);
+  // Invitation needs no part.
+  assert.deepEqual(
+    await applyEnvironmentPolicy(store, 'invitation', {
+      mail: false,
+      legalDocuments: false,
+    }),
+    { ok: true, value: 'invitation' },
+  );
+  assert.deepEqual(
+    await applyEnvironmentPolicy(store, 'open', {
+      mail: true,
+      legalDocuments: true,
+    }),
+    { ok: true, value: 'open' },
+  );
+  assert.deepEqual(written, ['invitation', 'open']);
+});
+
 const sealed = { kind: 'set' as const, sealed: 'sealed' };
 const noPassword = { kind: 'set' as const, sealed: null };
 const keep = { kind: 'keep' as const };

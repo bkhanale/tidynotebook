@@ -75,7 +75,6 @@ import {
   PageBackProvider,
   pageColumnClassName,
   pageGutter,
-  pageRowClassName,
   pageSideClassName,
   PanelLeftIcon,
   rowClassName,
@@ -119,6 +118,10 @@ import {
   folderExpansionLabels,
 } from '../lib/folder-expansion.ts';
 import { noteOrderLabel, noteOrders } from '../lib/note-order.ts';
+import {
+  frameContentClassName,
+  frameNoticeRowClassName,
+} from '../lib/frame-content.ts';
 import {
   MoveItemsDialog,
   NewFolderDialog,
@@ -1646,14 +1649,14 @@ function ShellFrame({
 
           <div
             id="notes-content"
-            className={`min-h-0 flex-1 overflow-y-auto ${sidebarInsetClass(sidebar.size)}`}
+            className={`${frameContentClassName()} ${sidebarInsetClass(sidebar.size)}`}
           >
             {/*
               The frame notices stand in the column of the page under them
               and keep the side region beside them, so a notice lines up
               with the page and with the note (decision 0137).
             */}
-            <div className={`${pageRowClassName()} ${pageGutter}`}>
+            <div className={`${frameNoticeRowClassName()} ${pageGutter}`}>
               <div className={`${pageColumnClassName()} pt-4 empty:hidden`}>
                 <UpdateNotice
                   store={store.store}

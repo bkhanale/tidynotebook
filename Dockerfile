@@ -9,13 +9,16 @@ RUN npm install -g --allow-scripts=pnpm pnpm@12.3.4
 FROM base AS builder
 WORKDIR /app
 
-# Copy dependency manifests
+# Copy every workspace manifest that the context keeps, so the frozen install
+# compares each one with the lockfile. tools/check-versions.mjs holds the list.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .node-version .npmrc ./
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/core/package.json ./packages/core/
 COPY packages/editor/package.json ./packages/editor/
+COPY packages/logging/package.json ./packages/logging/
 COPY packages/markdown/package.json ./packages/markdown/
+COPY packages/note-document/package.json ./packages/note-document/
 COPY packages/storage-browser/package.json ./packages/storage-browser/
 COPY packages/storage-server/package.json ./packages/storage-server/
 COPY packages/sync/package.json ./packages/sync/
