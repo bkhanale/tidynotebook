@@ -59,7 +59,7 @@ you care about.
 
 ## Requirements
 
-- Node.js 26.8.1
+- Node.js 26.10.0
 - pnpm 12.3.4
 - Docker Engine and Docker Compose v2
 - PostgreSQL 18 for a self-hosted installation
