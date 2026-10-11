@@ -116,9 +116,14 @@ on each rule below.
 | `src/start-failure.ts`                        | The screen of a failed start        |
 | `src/published/page.ts`                       | The one script of a published page  |
 | `src/pwa/icons.ts`                            | The one list of the icons           |
-| `icons/`                                      | The icon files the build names      |
 | `src/logging.ts`                              | Browser sink for log events         |
 | `src/features/accounts/portal.tsx`            | The route of the portal (0190)      |
 | `src/features/accounts/api-keys.tsx`          | Personal key controls (0208)        |
 | `src/lib/api-keys.ts`                         | The key facts a person reads (0208) |
 | `src/lib/sign-in-return.ts`                   | Where sign-in goes back to          |
+
+## Key folders
+
+| Folder   | Purpose                        |
+| -------- | ------------------------------ |
+| `icons/` | The icon files the build names |

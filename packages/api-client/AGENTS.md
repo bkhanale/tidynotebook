@@ -66,4 +66,9 @@ build output, so the consumer tests hold those proofs.
 | `src/index.ts`             | The one public entry point              |
 | `src/configure.ts`         | Base URL, cookies, tokens, problem text |
 | `src/response-progress.ts` | Received data of an observed operation  |
-| `src/generated/`           | Generated operations, never edited      |
+
+## Key folders
+
+| Folder           | Purpose                            |
+| ---------------- | ---------------------------------- |
+| `src/generated/` | Generated operations, never edited |

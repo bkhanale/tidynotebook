@@ -80,11 +80,16 @@ and `src/messages.test.ts` does the same for each frame direction.
 
 ## Key files
 
-| File             | Purpose                                  |
-| ---------------- | ---------------------------------------- |
-| `openapi.yaml`   | The root OpenAPI 3.1.2 document          |
-| `asyncapi.yaml`  | The root AsyncAPI 3.0 message document   |
-| `paths/`         | One file for each path item              |
-| `components/`    | One file for each component, by section  |
-| `redocly.yaml`   | The strict rules of `pnpm contract:lint` |
-| `src/generated/` | Generated output, never edited by hand   |
+| File            | Purpose                                  |
+| --------------- | ---------------------------------------- |
+| `openapi.yaml`  | The root OpenAPI 3.1.2 document          |
+| `asyncapi.yaml` | The root AsyncAPI 3.0 message document   |
+| `redocly.yaml`  | The strict rules of `pnpm contract:lint` |
+
+## Key folders
+
+| Folder           | Purpose                                 |
+| ---------------- | --------------------------------------- |
+| `paths/`         | One file for each path item             |
+| `components/`    | One file for each component, by section |
+| `src/generated/` | Generated output, never edited by hand  |
