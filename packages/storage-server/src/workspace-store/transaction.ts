@@ -86,10 +86,12 @@ export async function runTransaction<Built, T>(
       // The feed trigger marks the hints of this transaction, and the commit
       // below sends them after it, so saves of different workspaces do not
       // wait for each other at commit (record 0144).
-      await client.query(
-        "select set_config('notesapp.account_id', $1, true), set_config($2, 'on', true)",
-        [actor.accountId, deferHintsSetting],
-      );
+      if (options.readOnly === true) {
+        await client.query(
+          "select set_config('notesapp.account_id', $1, true), set_config($2, 'on', true)",
+          [actor.accountId, deferHintsSetting],
+        );
+      }
       // The workspace lock orders every write of one workspace, so the
       // commit ordered cursor cannot skip a transaction that commits late.
       // It is an advisory lock, not `SELECT ... FOR UPDATE`, because a
@@ -97,8 +99,16 @@ export async function runTransaction<Built, T>(
       // collision between two workspaces costs extra serialization only.
       if (options.readOnly !== true) {
         await client.query(
-          'select pg_advisory_xact_lock(hashtext($1::text)::bigint)',
-          [workspaceId],
+          // The one-row materialized context runs before the lock reads its
+          // row. Both settings stay transaction local, in the same order as
+          // before. The visibility read below still starts after the lock.
+          `with transaction_context as materialized (
+             select set_config('notesapp.account_id', $1, true),
+                    set_config($2, 'on', true)
+           )
+           select pg_advisory_xact_lock(hashtext($3::text)::bigint)
+           from transaction_context`,
+          [actor.accountId, deferHintsSetting, workspaceId],
         );
       }
       const seen = await client.query<{ id: string }>(

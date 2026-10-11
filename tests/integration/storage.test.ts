@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
+import { setImmediate } from 'node:timers/promises';
 import { inspect } from 'node:util';
 import type { AcceptedChangeset, Result } from '@notesapp/core';
 import { acceptWithDocuments, isOperationalError } from '@notesapp/core';
@@ -700,6 +701,30 @@ await test('pooled identity: keeps no identity on a released connection', async 
 
     assert.equal(await single.readPooledIdentity(), null);
 
+    const abandoned = revision({
+      fileId: randomUUID(),
+      path: 'notes/abandoned.md',
+    });
+    const stopped = new Error('stop the callback after its write');
+    await assert.rejects(
+      () =>
+        single.transact(actor, workspaceId, async (tx) => {
+          accepted(
+            await acceptWithDocuments(
+              single.documents,
+              tx,
+              actor,
+              changeset(workspaceId, [abandoned]),
+              'digest-abandoned',
+            ),
+          );
+          throw stopped;
+        }),
+      (error: unknown) => error === stopped,
+    );
+    assert.equal(await single.readPooledIdentity(), null);
+    assert.equal(await countRows('revisions', workspaceId), 1);
+
     // The same connection now serves a stranger. A leaked identity would make
     // the workspace visible to it.
     const stranger = testActor(randomUUID(), [
@@ -712,6 +737,232 @@ await test('pooled identity: keeps no identity on a released connection', async 
     assert.equal(await single.readPooledIdentity(), null);
   } finally {
     await single.close();
+  }
+});
+
+await test('read-only and repeatable-read transactions keep their database modes', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const first = revision({ fileId: randomUUID(), path: 'notes/modes.md' });
+  accepted(
+    await store.transact(actor, workspaceId, (tx) =>
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [first]),
+        'modes-first',
+      ),
+    ),
+  );
+  const next = revision({
+    fileId: first.fileId,
+    path: first.path,
+    parents: [first.id],
+    text: 'Next text.\n',
+  });
+  await store.transact(
+    actor,
+    workspaceId,
+    async (tx) => {
+      assert.equal(
+        (await tx.headStates([first.fileId])).get(first.fileId)?.revisionId,
+        first.id,
+      );
+      accepted(
+        await store.transact(actor, workspaceId, (writer) =>
+          acceptWithDocuments(
+            store.documents,
+            writer,
+            actor,
+            changeset(workspaceId, [next]),
+            'modes-next',
+          ),
+        ),
+      );
+      assert.equal(
+        (await tx.headStates([first.fileId])).get(first.fileId)?.revisionId,
+        first.id,
+      );
+    },
+    { readOnly: true, isolation: 'repeatable-read' },
+  );
+  assert.equal(
+    (
+      await store.transact(
+        actor,
+        workspaceId,
+        (tx) => tx.headStates([first.fileId]),
+        { readOnly: true },
+      )
+    ).get(first.fileId)?.revisionId,
+    next.id,
+  );
+
+  const latest = revision({
+    fileId: first.fileId,
+    path: first.path,
+    parents: [next.id],
+    text: 'Latest text.\n',
+  });
+  await store.transact(
+    actor,
+    workspaceId,
+    async (tx) => {
+      assert.equal(
+        (await tx.headStates([first.fileId])).get(first.fileId)?.revisionId,
+        next.id,
+      );
+      accepted(
+        await store.transact(actor, workspaceId, (writer) =>
+          acceptWithDocuments(
+            store.documents,
+            writer,
+            actor,
+            changeset(workspaceId, [latest]),
+            'modes-latest',
+          ),
+        ),
+      );
+      assert.equal(
+        (await tx.headStates([first.fileId])).get(first.fileId)?.revisionId,
+        latest.id,
+      );
+    },
+    { readOnly: true },
+  );
+  const forbidden = revision({
+    fileId: randomUUID(),
+    path: 'notes/forbidden.md',
+  });
+  await assert.rejects(
+    () =>
+      store.transact(
+        actor,
+        workspaceId,
+        (tx) =>
+          acceptWithDocuments(
+            store.documents,
+            tx,
+            actor,
+            changeset(workspaceId, [forbidden]),
+            'read-only-write',
+          ),
+        { readOnly: true },
+      ),
+    isOperationalError,
+  );
+  assert.equal(await countRows('files', workspaceId), 1);
+  assert.equal(await countRows('revisions', workspaceId), 3);
+});
+
+await test('a Save waits for the workspace lock and reads the committed head after it', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const first = revision({ fileId: randomUUID(), path: 'notes/ordered.md' });
+  const second = revision({
+    fileId: first.fileId,
+    path: first.path,
+    parents: [first.id],
+    text: 'Second Save.\n',
+  });
+  const held = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const holderUrl = new URL(database.runtimeUrl);
+  const waiterUrl = new URL(database.runtimeUrl);
+  const holderName = `save-holder-${randomUUID()}`;
+  const waiterName = `save-waiter-${randomUUID()}`;
+  holderUrl.searchParams.set('application_name', holderName);
+  waiterUrl.searchParams.set('application_name', waiterName);
+  const holder = openWorkspaceStore(
+    holderUrl.toString(),
+    createDocumentService(),
+    { poolSize: 1 },
+  );
+  const waiter = openWorkspaceStore(
+    waiterUrl.toString(),
+    createDocumentService(),
+    { poolSize: 1 },
+  );
+  const observer = await openSession(database.migrationUrl);
+  let entered = false;
+  let waiting: Promise<AcceptedChangeset> | undefined;
+  const holding = holder.transact(actor, workspaceId, async (tx) => {
+    const value = accepted(
+      await acceptWithDocuments(
+        holder.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [first]),
+        'ordered-first',
+      ),
+    );
+    held.resolve();
+    await release.promise;
+    return value;
+  });
+  try {
+    await Promise.race([held.promise, holding]);
+    waiting = waiter.transact(actor, workspaceId, async (tx) => {
+      entered = true;
+      assert.equal(
+        (await tx.headStates([first.fileId])).get(first.fileId)?.revisionId,
+        first.id,
+      );
+      return accepted(
+        await acceptWithDocuments(
+          waiter.documents,
+          tx,
+          actor,
+          changeset(workspaceId, [second]),
+          'ordered-second',
+        ),
+      );
+    });
+    const deadline = Date.now() + 10000;
+    for (;;) {
+      const blocked = await observer.query<{ waiting: boolean }>(
+        `select exists (
+           select 1 from pg_stat_activity holder, pg_stat_activity waiter
+           where holder.application_name = $1 and waiter.application_name = $2
+             and holder.pid = any(pg_blocking_pids(waiter.pid))
+         ) as waiting`,
+        [holderName, waiterName],
+      );
+      if (blocked[0]?.waiting === true) break;
+      assert.equal(entered, false, 'a Save passed a held workspace lock');
+      assert.ok(
+        Date.now() < deadline,
+        'a Save did not wait on the workspace lock',
+      );
+      await setImmediate();
+    }
+    assert.equal(entered, false);
+    release.resolve();
+    assert.equal((await holding).cursor, '1');
+    assert.equal((await waiting).cursor, '2');
+    const feed = await waiter.transact(
+      actor,
+      workspaceId,
+      (tx) => tx.syncChanges('0', 10),
+      { readOnly: true },
+    );
+    assert.deepEqual(
+      feed.changes.map((change) => {
+        assert.ok(change.kind === 'update' || change.kind === 'document');
+        return change.revisionId;
+      }),
+      [first.id, second.id],
+    );
+  } finally {
+    release.resolve();
+    await Promise.allSettled([
+      holding,
+      ...(waiting === undefined ? [] : [waiting]),
+    ]);
+    await observer.close();
+    await holder.close();
+    await waiter.close();
   }
 });
 
