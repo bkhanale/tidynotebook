@@ -20,6 +20,7 @@ umask 077
 test ! -e .env
 quickstart_data="$PWD/.tooling/quickstart"
 mkdir -p "$quickstart_data/secrets" "$quickstart_data/postgres" "$quickstart_data/storage"
+chmod 711 "$quickstart_data/postgres"
 printf 'NOTESAPP_ORIGIN=http://127.0.0.1:3000\nNOTESAPP_DATABASE_DIR=%s/postgres\nNOTESAPP_STORAGE_DIR=%s/storage\nNOTESAPP_SECRETS_DIR=%s/secrets\n' \
   "$quickstart_data" "$quickstart_data" "$quickstart_data" > .env
 ```
@@ -27,6 +28,11 @@ printf 'NOTESAPP_ORIGIN=http://127.0.0.1:3000\nNOTESAPP_DATABASE_DIR=%s/postgres
 Compose requires the origin and all three directories. This test sets them
 in `.env`. It keeps the listener on the loopback address. The repository is
 private until launch. Before launch, a clone needs access from the owner.
+
+The database user must pass through the parent directory of its data. The
+command gives that user access to pass through the PostgreSQL bind root. The
+data directory that PostgreSQL creates inside it stays private. The other
+directories and the secret files stay private.
 
 ## 2. Create the secret files
 

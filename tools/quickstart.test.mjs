@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -153,6 +160,17 @@ await test('the quick start commands produce a valid isolated Compose configurat
       env: cleanEnvironment(),
       stdio: 'pipe',
     });
+    // The container changes the owner of PGDATA only. Its database user
+    // must pass through this bind root before it can reach that private leaf.
+    const data = join(directory, '.tooling/quickstart');
+    assert.equal(
+      (await stat(join(data, 'postgres'))).mode & 0o777,
+      0o711,
+      'the PostgreSQL user must be able to pass through the bind root',
+    );
+    for (const path of [data, join(data, 'secrets'), join(data, 'storage')])
+      assert.equal((await stat(path)).mode & 0o777, 0o700);
+    assert.equal((await stat(join(directory, '.env'))).mode & 0o777, 0o600);
     checkIsolation(
       composeConfig(directory),
       directory,
