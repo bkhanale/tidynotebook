@@ -9,8 +9,8 @@ import {
 
 await test('future image uses the repository owner and the core package', () => {
   assert.equal(
-    releaseImage('https://github.com/TidyNotebook/notebook.git'),
-    'ghcr.io/tidynotebook/core',
+    releaseImage('https://github.com/Example/notebook.git'),
+    'ghcr.io/example/core',
   );
   assert.equal(
     releaseImage('git@github.com:Example/notebook.git'),
