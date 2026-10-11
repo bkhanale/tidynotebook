@@ -20,7 +20,7 @@ links to it.
 
 | Tool           | Version                                 |
 | -------------- | --------------------------------------- |
-| Node.js        | 26.10.0                                  |
+| Node.js        | 26.10.0                                 |
 | pnpm           | 12.3.4                                  |
 | Docker Engine  | any version that runs Docker Compose v2 |
 | Docker Compose | v2                                      |
