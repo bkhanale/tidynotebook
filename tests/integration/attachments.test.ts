@@ -558,6 +558,72 @@ await test('reject malformed image bytes', async () => {
   });
   assert.equal(responseOf(uploadResult.response).status, 422);
   assert.equal(problemCode(uploadResult.error), 'invalid_content');
+  assert.equal(
+    readProperty(uploadResult.error, 'detail'),
+    'The image cannot be read. Export it as PNG, JPEG, GIF or WebP, then try again.',
+  );
+});
+
+await test('the upload refuses blocked loaders and unknown bytes without stored objects', async () => {
+  const heif = await sharp({
+    create: {
+      width: 2,
+      height: 2,
+      channels: 3,
+      background: { r: 40, g: 60, b: 80 },
+    },
+  })
+    .avif()
+    .toBuffer();
+  const files = async () =>
+    (await readdir(storageRoot, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name))
+      .sort();
+  const session = await openSession(database.migrationUrl);
+  try {
+    const count = async () =>
+      await session.query<{ count: string }>(
+        'select count(*)::text as count from attachment_objects where workspace_id = $1',
+        [workspaceId],
+      );
+    const beforeRows = await count();
+    const beforeFiles = await files();
+    for (const [name, bytes] of [
+      ['HEIF', heif],
+      ['truncated HEIF', heif.subarray(0, heif.readUInt32BE(0))],
+      ['unknown bytes', Buffer.from('This is not an image.')],
+    ] as const) {
+      const refused = await uploadAttachment({
+        headers: browser(cookie),
+        path: { workspaceId },
+        body: { file: new File([bytes], 'forged.png', { type: 'image/png' }) },
+      });
+      assert.equal(responseOf(refused.response).status, 415, name);
+      assert.equal(
+        responseOf(refused.response).headers.get('content-type'),
+        'application/problem+json; charset=utf-8',
+      );
+      assert.equal(problemCode(refused.error), 'unsupported_media_type');
+      assert.equal(
+        readProperty(refused.error, 'detail'),
+        'The image format is not supported. Use PNG, JPEG, GIF or WebP.',
+      );
+      assert.equal(refused.data, undefined);
+      assert.deepEqual(
+        await count(),
+        beforeRows,
+        'no attachment row is stored',
+      );
+      assert.deepEqual(
+        await files(),
+        beforeFiles,
+        'no scratch or object bytes remain',
+      );
+    }
+  } finally {
+    await session.close();
+  }
 });
 
 await test('reject SVG upload with unsupported media type', async () => {

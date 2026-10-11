@@ -11,6 +11,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isAllowedMediaType } from '@notesapp/core';
 import type { AttachmentMediaType } from '@notesapp/core';
+import {
+  inspectionErrors,
+  inspectionFailure,
+  type ImageInspectionFailure,
+} from './inspection-failure.ts';
 
 export type ImageInspectionResult =
   | {
@@ -19,23 +24,7 @@ export type ImageInspectionResult =
       readonly width: number;
       readonly height: number;
     }
-  | {
-      readonly ok: false;
-      readonly error:
-        | 'payload_too_large'
-        | 'unsupported_media_type'
-        | 'inconsistent_media_type'
-        | 'invalid_image';
-      readonly reason: string;
-    };
-
-/** The failures that the worker is allowed to report. */
-const inspectionErrors = [
-  'payload_too_large',
-  'unsupported_media_type',
-  'inconsistent_media_type',
-  'invalid_image',
-] as const;
+  | ImageInspectionFailure;
 
 /**
  * Reads one worker answer, or `null` when the text does not carry one.
@@ -67,15 +56,7 @@ export function parseInspection(value: unknown): ImageInspectionResult | null {
   }
   const reported: unknown = record['error'];
   const error = inspectionErrors.find((entry) => entry === reported);
-  const reason: unknown = record['reason'];
-  return {
-    ok: false,
-    error: error ?? 'invalid_image',
-    reason:
-      typeof reason === 'string' && reason !== ''
-        ? reason
-        : 'Image inspection failed.',
-  };
+  return inspectionFailure(error ?? 'invalid_image');
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -96,20 +77,12 @@ export async function inspectImage(
       (error, stdout) => {
         if (error) {
           if (error.killed || error.signal === 'SIGTERM') {
-            resolve({
-              ok: false,
-              error: 'payload_too_large',
-              reason: 'Image inspection timed out.',
-            });
+            resolve(inspectionFailure('timeout'));
             return;
           }
           const text = stdout.trim();
           if (!text) {
-            resolve({
-              ok: false,
-              error: 'invalid_image',
-              reason: error.message,
-            });
+            resolve(inspectionFailure('invalid_image'));
             return;
           }
         }
@@ -117,20 +90,10 @@ export async function inspectImage(
         try {
           parsed = JSON.parse(stdout.trim());
         } catch {
-          resolve({
-            ok: false,
-            error: 'invalid_image',
-            reason: 'Malformed worker output.',
-          });
+          resolve(inspectionFailure('invalid_image'));
           return;
         }
-        resolve(
-          parseInspection(parsed) ?? {
-            ok: false,
-            error: 'invalid_image',
-            reason: 'Malformed worker output.',
-          },
-        );
+        resolve(parseInspection(parsed) ?? inspectionFailure('invalid_image'));
       },
     );
   });

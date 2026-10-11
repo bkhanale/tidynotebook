@@ -85,6 +85,7 @@ import {
   createDisposableDatabase,
   limitAccountTo,
   memberActor,
+  openSession,
   seedWorkspace,
 } from './support/database.ts';
 import { importArchive } from './support/import.ts';
@@ -915,6 +916,89 @@ await test('an Obsidian vault imports with its links and its pictures', async ()
     ),
     0,
   );
+});
+
+await test('an import refuses blocked and corrupt images before any write', async () => {
+  const heif = await sharp({
+    create: {
+      width: 2,
+      height: 2,
+      channels: 3,
+      background: { r: 40, g: 60, b: 80 },
+    },
+  })
+    .avif()
+    .toBuffer();
+  const corrupt = Buffer.from('89504e470d0a1a0a0000000d494844', 'hex');
+  const files = async () =>
+    (await readdir(storageRoot, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name))
+      .sort();
+  for (const [name, bytes, detail] of [
+    [
+      'HEIF',
+      heif,
+      'The image format is not supported. Use PNG, JPEG, GIF or WebP.',
+    ],
+    [
+      'truncated HEIF',
+      heif.subarray(0, heif.readUInt32BE(0)),
+      'The image format is not supported. Use PNG, JPEG, GIF or WebP.',
+    ],
+    [
+      'corrupt PNG',
+      corrupt,
+      'The image cannot be read. Export it as PNG, JPEG, GIF or WebP, then try again.',
+    ],
+  ] as const) {
+    const target = await createWorkspace({
+      headers: browser(cookie),
+      body: { name: 'Refused image' },
+    });
+    const targetId = target.data?.workspaceId ?? '';
+    assert.match(targetId, /^[0-9a-f-]{36}$/);
+    const beforeFiles = await files();
+    const archive = vaultArchive([
+      ['note.md', '![image](attachments/forged.png)\n'],
+      ['attachments/forged.png', bytes],
+    ]);
+    const refused = await importArchive({
+      headers: browser(cookie),
+      path: { workspaceId: targetId },
+      body: {
+        file: new File([archive], 'images.zip', { type: 'application/zip' }),
+      },
+    });
+    assert.equal(responseOf(refused.response).status, 422, name);
+    assert.equal(
+      responseOf(refused.response).headers.get('content-type'),
+      'application/problem+json; charset=utf-8',
+    );
+    assert.equal(readProperty(refused.error, 'code'), 'invalid_content');
+    assert.equal(readProperty(refused.error, 'detail'), detail);
+    assert.equal(refused.data, undefined);
+    const session = await openSession(database.migrationUrl);
+    try {
+      const rows = await session.query<{ count: string }>(
+        'select count(*)::text as count from attachment_objects where workspace_id = $1',
+        [targetId],
+      );
+      assert.equal(rows[0]?.count, '0', 'no attachment row is stored');
+    } finally {
+      await session.close();
+    }
+    assert.deepEqual(
+      await files(),
+      beforeFiles,
+      'no import or attachment bytes remain',
+    );
+    const exported = await exportWorkspace({
+      headers: browser(cookie),
+      path: { workspaceId: targetId },
+    });
+    assert.equal(readArchive(await archiveBytes(exported.data)).size, 0);
+  }
 });
 
 await test('a backup with hidden notes comes back whole', async () => {

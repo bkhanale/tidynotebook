@@ -1,11 +1,25 @@
 /**
  * Image inspection worker process.
  *
- * Runs sharp in a bounded child process with memory and pixel caps.
+ * Limits image pixels. The parent limits process time and output size.
+ * Permits only the filesystem loaders of the supported image formats.
  * Prints JSON result to stdout.
  */
 import { stat } from 'node:fs/promises';
 import sharp from 'sharp';
+import { inspectionFailure } from './inspection-failure.ts';
+
+// Block before format selection. libvips excludes blocked loaders from its
+// search before their sniff callbacks, header readers or decoders can run.
+sharp.block({ operation: ['VipsForeignLoad'] });
+sharp.unblock({
+  operation: [
+    'VipsForeignLoadPngFile',
+    'VipsForeignLoadJpegFile',
+    'VipsForeignLoadNsgifFile',
+    'VipsForeignLoadWebpFile',
+  ],
+});
 
 const maxPixels = 40_000_000;
 const allowedFormats = new Set(['png', 'jpeg', 'gif', 'webp']);
@@ -20,36 +34,18 @@ async function main(): Promise<void> {
   const filePath = process.argv[2];
   const declaredMediaType = process.argv[3];
   if (!filePath || !declaredMediaType) {
-    console.log(
-      JSON.stringify({
-        ok: false,
-        error: 'invalid_args',
-        reason: 'missing filePath or declaredMediaType',
-      }),
-    );
+    console.log(JSON.stringify(inspectionFailure('invalid_image')));
     process.exit(0);
   }
 
   try {
     const fileStats = await stat(filePath);
     if (fileStats.size === 0) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: 'invalid_image',
-          reason: 'empty file',
-        }),
-      );
+      console.log(JSON.stringify(inspectionFailure('invalid_image')));
       process.exit(0);
     }
   } catch {
-    console.log(
-      JSON.stringify({
-        ok: false,
-        error: 'invalid_image',
-        reason: 'cannot access file',
-      }),
-    );
+    console.log(JSON.stringify(inspectionFailure('invalid_image')));
     process.exit(0);
   }
 
@@ -62,38 +58,20 @@ async function main(): Promise<void> {
     const metadata = await image.metadata();
     const format = metadata.format;
     if (!format || !allowedFormats.has(format)) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: 'unsupported_media_type',
-          reason: `unsupported image format: ${format ?? 'unknown'}`,
-        }),
-      );
+      console.log(JSON.stringify(inspectionFailure('unsupported_media_type')));
       process.exit(0);
     }
 
     const detectedMediaType = formatToMediaType[format];
     if (detectedMediaType !== declaredMediaType) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: 'inconsistent_media_type',
-          reason: `declared media type ${declaredMediaType} does not match detected format ${format}`,
-        }),
-      );
+      console.log(JSON.stringify(inspectionFailure('inconsistent_media_type')));
       process.exit(0);
     }
 
     const width = metadata.width;
     const height = metadata.height;
     if (!width || !height || width <= 0 || height <= 0) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: 'invalid_image',
-          reason: 'invalid image dimensions',
-        }),
-      );
+      console.log(JSON.stringify(inspectionFailure('invalid_image')));
       process.exit(0);
     }
 
@@ -101,13 +79,7 @@ async function main(): Promise<void> {
     const pageHeight = metadata.pageHeight ?? height;
     const totalPixels = width * pageHeight * pages;
     if (totalPixels > maxPixels || width * height > maxPixels) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: 'payload_too_large',
-          reason: `image dimensions (${String(width)}x${String(height)}, ${String(pages)} frames, ${String(totalPixels)} pixels) exceed 40 megapixel limit`,
-        }),
-      );
+      console.log(JSON.stringify(inspectionFailure('payload_too_large')));
       process.exit(0);
     }
 
@@ -126,22 +98,14 @@ async function main(): Promise<void> {
       message.includes('Input image exceeds pixel limit') ||
       message.includes('pixel limit')
     ) {
-      console.log(
-        JSON.stringify({
-          ok: false,
-          error: 'payload_too_large',
-          reason: message,
-        }),
-      );
+      console.log(JSON.stringify(inspectionFailure('payload_too_large')));
       process.exit(0);
     }
-    console.log(
-      JSON.stringify({
-        ok: false,
-        error: 'invalid_image',
-        reason: message,
-      }),
-    );
+    const error =
+      message === 'Input file contains unsupported image format'
+        ? 'unsupported_media_type'
+        : 'invalid_image';
+    console.log(JSON.stringify(inspectionFailure(error)));
     process.exit(0);
   }
 }
