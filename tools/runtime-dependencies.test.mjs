@@ -8,10 +8,47 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { createRequire } from 'node:module';
 import test from 'node:test';
+import pnpmfile from '../.pnpmfile.cjs';
 import { checkRuntimeDependencies } from './runtime-dependencies.mjs';
 import { root } from './workspace.mjs';
+
+/** @typedef {{name: string, version: string, peerDependencies?: Record<string, string>, peerDependenciesMeta?: Record<string, {optional?: boolean}>}} PackageManifest */
+
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function object(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** @param {unknown} value @returns {value is PackageManifest} */
+function packageManifest(value) {
+  return (
+    object(value) &&
+    typeof value.name === 'string' &&
+    typeof value.version === 'string' &&
+    (value.peerDependencies === undefined ||
+      (object(value.peerDependencies) &&
+        Object.values(value.peerDependencies).every(
+          (item) => typeof item === 'string',
+        ))) &&
+    (value.peerDependenciesMeta === undefined ||
+      (object(value.peerDependenciesMeta) &&
+        Object.values(value.peerDependenciesMeta).every(
+          (item) =>
+            object(item) &&
+            (item.optional === undefined || typeof item.optional === 'boolean'),
+        )))
+  );
+}
+
+/** @param {string} file @returns {Promise<PackageManifest>} */
+async function readManifest(file) {
+  /** @type {unknown} */
+  const value = JSON.parse(await readFile(file, 'utf8'));
+  if (!packageManifest(value))
+    throw new Error('The test package manifest is invalid.');
+  return value;
+}
 
 /** @param {(directory: string) => Promise<void>} action */
 async function fixture(action) {
@@ -221,31 +258,26 @@ await test('a scope or virtual-store link cannot leave the deployed server', asy
   }
 });
 
-const require = createRequire(import.meta.url);
-const { hooks } = require('../.pnpmfile.cjs');
+const { hooks } = pnpmfile;
 
 await test('the hook removes both exact optional schema-peer fields and leaves the other fields', async () => {
-  const installed = JSON.parse(
-    await readFile(
-      join(root, 'apps/server/node_modules/better-auth/package.json'),
-      'utf8',
-    ),
+  const installed = await readManifest(
+    join(root, 'apps/server/node_modules/better-auth/package.json'),
   );
   const original = structuredClone(installed);
   const changed = hooks.readPackage(installed);
   const expected = structuredClone(original);
+  assert.ok(expected.peerDependencies);
+  assert.ok(expected.peerDependenciesMeta);
   delete expected.peerDependencies['drizzle-kit'];
   delete expected.peerDependenciesMeta['drizzle-kit'];
   assert.deepEqual(changed, expected);
-  const storage = JSON.parse(
-    await readFile(join(root, 'packages/storage-server/package.json'), 'utf8'),
+  const storage = await readManifest(
+    join(root, 'packages/storage-server/package.json'),
   );
   assert.deepEqual(hooks.readPackage(structuredClone(storage)), storage);
-  const sharp = JSON.parse(
-    await readFile(
-      join(root, 'apps/server/node_modules/sharp/package.json'),
-      'utf8',
-    ),
+  const sharp = await readManifest(
+    join(root, 'apps/server/node_modules/sharp/package.json'),
   );
   assert.deepEqual(hooks.readPackage(structuredClone(sharp)), sharp);
 });

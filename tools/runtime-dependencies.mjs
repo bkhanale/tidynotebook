@@ -145,10 +145,12 @@ export async function checkRuntimeDependencies(entry) {
   for (const [path, { name, manifest }] of packages) {
     const optional = group(manifest.optionalDependencies);
     const peers = group(manifest.peerDependenciesMeta);
-    for (const [type, entries] of [
+    /** @type {Array<['dependency' | 'peer', Record<string, unknown>]>} */
+    const groups = [
       ['dependency', { ...group(manifest.dependencies), ...optional }],
       ['peer', group(manifest.peerDependencies)],
-    ]) {
+    ];
+    for (const [type, entries] of groups) {
       for (const alias of Object.keys(object(entries))) {
         const isOptional =
           type === 'peer'
@@ -156,7 +158,7 @@ export async function checkRuntimeDependencies(entry) {
             : Object.hasOwn(optional, alias);
         if ((await dependency(alias, path)) === null && !isOptional)
           throw new Error(
-            `The runtime package ${name} has an unresolved required ${String(type)}: ${alias}.`,
+            `The runtime package ${name} has an unresolved required ${type}: ${alias}.`,
           );
       }
     }
