@@ -18,21 +18,27 @@ checks and readback commands. The design is
 - [0027. Track work on the GitHub board](../decisions/0027-track-work-on-the-github-board.md)
 - [0212. Agent lifecycle uses exact input proof](../decisions/0212-agent-lifecycle-proof.md)
 
+- [0223. Core source opens before distribution](../decisions/0223-core-source-opens-before-distribution.md)
+
+Source opening follows this plan. Image publication and cloud launch remain
+separate work. Their rights and risk checks do not become accepted through
+source opening.
+
 ## Ordered work
 
 Each issue has the launch milestone, a priority label and an area label. A
 completed local change still needs proof and landing. A new boundary or gate
 policy needs a decision record before its implementation.
 
-| Item | Issue                                                          | Result                                                                                                            | State                                                                             |
-| ---- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| 1    | [315](https://github.com/tidynotebook/tidynotebook/issues/315) | Correct the public setup and current documents. Add community files and configuration tests.                      | Complete. PR 322 lands the proved source and image.                               |
-| 2    | [316](https://github.com/tidynotebook/tidynotebook/issues/316) | Close or resolve each dependency finding under the version policy.                                                | Complete. PR 323 lands the fixes and refusal tests with no dependency advisories. |
-| 3    | [317](https://github.com/tidynotebook/tidynotebook/issues/317) | Retain the required notices in source and shipped output. Prove the actual shipped license graph and source path. | Open.                                                                             |
-| 4    | [318](https://github.com/tidynotebook/tidynotebook/issues/318) | Review history, images, comments, logs, archives and release material for public use.                             | Retained-material review is complete. Its audit and proof still need landing.     |
-| 5    | [319](https://github.com/tidynotebook/tidynotebook/issues/319) | Set and read back the public GitHub controls and contributor access path.                                         | CI, alerts and security fixes are enabled and read back. Public controls remain.  |
-| 6    | [320](https://github.com/tidynotebook/tidynotebook/issues/320) | Prove a fresh standalone checkout, final source, image and self-hosted setup.                                     | Open for the final candidate.                                                     |
-| 7    | [284](https://github.com/tidynotebook/tidynotebook/issues/284) | Perform the accepted public launch after all dependencies pass.                                                   | Existing launch issue. Requires its release, deployment and visibility scope.     |
+| Item | Issue                                                          | Result                                                                                                            | State                                                                                                 |
+| ---- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1    | [315](https://github.com/tidynotebook/tidynotebook/issues/315) | Correct the public setup and current documents. Add community files and configuration tests.                      | Complete. PR 322 lands the proved source and image.                                                   |
+| 2    | [316](https://github.com/tidynotebook/tidynotebook/issues/316) | Close or resolve each dependency finding under the version policy.                                                | Complete. PR 323 lands the fixes and refusal tests with no dependency advisories.                     |
+| 3    | [317](https://github.com/tidynotebook/tidynotebook/issues/317) | Retain the required notices in source and shipped output. Prove the actual shipped license graph and source path. | Open.                                                                                                 |
+| 4    | [318](https://github.com/tidynotebook/tidynotebook/issues/318) | Review history, images, comments, logs, archives and release material for public use.                             | Retained-material review is complete. Its audit and proof still need landing.                         |
+| 5    | [319](https://github.com/tidynotebook/tidynotebook/issues/319) | Set and read back the public GitHub controls and contributor access path.                                         | CI, alerts and security fixes are enabled and read back. Public controls remain.                      |
+| 6    | [320](https://github.com/tidynotebook/tidynotebook/issues/320) | Prove a fresh standalone checkout, final source, image and self-hosted setup.                                     | Open for the final candidate.                                                                         |
+| 7    | [284](https://github.com/tidynotebook/tidynotebook/issues/284) | Perform the accepted public launch after all dependencies pass.                                                   | Existing launch issue. Source visibility follows record 0223. Release and deployment remain separate. |
 
 ## Checklist
 
@@ -43,10 +49,9 @@ policy needs a decision record before its implementation.
 - [x] The DCO check proves the outside contribution rule.
 - [ ] Required copied and bundled notices reach each distributed artifact.
 - [ ] The shipped license graph has a recorded compatibility and source review.
-- [ ] Each public image maps to accessible corresponding source and build inputs.
 - [x] The owner accepts a separate core package for future compliant images.
 - [ ] The image policy uses that package and keeps the old package private and intact.
-- [ ] Old package access is separate from the public core, with required private grants and every fixed version retained.
+- [x] Old package access is separate from the public core, with required private grants and every fixed version retained.
 
 ### Community and setup
 
@@ -68,7 +73,7 @@ policy needs a decision record before its implementation.
 - [x] PR review comments, available attachments, screenshots and old logs are reviewed.
 - [x] The retained material follows the accepted ownership and intact-history decisions.
 - [ ] The final source, image and release assets pass a fresh secret review.
-- [ ] The final runner and native library inventory has a primary advisory review, with fix and coverage limits stated.
+- [ ] The final runner and native library inventory has a primary advisory review, with fix and coverage limits stated. Future image publication needs its own retained-risk disposition.
 
 ### GitHub and launch
 
@@ -80,9 +85,18 @@ policy needs a decision record before its implementation.
 - [ ] The source and image gates pass for the exact final candidate.
 - [ ] GitHub checks pass for that head, including the image and performance jobs.
 - [ ] [Issue 326](https://github.com/tidynotebook/tidynotebook/issues/326) calibrates Save latency on supported hardware and in the browser. Save target misses remain visible and advisory under [record 0221](../decisions/0221-save-latency-is-an-advisory-target.md). Search stays blocking.
-- [ ] The owner starts the launch under record 0188 and issue 284.
-- [ ] An unauthenticated reader can get the public source, guide and image.
+- [ ] The owner opens the core source under record 0223 and issue 284.
+- [ ] An unauthenticated reader can get the public source and source guide after the visibility switch.
 - [ ] An anonymous old-image pull fails, and every retained version identity matches the saved private readback.
+
+### Future image publication
+
+These checks belong to a separate authorized publication. They do not block
+source opening and do not claim that the new core package exists.
+
+- [ ] Each published image maps to accessible corresponding source and build inputs.
+- [ ] Current image security review and retained-risk disposition are accepted.
+- [ ] An unauthenticated reader can pull the new core package at its fixed digest.
 
 ## Close an item
 

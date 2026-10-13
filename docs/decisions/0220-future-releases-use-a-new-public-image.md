@@ -1,6 +1,6 @@
 # 0220. Future releases use a new public image
 
-- Status: Accepted
+- Status: Accepted. Opening time superseded by [0223](0223-core-source-opens-before-distribution.md)
 - Date: 2026-10-11
 
 ## Context

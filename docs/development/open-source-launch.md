@@ -3,8 +3,8 @@
 This page owns the checks and control readback for the public core repository.
 
 The [readiness plan](../plans/021-open-source-readiness.md) tracks the work.
-[Record 0188](../decisions/0188-the-repository-opens-under-agpl-3-0-only.md)
-owns the launch timing. [Record 0220](../decisions/0220-future-releases-use-a-new-public-image.md)
+[Record 0223](../decisions/0223-core-source-opens-before-distribution.md)
+owns source opening. Image publication and cloud launch are separate work. [Record 0220](../decisions/0220-future-releases-use-a-new-public-image.md)
 selects the new core package for future images. Keep the old package and all
 its versions private and intact.
 Complete the image rights proof in
@@ -112,13 +112,13 @@ the plan or token refuses as enabled.
 ## Anonymous access
 
 Use a process with no GitHub or registry credential. Fetch the public source
-at the final commit, the guide and the accepted public image at its fixed
-digest. Check that the image revision names the same source and that its
-notices and source path are present. A signed-in read is not this proof.
+at the final commit and its source guide. A signed-in read is not this proof.
+For a separately authorized image publication, pull its fixed digest and check
+its source revision, notices and source path.
 
-GitHub package visibility is separate from repository visibility. Use the
-package settings only for the accepted compliant package. Read its visibility
-and test an anonymous pull. Read the accepted core package with this command:
+For future image publication, package visibility is separate from repository
+visibility. Read the new core package only after it exists and publication is
+authorized. Read its visibility and test an anonymous pull:
 
 ```sh
 gh api orgs/tidynotebook/packages/container/core
@@ -136,8 +136,9 @@ Use the credential-free process for an old fixed image pull. Access must be
 refused. A DNS, network or registry failure does not prove private access.
 Read back the separate grants as well as private visibility.
 
-Never make the old package public as a shortcut. If the new package does not
-exist, complete the authorized release before its visibility step.
+Never make the old package public as a shortcut. A new public image is not
+required for source opening. Its future publication needs separate scope,
+rights proof, current security review and retained-risk disposition.
 
 After all readbacks pass, update the plan and the matching board issues.
 Save the exact source, image and remote check references in the task context.

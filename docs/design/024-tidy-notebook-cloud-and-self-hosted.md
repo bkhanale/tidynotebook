@@ -169,7 +169,8 @@ edition.
 Option B is the choice, as AGPL-3.0-only. The owner holds every copyright
 today, so the change needs no consent from anybody. Contributions come in under
 the same license with a Developer Certificate of Origin sign-off. The repository
-opens when the cloud launches.
+can open before image publication and cloud launch under
+[record 0223](../decisions/0223-core-source-opens-before-distribution.md).
 
 ## The fourth question: what the core offers to a plan
 
@@ -565,4 +566,6 @@ In the private repository:
 - [0202. The image takes a migrate and a serve command](../decisions/0202-the-image-takes-a-migrate-and-a-serve-command.md)
 - [0210. Railway Pro keeps private images within the compute budget](../decisions/0210-railway-pro-keeps-private-images-within-the-compute-budget.md)
 
-[Plan 019](../plans/019-tidy-notebook-cloud.md) orders the work.
+- [0223. Core source opens before distribution](../decisions/0223-core-source-opens-before-distribution.md)
+
+[Plan 019](../plans/019-tidy-notebook-cloud.md) orders the cloud work.

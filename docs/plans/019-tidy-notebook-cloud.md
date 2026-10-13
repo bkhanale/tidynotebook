@@ -32,6 +32,8 @@ a fact in the code that a record did not foresee stops and reports it, as
 - [0205. The cloud infrastructure is code](../decisions/0205-the-cloud-infrastructure-is-code.md)
 - [0210. Railway Pro keeps private images within the compute budget](../decisions/0210-railway-pro-keeps-private-images-within-the-compute-budget.md)
 
+- [0223. Core source opens before distribution](../decisions/0223-core-source-opens-before-distribution.md)
+
 ## Landing boundaries
 
 1. Phase 1 is items 1 to 11, in this repository, milestone `0.15.0`. It holds
@@ -42,7 +44,7 @@ a fact in the code that a record did not foresee stops and reports it, as
 2. Phase 2 is items 12 to 15, in the private repository `tidynotebook/cloud`.
    Its issues sit on the same board.
 3. Phase 3 is items 16 to 18, milestone `1.0.0`. Item 18 is the launch, and
-   it lands last.
+   it lands last. Source opening follows [record 0223](../decisions/0223-core-source-opens-before-distribution.md) and does not wait for this phase.
 4. Each item of this repository follows
    `docs/development/feature-workflow.md`, updates the `AGENTS.md` of each
    directory it changes, and updates `docs/guide/configuration.md` in the same
@@ -88,7 +90,7 @@ it.
 | 15   | 12, O4       | The landing site with the pages of record 0198 and its test against the catalog. The page about plans and billing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 0198                   |
 | 16   | 1 to 15, O2  | Railway and Cloudflare as records 0199 and 0210 state, with the SSL mode `Full` and the one rate rule of record 0200, the limits and alarms of record 0200, the backup bucket with its lifecycle rule and the weekly dump, the deploy workflow, the OpenTofu code of record 0205 under `infra/` of the private repository with its state in a private R2 bucket, and the runbook with the deploy, the restore and each step that no provider API offers, with its reason.                                                                                                                | 0199, 0200, 0205, 0210 |
 | 17   | 16           | Staging from end to end with the Paddle sandbox: a purchase, a second seat, a change of plan, a refund, a failed payment, a lapse, a webhook replay, a removal, and a restore of the database. A report of the run in the private repository.                                                                                                                                                                                                                                                                                                                                            | All                    |
-| 18   | 17, O5 to O7 | The launch: release `1.0.0` deployed to production, the guide moved to `docs.tidynotebook.com` with a redirect from the old address, and the repository `tidynotebook/tidynotebook` made public. The move to the organization is already done.                                                                                                                                                                                                                                                                                                                                           | 0187, 0188             |
+| 18   | 17, O5 to O7 | The launch: release `1.0.0` deployed to production, the guide moved to `docs.tidynotebook.com` with a redirect from the old address, and the cloud launch checks complete. Core source opening follows plan 021 and record 0223 as separate work. The move to the organization is already done.                                                                                                                                                                                                                                                                                          | 0187, 0188             |
 
 Items 1, 2, 7, 8, 10 and 11 have no dependency and can land at any time.
 
