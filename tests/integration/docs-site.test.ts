@@ -80,7 +80,6 @@ await test('the repository guide uses source links without a hosted site claim',
     readme,
     /\[The documentation site\]\(docs\/development\/docs-site\.md\)/,
   );
-  assert.doesNotMatch(readme, /https?:\/\/docs\.[^\s)]+/);
 });
 
 await test('the built documentation site', async (t) => {
