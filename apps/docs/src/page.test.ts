@@ -40,7 +40,7 @@ const assets = {
   icon: '/notesapp/assets/icon.svg',
 };
 const view: PageView = {
-  settings: { base: '/notesapp/', origin: 'https://docs.bhu.sh' },
+  settings: { base: '/notesapp/', origin: 'https://docs.example.test' },
   assets,
   groups,
   page,
@@ -92,13 +92,16 @@ await test('a page states its title, its reader and its alternates', () => {
   );
   assert.match(
     html,
-    /<link rel="canonical" href="https:\/\/docs\.bhu\.sh\/notesapp\/self-hosting\/">/,
+    /<link rel="canonical" href="https:\/\/docs\.example\.test\/notesapp\/self-hosting\/">/,
   );
   assert.match(
     html,
     /<link rel="alternate" type="text\/markdown" title="View as Markdown" href="\/notesapp\/self-hosting\.md">/,
   );
-  assert.match(html, /href="https:\/\/docs\.bhu\.sh\/notesapp\/llms\.txt"/);
+  assert.match(
+    html,
+    /href="https:\/\/docs\.example\.test\/notesapp\/llms\.txt"/,
+  );
   assert.match(
     html,
     /<link rel="stylesheet" href="\/notesapp\/assets\/main\.css">/,

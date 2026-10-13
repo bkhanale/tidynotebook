@@ -13,7 +13,7 @@ import {
 } from './links.ts';
 
 const root = { base: '/', origin: null };
-const hosted = { base: '/notesapp/', origin: 'https://docs.bhu.sh' };
+const hosted = { base: '/notesapp/', origin: 'https://docs.example.test' };
 const files = new Set(['README.md', 'quickstart.md', 'self-hosting.md']);
 
 await test('a page has an address under the base and a Markdown copy', () => {
@@ -83,7 +83,7 @@ await test('a Markdown copy links the other copies in full', () => {
   );
   assert.equal(
     mapped.text,
-    '[Quick start](https://docs.bhu.sh/notesapp/quickstart.md#open) and [Rules](https://github.com/tidynotebook/tidynotebook/blob/main/SECURITY.md).',
+    '[Quick start](https://docs.example.test/notesapp/quickstart.md#open) and [Rules](https://github.com/tidynotebook/tidynotebook/blob/main/SECURITY.md).',
   );
   assert.equal(
     markdownDestination(root, files, 'docs/guide/README.md', ''),
@@ -135,7 +135,7 @@ await test('contract source links open the generated reference and bundle downlo
   );
   assert.equal(
     markdownDestination(hosted, files, apiContractSource, ''),
-    'https://docs.bhu.sh/notesapp/api-reference.md',
+    'https://docs.example.test/notesapp/api-reference.md',
   );
   assert.equal(
     markdownDestination(root, files, apiDocumentFile, ''),

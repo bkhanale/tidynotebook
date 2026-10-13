@@ -10,7 +10,7 @@ merged client contract (record 0209).
 The site has no server and no account. Search runs in the browser of the
 reader against an index that the build writes, and the build writes the files
 for agents next to the pages (record 0153). The site is hosted apart from the
-application, at `https://docs.bhu.sh/notesapp/` for this project.
+application. The build settings select its address.
 
 ## Invariants
 
@@ -53,10 +53,10 @@ pnpm docs:serve
 `pnpm docs:build` runs `pnpm build`, which builds the web application first
 and then the site into the `dist/site` folder of `apps/docs`.
 `NOTESAPP_DOCS_BASE` names the base path and `NOTESAPP_DOCS_ORIGIN` the
-origin, so the build for this project is:
+origin. For example:
 
 ```sh
-NOTESAPP_DOCS_BASE=/notesapp/ NOTESAPP_DOCS_ORIGIN=https://docs.bhu.sh pnpm docs:build
+NOTESAPP_DOCS_BASE=/notesapp/ NOTESAPP_DOCS_ORIGIN=https://docs.example.test pnpm docs:build
 ```
 
 `pnpm docs:serve` serves the folder under the same base path. Take the

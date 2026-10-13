@@ -5,7 +5,7 @@
  * served from is a fact of the build and not of a server. Two settings carry
  * it: the base path that every address of the site starts with, and the
  * origin that a sitemap, a canonical link and the files for agents name in
- * full. The same build serves `https://docs.bhu.sh/notesapp/` and a folder on
+ * full. The same build serves `https://docs.example.test/notesapp/` and a folder on
  * a laptop.
  */
 

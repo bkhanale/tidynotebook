@@ -135,7 +135,7 @@ act at once. The two read one module, so they cannot disagree.
 
 The site is a folder of static files, so the host is any web server. The build
 takes the base path and the origin as two settings, so the same build serves
-`https://docs.bhu.sh/notesapp/` and a folder on a laptop. The deployment of the
+`https://docs.example.test/notesapp/` and a folder on a laptop. The deployment of the
 owner lives in the infrastructure repository of the owner, outside this one.
 
 ## Decisions

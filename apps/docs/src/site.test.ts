@@ -28,8 +28,9 @@ await test('a base that leaves its folder or holds a query is refused', () => {
 
 await test('an origin is https, or http on the loopback host', () => {
   assert.equal(
-    readSiteSettings({ NOTESAPP_DOCS_ORIGIN: 'https://docs.bhu.sh' }).origin,
-    'https://docs.bhu.sh',
+    readSiteSettings({ NOTESAPP_DOCS_ORIGIN: 'https://docs.example.test' })
+      .origin,
+    'https://docs.example.test',
   );
   assert.equal(
     readSiteSettings({ NOTESAPP_DOCS_ORIGIN: 'http://localhost:4321/' }).origin,
@@ -55,9 +56,9 @@ await test('an address is in full only when the origin is known', () => {
   );
   assert.equal(
     absoluteAddress(
-      { base: '/notesapp/', origin: 'https://docs.bhu.sh' },
+      { base: '/notesapp/', origin: 'https://docs.example.test' },
       '/notesapp/llms.txt',
     ),
-    'https://docs.bhu.sh/notesapp/llms.txt',
+    'https://docs.example.test/notesapp/llms.txt',
   );
 });

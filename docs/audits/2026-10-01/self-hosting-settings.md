@@ -5,24 +5,27 @@
 
 This audit reads every value that one installation can need to change, and
 states where each value comes from. It follows the owner report of
-2026-10-01: the mail server and the legal documents of the installation at
-notes.bhu.sh are set in the files of that one deployment, and an operator
-cannot set either one in the application. A finding names the code by path.
+2026-10-01: the mail server and the legal documents of
+the reviewed self-hosted installation are set in the files of that one
+deployment, and an operator cannot set either one in the application. A
+finding names the code by path.
 
 ## How the audit ran
 
 The audit read every variable of `apps/server/src/config.ts`, the files under
 `docker/`, `docker-compose.yml`, `.env.example` and the release workflow. It
 searched the whole repository for a host name, an address, a person and a
-company. It also read the deployment repository of notes.bhu.sh, so that it
-could tell a value of the product from a value of that deployment.
+company. It also read the deployment repository of the reviewed self-hosted
+installation, so that it could tell a value of the product from a value of
+that deployment.
 
 ## Finding 1: no value of one deployment is in the product
 
 The product names no host, no mail server, no address and no person of
-notes.bhu.sh. Each one is in the deployment repository: its Compose file sets
-the SMTP secret and the sender, and its legal files hold the name of the
-operator, the contact address and the law of one country.
+the reviewed self-hosted installation. Each one is in the deployment
+repository: its Compose file sets the SMTP secret and the sender, and its
+legal files hold the name of the operator, the contact address and the law
+of one country.
 
 The product still caused the report. An operator can set the mail transport
 only by `NOTESAPP_SMTP_URL` and `NOTESAPP_MAIL_FROM`, and the legal documents

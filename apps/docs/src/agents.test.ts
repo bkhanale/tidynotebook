@@ -9,7 +9,7 @@ import {
 } from './agents.ts';
 import { readGuideIndex, readGuidePage } from './guide.ts';
 
-const hosted = { base: '/notesapp/', origin: 'https://docs.bhu.sh' };
+const hosted = { base: '/notesapp/', origin: 'https://docs.example.test' };
 const local = { base: '/', origin: null };
 
 const readme = [
@@ -54,15 +54,15 @@ await test('llms.txt names every page with its summary', () => {
       '',
       '> tidy notebook is a self-hosted Markdown notes application.',
       '',
-      'Each link opens the Markdown copy of one page. Every page in one file: https://docs.bhu.sh/notesapp/llms-full.txt. The pages for people start at https://docs.bhu.sh/notesapp/.',
+      'Each link opens the Markdown copy of one page. Every page in one file: https://docs.example.test/notesapp/llms-full.txt. The pages for people start at https://docs.example.test/notesapp/.',
       '',
       '## Writing notes',
       '',
-      '- [Getting started](https://docs.bhu.sh/notesapp/getting-started.md): Your first sign-in.',
+      '- [Getting started](https://docs.example.test/notesapp/getting-started.md): Your first sign-in.',
       '',
       '## Hosting a server',
       '',
-      '- [Quick start](https://docs.bhu.sh/notesapp/quickstart.md): The shortest path to a server.',
+      '- [Quick start](https://docs.example.test/notesapp/quickstart.md): The shortest path to a server.',
       '',
     ].join('\n'),
   );
@@ -76,7 +76,7 @@ await test('a Markdown copy links the other copies', () => {
       '',
       'This page is for the person who writes notes.',
       '',
-      'Read [Quick start](https://docs.bhu.sh/notesapp/quickstart.md#open) first.',
+      'Read [Quick start](https://docs.example.test/notesapp/quickstart.md#open) first.',
       '',
     ].join('\n'),
   );
@@ -100,7 +100,7 @@ await test('llms-full.txt holds every page in reading order', () => {
   );
   assert.match(
     full,
-    /<!-- https:\/\/docs\.bhu\.sh\/notesapp\/quickstart\/ -->/,
+    /<!-- https:\/\/docs\.example\.test\/notesapp\/quickstart\/ -->/,
   );
 });
 
@@ -110,11 +110,11 @@ await test('the sitemap names every page when the origin is known', () => {
   for (const path of ['', 'getting-started/', 'quickstart/'])
     assert.match(
       map,
-      new RegExp(`<loc>https://docs\\.bhu\\.sh/notesapp/${path}</loc>`),
+      new RegExp(`<loc>https://docs\\.example\\.test/notesapp/${path}</loc>`),
     );
   assert.equal(
     robots(hosted),
-    'User-agent: *\nAllow: /\nSitemap: https://docs.bhu.sh/notesapp/sitemap.xml\n',
+    'User-agent: *\nAllow: /\nSitemap: https://docs.example.test/notesapp/sitemap.xml\n',
   );
   assert.equal(robots(local), 'User-agent: *\nAllow: /\n');
 });

@@ -111,10 +111,8 @@ pnpm generated:check
 ## Documentation
 
 - [docs/guide/](docs/guide/README.md) is for the people who write notes and the
-  people who run a server. The documentation site at
-  [docs.bhu.sh/notesapp](https://docs.bhu.sh/notesapp/) publishes it with a
-  search, and an agent reads its
-  [llms.txt](https://docs.bhu.sh/notesapp/llms.txt).
+  people who run a server. [The documentation site](docs/development/docs-site.md)
+  builds this guide with search and files for agents.
 - [docs/development/](docs/development/architecture.md) is for contributors.
 - [docs/README.md](docs/README.md) states what each documentation directory
   holds and how to write a document of that kind.

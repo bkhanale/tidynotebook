@@ -40,6 +40,6 @@ priority and release assignment. This plan follows
    `docs/guide/README.md`. `tests/integration/docs-site.test.ts` reads the
    lists of the code against them.
 
-The deployment at `https://docs.bhu.sh/notesapp/` belongs to the
+The documentation site deployment belongs to the
 infrastructure repository of the owner and is not an item here. Issue 232
 records the defect of the offline choices that the review of item 4 found.

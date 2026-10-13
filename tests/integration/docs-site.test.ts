@@ -2,7 +2,7 @@
  * The documentation site, as a host serves it (records 0152 and 0153).
  *
  * The test builds the site under a base path into a temporary folder, the way
- * `pnpm docs:build` builds it for `https://docs.bhu.sh/notesapp/`, and reads
+ * `pnpm docs:build` builds it for `https://docs.example.test/notesapp/`, and reads
  * the files a host would serve. It proves what the pure modules of
  * `apps/docs/src` cannot prove alone: every page of the guide is there, every
  * link of the site reaches a file and every fragment reaches a heading, every
@@ -37,7 +37,7 @@ import {
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
 const guide = join(root, 'docs/guide');
 const base = '/notesapp/';
-const origin = 'https://docs.example.com';
+const origin = 'https://docs.example.test';
 const output = await mkdtemp(join(tmpdir(), 'notesapp-docs-'));
 const result = await buildSite({
   settings: { base, origin },
@@ -72,6 +72,16 @@ const pages = await Promise.all(
 /** The identifiers of one document. */
 const idsOf = (html: string): Set<string> =>
   new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1] ?? ''));
+
+await test('the repository guide uses source links without a hosted site claim', async () => {
+  const readme = await readFile(join(root, 'README.md'), 'utf8');
+  assert.match(readme, /\[docs\/guide\/\]\(docs\/guide\/README\.md\)/);
+  assert.match(
+    readme,
+    /\[The documentation site\]\(docs\/development\/docs-site\.md\)/,
+  );
+  assert.doesNotMatch(readme, /https?:\/\/docs\.[^\s)]+/);
+});
 
 await test('the built documentation site', async (t) => {
   t.after(async () => {
