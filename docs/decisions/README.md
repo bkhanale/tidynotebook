@@ -252,6 +252,7 @@ and needs no record.
 | [0218](0218-review-is-optional-for-landing.md)                                        | Review is optional for landing                                                  |
 | [0219](0219-distributions-carry-notices-and-compatible-diagram-layouts.md)            | Distributions carry notices and compatible diagram layouts                      |
 | [0220](0220-future-releases-use-a-new-public-image.md)                                | Future releases use a new public image                                          |
+| [0222](0222-distribution-runtime-dependency-closure.md)                               | Distribution runtime dependencies form a complete graph                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
