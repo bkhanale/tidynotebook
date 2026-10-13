@@ -77,7 +77,7 @@ jobs:
         run: pnpm perf:bundle
 
       # `perf:service` starts the test database itself.
-      - name: Enforce the service performance budgets
+      - name: Check Search budget and measure advisory Save target
         run: pnpm perf:service
 
       - name: Stop the disposable test database

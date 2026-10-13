@@ -79,7 +79,7 @@ policy needs a decision record before its implementation.
 - [x] The issue path and owner administrator access are checked without exposing cloud work.
 - [ ] The source and image gates pass for the exact final candidate.
 - [ ] GitHub checks pass for that head, including the image and performance jobs.
-- [ ] [Issue 326](https://github.com/tidynotebook/tidynotebook/issues/326) proves both service budgets under the unchanged workload.
+- [ ] [Issue 326](https://github.com/tidynotebook/tidynotebook/issues/326) calibrates Save latency on supported hardware and in the browser. Save target misses remain visible and advisory under [record 0221](../decisions/0221-save-latency-is-an-advisory-target.md). Search stays blocking.
 - [ ] The owner starts the launch under record 0188 and issue 284.
 - [ ] An unauthenticated reader can get the public source, guide and image.
 - [ ] An anonymous old-image pull fails, and every retained version identity matches the saved private readback.

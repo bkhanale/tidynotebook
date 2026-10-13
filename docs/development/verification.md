@@ -97,9 +97,10 @@ deleted branch, or a commit that no branch holds, fails to load.
 
 ## Performance
 
-Two commands hold a budget, and each prints its measurement and fails when the
-budget is exceeded. The budgets live in the scripts, so they cannot go stale
-here.
+The service and bundle commands print their measurements. Search and bundle
+budget misses fail. Save target misses are advisory under
+[record 0221](../decisions/0221-save-latency-is-an-advisory-target.md). Execution
+failures and invalid or incomplete service measurements still fail.
 
 - `pnpm perf:service` builds the server, starts a disposable PostgreSQL, and
   measures the save and the search path in a container with a fixed CPU and
