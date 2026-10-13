@@ -1,5 +1,6 @@
 /** Read notices and source archives from the real runner image. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -8,6 +9,39 @@ import test from 'node:test';
 
 const run = promisify(execFile);
 const image = process.env['NOTESAPP_IMAGE'] || 'notesapp:latest';
+
+await test('the runner has a complete dependency graph and no schema tools', async () => {
+  const script = String.raw`
+    import {readFileSync} from 'node:fs';
+    import {createHash} from 'node:crypto';
+    import {checkRuntimeDependencies} from '/app/runtime-dependencies.mjs';
+    const result=await checkRuntimeDependencies('/app/server');
+    const sha256=createHash('sha256').update(readFileSync('/app/runtime-dependencies.mjs')).digest('hex');
+    process.stdout.write(JSON.stringify({...result,sha256}));
+  `;
+  const result = await run('docker', [
+    'run',
+    '--rm',
+    '--entrypoint',
+    'node',
+    image,
+    '--input-type=module',
+    '--eval',
+    script,
+  ]);
+  const value: unknown = JSON.parse(result.stdout);
+  assert.ok(typeof value === 'object' && value !== null);
+  assert.ok(
+    'packages' in value &&
+      typeof value.packages === 'number' &&
+      value.packages > 1,
+  );
+  const source = await readFile(
+    join(import.meta.dirname, '../../tools/runtime-dependencies.mjs'),
+  );
+  assert.ok('sha256' in value);
+  assert.equal(value.sha256, createHash('sha256').update(source).digest('hex'));
+});
 
 function sourceFile(manifest: unknown, suffix: string): string {
   if (
@@ -237,6 +271,8 @@ await test('the bundled first-party source rebuilds the builder context', async 
       'Dockerfile',
       'pnpm-lock.yaml',
       'pnpm-workspace.yaml',
+      '.pnpmfile.cjs',
+      'tools/runtime-dependencies.mjs',
       'patches/mermaid@12.0.0.patch',
       'apps/web/src/diagram/frame-main.ts',
     ])

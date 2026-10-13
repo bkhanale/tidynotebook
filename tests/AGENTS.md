@@ -22,6 +22,9 @@ See
   Docker command line and a PostgreSQL of their own, import no workspace
   package, and run in the image job of CI after the build, through
   `pnpm test:image`. `pnpm verify` builds no image, so it does not run them.
+  The distribution test runs the shipped runtime dependency check and binds
+  its bytes to the source. It refuses schema tools and unresolved required
+  dependencies or peers (record 0222).
 - A unit test does not live here. It lives next to its module in a package
   `src` tree and runs under `pnpm test:unit`.
 - A test that drives a browser does not live here, and no gate starts one.
