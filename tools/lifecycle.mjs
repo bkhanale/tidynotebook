@@ -161,6 +161,15 @@ export function landGate(value, head) {
     status.statusCheckRollup.length === 0 ||
     !status.statusCheckRollup.every((value) => {
       const check = record(value);
+      return (
+        check.conclusion === 'SUCCESS' ||
+        check.conclusion === 'SKIPPED' ||
+        check.state === 'SUCCESS'
+      );
+    }) ||
+    // A manual job reports SKIPPED on a pull request (record 0224).
+    !status.statusCheckRollup.some((value) => {
+      const check = record(value);
       return check.conclusion === 'SUCCESS' || check.state === 'SUCCESS';
     })
   )

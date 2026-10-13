@@ -8,8 +8,7 @@
 The repository is private on the GitHub Free plan. This plan gives 2,000
 runner minutes each month. One CI run used about 25 to 30 minutes: the verify
 job took 14 to 20, the performance job about 5, and the image job about 4. A
-landed change ran CI twice, once for the pull request and once for the push to
-main. At this rate the plan allows about 35 landed changes each month.
+landed change ran CI twice, so the plan allowed about 35 landed changes a month.
 
 ## Decision
 
@@ -31,9 +30,10 @@ Hosted CI no longer proves, for each pull request, the integration tests, the
 performance budgets of record 0136 and the image test of record 0202.
 
 The local `pnpm verify` still runs the integration tests. It runs no
-performance budget and no image test. These run only when a person starts
-them: by hand in hosted CI, or locally with `pnpm perf:bundle`,
-`pnpm perf:service` and `pnpm test:image`.
+performance budget and no image test. These run only when a person starts them:
+by hand in hosted CI, or locally with `pnpm perf:bundle`, `pnpm perf:service`
+and `pnpm test:image`.
 
-The launch reads a manual run for its final commit. After the repository is
-public, a follow-up change puts the full jobs back on each pull request.
+The landing gate accepts a skipped manual job and needs each other check to
+pass. The launch reads a manual run for its final commit. After the repository
+is public, a follow-up change puts the full jobs back on each pull request.

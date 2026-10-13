@@ -484,6 +484,42 @@ await test('final head checks need a ready head, passing checks and resolved thr
     /changes/,
   );
 });
+await test('landing accepts a skipped manual check and still needs a passing one', () => {
+  const head = 'a'.repeat(40);
+  const status = {
+    headRefOid: head,
+    baseRefName: 'main',
+    state: 'OPEN',
+    isDraft: false,
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+    reviews: [],
+    threads: [],
+  };
+  const gate = (/** @type {unknown[]} */ statusCheckRollup) =>
+    landGate({ ...status, statusCheckRollup }, head);
+  assert.equal(
+    gate([{ conclusion: 'SUCCESS' }, { conclusion: 'SKIPPED' }]),
+    true,
+  );
+  assert.throws(
+    () => gate([{ conclusion: 'SKIPPED' }, { conclusion: 'SKIPPED' }]),
+    /checks/,
+  );
+  assert.throws(
+    () => gate([{ conclusion: 'SUCCESS' }, { status: 'IN_PROGRESS' }]),
+    /checks/,
+  );
+  assert.throws(
+    () => gate([{ conclusion: 'FAILURE' }, { conclusion: 'SKIPPED' }]),
+    /checks/,
+  );
+  for (const conclusion of ['CANCELLED', 'TIMED_OUT', 'NEUTRAL', 'STALE'])
+    assert.throws(
+      () => gate([{ conclusion: 'SUCCESS' }, { conclusion }]),
+      /checks/,
+    );
+});
 
 await test('version and notes derive from reviewed metadata including mixed and pre-stable changes', () => {
   assert.equal(nextVersion('0.3.4', ['patch', 'minor']), '0.4.0');
