@@ -443,7 +443,7 @@ await test('two replicas cannot create two final grants in one remaining slot', 
     ),
   );
   assert.deepEqual(
-    results.map((answer) => answer.statusCode).sort(),
+    results.map((answer) => answer.statusCode).sort((a, b) => a - b),
     [200, 400],
   );
   const refused = results.find((answer) => answer.statusCode === 400);
