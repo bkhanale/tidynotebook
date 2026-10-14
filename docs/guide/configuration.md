@@ -328,4 +328,5 @@ start.
 `NOTESAPP_MCP_ORIGIN` turns on OAuth authorization for MCP clients. It names
 the full MCP origin with no path or query. Empty keeps all OAuth routes off.
 The application origin issues the grants and serves its OAuth metadata.
-Its host must differ from the application host and the published host.
+It can use the application origin or a separate host.
+It cannot use the host of `NOTESAPP_PUBLISHED_ORIGIN`.

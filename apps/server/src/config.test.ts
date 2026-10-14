@@ -1332,3 +1332,28 @@ await test('MCP authorization is opt-in and its setting is one origin', () => {
       ConfigError,
     );
 });
+
+await test('MCP accepts the application origin and excludes the published host', () => {
+  const origins = {
+    NOTESAPP_ORIGIN: 'https://notes.example',
+    NOTESAPP_PUBLISHED_ORIGIN: 'https://read.example',
+  };
+  const same = loadServerConfig(
+    environment({ ...origins, NOTESAPP_MCP_ORIGIN: origins.NOTESAPP_ORIGIN }),
+  );
+  assert.equal(same.mcpOrigin, same.origin);
+  for (const origin of ['https://read.example', 'https://read.example:8443'])
+    assert.throws(
+      () =>
+        loadServerConfig(
+          environment({ ...origins, NOTESAPP_MCP_ORIGIN: origin }),
+        ),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.issues.some(
+          (issue) =>
+            issue.includes('NOTESAPP_MCP_ORIGIN') &&
+            issue.includes('published host'),
+        ),
+    );
+});
