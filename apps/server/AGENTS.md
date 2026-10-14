@@ -34,8 +34,8 @@ authentication routes on one origin, and it holds no domain rule.
 - `src/mcp/` holds the stateless adapter, metadata and empty registry (0225, 0227).
   Only this directory imports the MCP SDK. Tools receive only a contract call port;
   `src/auth/actor.ts` holds their delegation in an internal asynchronous context.
-- `src/auth/better-auth.ts` also holds the opt-in OAuth profile, exact discovery
-  address, form transport and OAuth error boundary (0226), with web OAuth page targets.
+- `src/auth/better-auth.ts` holds the OAuth profile and web page targets (0226).
+  A provider update must re-read `parsePrompt` and check the adapter prompt rule.
 - `src/installation-settings.ts` decides the mail, the legal documents and the policy lock (0148, 0206).
 
 ## Allowed imports

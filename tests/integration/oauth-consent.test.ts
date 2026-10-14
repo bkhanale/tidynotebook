@@ -413,7 +413,42 @@ try {
     );
     for (const clientId of [id, 'https://client.notes.invalid/create.json']) {
       for (const sessionCookie of ['', cookie]) {
-        for (const prompt of ['create', 'login create consent', ' create  ']) {
+        for (const prompt of [
+          'create',
+          'login create consent',
+          ' create  ',
+          'create\n',
+          ...[
+            ' ',
+            '\t',
+            '\n',
+            '\r',
+            '\v',
+            '\f',
+            '\u00a0',
+            '\u1680',
+            '\u2000',
+            '\u2001',
+            '\u2002',
+            '\u2003',
+            '\u2004',
+            '\u2005',
+            '\u2006',
+            '\u2007',
+            '\u2008',
+            '\u2009',
+            '\u200a',
+            '\u2028',
+            '\u2029',
+            '\u202f',
+            '\u205f',
+            '\u3000',
+            '\ufeff',
+          ].flatMap((space) => [
+            `${space}create${space}`,
+            `login ${space}create consent`,
+          ]),
+        ]) {
           const url = new URL(authorization(clientId), config.origin);
           url.searchParams.set('prompt', prompt);
           const answer = await app.inject({
@@ -490,6 +525,31 @@ try {
       );
       assert.equal(destination.origin, config.origin);
       assert.notEqual(destination.pathname, oauthSignInRoute);
+    }
+    for (const prompt of ['creates', 'Create']) {
+      const url = new URL(authorization(id), config.origin);
+      url.searchParams.set('prompt', prompt);
+      const answer = await app.inject({ url: `${url.pathname}${url.search}` });
+      assert.equal(answer.statusCode, 302, answer.body);
+      const destination = new URL(
+        String(answer.headers.location),
+        config.origin,
+      );
+      assert.equal(destination.origin, new URL(callback).origin);
+      assert.equal(destination.searchParams.get('error'), 'invalid_request');
+      assert.equal(destination.searchParams.get('state'), 'one + two & three');
+      assert.equal(
+        destination.searchParams.get('iss'),
+        `${config.origin}/api/auth`,
+      );
+      assert.match(
+        destination.searchParams.get('error_description') ?? '',
+        /unsupported prompt value/,
+      );
+      assert.notEqual(
+        destination.searchParams.get('error_description'),
+        'Account creation is not supported.',
+      );
     }
     const after = await admin.query(
       `select (select count(*) from auth_session) as sessions,

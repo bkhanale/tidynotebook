@@ -1516,6 +1516,18 @@ function oauthRequestRefusal(
 const refusedOAuthCreatePrompt = 'tidy\u0000unsupported-create';
 
 /**
+ * Mirror parsePrompt in @better-auth/oauth-provider 1.7.7,
+ * utils-D6Hp4Qd_.mjs:757-761: split on space, trim each token, then compare
+ * the whole token. A provider update must re-read that pinned rule.
+ */
+export function oauthCreateRequested(prompt: unknown): boolean {
+  return (
+    typeof prompt === 'string' &&
+    prompt.split(' ').some((token) => token.trim() === 'create')
+  );
+}
+
+/**
  * oauth2Authorize has an items?: undefined schema union that cannot satisfy
  * exactOptionalPropertyTypes. The contract owns this documentation. Remove
  * the metadata adjustment when the upstream endpoint type can be used directly.
@@ -1535,11 +1547,7 @@ export function adaptOAuthProvider(
     async (...args: Parameters<typeof original>) => {
       const [input] = args;
       const prompt: unknown = input?.query?.prompt;
-      if (
-        input === undefined ||
-        typeof prompt !== 'string' ||
-        !prompt.split(' ').includes('create')
-      )
+      if (input === undefined || !oauthCreateRequested(prompt))
         return original(...args);
       const response = await original({
         ...input,
