@@ -78,6 +78,11 @@ type ToolDelegation = {
 };
 const delegations = new AsyncLocalStorage<ToolDelegation>();
 
+function requireActiveDelegation(delegation: ToolDelegation): void {
+  if (!delegation.active)
+    throw new UnauthenticatedError('This tool call has ended.');
+}
+
 /** No header, body, cookie or request property can install this capability. */
 export async function withToolDelegation<T>(
   grant: OAuthTokenIdentity,
@@ -319,10 +324,12 @@ export function createIdentityAdapter(
   /** Both credentials read the same current membership and build the same actor. */
   async function withAccount(
     input: Omit<ResolvedActor, 'actor'> & { readonly accountId: string },
+    delegation?: ToolDelegation,
   ): Promise<ResolvedActor | null> {
     const memberships = await dependencies.identity.memberships(
       input.accountId,
     );
+    if (delegation !== undefined) requireActiveDelegation(delegation);
     const verified = verifyActor(input.accountId, sessionGrants(memberships));
     if (!verified.ok) return null;
     return {
@@ -412,18 +419,24 @@ export function createIdentityAdapter(
       const current = await dependencies.identity.sessionStanding(
         delegation.grant.authUserId,
       );
+      requireActiveDelegation(delegation);
       if (current === null || current.accountId !== delegation.grant.accountId)
         throw new UnauthenticatedError('This account cannot use this tool.');
-      const resolved = await withAccount({
-        ...current,
-        authUserId: delegation.grant.authUserId,
-        sessionId: null,
-        email: null,
-        name: null,
-      });
+      const resolved = await withAccount(
+        {
+          ...current,
+          authUserId: delegation.grant.authUserId,
+          sessionId: null,
+          email: null,
+          name: null,
+        },
+        delegation,
+      );
+      requireActiveDelegation(delegation);
       if (resolved === null)
         throw new UnauthenticatedError('This account cannot use this tool.');
       refuseLocked(resolved.standing, operation.id);
+      requireActiveDelegation(delegation);
       actors.set(request, resolved);
       return;
     }

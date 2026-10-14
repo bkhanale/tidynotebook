@@ -29,6 +29,8 @@ body. Metadata keeps Problem Details.
 `apps/server/src/plugins/register.ts` validates each answer before it sends it.
 A notification gets an empty accepted answer. The library validates the MCP
 message. The boundary keeps its body size and media checks.
+It refuses an array body before library dispatch. The tool handler checks
+the required scope again before it starts a delegation.
 
 `apps/server/src/served-origins.ts` adds the MCP origin to the one origin list.
 It grants no cookie trust. A request with an Origin header must name the MCP
@@ -53,6 +55,8 @@ No network header, cookie or body can create it. Each operation checks its
 name, the current account and its current rights. An operation that needs a
 browser session refuses the delegation. The capability ends when the tool
 call ends, including for asynchronous work that still holds the context.
+Each awaited identity read checks that the capability is still active before
+the request can get an actor.
 The internal dispatcher reads its method and address from the generated
 contract and calls the normal request pipeline in the same process.
 

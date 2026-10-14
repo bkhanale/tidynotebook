@@ -19,13 +19,17 @@ import {
 import {
   bootstrapOwner,
   createApp,
+  createAuth,
+  createHandlers,
+  createIdentityAdapter,
   loadServerConfig,
+  requestActor,
   withToolDelegation,
   type McpTool,
 } from '@notesapp/server';
 import { openIdentityStore } from '@notesapp/storage-server';
 import { createDisposableDatabase, openSession } from './support/database.ts';
-import { testEnvironment } from './support/server.ts';
+import { startTestServer, testEnvironment } from './support/server.ts';
 
 const database = await createDisposableDatabase();
 const root = await mkdtemp(join(tmpdir(), 'notesapp-mcp-'));
@@ -48,6 +52,7 @@ await bootstrapOwner({
   name: 'MCP owner',
   password: 'mcp-owner-safe-password',
 });
+let writeExecutions = 0;
 const tools: readonly McpTool[] = [
   {
     definition: {
@@ -59,6 +64,7 @@ const tools: readonly McpTool[] = [
     scope: 'notes:write',
     operations: ['listWorkspaces'],
     run: async (_input, context) => {
+      writeExecutions += 1;
       const answer = await context.call('listWorkspaces');
       assert.equal(answer.status, 200);
       return {
@@ -318,6 +324,42 @@ try {
     assert.ok(body && typeof body === 'object');
     assert.ok(Reflect.get(body, 'result'));
   });
+  await test('every batch is refused before a tool or contract operation can run', async () => {
+    const before = writeExecutions;
+    for (const credential of [read, write])
+      for (const era of ['legacy', 'modern']) {
+        const call =
+          era === 'legacy'
+            ? legacy('tools/call', { name: 'test_write', arguments: {} })
+            : modern('tools/call', { name: 'test_write', arguments: {} });
+        const { id: _notificationId, ...notification } =
+          era === 'legacy'
+            ? legacy('notifications/initialized')
+            : modern('notifications/initialized');
+        for (const batch of [
+          [],
+          [call],
+          [legacy('tools/list'), call],
+          [notification, call],
+          [notification, notification],
+        ]) {
+          const answer = await fixture.inject({
+            method: 'POST',
+            url: '/mcp',
+            headers: {
+              ...(era === 'legacy'
+                ? headers(credential)
+                : modernHeaders('tools/call', credential, 'test_write')),
+              'content-type': 'application/json',
+            },
+            payload: ` \t\r\n${JSON.stringify(batch)}`,
+          });
+          assert.equal(answer.statusCode, 400, answer.body);
+          errorBody(answer, -32600);
+          assert.equal(writeExecutions, before);
+        }
+      }
+  });
   await test('a read grant sees every test tool but a write call gets the scope challenge', async () => {
     const listed = await fixture.inject({
       method: 'POST',
@@ -510,6 +552,100 @@ try {
       },
     });
     assert.equal(forged.statusCode, 401, forged.body);
+  });
+  await test('a held identity lookup cannot install an actor after the tool ends', async (t) => {
+    const grant = await identity.oauthTokenIdentity(
+      createHash('sha256').update(read).digest('hex'),
+      resource,
+    );
+    assert.ok(grant);
+    for (const step of ['sessionStanding', 'memberships'])
+      await t.test(step, async () => {
+        const entered = Promise.withResolvers<void>();
+        const released = Promise.withResolvers<void>();
+        let membershipLookups = 0;
+        let installed = false;
+        let operationsRun = 0;
+        const auth = createAuth(
+          { ...config, mcpOrigin: null },
+          {
+            mail: null,
+            sessionAllowed: () => Promise.resolve(false),
+          },
+        );
+        const adapter = createIdentityAdapter({
+          auth: auth.auth,
+          servedOrigins: config.servedOrigins,
+          identity: {
+            ...identity,
+            sessionStanding: async (user) => {
+              const current = await identity.sessionStanding(user);
+              if (step === 'sessionStanding') {
+                entered.resolve();
+                await released.promise;
+              }
+              return current;
+            },
+            memberships: async (account) => {
+              membershipLookups += 1;
+              const current = await identity.memberships(account);
+              if (step === 'memberships') {
+                entered.resolve();
+                await released.promise;
+              }
+              return current;
+            },
+          },
+        });
+        const server = await startTestServer({
+          handlers: (settings) => ({
+            ...createHandlers(settings),
+            listWorkspaces: () => {
+              operationsRun += 1;
+              return Promise.resolve({
+                status: 200,
+                mediaType: 'application/json',
+                body: { workspaces: [] },
+              });
+            },
+          }),
+          identity: async (request, operation) => {
+            try {
+              await adapter.resolver(request, operation);
+            } finally {
+              installed ||= requestActor(request) !== undefined;
+            }
+          },
+        });
+        let pending: Promise<{ statusCode: number; body: string }> | undefined;
+        try {
+          await withToolDelegation(grant, ['listWorkspaces'], async () => {
+            pending = server.app
+              .inject({ url: '/api/workspaces' })
+              .then((answer) => answer);
+            await Promise.race([
+              entered.promise,
+              pending.then((answer) => {
+                throw new Error(
+                  `The lookup did not hold: ${String(answer.statusCode)}`,
+                );
+              }),
+            ]);
+          });
+          released.resolve();
+          assert.ok(pending);
+          const answer = await pending;
+          assert.equal(answer.statusCode, 401, answer.body);
+          assert.equal(installed, false);
+          assert.equal(operationsRun, 0);
+          assert.equal(membershipLookups, step === 'sessionStanding' ? 0 : 1);
+        } finally {
+          released.resolve();
+          await pending;
+          await server.close();
+          await auth.close();
+        }
+      });
   });
   await test('grant and account limits each hold across two app instances', async () => {
     const limited = { ...config, rateLimit: { windowSeconds: 3600, max: 2 } };
