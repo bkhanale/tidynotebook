@@ -946,11 +946,11 @@ function registerProtocol(
         ...(id === undefined ? {} : { config: { operationId: id } }),
         ...(route.oauthErrors === true
           ? {
-              errorHandler: async (error, _request, reply) => {
+              errorHandler: (error, _request, reply) => {
                 const classified = classifyError(error);
                 const status =
                   classified.status === 423 ? 403 : classified.status;
-                await reply
+                void reply
                   .status(status)
                   .header('content-type', 'application/json')
                   .header('cache-control', 'no-store')

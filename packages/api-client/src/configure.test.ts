@@ -15,7 +15,7 @@ const response = new Response(null, {
   status: 400,
   headers: { 'content-type': 'application/json; charset=utf-8' },
 });
-test('the interceptor preserves only a closed declared OAuth error', () => {
+await test('the interceptor preserves only a closed declared OAuth error', () => {
   const good = {
     error: 'invalid_grant',
     error_description: 'The grant is refused.',

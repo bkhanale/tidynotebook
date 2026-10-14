@@ -91,7 +91,12 @@ const app = await createApp(config, {
       });
     return new Response(
       JSON.stringify({
-        client_id: String(input),
+        client_id:
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url,
         client_name: 'Claimed client',
         redirect_uris: [callback],
         token_endpoint_auth_method:

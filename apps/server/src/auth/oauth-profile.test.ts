@@ -11,7 +11,7 @@ import {
   oauthRevocationAuthenticationSucceeded,
 } from './better-auth.ts';
 
-test('the upstream type adapter changes only authorize OpenAPI parameters', () => {
+await test('the upstream type adapter changes only authorize OpenAPI parameters', () => {
   const original = oauthProvider({
     loginPage: '/sign-in',
     consentPage: '/oauth/consent',
@@ -49,7 +49,7 @@ test('the upstream type adapter changes only authorize OpenAPI parameters', () =
       assert.equal(Reflect.get(adapted, name), value, name);
 });
 
-test('OAuth discovery has one exact path and no OpenID path', () => {
+await test('OAuth discovery has one exact path and no OpenID path', () => {
   assert.deepEqual(
     oauthRoutes
       .filter((route) => route.path.includes('.well-known'))
@@ -58,7 +58,7 @@ test('OAuth discovery has one exact path and no OpenID path', () => {
   );
 });
 
-test('the safe Node CIMD transport refuses special-use addresses', async () => {
+await test('the safe Node CIMD transport refuses special-use addresses', async () => {
   for (const host of [
     '127.0.0.1',
     '10.0.0.1',
@@ -71,7 +71,7 @@ test('the safe Node CIMD transport refuses special-use addresses', async () => {
     );
 });
 
-test('CIMD transport cancellation bounds a stalled lookup', async () => {
+await test('CIMD transport cancellation bounds a stalled lookup', async () => {
   const controller = new AbortController();
   const transport = boundedOAuthFetch(() => new Promise<Response>(() => {}));
   const pending = transport('https://client.example/client.json', {
@@ -81,7 +81,7 @@ test('CIMD transport cancellation bounds a stalled lookup', async () => {
   await assert.rejects(() => Promise.resolve(pending));
 });
 
-test('revocation sends one authentication request with no stored token or hint', async () => {
+await test('revocation sends one authentication request with no stored token or hint', async () => {
   const fields = new URLSearchParams({
     token: 'stored-token',
     token_type_hint: 'refresh_token',
@@ -109,7 +109,7 @@ test('revocation sends one authentication request with no stored token or hint',
   assert.equal(fields.get('token'), 'stored-token');
 });
 
-test('only the exact post-authentication provider outcomes accept revocation', () => {
+await test('only the exact post-authentication provider outcomes accept revocation', () => {
   assert.equal(oauthRevocationAuthenticationSucceeded(200, undefined), true);
   assert.equal(
     oauthRevocationAuthenticationSucceeded(400, {

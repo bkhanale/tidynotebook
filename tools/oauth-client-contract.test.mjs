@@ -10,7 +10,7 @@ function record(value) {
   );
   return Object.fromEntries(Object.entries(value));
 }
-test('the client path exception and error enum match the generated contract', async () => {
+await test('the client path exception and error enum match the generated contract', async () => {
   const [source, contract] = await Promise.all([
     readFile(
       new URL('../packages/api-client/src/configure.ts', import.meta.url),

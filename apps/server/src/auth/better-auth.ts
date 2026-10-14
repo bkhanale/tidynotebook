@@ -953,7 +953,7 @@ export function createAuthProtocol(
                     authenticationRequest,
                   );
                   const parsed = parseJson(await authenticated.clone().text());
-                  const failure =
+                  const failure: unknown =
                     parsed.ok &&
                     parsed.value !== null &&
                     typeof parsed.value === 'object'

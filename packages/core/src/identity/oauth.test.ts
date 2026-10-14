@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { oauthConsentScopeAllowed, oauthScopeAllowed } from './oauth.ts';
 
-test('MCP scopes keep read access and refuse other access', () => {
+await test('MCP scopes keep read access and refuse other access', () => {
   for (const value of [
     'notes:read',
     'notes:read notes:write',
@@ -17,7 +17,7 @@ test('MCP scopes keep read access and refuse other access', () => {
   ])
     assert.equal(oauthScopeAllowed(value), false);
 });
-test('consent can reduce write to read but cannot add access', () => {
+await test('consent can reduce write to read but cannot add access', () => {
   assert.equal(
     oauthConsentScopeAllowed(
       'notes:read notes:write offline_access',

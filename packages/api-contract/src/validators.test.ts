@@ -562,7 +562,7 @@ await test('every operator operation takes the operator token alone', () => {
       );
 });
 
-test('OAuth forms and RFC 6749 errors keep their declared boundary', () => {
+await test('OAuth forms and RFC 6749 errors keep their declared boundary', () => {
   const request = requestValidator('exchangeOAuthToken', 'body');
   assert.ok(request);
   assert.equal(
