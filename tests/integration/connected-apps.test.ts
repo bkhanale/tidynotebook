@@ -31,7 +31,10 @@ import {
   connectedAppFacts,
   connectedAppIdentity,
 } from '../../apps/web/src/lib/connected-apps.ts';
-import { visibleSettingsSections } from '../../apps/web/src/lib/page-sections.ts';
+import {
+  settingsSections,
+  visibleSettingsSections,
+} from '../../apps/web/src/lib/page-sections.ts';
 
 const database = await createDisposableDatabase();
 const root = await mkdtemp(join(tmpdir(), 'notesapp-connected-apps-'));
@@ -218,10 +221,22 @@ await test('the served list holds account metadata and the Settings decisions', 
   const account = await getAccount({ headers: person.headers });
   assert.equal(account.data?.mcpAuthorization, true);
   assert.ok(account.data);
-  assert.ok(
-    visibleSettingsSections(account.data).some(
-      (section) => section.key === 'connected-apps',
-    ),
+  const sectionKeys = visibleSettingsSections(account.data).map(
+    (section) => section.key,
+  );
+  assert.deepEqual(
+    sectionKeys,
+    settingsSections
+      .map((section) => section.key)
+      .filter((key) => key !== 'billing'),
+  );
+  assert.equal(
+    sectionKeys.indexOf('connected-apps'),
+    sectionKeys.indexOf('api-keys') + 1,
+  );
+  assert.equal(
+    sectionKeys.indexOf('sessions'),
+    sectionKeys.indexOf('connected-apps') + 1,
   );
   const stranger = await listConnectedApps();
   assert.equal(stranger.response?.status, 401);

@@ -95,6 +95,7 @@ async function servedSections(headers: {
 }): Promise<readonly string[]> {
   const account = await getAccount({ headers });
   assert.ok(account.data !== undefined, JSON.stringify(account.error));
+  assert.equal(account.data.mcpAuthorization, false);
   return visibleSettingsSections(account.data).map((section) => section.key);
 }
 
@@ -106,9 +107,12 @@ await test('an installation with a portal shows Billing, and Open billing opens 
     },
     async (headers) => {
       const keys = await servedSections(headers);
+      assert.ok(!keys.includes('connected-apps'));
       assert.deepEqual(
         keys,
-        settingsSections.map((section) => section.key),
+        settingsSections
+          .map((section) => section.key)
+          .filter((key) => key !== 'connected-apps'),
       );
       assert.equal(keys.indexOf('billing'), keys.indexOf('account') + 1);
       // Open billing asks for the root of the portal, and the answer leaves
@@ -130,11 +134,12 @@ await test('an installation with no portal shows no Billing section', async () =
   await withInstallation({}, async (headers) => {
     const keys = await servedSections(headers);
     assert.ok(!keys.includes('billing'));
+    assert.ok(!keys.includes('connected-apps'));
     assert.deepEqual(
       keys,
       settingsSections
         .map((section) => section.key)
-        .filter((key) => key !== 'billing'),
+        .filter((key) => key !== 'billing' && key !== 'connected-apps'),
     );
     const opened = await openAccountPortal({
       headers,
