@@ -1779,7 +1779,13 @@ export const oauthClient = pgTable(
     metadata: jsonb('metadata'),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
   },
-  (table) => [index('auth_oauth_client_user_id_idx').on(table.userId)],
+  (table) => [
+    index('auth_oauth_client_user_id_idx').on(table.userId),
+    check(
+      'auth_oauth_client_unowned',
+      sql`${table.userId} is null and ${table.referenceId} is null`,
+    ),
+  ],
 );
 export const oauthResource = pgTable('auth_oauth_resource', {
   id: text('id').primaryKey(),

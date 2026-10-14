@@ -28,7 +28,11 @@ import {
   oauthRequestTransaction,
 } from '@notesapp/storage-server';
 import { maxOAuthClients, lockedAccountKeeps } from '@notesapp/core';
-import { createDisposableDatabase, openSession } from './support/database.ts';
+import {
+  createDisposableDatabase,
+  openSession,
+  seedWorkspace,
+} from './support/database.ts';
 import { testEnvironment } from './support/server.ts';
 
 const consoleLines: string[] = [];
@@ -720,11 +724,148 @@ try {
       ['https://cimd.example/client.json'],
     );
     assert.equal(stored[0]?.client_discovery_id, 'cimd');
+    const owner = await identity.query<{
+      user_id: string | null;
+      reference_id: string | null;
+    }>(
+      'select user_id,reference_id from auth_oauth_client where client_id=$1',
+      ['https://cimd.example/client.json'],
+    );
+    assert.equal(owner[0]?.user_id, null);
+    assert.equal(owner[0]?.reference_id, null);
     const privateClient = await app.inject({
       url: authorization('https://127.0.0.1/client.json'),
       headers: { cookie },
     });
     assert.equal(privateClient.statusCode, 400);
+  });
+  await test('DCR stays unowned with a cookie and removing its maker keeps another account grant', async () => {
+    const accountId = randomUUID();
+    await seedWorkspace(database, randomUUID(), [{ accountId, role: 'owner' }]);
+    const fixture = createAuth(
+      config,
+      { mail: null, sessionAllowed: () => Promise.resolve(false) },
+      authPool,
+    );
+    const context = await fixture.auth.$context;
+    const creator = await context.internalAdapter.createUser(
+      {
+        name: 'Registry maker',
+        email: 'registry-maker@notes.invalid',
+        emailVerified: true,
+      },
+      { method: 'email-password' },
+    );
+    await context.internalAdapter.createAccount({
+      providerId: 'credential',
+      accountId: creator.id,
+      userId: creator.id,
+      password: await context.password.hash('registry-maker-password-safe'),
+    });
+    await admin.query(
+      'insert into account_identities(auth_user_id,account_id) values($1,$2)',
+      [creator.id, accountId],
+    );
+    await fixture.close();
+    protectedValues.add(creator.id);
+    protectedValues.add('registry-maker-password-safe');
+    const signedIn = await signInWithPassword({
+      body: {
+        email: 'registry-maker@notes.invalid',
+        password: 'registry-maker-password-safe',
+      },
+      headers: { origin: config.origin },
+    });
+    assert.equal(
+      signedIn.response?.status,
+      200,
+      JSON.stringify(signedIn.error),
+    );
+    assert.ok(signedIn.response);
+    const creatorCookie = signedIn.response.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; ');
+    const registered = await registerOAuthClient({
+      headers: { cookie: creatorCookie, origin: config.origin },
+      body: {
+        client_name: 'Shared client',
+        redirect_uris: [callback],
+        token_endpoint_auth_method: 'none',
+        grant_types: ['authorization_code', 'refresh_token'],
+      },
+    });
+    assert.equal(
+      registered.response?.status,
+      201,
+      JSON.stringify(registered.error),
+    );
+    assert.ok(registered.data);
+    const id = registered.data.client_id;
+    protectedValues.add(id);
+    const owner = await identity.query<{
+      user_id: string | null;
+      reference_id: string | null;
+    }>(
+      'select user_id,reference_id from auth_oauth_client where client_id=$1',
+      [id],
+    );
+    assert.equal(owner[0]?.user_id, null);
+    assert.equal(owner[0]?.reference_id, null);
+    for (const [field, value] of [
+      ['user_id', creator.id],
+      ['reference_id', 'owned-reference'],
+    ]) {
+      const refused = await identity.failure(
+        `update auth_oauth_client set ${field}=$1 where client_id=$2`,
+        [value, id],
+      );
+      assert.equal(refused.code, '23514');
+    }
+    const wrongHeader = await app.inject({
+      method: 'POST',
+      url: '/api/auth/oauth2/register',
+      headers: { authorization: 'Bearer unused-initial-token' },
+      payload: { redirect_uris: [callback] },
+    });
+    assert.equal(wrongHeader.statusCode, 400);
+    assert.equal(wrongHeader.json().error, 'invalid_request');
+    const originalCookie = cookie;
+    let creatorTokens: Awaited<ReturnType<typeof tokens>>;
+    try {
+      cookie = creatorCookie;
+      creatorTokens = await tokens(id);
+    } finally {
+      cookie = originalCookie;
+    }
+    const retained = await tokens(id);
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/accounts/${accountId}`,
+      headers: { cookie, origin: config.origin },
+    });
+    assert.equal(removed.statusCode, 200, removed.body);
+    assert.equal(
+      await resolveOAuthToken(runtime, digest(creatorTokens.access), resource),
+      null,
+    );
+    assert.equal((await refresh(id, creatorTokens.refresh)).statusCode, 400);
+    assert.ok(
+      await resolveOAuthToken(runtime, digest(retained.access), resource),
+    );
+    assert.equal(
+      (await refresh(id, retained.refresh, replica)).statusCode,
+      200,
+    );
+    assert.equal(
+      (
+        await identity.query(
+          'select id from auth_oauth_client where client_id=$1',
+          [id],
+        )
+      ).length,
+      1,
+    );
   });
   await test('two replicas serialize refresh rotation and old-token reuse revokes all tokens', async () => {
     const granted = await tokens(clientId);

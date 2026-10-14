@@ -3147,7 +3147,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "auth_oauth_client_unowned": {
+          "name": "auth_oauth_client_unowned",
+          "value": "\"auth_oauth_client\".\"user_id\" is null and \"auth_oauth_client\".\"reference_id\" is null"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.auth_oauth_client_assertion": {

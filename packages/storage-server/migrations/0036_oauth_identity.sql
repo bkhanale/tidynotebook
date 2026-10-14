@@ -391,3 +391,6 @@ CREATE OR REPLACE FUNCTION public.notesapp_schema_version() RETURNS integer
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$ SELECT 37; $$;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_oauth_account(text), public.notesapp_lock_account(uuid), public.notesapp_claim_daily_run(text,date) TO notesapp_auth;
+
+--> statement-breakpoint
+ALTER TABLE "auth_oauth_client" ADD CONSTRAINT "auth_oauth_client_unowned" CHECK ("auth_oauth_client"."user_id" is null and "auth_oauth_client"."reference_id" is null);

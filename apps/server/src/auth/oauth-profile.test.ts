@@ -9,6 +9,7 @@ import {
   oauthMetadataPath,
   oauthRevocationAuthenticationRequest,
   oauthRevocationAuthenticationSucceeded,
+  publicOAuthRegistrationRequest,
 } from './better-auth.ts';
 
 await test('the upstream type adapter changes only authorize OpenAPI parameters', () => {
@@ -141,4 +142,29 @@ await test('only the exact post-authentication provider outcomes accept revocati
     }),
     false,
   );
+});
+
+await test('public DCR removes only the cookie and keeps the exact request bytes', async () => {
+  const payload =
+    '{"client_name":"Claimed client","redirect_uris":["https://client.example/callback"]}';
+  const original = new Request(
+    'https://notes.example/api/auth/oauth2/register',
+    {
+      method: 'POST',
+      headers: {
+        cookie: 'session=secret',
+        origin: 'https://notes.example',
+        'content-type': 'application/json',
+        'x-request-id': 'request',
+      },
+      body: payload,
+    },
+  );
+  const adapted = publicOAuthRegistrationRequest(original);
+  const expected = new Headers(original.headers);
+  expected.delete('cookie');
+  assert.deepEqual([...adapted.headers], [...expected]);
+  assert.equal(adapted.url, original.url);
+  assert.equal(adapted.method, original.method);
+  assert.equal(await adapted.text(), payload);
 });

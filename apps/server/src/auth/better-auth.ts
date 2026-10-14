@@ -1041,7 +1041,12 @@ export function createAuthProtocol(
               },
               (answer) => answer.status < 500,
             );
-          } else response = await auth.handler(webRequest);
+          } else
+            response = await auth.handler(
+              path.endsWith('/register')
+                ? publicOAuthRegistrationRequest(webRequest)
+                : webRequest,
+            );
         } catch (error) {
           if (path === oauthMetadataPath) throw error;
           createServerLogger(request.log)
@@ -1332,6 +1337,8 @@ function oauthRequestRefusal(
     if (fields.has('scope') && !oauthScopeAllowed(fields.get('scope') ?? ''))
       return oauthFailure('invalid_scope');
   }
+  if (path.endsWith('/register') && request.headers.authorization !== undefined)
+    return oauthFailure('invalid_request');
   if (
     path.endsWith('/register') &&
     fields.has('token_endpoint_auth_method') &&
@@ -1453,4 +1460,11 @@ export function oauthRevocationAuthenticationSucceeded(
     (fields.error === 'invalid_request' &&
       fields.error_description === 'token not found')
   );
+}
+
+/** DCR is the unowned installation registry. A browser session grants it no owner. */
+export function publicOAuthRegistrationRequest(original: Request): Request {
+  const headers = new Headers(original.headers);
+  headers.delete('cookie');
+  return new Request(original, { headers });
 }
