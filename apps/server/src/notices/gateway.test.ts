@@ -431,19 +431,21 @@ await test('an admission that never opens gives back its reservation', async () 
   await target.close();
 });
 
-await test('a stream without a Pong ends at the next heartbeat', async () => {
-  const { gateway: target } = gateway({ heartbeatMs: 10 });
-  await settle();
+await test('a stream without a Pong ends at the next heartbeat', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const heartbeatMs = 10;
+  const { gateway: target } = gateway({ heartbeatMs });
+  t.after(() => target.close());
   const socket = await openStream(target);
-  await settle(15);
+  t.mock.timers.tick(heartbeatMs);
   assert.equal(socket.pings, 1);
   socket.pong();
-  await settle(10);
+  t.mock.timers.tick(heartbeatMs);
   assert.equal(socket.terminated, false);
-  await settle(25);
+  assert.equal(socket.pings, 2);
+  t.mock.timers.tick(heartbeatMs);
   assert.equal(socket.terminated, true);
   assert.equal(target.streamCount(), 0);
-  await target.close();
 });
 
 await test('a reservation that cannot be renewed stops the stream', async () => {
