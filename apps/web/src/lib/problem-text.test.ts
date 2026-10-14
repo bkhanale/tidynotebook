@@ -21,6 +21,7 @@ const codes = [
   'invalid_graph',
   'invalid_path',
   'invalid_request',
+  'oauth_request_invalid',
   'invalid_response',
   'mutation_reused',
   'not_found',

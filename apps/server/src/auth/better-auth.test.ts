@@ -43,6 +43,10 @@ await test('an answer without a token is unchanged', () => {
 
 await test('a refusal of a sign-in names what the person can do', () => {
   assert.equal(
+    authProblemCode(400, 'invalid_signature'),
+    'oauth_request_invalid',
+  );
+  assert.equal(
     authProblemCode(403, 'EMAIL_NOT_VERIFIED'),
     'address_unverified',
   );

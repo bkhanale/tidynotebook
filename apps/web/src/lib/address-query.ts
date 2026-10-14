@@ -35,6 +35,26 @@ export function queryValue(search: string, name: string): string | null {
   return null;
 }
 
+/** Every value of one member. Consent refuses duplicates and bad encoding. */
+export function queryValues(
+  search: string,
+  name: string,
+): readonly string[] | null {
+  const query = search.startsWith('?') ? search.slice(1) : search;
+  if (query === '') return [];
+  const values: string[] = [];
+  for (const member of query.split('&')) {
+    const at = member.indexOf('=');
+    const key = decodePart(at === -1 ? member : member.slice(0, at));
+    if (key === null) return null;
+    if (key !== name) continue;
+    const value = at === -1 ? '' : decodePart(member.slice(at + 1));
+    if (value === null) return null;
+    values.push(value);
+  }
+  return values;
+}
+
 /** A path with one member in its query, its name and value encoded. */
 export function queryAddress(
   path: string,

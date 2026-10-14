@@ -19,7 +19,7 @@ the HTTP boundary instead of using it.
   the contract package. The docs build reads it (0209), and the byte check
   covers it with the rest of the generated output.
 - `src/auth-contract.ts` holds the authentication protocol fragment that
-  `openapi.yaml` does not describe. `src/contract-index.ts`,
+  `openapi.yaml` does not describe, including signed OAuth password sign-in. `src/contract-index.ts`,
   `src/definitions.ts`, `src/emit.ts`, and `src/paths.ts` write the output.
 - `src/orphans.ts` walks the merged document from the paths and the document
   security and reports every component that nothing reaches.

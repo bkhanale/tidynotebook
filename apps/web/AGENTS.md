@@ -121,6 +121,8 @@ on each rule below.
 | `src/features/accounts/api-keys.tsx`          | Personal key controls (0208)        |
 | `src/lib/api-keys.ts`                         | The key facts a person reads (0208) |
 | `src/lib/sign-in-return.ts`                   | Where sign-in goes back to          |
+| `src/features/oauth/oauth-pages.tsx`          | MCP consent and signed sign-in      |
+| `src/lib/oauth-consent.ts`                    | Client claims and consent choices   |
 
 ## Key folders
 

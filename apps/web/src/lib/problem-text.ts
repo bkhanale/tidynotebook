@@ -32,6 +32,8 @@ const sentences: Readonly<Record<string, string>> = {
   invalid_path:
     'That note name cannot be stored. Change the name and try again.',
   invalid_request: 'The server refused the request. Try again.',
+  oauth_request_invalid:
+    'This access request is not valid. Go back to the client and connect again.',
   invalid_response: 'The answer of the server could not be read. Try again.',
   invitation_invalid: 'This invitation is not valid. Ask for a new one.',
   registration_closed:

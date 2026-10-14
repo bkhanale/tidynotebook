@@ -1,7 +1,7 @@
 /** Checks of the authentication fragment of the contract. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { authContractPaths } from './auth-contract.ts';
+import { authContractPaths, authContractSchemas } from './auth-contract.ts';
 
 type Json = Record<string, unknown>;
 
@@ -32,4 +32,21 @@ await test('the fragment holds only session lifecycle operations', () => {
     'resetPassword',
   ])
     assert.ok(!statusesOf(kept).includes('423'), kept);
+});
+
+await test('password sign-in declares the signed OAuth query and keeps one answer shape', () => {
+  const schemas = authContractSchemas();
+  const password = schemas['AuthPasswordSignIn'];
+  assert.ok(isRecord(password));
+  const properties = password['properties'];
+  assert.ok(isRecord(properties));
+  assert.deepEqual(properties['oauth_query'], {
+    type: 'string',
+    description: 'The signed OAuth request of the explicit OAuth sign-in page.',
+    maxLength: 4096,
+    writeOnly: true,
+  });
+  assert.deepEqual(password['required'], ['email', 'password']);
+  assert.equal(password['additionalProperties'], false);
+  assert.ok(statusesOf('signInWithPassword').includes('400'));
 });

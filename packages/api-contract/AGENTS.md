@@ -79,11 +79,12 @@ and `src/messages.test.ts` does the same for each frame direction.
 
 ## Key files
 
-| File            | Purpose                                  |
-| --------------- | ---------------------------------------- |
-| `openapi.yaml`  | The root OpenAPI 3.1.2 document          |
-| `asyncapi.yaml` | The root AsyncAPI 3.0 message document   |
-| `redocly.yaml`  | The strict rules of `pnpm contract:lint` |
+| File                                           | Purpose                                  |
+| ---------------------------------------------- | ---------------------------------------- |
+| `openapi.yaml`                                 | The root OpenAPI 3.1.2 document          |
+| `asyncapi.yaml`                                | The root AsyncAPI 3.0 message document   |
+| `redocly.yaml`                                 | The strict rules of `pnpm contract:lint` |
+| `components/schemas/OAuthContinueRequest.yaml` | The signed account continuation          |
 
 ## Key folders
 
