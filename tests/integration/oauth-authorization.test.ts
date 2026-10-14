@@ -268,6 +268,7 @@ async function tokens(clientId: string) {
   return {
     access: exchanged.data.access_token,
     refresh: exchanged.data.refresh_token,
+    code: authorizationCode,
   };
 }
 async function refresh(clientId: string, secret: string, target = app) {
@@ -803,6 +804,102 @@ try {
     } finally {
       await first.close();
       await second.close();
+    }
+  });
+  await test('mixed grant credentials refuse pending and redeemed codes without a write', async () => {
+    for (const rotated of [false, true]) {
+      const id = await register();
+      const original = await tokens(id);
+      if (rotated) {
+        const renewed = await refresh(id, original.refresh);
+        assert.equal(renewed.statusCode, 200, renewed.body);
+      } else {
+        const revoked = await app.inject({
+          method: 'POST',
+          url: '/api/auth/oauth2/revoke',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          payload: new URLSearchParams({
+            token: original.refresh,
+            client_id: id,
+          }).toString(),
+        });
+        assert.equal(revoked.statusCode, 200, revoked.body);
+      }
+      const retained = await tokens(id);
+      const pending = await code(id);
+      const snapshot = async () => ({
+        consent: await identity.query(
+          'select * from auth_oauth_consent where client_id=$1',
+          [id],
+        ),
+        access: await identity.query(
+          'select * from auth_oauth_access_token where client_id=$1 order by id',
+          [id],
+        ),
+        refresh: await identity.query(
+          'select * from auth_oauth_refresh_token where client_id=$1 order by id',
+          [id],
+        ),
+        codes: await identity.query(
+          'select * from auth_verification where identifier=any($1::text[]) order by id',
+          [[digest(pending), digest(retained.code)]],
+        ),
+      });
+      const before = await snapshot();
+      assert.equal(before.codes.length, 1);
+      for (const extra of [pending, retained.code])
+        for (const grant of ['refresh_token', 'authorization_code']) {
+          const answer = await app.inject({
+            method: 'POST',
+            url: '/api/auth/oauth2/token',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            payload: new URLSearchParams({
+              grant_type: grant,
+              client_id: id,
+              refresh_token: original.refresh,
+              code: extra,
+              code_verifier: verifier,
+              redirect_uri: callback,
+              resource,
+            }).toString(),
+          });
+          assert.equal(answer.statusCode, 400, answer.body);
+          assert.match(
+            String(answer.headers['content-type']),
+            /^application\/json/,
+          );
+          assert.deepEqual(answer.json(), { error: 'invalid_request' });
+          assert.deepEqual(await snapshot(), before);
+        }
+      const plain = await refresh(id, original.refresh);
+      assert.equal(plain.json().error, 'invalid_grant');
+      if (rotated) {
+        assert.equal(
+          (
+            await identity.query(
+              'select id from auth_oauth_consent where client_id=$1',
+              [id],
+            )
+          ).length,
+          0,
+        );
+        assert.equal(
+          (
+            await identity.query(
+              'select id from auth_verification where identifier=$1',
+              [digest(pending)],
+            )
+          ).length,
+          0,
+        );
+        assert.equal(
+          await resolveOAuthToken(runtime, digest(retained.access), resource),
+          null,
+        );
+      } else {
+        assert.deepEqual(await snapshot(), before);
+        assert.equal((await refresh(id, retained.refresh)).statusCode, 200);
+      }
     }
   });
   await test('expired consumed and unconsumed refresh tokens keep the consent', async () => {
@@ -1399,6 +1496,80 @@ try {
       );
     } finally {
       await provider.close();
+    }
+  });
+  await test('revocation keeps the shared rate refusal and retry header without credential writes', async () => {
+    const id = await register();
+    const granted = await tokens(id);
+    const before = {
+      consent: await identity.query(
+        'select * from auth_oauth_consent where client_id=$1',
+        [id],
+      ),
+      access: await identity.query(
+        'select * from auth_oauth_access_token where client_id=$1 order by id',
+        [id],
+      ),
+      refresh: await identity.query(
+        'select * from auth_oauth_refresh_token where client_id=$1 order by id',
+        [id],
+      ),
+    };
+    const limitedConfig = {
+      ...config,
+      rateLimit: { ...config.rateLimit, max: 2 },
+    };
+    const first = await createApp(limitedConfig);
+    const second = await createApp(limitedConfig);
+    try {
+      for (const [n, target] of [first, second, first, second].entries()) {
+        const token = [
+          randomUUID(),
+          randomUUID(),
+          granted.refresh,
+          granted.access,
+        ][n];
+        assert.ok(token);
+        const answer = await target.inject({
+          method: 'POST',
+          url: '/api/auth/oauth2/revoke',
+          remoteAddress: '198.51.100.48',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          payload: new URLSearchParams({ token, client_id: id }).toString(),
+        });
+        if (n < 2) {
+          assert.equal(answer.statusCode, 200, answer.body);
+          assert.equal(answer.body, '');
+        } else {
+          assert.equal(answer.statusCode, 429, answer.body);
+          assert.match(
+            String(answer.headers['content-type']),
+            /^application\/json/,
+          );
+          assert.deepEqual(answer.json(), { error: 'temporarily_unavailable' });
+          assert.ok(Number(answer.headers['x-retry-after']) > 0);
+        }
+        assert.deepEqual(
+          {
+            consent: await identity.query(
+              'select * from auth_oauth_consent where client_id=$1',
+              [id],
+            ),
+            access: await identity.query(
+              'select * from auth_oauth_access_token where client_id=$1 order by id',
+              [id],
+            ),
+            refresh: await identity.query(
+              'select * from auth_oauth_refresh_token where client_id=$1 order by id',
+              [id],
+            ),
+          },
+          before,
+        );
+      }
+    } finally {
+      await first.close();
+      await second.close();
     }
   });
   await test('token requests bound lock waits and write nothing on timeout', async () => {

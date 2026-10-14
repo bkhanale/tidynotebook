@@ -10,6 +10,7 @@ import {
   oauthRevocationAuthenticationRequest,
   oauthRevocationAuthenticationSucceeded,
   publicOAuthRegistrationRequest,
+  oauthRequestCredential,
 } from './better-auth.ts';
 
 await test('the upstream type adapter changes only authorize OpenAPI parameters', () => {
@@ -57,6 +58,48 @@ await test('OAuth discovery has one exact path and no OpenID path', () => {
       .map((route) => route.path),
     [oauthMetadataPath],
   );
+});
+
+await test('credential lookup follows only the route and grant type', () => {
+  const fields = new URLSearchParams({
+    code: 'code',
+    refresh_token: 'refresh',
+    token: 'revoke',
+  });
+  for (const [grant, token, kind] of [
+    ['authorization_code', 'code', 'authorization_code'],
+    ['refresh_token', 'refresh', 'token'],
+  ]) {
+    assert.ok(grant);
+    fields.set('grant_type', grant);
+    assert.deepEqual(oauthRequestCredential('/api/auth/oauth2/token', fields), {
+      token,
+      kind,
+    });
+    assert.deepEqual(
+      oauthRequestCredential('/api/auth/oauth2/revoke', fields),
+      { token: 'revoke', kind: 'token' },
+    );
+  }
+  fields.set('grant_type', 'client_credentials');
+  assert.equal(oauthRequestCredential('/api/auth/oauth2/token', fields), null);
+  assert.equal(
+    oauthRequestCredential('/api/auth/oauth2/authorize', fields),
+    null,
+  );
+  for (const [grant, other] of [
+    ['authorization_code', 'refresh_token'],
+    ['refresh_token', 'code'],
+  ]) {
+    assert.ok(grant && other);
+    assert.equal(
+      oauthRequestCredential(
+        '/api/auth/oauth2/token',
+        new URLSearchParams({ grant_type: grant, [other]: 'wrong' }),
+      ),
+      null,
+    );
+  }
 });
 
 await test('the safe Node CIMD transport refuses special-use addresses', async () => {

@@ -920,17 +920,15 @@ export function createAuthProtocol(
             if (oauth === undefined)
               return oauthFailure('temporarily_unavailable', 503);
             const fields = oauthRequestFields(request);
-            const token =
-              fields.get('code') ??
-              fields.get('refresh_token') ??
-              fields.get('token');
+            const credential = oauthRequestCredential(path, fields);
+            const token = credential?.token;
             response = await oauthRequestTransaction(
               oauth.pool,
-              token === null || token === undefined
+              credential === null
                 ? null
                 : {
-                    digest: secretDigest.digest(token),
-                    kind: fields.has('code') ? 'authorization_code' : 'token',
+                    digest: secretDigest.digest(credential.token),
+                    kind: credential.kind,
                     ...(fields.get('token_type_hint') === null
                       ? {}
                       : { hint: fields.get('token_type_hint') ?? '' }),
@@ -989,6 +987,7 @@ export function createAuthProtocol(
                     return new Response(null, { status: 200 });
                   }
                   if (
+                    authenticated.status === 429 ||
                     ['invalid_client', 'invalid_request'].some(
                       (error) => error === failure,
                     )
@@ -1130,6 +1129,14 @@ export function createAuthProtocol(
         path !== oauthMetadataPath &&
         mediaType === 'application/json'
       ) {
+        if (response.status === 429)
+          return {
+            ...oauthFailure('temporarily_unavailable', 429),
+            headers: headers.filter(
+              ([name]) => name.toLowerCase() !== 'content-type',
+            ),
+            cookies,
+          };
         const parsed = parseJson(text);
         if (!parsed.ok)
           throw new Error('The OAuth provider returned invalid JSON.');
@@ -1148,14 +1155,6 @@ export function createAuthProtocol(
                   : 'invalid_request',
               response.status,
             ),
-            headers: headers.filter(
-              ([name]) => name.toLowerCase() !== 'content-type',
-            ),
-            cookies,
-          };
-        if (response.status === 429)
-          return {
-            ...oauthFailure('temporarily_unavailable', 429),
             headers: headers.filter(
               ([name]) => name.toLowerCase() !== 'content-type',
             ),
@@ -1339,6 +1338,31 @@ export function oauthFailure(error: string, status = 400): ProtocolResult {
   };
 }
 
+/** Selects the same grant credential as the provider, before its digest lookup. */
+export function oauthRequestCredential(
+  path: string,
+  fields: URLSearchParams,
+): {
+  readonly token: string;
+  readonly kind: 'authorization_code' | 'token';
+} | null {
+  if (path === '/api/auth/oauth2/revoke') {
+    const token = fields.get('token');
+    return token === null ? null : { token, kind: 'token' };
+  }
+  if (path !== '/api/auth/oauth2/token') return null;
+  const grant = fields.get('grant_type');
+  if (grant === 'authorization_code') {
+    const token = fields.get('code');
+    return token === null ? null : { token, kind: 'authorization_code' };
+  }
+  if (grant === 'refresh_token') {
+    const token = fields.get('refresh_token');
+    return token === null ? null : { token, kind: 'token' };
+  }
+  return null;
+}
+
 /** Parses one supported protocol request without changing its bytes. */
 function oauthRequestFields(request: FastifyRequest): URLSearchParams {
   const path = request.url.split('?')[0] ?? '';
@@ -1364,6 +1388,12 @@ function oauthRequestRefusal(
   const path = request.url.split('?')[0] ?? '';
   const fields = oauthRequestFields(request);
   if (path.endsWith('/token')) {
+    if (
+      (fields.get('grant_type') === 'authorization_code' &&
+        fields.has('refresh_token')) ||
+      (fields.get('grant_type') === 'refresh_token' && fields.has('code'))
+    )
+      return oauthFailure('invalid_request');
     if (fields.has('client_assertion') || fields.has('client_assertion_type'))
       return oauthFailure('invalid_client');
     if (!oauthGrantTypes.some((grant) => grant === fields.get('grant_type')))

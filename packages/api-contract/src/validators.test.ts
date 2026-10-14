@@ -579,6 +579,26 @@ await test('OAuth forms and RFC 6749 errors keep their declared boundary', () =>
     false,
   );
   assert.equal(request({ grant_type: ['refresh_token'] }), false);
+  for (const grant of ['authorization_code', 'refresh_token']) {
+    assert.equal(
+      request({ grant_type: grant, code: 'code', refresh_token: 'refresh' }),
+      false,
+    );
+    assert.equal(
+      request({ grant_type: grant, code: '', refresh_token: '' }),
+      false,
+    );
+  }
+  assert.equal(
+    request({ grant_type: 'authorization_code', refresh_token: 'refresh' }),
+    false,
+  );
+  assert.equal(request({ grant_type: 'refresh_token', code: 'code' }), false);
+  assert.equal(
+    request({ grant_type: 'authorization_code', code: 'code' }),
+    true,
+  );
+  assert.equal(request({ grant_type: 'unsupported', code: 'code' }), true);
   const response = responseValidator(
     'exchangeOAuthToken',
     400,

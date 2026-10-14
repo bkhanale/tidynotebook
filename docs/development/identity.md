@@ -1,8 +1,7 @@
 # Accounts and identity
 
-This page owns how an account comes in, how a person signs in, and what an
-administrator can do. One installation serves several people, and no person
-reads the notes of another.
+This page owns account registration, sign-in and administration.
+One installation serves several people. No person reads another person's notes.
 
 `apps/server/src/auth/` owns this area. Read `registration.ts` for the one
 registration path, `setup.ts` for the public operations that make an account,
@@ -43,8 +42,7 @@ the person in after the account exists.
 ## Sign-in and sessions
 
 Better Auth owns password hashing, sessions, reset tokens, and cookie security.
-tidy notebook mounts only the routes it needs; `better-auth.ts` states the exact
-list, and the sign-up route is not one of them.
+`better-auth.ts` states the mounted routes. No sign-up route is mounted.
 
 A session create hook asks `notesapp_session_account` before every new
 session, and the actor resolver asks the same function on every request. Only
@@ -68,15 +66,18 @@ Deleting that consent revokes the whole grant; an authenticated, unexpired
 refresh replay deletes it. Token and revocation requests hold account then pair
 locks in one bounded transaction, with no network work inside it.
 
+A refresh token that is revoked and has no rotation uses its own shared counter.
+Its fixed window uses the provider token window and maximum.
+Other token requests use the provider counter. Its window follows the last count.
+The stores are separate. One address can use twice the maximum.
+
 ## Administration
 
 Each account has an installation role, administrator or member. The matrix of
 `installation.ts` stands beside the workspace matrix, and the two never read
 each other ([record 0109](../decisions/0109-the-installation-role-grants-no-workspace-access.md)).
-An administrator lists the accounts with their address, state, last activity
-and usage, invites, disables, enables, removes, changes a role, and changes a
-limit. An administrator is not a member of a workspace of another account, so
-every row policy hides its notes.
+An administrator manages accounts and their limits. This role grants no
+workspace membership. Row policies still apply to each workspace.
 
 Every administrator action runs in one installation transaction that takes the
 installation lock first, and a database function checks the role again. The
@@ -143,7 +144,6 @@ budgeted transport of `mail.ts`, which the composition of
 - No message leaves the server outside `messages.ts`, and no message that a
   stranger causes skips the budget of its address.
 - No answer exposes the session token to page script.
-- The two operator commands set a transaction setting that the operator
-  functions read. It guards against a mistake of the application, not against a
-  holder of the runtime credential.
+- Operator commands set a transaction setting which their functions check.
+  It guards application errors, not a holder of the runtime credential.
 - No log holds a password, a cookie, a token, note text, or search text.

@@ -5897,11 +5897,37 @@ export const operations: readonly OperationEntry[] = [
       "body": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "description": "A form request to exchange a code or refresh token.",
+        "description": "A form request to exchange a code or refresh token. A code grant must not carry refresh_token. A refresh grant must not carry code.",
         "additionalProperties": false,
         "required": [
           "grant_type"
         ],
+        "if": {
+          "properties": {
+            "grant_type": {
+              "const": "authorization_code"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "refresh_token": false
+          }
+        },
+        "else": {
+          "if": {
+            "properties": {
+              "grant_type": {
+                "const": "refresh_token"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": false
+            }
+          }
+        },
         "properties": {
           "grant_type": {
             "type": "string",

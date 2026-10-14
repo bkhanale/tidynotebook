@@ -1947,53 +1947,10 @@ export type OAuthToken = {
 };
 
 /**
- * A form request to exchange a code or refresh token.
+ * A form request to exchange a code or refresh token. A code grant must not carry refresh_token. A refresh grant must not carry code.
  */
 export type OAuthTokenRequest = {
-    /**
-     * Protocol value.
-     */
-    grant_type: string;
-    /**
-     * Protocol value.
-     */
-    client_id?: string;
-    /**
-     * Protocol value.
-     */
-    client_secret?: string;
-    /**
-     * Protocol value.
-     */
-    code?: string;
-    /**
-     * Protocol value.
-     */
-    code_verifier?: string;
-    /**
-     * Protocol value.
-     */
-    redirect_uri?: string;
-    /**
-     * Protocol value.
-     */
-    refresh_token?: string;
-    /**
-     * Protocol value.
-     */
-    scope?: string;
-    /**
-     * Protocol value.
-     */
-    resource?: string;
-    /**
-     * Client assertion authentication under RFC 7523.
-     */
-    client_assertion?: string;
-    /**
-     * Client assertion authentication under RFC 7523.
-     */
-    client_assertion_type?: string;
+    [key: string]: never;
 };
 
 /**
@@ -3594,6 +3551,56 @@ export type MailSettingsInputWritable = {
      * The sender of every message, an address or a name and an address, for example tidy notebook <no-reply@notes.example.com>.
      */
     sender: string;
+};
+
+/**
+ * A form request to exchange a code or refresh token. A code grant must not carry refresh_token. A refresh grant must not carry code.
+ */
+export type OAuthTokenRequestWritable = {
+    /**
+     * Protocol value.
+     */
+    grant_type: string;
+    /**
+     * Protocol value.
+     */
+    client_id?: string;
+    /**
+     * Protocol value.
+     */
+    client_secret?: string;
+    /**
+     * Protocol value.
+     */
+    code?: string;
+    /**
+     * Protocol value.
+     */
+    code_verifier?: string;
+    /**
+     * Protocol value.
+     */
+    redirect_uri?: string;
+    /**
+     * Protocol value.
+     */
+    refresh_token?: string;
+    /**
+     * Protocol value.
+     */
+    scope?: string;
+    /**
+     * Protocol value.
+     */
+    resource?: string;
+    /**
+     * Client assertion authentication under RFC 7523.
+     */
+    client_assertion?: string;
+    /**
+     * Client assertion authentication under RFC 7523.
+     */
+    client_assertion_type?: string;
 };
 
 /**
@@ -5402,7 +5409,7 @@ export type ExchangeOAuthTokenData = {
     /**
      * The OAuth protocol request.
      */
-    body: OAuthTokenRequest;
+    body: OAuthTokenRequestWritable;
     path?: never;
     query?: never;
     url: '/api/auth/oauth2/token';
