@@ -5,7 +5,7 @@ module.exports = {
     readPackage(pkg) {
       if (pkg.name !== 'better-auth') return pkg;
       if (
-        pkg.version !== '1.7.6' ||
+        pkg.version !== '1.7.7' ||
         pkg.peerDependencies?.['drizzle-kit'] !==
           '>=0.31.4 || >=1.0.0-beta.1' ||
         pkg.peerDependenciesMeta?.['drizzle-kit']?.optional !== true

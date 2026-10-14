@@ -285,7 +285,7 @@ await test('the hook removes both exact optional schema-peer fields and leaves t
 await test('the hook refuses an unreviewed Better Auth version or changed schema-peer fields', () => {
   const original = {
     name: 'better-auth',
-    version: '1.7.6',
+    version: '1.7.7',
     peerDependencies: {
       'drizzle-kit': '>=0.31.4 || >=1.0.0-beta.1',
       pg: '^8.0.0',
@@ -296,7 +296,8 @@ await test('the hook refuses an unreviewed Better Auth version or changed schema
     },
   };
   for (const changed of [
-    { ...original, version: '1.7.7' },
+    { ...original, version: '1.7.6' },
+    { ...original, version: '1.7.8' },
     { ...original, peerDependencies: { 'drizzle-kit': 'new-range' } },
     {
       ...original,

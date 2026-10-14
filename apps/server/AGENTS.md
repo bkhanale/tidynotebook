@@ -91,6 +91,7 @@ request that no generated operation can express uses `app.inject()`.
 | `src/routes/published.ts`              | The reader path and document of a link         |
 | `src/routes/published-render-cache.ts` | The bounded cache of published bodies          |
 | `src/auth/actor.ts`                    | Turns a session or key into a verified actor   |
+| `src/auth/better-auth.ts`              | Better Auth settings and the exact route list  |
 | `src/lifecycle.ts`                     | The order of the start and of the stop         |
 | `src/config.ts`                        | Settings, secrets (0207) and refusal messages  |
 | `src/served-origins.ts`                | The one list of origins this deployment serves |
