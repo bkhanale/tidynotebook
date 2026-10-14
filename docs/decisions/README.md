@@ -256,6 +256,9 @@ and needs no record.
 | [0222](0222-distribution-runtime-dependency-closure.md)                               | Distribution runtime dependencies form a complete graph                         |
 | [0223](0223-core-source-opens-before-distribution.md)                                 | Core source opens before distribution                                           |
 | [0224](0224-hosted-ci-runs-the-fast-check-on-each-pull-request.md)                    | Hosted CI runs the fast check on each pull request                              |
+| [0225](0225-the-server-answers-mcp-on-its-own-origin.md)                              | The server answers MCP on its own origin                                        |
+| [0226](0226-the-application-origin-issues-mcp-grants.md)                              | The application origin issues MCP grants                                        |
+| [0227](0227-a-tool-calls-the-contract-as-the-actor-of-its-grant.md)                   | A tool calls the contract as the actor of its grant                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -867,3 +870,10 @@ names it billing in every word that a person reads. It refines records
 Record 0217 lets the home page of the landing site use a wide column, a
 hero headline at `text-3xl`, 20 px feature icons and a raised screenshot. Every
 other page keeps the note column. It refines records 0137 and 0198.
+
+Records 0225 to 0227 follow [design 026](../design/026-a-remote-mcp-server.md).
+Record 0225 serves a remote MCP server on its own origin and replaces the
+stdio adapter of record 0008. Record 0226 makes the application origin the
+authorization server of that endpoint, and it refines records 0201 and 0208.
+Record 0227 runs each tool as calls to the contract operations, as the actor
+of the grant.

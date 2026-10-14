@@ -1,0 +1,80 @@
+# Plan 022: A remote MCP server
+
+Status: active
+
+The [project board](https://github.com/users/bkhanale/projects/2) holds the live
+work. Each item below becomes one issue and one pull request, with its
+milestone, a priority label and an area label.
+[Design 026](../design/026-a-remote-mcp-server.md) states the problem and the
+choices. Every choice is closed. An item that finds a fact in the code that a
+record did not foresee stops and reports it.
+
+## Decisions
+
+- [0225. The server answers MCP on its own origin](../decisions/0225-the-server-answers-mcp-on-its-own-origin.md)
+- [0226. The application origin issues MCP grants](../decisions/0226-the-application-origin-issues-mcp-grants.md)
+- [0227. A tool calls the contract as the actor of its grant](../decisions/0227-a-tool-calls-the-contract-as-the-actor-of-its-grant.md)
+- [0208. Personal keys resolve to the shared actor](../decisions/0208-personal-keys-resolve-to-the-shared-actor.md)
+- [0201. A locked account keeps a fixed list of operations](../decisions/0201-a-locked-account-keeps-a-fixed-list-of-operations.md)
+- [0121. Every limit and every job holds across server processes](../decisions/0121-every-limit-and-every-job-holds-across-server-processes.md)
+
+## Landing boundaries
+
+1. Items 1 to 9 are in this repository, milestone `0.19.0`. Items 10 to 14 are
+   in the private repository `tidynotebook/cloud`, on the same board.
+2. Each item is one pull request that lands alone and keeps `pnpm verify`
+   green. With no `NOTESAPP_MCP_ORIGIN`, nothing of items 2 to 7 answers, so
+   an installation that lands one of them sees no change.
+3. Each item follows `docs/development/feature-workflow.md`, updates the
+   `AGENTS.md` of each directory it changes, and updates
+   `docs/guide/configuration.md` in the same commit as a new setting.
+4. Each item carries the tests that its records name. Each changed screen gets
+   a screenshot in light and in dark.
+5. Item 5 adds `docs/development/mcp.md`, and each later item keeps it true.
+
+## Tools
+
+The registry of record 0227 holds exactly these tools. Each one calls only the
+operations that it names.
+
+| Tool                 | Scope         | Operations                      | Purpose                                 |
+| -------------------- | ------------- | ------------------------------- | --------------------------------------- |
+| `list_workspaces`    | `notes:read`  | `listWorkspaces`                | The workspaces of the account           |
+| `list_notes`         | `notes:read`  | `listFiles`                     | One page of notes, by path or by change |
+| `read_note`          | `notes:read`  | `getFile`, `getRevision`        | The text of the head or of one version  |
+| `search_notes`       | `notes:read`  | `listWorkspaces`, `searchFiles` | Search one workspace, or each one       |
+| `list_backlinks`     | `notes:read`  | `listBacklinks`                 | The notes that link to a note           |
+| `list_note_history`  | `notes:read`  | `listHistory`                   | The versions of a note                  |
+| `create_note`        | `notes:write` | `createFile`                    | A new note at a path, with its text     |
+| `edit_note`          | `notes:write` | `getFile`, `updateFile`         | Exact replacements, or the whole text   |
+| `move_note`          | `notes:write` | `getFile`, `updateFile`         | A new path or name                      |
+| `move_note_to_trash` | `notes:write` | `deleteFile`                    | Move to Trash, which Restore undoes     |
+
+## Work
+
+| Item | Depends on | Scope and owning paths                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Records          |
+| ---- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 1    | None       | Move `better-auth` and every `@better-auth/` package of `apps/server/package.json` together to the release that the peer range of `@better-auth/oauth-provider` names. No feature. The existing identity tests pass unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                  | 0226             |
+| 2    | 1          | The authorization server. `NOTESAPP_MCP_ORIGIN` in `apps/server/src/config.ts`. The OAuth provider and CIMD plugins in `apps/server/src/auth/better-auth.ts`, their routes in the exact route list, the metadata at the well-known path. The migration of the OAuth tables as identity tables of `packages/storage-server`, with the narrow function that resolves a token. Opaque tokens as digests, the lifetimes, refresh rotation and reuse, the DCR bounds, the CIMD fetch bounds, the daily expiry of unused clients under an advisory lock. Revocation on a password change, a disable and a removal. Integration tests of each refusal. | 0225, 0226       |
+| 3    | 2          | The consent page in `apps/web/src/features/`: the client, the host of its redirect, the not verified mark of a DCR client, the choice of read only or read and write, Allow and Deny, the return through sign-in, and the refusal of a locked account. Pure decision module and served test.                                                                                                                                                                                                                                                                                                                                                    | 0226             |
+| 4    | 2          | Connected apps. The list and revoke operations in `packages/api-contract/`, their handlers, the bound on the count of grants, both operations on the list of `packages/core/src/identity/locked.ts`, and the section of Settings with its last use as a relative time and its Revoke action.                                                                                                                                                                                                                                                                                                                                                    | 0201, 0226       |
+| 5    | 2          | The MCP endpoint. In the contract: the `mcpAccessToken` scheme, the endpoint with the protocol marker `mcp`, and the Protected Resource Metadata operation. `@modelcontextprotocol/server` in `apps/server/src/mcp/` only. The MCP origin in `apps/server/src/served-origins.ts`, the `401` challenge, the `Origin` refusal, the token resolution with its resource check, the refusal of a cookie and a key, the delegation in `apps/server/src/auth/actor.ts`, the registry with no tool yet, the scope filter, `insufficient_scope`, the request bounds. The MCP conformance suite in `tests/integration/`. `docs/development/mcp.md`.       | 0121, 0225, 0227 |
+| 6    | 5          | The six read tools of the table, with their schemas, annotations, answer bound and offset. A test that a delegation of a read tool cannot reach a write operation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 0227             |
+| 7    | 6          | The four write tools of the table. `edit_note` makes its update through `packages/note-document`. Tests that an edit joins a concurrent save, that a whole-text edit refuses a moved head, that a repeated call writes nothing, and that a locked account keeps only its list.                                                                                                                                                                                                                                                                                                                                                                  | 0201, 0227       |
+| 8    | 7          | The guide: a new page `docs/guide/mcp.md` that connects a client, explains the two kinds of access and revokes a connected app, and the changes of `docs/guide/self-hosting.md` and `docs/guide/security-model.md`. `docs/development/api.md` and `docs/development/architecture.md` name the MCP surface.                                                                                                                                                                                                                                                                                                                                      | 0225             |
+| 9    | 1 to 8     | Release `0.19.0` through the `release-core` skill.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | None             |
+| 10   | None       | Private repository: the MCP host of each environment, its Railway domain on the application service, its DNS record, and the one rate rule. Its record states the choice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 0225             |
+| 11   | 9, 10      | Private repository: the pin of `0.19.0`, `NOTESAPP_MCP_ORIGIN` in each environment, the monitor of the metadata document, and the runbook.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 0225             |
+| 12   | 11         | Private repository: the landing site states that every plan connects an AI assistant, and links the guide.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | None             |
+| 13   | 11, 12     | Private repository: release to staging, connect real clients through CIMD and DCR, read, write, revoke, and a locked account. A report of the run.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | All              |
+| 14   | 13         | Private repository: promote the staged release to production and connect one client at `https://mcp.tidynotebook.com/mcp`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | All              |
+
+Items 1 and 10 have no dependency and can land at any time. Items 3, 4 and 5
+can land in any order after item 2.
+
+## Required evidence
+
+[Design 026](../design/026-a-remote-mcp-server.md) lists the proof under
+"Verification". Each item carries the part that its records name. A refusal
+test also proves that the database refuses the same write with the use case
+bypassed, where a database function holds the rule.
