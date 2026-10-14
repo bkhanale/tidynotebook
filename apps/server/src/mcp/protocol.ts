@@ -17,6 +17,8 @@ import {
   ProtocolError,
   Server,
   WebStandardStreamableHTTPServerTransport,
+  type CallToolRequest,
+  type CallToolResult,
 } from '@modelcontextprotocol/server';
 import { bearerToken, withToolDelegation } from '../auth/actor.ts';
 import { secretDigest } from '../auth/publication-secrets.ts';
@@ -84,6 +86,13 @@ function challenge(resource: string, write: boolean): ProtocolResult {
         `Bearer resource_metadata="${new URL('/.well-known/oauth-protected-resource/mcp', resource).href}", scope="${write ? 'notes:read notes:write' : 'notes:read'}"${write ? ', error="insufficient_scope"' : ''}`,
       ],
     ],
+  );
+}
+
+/** Reject arrays before the legacy SDK can dispatch a batch past one call's scope check. */
+function isBatchRequest(body: unknown): boolean {
+  return (
+    Buffer.isBuffer(body) && body.toString('utf8').trimStart().startsWith('[')
   );
 }
 
@@ -212,6 +221,7 @@ export function createMcpProtocol(
       ]);
       if (counted.some((state) => state.current > config.rateLimit.max))
         return mcpProtocolError(429);
+      if (isBatchRequest(request.body)) return mcpProtocolError(400);
       // The library parses the message. This read only selects a scope challenge.
       const message = protocolMessage(request);
       if (
@@ -249,7 +259,49 @@ function protocolMessage(request: FastifyRequest) {
   }
 }
 
+/** Both protocol eras register this exact handler. */
+export function createToolHandler(
+  grant: OAuthTokenIdentity,
+  tools: readonly McpTool[],
+  call: ContractCall,
+): (message: CallToolRequest) => Promise<CallToolResult> {
+  return async (message) => {
+    const tool = tools.find(
+      (entry) => entry.definition.name === message.params.name,
+    );
+    if (tool === undefined)
+      throw new ProtocolError(
+        METHOD_NOT_FOUND,
+        'This tool is not available. Read the tool list and try again.',
+      );
+    if (!grant.scopes.includes(tool.scope))
+      throw new ProtocolError(
+        INVALID_REQUEST,
+        'This grant cannot call this tool. Ask for the required access and try again.',
+      );
+    return withToolDelegation(grant, tool.operations, () =>
+      runTool(tool, message.params.arguments ?? {}, call),
+    );
+  };
+}
+
 /** Both protocol eras use this factory and only these tool handlers. */
+export function createMcpServer(
+  grant: OAuthTokenIdentity,
+  tools: readonly McpTool[],
+  call: ContractCall,
+): Server {
+  const server = new Server(
+    { name: productName, version: '1' },
+    { capabilities: { tools: {} } },
+  );
+  server.setRequestHandler('tools/list', () => ({
+    tools: tools.map((tool) => tool.definition),
+  }));
+  server.setRequestHandler('tools/call', createToolHandler(grant, tools, call));
+  return server;
+}
+
 async function serve(
   request: FastifyRequest,
   origin: string,
@@ -258,29 +310,7 @@ async function serve(
   call: ContractCall,
   bodyBytes: number,
 ): Promise<ProtocolResult> {
-  const factory = () => {
-    const server = new Server(
-      { name: productName, version: '1' },
-      { capabilities: { tools: {} } },
-    );
-    server.setRequestHandler('tools/list', () => ({
-      tools: tools.map((tool) => tool.definition),
-    }));
-    server.setRequestHandler('tools/call', async (message) => {
-      const tool = tools.find(
-        (entry) => entry.definition.name === message.params.name,
-      );
-      if (tool === undefined)
-        throw new ProtocolError(
-          METHOD_NOT_FOUND,
-          'This tool is not available. Read the tool list and try again.',
-        );
-      return withToolDelegation(grant, tool.operations, () =>
-        runTool(tool, message.params.arguments ?? {}, call),
-      );
-    });
-    return server;
-  };
+  const factory = () => createMcpServer(grant, tools, call);
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers))
     if (typeof value === 'string') headers.set(name, value);
