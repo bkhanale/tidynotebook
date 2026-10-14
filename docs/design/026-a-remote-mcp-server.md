@@ -139,11 +139,12 @@ record 0208 refused. The scopes only narrow which tools a client can call.
 The rights of the account still decide each operation.
 
 A refresh token rotates. When a stolen refresh token is used again, the whole
-grant ends. Two replicas can see the rotation and the reuse at the same
-moment, so a token request finds the client and the account of its token and
-takes an advisory lock on that pair. It reads the token again under the lock,
-and every issue and revocation of the pair holds the same lock. The OAuth routes keep the error body of RFC 6749 and the form encoding
-of a token request, and the other identity routes keep their problem answer.
+grant ends. Two replicas can process the rotation and the reuse at the same
+time. A token request finds the client and the account of its token, then
+takes an advisory lock on that pair. It reads the token again under the lock.
+Every issue and revocation of the pair holds the same lock. The OAuth routes
+keep the error body of RFC 6749 and the form encoding of a token request. The
+other identity routes keep their problem answer.
 
 Settings gets a section of connected apps. It lists each grant with its
 client, its access and when it was last used, and it revokes one. A password
