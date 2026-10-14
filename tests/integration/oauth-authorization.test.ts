@@ -318,6 +318,63 @@ const consoleMocks = (['error', 'warn', 'log', 'info', 'debug'] as const).map(
 );
 
 try {
+  await test('token resolution writes the shared client at most once within a day', async () => {
+    const cases = [];
+    for (const [lastUse, writes] of [
+      ['null', 1],
+      ["now() - interval '1 day' - interval '1 second'", 1],
+      ["now() - interval '23 hours'", 0],
+    ] as const) {
+      const id = await register();
+      const first = await tokens(id);
+      const second = await tokens(id);
+      await identity.query(
+        `update auth_oauth_client set last_used_at = ${lastUse} where client_id = $1`,
+        [id],
+      );
+      cases.push({ id, first, second, writes });
+    }
+    await admin.query(
+      'create table oauth_client_writes (client_id text not null)',
+    );
+    await admin.query(`create function count_oauth_client_write() returns trigger
+      language plpgsql as $$ begin
+        insert into public.oauth_client_writes values (NEW.client_id);
+        return NEW;
+      end $$`);
+    await admin.query(`create trigger count_oauth_client_write after update of last_used_at
+      on auth_oauth_client for each row execute function count_oauth_client_write()`);
+    try {
+      for (const { id, first, second, writes } of cases) {
+        // The trigger counts actual writes, including an update to an equal value.
+        for (const granted of [first, second]) {
+          const resolved = await resolveOAuthToken(
+            runtime,
+            digest(granted.access),
+            resource,
+          );
+          assert.ok(resolved);
+          assert.deepEqual(resolved.scopes, ['notes:read', 'offline_access']);
+          const counted = await admin.query<{ count: number }>(
+            'select count(*)::int as count from oauth_client_writes where client_id = $1',
+            [id],
+          );
+          assert.equal(counted[0]?.count, writes);
+        }
+        const stored = await identity.query<{ recent: boolean }>(
+          "select last_used_at > now() - interval '1 day' as recent from auth_oauth_client where client_id = $1",
+          [id],
+        );
+        assert.equal(stored[0]?.recent, true);
+      }
+    } finally {
+      await admin.query(
+        'drop trigger count_oauth_client_write on auth_oauth_client',
+      );
+      await admin.query('drop function count_oauth_client_write()');
+      await admin.query('drop table oauth_client_writes');
+    }
+  });
   await test('served DCR and CIMD grants do not write the resource policy', async () => {
     const metadata = await getOAuthMetadata();
     const before = await identity.query('select * from auth_oauth_resource');
@@ -1827,27 +1884,59 @@ try {
   });
   await test('the daily sweep removes unused clients on one replica only', async () => {
     const unused = await register();
+    const stale = await register();
+    const boundary = await register();
+    const createdBoundary = await register();
+    const renewed = await register();
+    const granted = await tokens(renewed);
+    const at = new Date();
     await identity.query(
-      "update auth_oauth_client set created_at = now() - interval '31 days' where client_id = $1",
-      [unused],
+      "update auth_oauth_client set created_at = $2::timestamptz - interval '31 days', last_used_at = null where client_id = any($1::text[])",
+      [[unused, stale, boundary, createdBoundary, renewed], at],
+    );
+    await identity.query(
+      "update auth_oauth_client set last_used_at = $2::timestamptz - interval '30 days' - interval '1 second' where client_id = any($1::text[])",
+      [[stale, renewed], at],
+    );
+    await identity.query(
+      "update auth_oauth_client set last_used_at = $2::timestamptz - interval '30 days' where client_id = $1",
+      [boundary, at],
+    );
+    await identity.query(
+      "update auth_oauth_client set created_at = $2::timestamptz - interval '30 days' where client_id = $1",
+      [createdBoundary, at],
+    );
+    assert.ok(
+      await resolveOAuthToken(runtime, digest(granted.access), resource),
     );
     const swept = await Promise.all([
-      expireOAuthClients(authPool),
-      expireOAuthClients(authPool),
+      expireOAuthClients(authPool, at),
+      expireOAuthClients(authPool, at),
     ]);
     assert.equal(
       swept.reduce((sum, count) => sum + count, 0),
-      1,
+      2,
     );
     assert.equal(
       (
         await identity.query(
-          'select id from auth_oauth_client where client_id = $1',
-          [unused],
+          'select id from auth_oauth_client where client_id = any($1::text[])',
+          [[unused, stale]],
         )
       ).length,
       0,
     );
+    for (const retained of [boundary, createdBoundary, renewed]) {
+      assert.equal(
+        (
+          await identity.query(
+            'select id from auth_oauth_client where client_id = $1',
+            [retained],
+          )
+        ).length,
+        1,
+      );
+    }
   });
   await test('one locked total bound covers DCR and unique CIMD addresses', async () => {
     const current = await identity.query<{ count: number }>(
