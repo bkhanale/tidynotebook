@@ -60,9 +60,35 @@ The operator does these tasks. The product cannot do them.
   to the address. A sign-up answers the same for a new and a known address. It
   costs the browser a short check.
 - Each account has its own notes. No account reads the notes of another.
-- The one way to show a note to another person is a link that you publish
-  yourself. You can stop it at any moment. See
+- A link that you publish shows a note to a person who has no account.
+  You can stop it at any moment. See
   [Published links](published-links.md).
+
+## Connected apps
+
+`NOTESAPP_MCP_ORIGIN` turns on the remote MCP endpoint and its OAuth routes.
+With no setting, those routes stay off. See
+[Turn on MCP](self-hosting.md#turn-on-mcp).
+
+An app needs your consent on the application sign-in site. Its name is its
+own claim. The consent page shows the client identity and where your answer
+goes. A client that registers itself is marked **Not verified**.
+
+The access covers all your workspaces, with the current rights of your
+account. **Read only** permits reading. **Read and write** also permits
+creating and changing notes and moving them to Trash. Neither permits
+deleting a note for good, publishing a link or changing an account.
+
+MCP accepts only an OAuth access token for its own endpoint. It does not
+accept a browser session or a personal API key. A connected app uses the
+same account rules and limits as the application.
+
+Revoke in **Settings**, under **Connected apps**, ends access at once.
+A password change or reset, a disabled account or a deleted account ends
+every app's access. Revoke cannot remove content that an app receives before
+you revoke access.
+Only connect an app that you trust with your notes. See
+[Connect an AI assistant](mcp.md).
 
 ## What the application does on its own
 

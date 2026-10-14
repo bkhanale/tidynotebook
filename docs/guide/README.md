@@ -39,6 +39,8 @@ For the person who writes the notes.
 - [Spelling](spelling.md) - use the spell check, or turn it off.
 - [Export](export.md) - take every note out as plain Markdown files.
 - [API keys and programs](api.md) - connect a program to your account.
+- [Connect an AI assistant](mcp.md) - choose its access to your notes, and end
+  that access.
 - [Settings](settings.md) - each section of the Settings page, and where each
   choice is kept.
 

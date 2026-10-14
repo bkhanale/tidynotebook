@@ -1,27 +1,27 @@
 # HTTP API access
 
-This document states how a caller reaches the HTTP API and which rules every
-call satisfies. `packages/api-contract/` holds the authoritative interface:
-read it for a path, a parameter, a schema, or a status. To add or
-change an operation, read [Adding an API operation](api-contract.md).
+This document states how a caller reaches the HTTP API and which rules hold.
+`packages/api-contract/` holds the authoritative interface. To add or change
+an operation, read [Adding an API operation](api-contract.md).
 
-## One surface
+## The surfaces
 
-tidy notebook serves one application interface, the HTTP API under `/api`. The web
-application and the browser sync engine are its only callers, and both reach it
-through the operations that `packages/api-client` generates from the contract.
+The web application, sync engine and programs reach the HTTP API under `/api`.
+`packages/api-client` generates its operations from the contract.
 
-One second surface sits beside it. Every address under `/published/` is the
-reader path of a published read-only link, and no operation there names a
+Every address under `/published/` is a published read-only link with no
 security scheme. See [The reader path](#the-reader-path).
 
-A remote Model Context Protocol server, an OAuth authorization server, and
-agent tokens were part of an earlier product. Version 0.1 has none of them.
-See [decision 0008](../decisions/0008-remove-the-remote-integration-surface.md).
+The remote MCP endpoint sits on the origin that `NOTESAPP_MCP_ORIGIN` names.
+The application origin issues its OAuth grants. With no setting, the endpoint,
+its metadata and the OAuth routes stay off.
+`packages/api-contract/paths/mcp.yaml` declares the protocol boundary.
+See [The remote MCP server](mcp.md) and
+[record 0225](../decisions/0225-the-server-answers-mcp-on-its-own-origin.md).
 
 ## Authentication
 
-The session cookie is the only credential the API under `/api` accepts.
+Each operation declares its accepted credential in the contract.
 
 - Better Auth issues the cookie. It is `HttpOnly` and `SameSite`, and a
   deployment that serves HTTPS uses the secure cookie prefix.
@@ -31,13 +31,17 @@ The session cookie is the only credential the API under `/api` accepts.
   list, which the identity routes trust as well. See
   [decision 0039](../decisions/0039-one-list-of-served-origins.md).
 - First-run setup issues a cookie rather than reading one, and it applies the
-  same origin rule itself. It is the one state changing write that a caller
-  with no account can reach.
-- The identity adapter refuses a request that carries an authorization header.
-  No bearer scheme exists, so such a request is not authenticated through the
-  cookie either.
+  same origin rule itself.
+- A personal API key uses the authorization header on operations that accept
+  it. An explicit credential never falls back to a cookie. Session operations
+  require the cookie. See
+  [record 0208](../decisions/0208-personal-keys-resolve-to-the-shared-actor.md).
+- MCP accepts only its resource-bound OAuth access token. It refuses a cookie
+  and a personal key. The token cannot authenticate a network call to `/api`.
+  A tool delegates only its registered operations inside the same process.
+  See [record 0227](../decisions/0227-a-tool-calls-the-contract-as-the-actor-of-its-grant.md).
 - The health, readiness, setup, and authentication protocol routes need no
-  session. Every other operation of `/api` needs one. Each probe answer has a
+  session. Other operations need the credential they declare. Each probe answer has a
   second address at the root of the origin, for a load balancer that probes a
   fixed path, and both addresses are operations of the contract. See
   [decision 0040](../decisions/0040-a-probe-address-is-a-contract-operation.md).
@@ -68,8 +72,8 @@ body, so the boundary refuses an answer that carries a distinguishing word.
 The boundary verifies the actor before a handler runs, and `packages/core`
 decides the action inside the same transaction that performs the write.
 
-1. The session must exist and must map to an application account.
-2. A write must name a served origin.
+1. The credential must map to a current application account.
+2. A write with a browser session must name a served application origin.
 3. The account must be a member of the workspace that the operation names.
 4. The current role must permit the action of the operation. The role is read
    from storage on every request, so a role change takes effect at once.
@@ -109,9 +113,10 @@ a cookie leave as they are
 
 ## Errors
 
-Every failure is an RFC 9457 problem document with a stable application code.
+An HTTP API failure is an RFC 9457 problem document with a stable application code.
 The client normalizes a transport failure into the same shape, so a caller
 always branches on the code and never on a message.
+OAuth and MCP keep their protocol answers. See [The remote MCP server](mcp.md).
 
 ## Limits and timing
 

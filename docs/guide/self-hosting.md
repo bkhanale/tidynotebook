@@ -305,6 +305,31 @@ warning is harmless. Add `--name "Your name"` to set the name of the account.
 The default name is Owner. Each later account needs an invitation. See
 [Account commands](operations.md#account-commands).
 
+## Turn on MCP
+
+MCP lets a person connect an AI assistant to their account. Leave
+`NOTESAPP_MCP_ORIGIN` empty to keep the MCP endpoint, its metadata and its
+OAuth routes off.
+
+To turn it on, set `NOTESAPP_MCP_ORIGIN` in `.env` to the full public origin
+that the assistant reaches. Use HTTPS, with no path or query. You can use the
+application origin or a separate host. A separate host must reach the same
+application through your reverse proxy. It cannot use the host of
+`NOTESAPP_PUBLISHED_ORIGIN`.
+
+Apply the changed setting:
+
+```bash
+docker compose up -d
+```
+
+Give people the MCP origin followed by `/mcp` as the connection address.
+Sign-in and consent stay on the application origin. Each person chooses
+the app's access to all their workspaces. The endpoint accepts its own
+OAuth access tokens, not a browser session or a personal API key.
+See [Connect an AI assistant](mcp.md) and
+[Security model](security-model.md#connected-apps).
+
 ## Next steps
 
 The server runs. Do these things next.

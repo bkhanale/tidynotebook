@@ -5,9 +5,6 @@ a Markdown file with one `.md` suffix. Typing writes a draft on the device.
 Save creates one immutable version on the server. Nothing is stored that cannot
 be exported as plain Markdown files.
 
-This is the one current picture of the system. Each section links to the
-detailed page instead of repeating it.
-
 ## Apps and packages
 
 | Path                       | Purpose                                                       |
@@ -25,10 +22,16 @@ detailed page instead of repeating it.
 | `packages/ui`              | Shared controls, icons, and the runtime theme                 |
 | `tools/sdk-codegen`        | Contract lint and client generation                           |
 
-`apps/server` serves the built web application, the REST API, and the
-authentication routes on one origin. There is no second service. See
+`apps/server` serves the web application, the HTTP API and authentication
+on one origin. See
 [decision 0012](../decisions/0012-package-layout-stays-for-v0-1.md) and
 [decision 0013](../decisions/0013-delivery-and-headers-belong-to-the-app.md).
+
+The same process serves remote MCP when `NOTESAPP_MCP_ORIGIN` is set.
+`apps/server/src/mcp/` owns its protocol and tools. The application origin
+issues OAuth grants. Tools call contract operations as the account of their
+grant. See [The remote MCP server](mcp.md) and
+[record 0225](../decisions/0225-the-server-answers-mcp-on-its-own-origin.md).
 
 ## The save model
 
