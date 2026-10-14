@@ -72,6 +72,25 @@ operations that it names.
 Items 1 and 10 have no dependency and can land at any time. Items 3, 4 and 5
 can land in any order after item 2.
 
+## Issues
+
+| Item | Issue                                                          |
+| ---- | -------------------------------------------------------------- |
+| 1    | [342](https://github.com/tidynotebook/tidynotebook/issues/342) |
+| 2    | [343](https://github.com/tidynotebook/tidynotebook/issues/343) |
+| 3    | [344](https://github.com/tidynotebook/tidynotebook/issues/344) |
+| 4    | [345](https://github.com/tidynotebook/tidynotebook/issues/345) |
+| 5    | [346](https://github.com/tidynotebook/tidynotebook/issues/346) |
+| 6    | [347](https://github.com/tidynotebook/tidynotebook/issues/347) |
+| 7    | [348](https://github.com/tidynotebook/tidynotebook/issues/348) |
+| 8    | [349](https://github.com/tidynotebook/tidynotebook/issues/349) |
+| 9    | [350](https://github.com/tidynotebook/tidynotebook/issues/350) |
+| 10   | `tidynotebook/cloud` 56                                        |
+| 11   | `tidynotebook/cloud` 57                                        |
+| 12   | `tidynotebook/cloud` 58                                        |
+| 13   | `tidynotebook/cloud` 59                                        |
+| 14   | `tidynotebook/cloud` 60                                        |
+
 ## Required evidence
 
 [Design 026](../design/026-a-remote-mcp-server.md) lists the proof under
