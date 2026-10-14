@@ -82,6 +82,7 @@ const app = await createApp(config, {
       count: number;
     }>(`select count(*)::int as count from pg_locks
     where locktype = 'advisory' and granted and objsubid = 2
+      and database = (select oid from pg_database where datname = current_database())
       and classid::bigint = (hashtext('notesapp:oauth-pair')::bigint & 4294967295)`);
     assert.equal(locks[0]?.count, 0, 'client metadata fetch under a pair lock');
     if (metadataMode === 'redirect')
