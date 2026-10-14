@@ -39,6 +39,7 @@ import {
   updateFile,
 } from '@notesapp/api-client';
 import { acceptWithDocuments, contentDigest } from '@notesapp/core';
+import type { WorkspaceStore } from '@notesapp/core';
 import { replaceDocumentText, startDocument } from '@notesapp/note-document';
 import {
   bootstrapOwner,
@@ -520,6 +521,152 @@ await test('a rename keeps the content and the file identity', async () => {
   // The text was not resent, so the revision reuses the stored content.
   assert.equal(read.data?.head?.text, '# keep\n');
 });
+
+for (const action of ['update', 'move', 'delete'] as const) {
+  await test(
+    `a conditional ${action} refuses a head moved before its commit`,
+    { timeout: 15000 },
+    async (context) => {
+      const file = await newFile(`conditional/${action}.md`, '# first\n');
+      const identifiers = ids();
+      const document =
+        action === 'delete'
+          ? await deletionForHead(workspaceId, file.revisionId)
+          : await saveForHead(
+              workspaceId,
+              file.revisionId,
+              '# conditional edit\n',
+            );
+      const atCommit = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      let transactions = 0;
+      let sawHead = false;
+      const heldStore: WorkspaceStore = {
+        documents: content.documents,
+        transact: async (actor, scope, run, options) => {
+          transactions += 1;
+          // The receipt read and conditionalHead each finish their transaction.
+          // Hold the next transaction before it takes the commit lock.
+          if (transactions === 3) {
+            assert.equal(sawHead, true);
+            atCommit.resolve();
+            await release.promise;
+          }
+          return content.transact(
+            actor,
+            scope,
+            (tx) =>
+              run({
+                ...tx,
+                revision: async (revisionId) => {
+                  const head = await tx.revision(revisionId);
+                  if (transactions === 2 && revisionId === file.revisionId)
+                    sawHead = true;
+                  return head;
+                },
+              }),
+            options,
+          );
+        },
+      };
+      const heldServer = await startTestServer({
+        environment: environment(),
+        handlers: (value) =>
+          createHandlers(value, undefined, {
+            store: identity,
+            content: heldStore,
+          }),
+        identity: adapter.resolver,
+        protocols: [createAuthProtocol(config, auth.auth)],
+      });
+      context.after(async () => {
+        release.resolve();
+        await heldServer.close();
+      });
+      const options = {
+        baseUrl: heldServer.baseUrl,
+        headers: { ...browser(cookie), 'if-match': file.tag },
+        path: { workspaceId, fileId: file.fileId },
+        body: { ...identifiers, document },
+      };
+      const pending =
+        action === 'delete'
+          ? deleteFile(options)
+          : updateFile({
+              ...options,
+              body:
+                action === 'move'
+                  ? { ...identifiers, path: 'conditional/moved.md' }
+                  : options.body,
+            });
+      await Promise.race([
+        atCommit.promise,
+        pending.then(() => {
+          throw new Error('The conditional request ended before its commit.');
+        }),
+      ]);
+      // A rename alone leaves observed text unchanged. The old rebase path
+      // would accept even the stale deletion, rather than refuse unseen work.
+      const competing = await updateFile({
+        headers: { ...browser(cookie), 'if-match': file.tag },
+        path: { workspaceId, fileId: file.fileId },
+        body: {
+          ...ids(),
+          path: `conditional/competing-${action}.md`,
+          ...(action === 'delete'
+            ? {}
+            : {
+                document: await saveForHead(
+                  workspaceId,
+                  file.revisionId,
+                  '# competing edit\n',
+                ),
+              }),
+        },
+      });
+      assert.equal(competing.error, undefined, JSON.stringify(competing.error));
+      const read = () =>
+        getFile({
+          headers: browser(cookie),
+          path: { workspaceId, fileId: file.fileId },
+        });
+      const before = await read();
+      assert.equal(before.error, undefined);
+      const session = await openSession(database.migrationUrl);
+      context.after(() => session.close());
+      const counts = () =>
+        session.query(
+          `select
+      (select count(*) from revisions where workspace_id = $1) as revisions,
+      (select count(*) from contents where workspace_id = $1) as contents,
+      (select count(*) from changesets where workspace_id = $1) as changesets,
+      (select count(*) from mutation_receipts where workspace_id = $1) as receipts,
+      (select count(*) from sync_changes where workspace_id = $1) as changes,
+      (select to_jsonb(c) from workspace_cursors c where workspace_id = $1) as cursor,
+      (select to_jsonb(u) from workspace_usage u where workspace_id = $1) as usage`,
+          [workspaceId],
+        );
+      const storedBefore = await counts();
+      release.resolve();
+      const refused = await pending;
+      assert.equal(responseOf(refused.response).status, 412);
+      assert.match(
+        responseOf(refused.response).headers.get('content-type') ?? '',
+        /^application\/problem\+json/,
+      );
+      assert.equal(problemCode(refused.error), 'stale_head');
+      assert.deepEqual(problemFiles(refused.error), [file.fileId]);
+      const after = await read();
+      assert.equal(after.error, undefined);
+      assert.deepEqual(after.data, before.data);
+      assert.equal(
+        responseOf(after.response).headers.get('etag'),
+        responseOf(before.response).headers.get('etag'),
+      );
+      assert.deepEqual(await counts(), storedBefore);
+    },
+  );
+}
 
 await test('a deletion writes a tombstone and hides the file', async () => {
   const file = await newFile('notes/removed.md');

@@ -171,6 +171,7 @@ async function rebaseHeads(
   tx: WorkspaceTransaction,
   input: ChangesetInput,
   fileIds: readonly string[],
+  preconditionMode: 'rebase' | 'strict',
 ): Promise<Result<RebaseResult>> {
   const expected = input.expectedHeads;
   const changed = new Set(fileIds);
@@ -181,6 +182,12 @@ async function rebaseHeads(
   const heads = await tx.headStates(fileIds);
   const headId = (fileId: string): string | null =>
     heads.get(fileId)?.revisionId ?? null;
+  if (preconditionMode === 'strict') {
+    const stale = fileIds.filter(
+      (fileId) => headId(fileId) !== expected[fileId],
+    );
+    if (stale.length > 0) return fail('stale_head', stale);
+  }
   const changedOperation = fileIds.filter((fileId) => {
     const current = headId(fileId);
     const submitted = expected[fileId] ?? null;
@@ -324,12 +331,16 @@ async function checkContent(
  * `digest` is the request digest of the operation that produced this
  * changeset. It decides whether a retry of the same mutation identity is the
  * same operation.
+ *
+ * Strict preconditions refuse any head that moved under the workspace lock.
+ * Conditional writes use this mode; device sync keeps the default rebase.
  */
 export async function commitChangeset(
   store: WorkspaceStore,
   actor: Actor,
   input: ChangesetInput,
   digest: string,
+  preconditionMode: 'rebase' | 'strict' = 'rebase',
 ): Promise<Result<AcceptedChangeset>> {
   // A changeset with no revision changes nothing, and a changeset over the
   // file limit is refused before any query, so an oversized request cannot
@@ -367,6 +378,7 @@ export async function commitChangeset(
         tx,
         { ...input, revisions: normalized.value },
         fileIds,
+        preconditionMode,
       );
       if (!rebased.ok) return rebased;
       const accepted = rebased.value.input;

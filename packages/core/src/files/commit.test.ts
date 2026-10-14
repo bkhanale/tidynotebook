@@ -615,6 +615,101 @@ await test('a save on the current head reports no superseded head', async () => 
   assert.deepEqual(result.superseded, []);
 });
 
+await test('strict preconditions accept current heads and keep receipt replay', async () => {
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/strict.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const next = await revision({
+    fileId,
+    path: first.path,
+    parents: [first.id],
+  });
+  const input = changeset([next], { expectedHeads: { [fileId]: first.id } });
+  const outcome = accepted(
+    await commitChangeset(store, actor, input, 'd-2', 'strict'),
+  );
+  assert.deepEqual(outcome.superseded, []);
+  assert.deepEqual(outcome.revisions[0]?.parents, [first.id]);
+  // The head now differs from the precondition, but this mutation is a replay.
+  assert.deepEqual(
+    accepted(await commitChangeset(store, actor, input, 'd-2', 'strict')),
+    outcome,
+  );
+  assert.equal(state.accepted.length, 2);
+  assert.equal(
+    rejected(await commitChangeset(store, actor, input, 'other', 'strict'))
+      .code,
+    'mutation_reused',
+  );
+});
+
+await test('strict preconditions refuse a moved head before document work or any write', async () => {
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const left = await revision({ fileId: id('f'), path: 'notes/left.md' });
+  const right = await revision({ fileId: id('f'), path: 'notes/right.md' });
+  accepted(
+    await commitChangeset(store, actor, changeset([left, right]), 'd-1'),
+  );
+  const current = await revision({
+    fileId: right.fileId,
+    path: right.path,
+    parents: [right.id],
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([current], { expectedHeads: { [right.fileId]: right.id } }),
+      'd-2',
+    ),
+  );
+  const revisions = [
+    await revision({
+      fileId: left.fileId,
+      path: left.path,
+      parents: [left.id],
+    }),
+    await revision({
+      fileId: right.fileId,
+      path: right.path,
+      parents: [right.id],
+    }),
+  ];
+  const input = changeset(revisions, {
+    expectedHeads: { [left.fileId]: left.id, [right.fileId]: right.id },
+  });
+  const before = structuredClone(state);
+  let documentReads = 0;
+  const guarded: WorkspaceStore = {
+    ...store,
+    transact: (writer, scope, run, options) =>
+      store.transact(
+        writer,
+        scope,
+        (tx) =>
+          run({
+            ...tx,
+            documents: (fileIds) => {
+              documentReads += 1;
+              return tx.documents(fileIds);
+            },
+          }),
+        options,
+      ),
+  };
+  const failure = rejected(
+    await commitChangeset(guarded, actor, input, 'd-3', 'strict'),
+  );
+  assert.deepEqual(failure, { code: 'stale_head', fileIds: [right.fileId] });
+  assert.equal(documentReads, 0);
+  assert.deepEqual(structuredClone(state), before);
+});
+
 await test('text work brings a note back from Trash', async () => {
   // Record 0083. The edit is the later write, and the tombstone kept the
   // document behind it, so the work applies and the note returns.

@@ -542,11 +542,18 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
       readonly changeset: ChangesetInput;
       readonly digest: string;
       readonly status: number;
+      readonly preconditionMode?: 'strict';
     },
   ): Promise<HandlerResult> {
     const actor = requireActor(request).actor;
     const accepted = unwrapDomain(
-      await commitChangeset(store, actor, input.changeset, input.digest),
+      await commitChangeset(
+        store,
+        actor,
+        input.changeset,
+        input.digest,
+        input.preconditionMode,
+      ),
     );
     return answerAccepted(reply, accepted, input.status);
   }
@@ -803,6 +810,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         changeset,
         digest,
         status: 200,
+        preconditionMode: 'strict',
       });
     },
 
@@ -849,6 +857,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         changeset,
         digest,
         status: 200,
+        preconditionMode: 'strict',
       });
     },
 
