@@ -30,7 +30,7 @@ function stateOf(doc: string, selection?: number): EditorState {
   return parsedWhole(
     EditorState.create({
       doc,
-      extensions: [noteMarkdown()],
+      extensions: [noteMarkdown({ headless: true })],
       ...(selection === undefined
         ? {}
         : { selection: { anchor: selection, head: selection } }),
@@ -444,7 +444,11 @@ function drawnWidgets(doc: string): string[] {
   const state = parsedWhole(
     EditorState.create({
       doc,
-      extensions: [noteMarkdown(), livePreview(), richWidgets(resolvers)],
+      extensions: [
+        noteMarkdown({ headless: true }),
+        livePreview(),
+        richWidgets(resolvers),
+      ],
       selection: { anchor: 0 },
     }),
   );

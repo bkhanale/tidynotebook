@@ -12,6 +12,7 @@ import {
   CompletionContext,
   type CompletionResult,
 } from '@codemirror/autocomplete';
+import { syntaxTreeAvailable } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import {
   noteDisplayName,
@@ -23,7 +24,7 @@ import {
   withNoteLinks,
   type NoteLinkSource,
 } from './completion.ts';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 
 /** The note list every test in this file uses. */
 const source: NoteLinkSource = {
@@ -155,18 +156,34 @@ await test('plain text opens no completion', () => {
   assert.equal(complete('Just typing‸'), null);
 });
 
-/** A state of the note grammar, with the note list, at the caret `‸`. */
+/** A parsed state of the note grammar, with the note list, at the caret `‸`. */
 function noteState(text: string): { state: EditorState; at: number } {
   const at = text.indexOf('‸');
   return {
-    state: EditorState.create({
-      doc: text.replace('‸', ''),
-      selection: { anchor: at },
-      extensions: [noteMarkdown(), noteLinkSource(source)],
-    }),
+    state: parsedWhole(
+      EditorState.create({
+        doc: text.replace('‸', ''),
+        selection: { anchor: at },
+        extensions: [noteMarkdown({ headless: true }), noteLinkSource(source)],
+      }),
+    ),
     at,
   };
 }
+
+await test('headless wiki link fixtures keep code text after the first parse budget ends', (t) => {
+  let time = 0;
+  t.mock.method(Date, 'now', () => (time += 100));
+  const fenced = noteState('```\n[[beta plan]‸\n```');
+  assert.equal(syntaxTreeAvailable(fenced.state), true);
+  assert.equal(typedWikiLink(fenced.state, fenced.at), null);
+  const prose = noteState('See [[beta plan]‸ now');
+  assert.equal(syntaxTreeAvailable(prose.state), true);
+  assert.deepEqual(typedWikiLink(prose.state, prose.at), {
+    from: 4,
+    insert: '[beta plan](beta%20plan.md)',
+  });
+});
 
 await test('a typed last bracket turns a wiki link into a standard link', () => {
   // Record 0172. The note is there, so the wiki form becomes the link that
@@ -229,11 +246,13 @@ await test('a note name with a colon gives a link and never an address', () => {
     noteLinkText(colon, 'https:evil.com.md'),
     '[https:evil.com](https%3Aevil.com.md)',
   );
-  const state = EditorState.create({
-    doc: 'See [[Meeting: Q3]',
-    selection: { anchor: 18 },
-    extensions: [noteMarkdown(), noteLinkSource(colon)],
-  });
+  const state = parsedWhole(
+    EditorState.create({
+      doc: 'See [[Meeting: Q3]',
+      selection: { anchor: 18 },
+      extensions: [noteMarkdown({ headless: true }), noteLinkSource(colon)],
+    }),
+  );
   assert.deepEqual(typedWikiLink(state, 18), {
     from: 4,
     insert: '[Meeting: Q3](Meeting%3A%20Q3.md)',

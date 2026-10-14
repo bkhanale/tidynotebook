@@ -27,6 +27,7 @@ import {
   LanguageSupport,
   syntaxHighlighting,
   syntaxTree,
+  syntaxTreeAvailable,
 } from '@codemirror/language';
 import type { EditorState, Extension } from '@codemirror/state';
 import { GFM } from '@lezer/markdown';
@@ -141,6 +142,16 @@ export const codeHighlightSpecs = codeTokenTags.map((entry) => ({
 
 const codeHighlightStyle = HighlightStyle.define(codeHighlightSpecs);
 
+/** Whether a reader needs the lazy fence parsers of the view. */
+export type NoteMarkdownOptions = {
+  /**
+   * A headless reader needs the Markdown structure, not fence highlighting.
+   * Omit the lazy fence parsers so this synchronous read waits for no load.
+   * The view keeps them by default. HTML and other fixed nested parsers stay.
+   */
+  readonly headless?: boolean;
+};
+
 /**
  * The Markdown language support of the note editor.
  *
@@ -148,18 +159,22 @@ const codeHighlightStyle = HighlightStyle.define(codeHighlightSpecs);
  * upstream Markdown package defines it. Formatting shortcuts are added
  * separately by the keymap module.
  */
-export function noteMarkdown(): LanguageSupport {
+export function noteMarkdown(
+  options: NoteMarkdownOptions = {},
+): LanguageSupport {
   return yamlFrontmatter({
     content: markdown({
       extensions: [GFM, mathMarkdownExtension, footnoteMarkdownExtension],
-      codeLanguages: fenceLanguageOf,
+      codeLanguages: options.headless === true ? () => null : fenceLanguageOf,
     }),
   });
 }
 
 /** The language plus the colors its fenced code needs. */
-export function noteMarkdownExtensions(): Extension {
-  return [noteMarkdown(), syntaxHighlighting(codeHighlightStyle)];
+export function noteMarkdownExtensions(
+  options: NoteMarkdownOptions = {},
+): Extension {
+  return [noteMarkdown(options), syntaxHighlighting(codeHighlightStyle)];
 }
 
 /** How many pumps of the parser {@link parsedWhole} allows before it refuses. */
@@ -181,8 +196,20 @@ export type ParsedWholeOptions = {
   readonly attempts?: number;
 };
 
+/** A complete parse whose tree has reached the state field. */
+function wholeTreeReady(state: EditorState): boolean {
+  return (
+    syntaxTreeAvailable(state, state.doc.length) &&
+    ensureSyntaxTree(state, state.doc.length, 0) === syntaxTree(state)
+  );
+}
+
 /**
- * Pumps the parser of a state until its tree covers the whole document.
+ * Pumps the parser of a state until its whole parse is complete.
+ *
+ * The outer tree of a mixed parse can cover the document while its nested
+ * trees are still incomplete. CodeMirror's completion check, rather than
+ * the outer length, states when the body and its fence languages are ready.
  *
  * A view parses at least its viewport before it renders, so the live
  * preview always reads a tree that is ready for what is on screen. A
@@ -206,14 +233,14 @@ export function parsedWhole(
   let current = state;
   for (
     let attempt = 0;
-    attempt < attemptBound && syntaxTree(current).length < current.doc.length;
+    attempt < attemptBound && !wholeTreeReady(current);
     attempt += 1
   ) {
     ensureSyntaxTree(current, current.doc.length, wholeDocumentSliceBudget);
     current = current.update({}).state;
   }
   const reached = syntaxTree(current).length;
-  if (reached < current.doc.length)
+  if (!wholeTreeReady(current))
     throw new Error(
       `the parser stopped at ${String(reached)} of ${String(current.doc.length)} characters`,
     );

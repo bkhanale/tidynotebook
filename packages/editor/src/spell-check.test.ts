@@ -15,7 +15,9 @@ import { livePreview } from './live-preview.ts';
 import { spellCheck, unspelledMarks, unspelledRanges } from './spell-check.ts';
 
 function stateOf(doc: string): EditorState {
-  return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
+  return parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown({ headless: true })] }),
+  );
 }
 
 /** The text of each range that the spell check skips in the whole note. */

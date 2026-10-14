@@ -21,7 +21,7 @@ function stateOf(source: string): EditorState {
     EditorState.create({
       doc: source.replace('‸', ''),
       selection: { anchor: caret },
-      extensions: [noteMarkdown()],
+      extensions: [noteMarkdown({ headless: true })],
     }),
   );
 }
@@ -102,7 +102,7 @@ await test('Enter on a line that cannot open a fence parses nothing', () => {
   const state = EditorState.create({
     doc,
     selection: { anchor: 'Plain text'.length },
-    extensions: [noteMarkdown()],
+    extensions: [noteMarkdown({ headless: true })],
   });
   assert.equal(syntaxTreeAvailable(state, doc.length), false);
   assert.equal(closeFenceSpec(state), null);
@@ -143,7 +143,7 @@ await test('a selection or a second caret declines', () => {
   const ranged = EditorState.create({
     doc: '```',
     selection: { anchor: 0, head: 3 },
-    extensions: [noteMarkdown()],
+    extensions: [noteMarkdown({ headless: true })],
   });
   assert.equal(closeFenceSpec(ranged), null);
 });
@@ -161,7 +161,11 @@ function afterTyping(
   let state = EditorState.create({
     doc: source.replace('‸', ''),
     selection: { anchor: caret },
-    extensions: [noteMarkdown(), typedFenceOpeners, history()],
+    extensions: [
+      noteMarkdown({ headless: true }),
+      typedFenceOpeners,
+      history(),
+    ],
   });
   const keys = event === 'input.type' ? typing.split('') : [typing];
   for (const key of keys) {

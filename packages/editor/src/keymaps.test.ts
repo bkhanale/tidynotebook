@@ -10,7 +10,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
 import { EditorState, type TransactionSpec } from '@codemirror/state';
 import { parseMarkdown } from '@notesapp/markdown';
 import { noteMarkdownExtensions, parsedWhole } from './language.ts';
@@ -58,26 +58,30 @@ import {
   type FormatActionId,
 } from './keymaps.ts';
 
-/** Builds a state from text that marks its selection. */
+/** Builds a parsed state from text that marks its selection. */
 function stateOf(source: string): EditorState {
   const rangeStart = source.indexOf('«');
   if (rangeStart !== -1) {
     const withoutStart = source.replace('«', '');
     const rangeEnd = withoutStart.indexOf('»');
     assert.notEqual(rangeEnd, -1, 'a range needs both markers');
-    return EditorState.create({
-      doc: withoutStart.replace('»', ''),
-      selection: { anchor: rangeStart, head: rangeEnd },
-      extensions: [noteMarkdownExtensions()],
-    });
+    return parsedWhole(
+      EditorState.create({
+        doc: withoutStart.replace('»', ''),
+        selection: { anchor: rangeStart, head: rangeEnd },
+        extensions: [noteMarkdownExtensions({ headless: true })],
+      }),
+    );
   }
   const cursor = source.indexOf('‸');
   assert.notEqual(cursor, -1, 'the source needs a cursor or a range');
-  return EditorState.create({
-    doc: source.replace('‸', ''),
-    selection: { anchor: cursor },
-    extensions: [noteMarkdownExtensions()],
-  });
+  return parsedWhole(
+    EditorState.create({
+      doc: source.replace('‸', ''),
+      selection: { anchor: cursor },
+      extensions: [noteMarkdownExtensions({ headless: true })],
+    }),
+  );
 }
 
 /** Applies a spec and returns the document with its selection marked. */
@@ -91,6 +95,25 @@ function applied(state: EditorState, spec: TransactionSpec | null): string {
     ? `${text.slice(0, from)}‸${text.slice(from)}`
     : `${text.slice(0, from)}«${text.slice(from, to)}»${text.slice(to)}`;
 }
+
+await test('headless command fixtures finish the parse after its first budget ends', (t) => {
+  let time = 0;
+  t.mock.method(Date, 'now', () => (time += 100));
+  const fence = stateOf('```js\ncode\n```\n\n- one‸');
+  assert.equal(syntaxTreeAvailable(fence), true);
+  assert.equal(insideCodeFence(fence, 2), true);
+  assert.equal(insideCodeFence(fence, 6), false);
+  assert.equal(
+    applied(fence, continueBlockSpec(fence)),
+    '```js\ncode\n```\n\n- one\n- ‸',
+  );
+  const table = stateOf('| a   | b   |\n| --- | --- |\n| 1‸   | 2   |');
+  assert.equal(syntaxTreeAvailable(table), true);
+  assert.equal(
+    applied(table, tableEditSpec(table, addRowEdit)),
+    '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| ‸    |     |',
+  );
+});
 
 await test('bold wraps a selection and keeps it selected', () => {
   const state = stateOf('say «hello» now');

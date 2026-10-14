@@ -4,7 +4,9 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { syntaxTreeAvailable } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
+import { measureParts } from '@notesapp/markdown';
 import {
   barsOnScreen,
   codeBlockBars,
@@ -20,7 +22,9 @@ import {
 
 /** A state of the note grammar with the whole text parsed. */
 function stateOf(doc: string): EditorState {
-  return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
+  return parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown({ headless: true })] }),
+  );
 }
 
 const note = [
@@ -123,7 +127,7 @@ await test('a screen with no code block reads no limit of the whole note', () =>
   );
 });
 
-await test('the bars read the answer of the grammar gate and never the whole note', () => {
+await test('the bars read the answer of the grammar gate and never the whole note', (t) => {
   // The bars asked the limits of the parse of the whole note on each key
   // while a code block was on the screen, so a key in a long note read and
   // copied all of it. The gate keeps the answer for each change.
@@ -131,7 +135,14 @@ await test('the bars read the answer of the grammar gate and never the whole not
   let state = parsedWhole(
     EditorState.create({
       doc: long,
-      extensions: [gatedMarkdown(noteMarkdownExtensions(), true)],
+      extensions: [
+        gatedMarkdown(noteMarkdownExtensions({ headless: true }), true, {
+          read: measureParts,
+          whole: () => {
+            throw new Error('a key must not check the whole note');
+          },
+        }),
+      ],
     }),
   );
   let asked = 0;
@@ -140,8 +151,26 @@ await test('the bars read the answer of the grammar gate and never the whole not
     return markdownGrammarOn(seen);
   };
   for (const key of 'abc') {
-    state = state.update({ changes: { from: 7, insert: key } }).state;
+    // A key can spend the parse budget before it reaches the code block.
+    // Move the clock past that budget without a delay or machine load.
+    let time = 0;
+    const clock = t.mock.method(Date, 'now', () => (time += 100));
+    try {
+      state = state.update({ changes: { from: 7, insert: key } }).state;
+    } finally {
+      clock.mock.restore();
+    }
+    assert.equal(syntaxTreeAvailable(state), false);
+    assert.equal(markdownGrammarOn(state), true);
+    // A view continues the parse in the background. This headless state
+    // must complete the same work before the bars read its tree.
+    state = parsedWhole(state);
+    const copy = t.mock.method(state.doc, 'toString', () => {
+      throw new Error('the bars must not copy the whole note');
+    });
     assert.equal(barsOnScreen(state, [{ from: 0, to: 40 }], copies).length, 1);
+    assert.equal(copy.mock.callCount(), 0);
+    copy.mock.restore();
   }
   assert.equal(asked, 3);
 });

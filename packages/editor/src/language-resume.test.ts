@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { syntaxTree } from '@codemirror/language';
+import { syntaxTree, syntaxTreeAvailable } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import {
   NodeProp,
@@ -24,6 +24,7 @@ import {
   corpusMarkdown,
 } from '../../markdown/test-data/content.ts';
 import { codeLanguages, noteMarkdown, parsedWhole } from './language.ts';
+import { previewStructureOf } from './live-preview.ts';
 
 // Each fence language loads first, so the tree of a fence holds the tree of
 // its language and a stop inside JavaScript, CSS or HTML is a stop inside a
@@ -181,5 +182,57 @@ await test('a note typed up to any offset and then completed parses the same', (
       whole,
       `typed up to ${String(at)}`,
     );
+  }
+});
+
+for (const at of [33, 623]) {
+  await test(`a completed note at offset ${String(at)} finishes its nested parses after the budget ends`, (t) => {
+    const doc = blockSyntaxMarkdown;
+    const whole = shapeOf(parser.parse(doc));
+    const typed = parsedWhole(
+      EditorState.create({ doc: doc.slice(0, at), extensions: [support] }),
+    );
+    // For this fixture, the wrapper and Markdown take 146 clock reads.
+    // End the edit budget as the first fence language starts. The outer
+    // tree covers the note, but the nested trees still need parse work.
+    let reads = 0;
+    const clock = t.mock.method(Date, 'now', () => (++reads <= 146 ? 0 : 100));
+    let partial: EditorState;
+    try {
+      partial = typed.update({
+        changes: { from: at, insert: doc.slice(at) },
+      }).state;
+    } finally {
+      clock.mock.restore();
+    }
+    assert.equal(syntaxTree(partial).length, doc.length);
+    assert.equal(syntaxTreeAvailable(partial), false);
+    assert.notEqual(shapeOf(syntaxTree(partial)), whole);
+    assert.throws(
+      () => parsedWhole(partial, { attempts: 0 }),
+      /the parser stopped at \d+ of \d+ characters/,
+    );
+    const completed = parsedWhole(partial);
+    assert.equal(syntaxTreeAvailable(completed), true);
+    assert.equal(
+      shapeOf(syntaxTree(completed)),
+      whole,
+      `typed up to ${String(at)}`,
+    );
+  });
+}
+
+await test('the offline preview finishes the Markdown body after the budget ends', (t) => {
+  const doc = blockSyntaxMarkdown;
+  const whole = previewStructureOf(doc);
+  assert.ok(whole.some((node) => node.kind === 'heading'));
+  // One clock read before the nested-tree cases stops with a full-length
+  // outer tree whose Markdown body has not yet been read.
+  let reads = 0;
+  const clock = t.mock.method(Date, 'now', () => (++reads <= 145 ? 0 : 100));
+  try {
+    assert.deepEqual(previewStructureOf(doc), whole);
+  } finally {
+    clock.mock.restore();
   }
 });

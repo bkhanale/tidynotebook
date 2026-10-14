@@ -1582,7 +1582,7 @@ export function buildPreview(
  */
 export function previewStructureOf(doc: string): readonly PreviewNode[] {
   const state = parsedWhole(
-    EditorState.create({ doc, extensions: [noteMarkdown()] }),
+    EditorState.create({ doc, extensions: [noteMarkdown({ headless: true })] }),
   );
   // A selection outside the document reveals nothing, so every construct is
   // reported in its rendered form.

@@ -13,7 +13,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state';
 import { formatContextOf } from './format-context.ts';
-import { noteMarkdownExtensions } from './language.ts';
+import { noteMarkdownExtensions, parsedWhole } from './language.ts';
 import {
   moveColumnEdit,
   moveRowEdit,
@@ -42,26 +42,30 @@ import {
 /** Builds a state from text that marks its selection. */
 function stateOf(source: string, editing = false): EditorState {
   const extensions = [
-    noteMarkdownExtensions(),
+    noteMarkdownExtensions({ headless: true }),
     editing ? tableGridEditing() : [],
   ];
   const start = source.indexOf('«');
   if (start !== -1) {
     const rest = source.replace('«', '');
     const end = rest.indexOf('»');
-    return EditorState.create({
-      doc: rest.replace('»', ''),
-      selection: { anchor: start, head: end },
-      extensions,
-    });
+    return parsedWhole(
+      EditorState.create({
+        doc: rest.replace('»', ''),
+        selection: { anchor: start, head: end },
+        extensions,
+      }),
+    );
   }
   const cursor = source.indexOf('‸');
   assert.notEqual(cursor, -1, 'the source needs a cursor or a range');
-  return EditorState.create({
-    doc: source.replace('‸', ''),
-    selection: { anchor: cursor },
-    extensions,
-  });
+  return parsedWhole(
+    EditorState.create({
+      doc: source.replace('‸', ''),
+      selection: { anchor: cursor },
+      extensions,
+    }),
+  );
 }
 
 /** The document of a state with its selection marked. */
@@ -94,6 +98,16 @@ function rewritten(source: string): string {
 
 await test('an aligned table is written back as it is', () => {
   assert.equal(rewritten(aligned), aligned);
+});
+
+await test('a headless table round trip completes after the cold parse budget ends', (t) => {
+  let time = 0;
+  const clock = t.mock.method(Date, 'now', () => (time += 100));
+  try {
+    assert.equal(rewritten(aligned), aligned);
+  } finally {
+    clock.mock.restore();
+  }
 });
 
 await test('the writer aligns the columns and keeps the colons', () => {

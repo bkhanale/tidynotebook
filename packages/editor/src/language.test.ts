@@ -10,7 +10,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { insertNewlineAndIndent, toggleComment } from '@codemirror/commands';
-import { syntaxTree } from '@codemirror/language';
+import {
+  ensureSyntaxTree,
+  syntaxTree,
+  syntaxTreeAvailable,
+} from '@codemirror/language';
 import { EditorState, type Transaction } from '@codemirror/state';
 import { tags, type Tag } from '@lezer/highlight';
 import {
@@ -25,6 +29,26 @@ import {
   parsedWhole,
   syntaxTokenNames,
 } from './language.ts';
+import { previewStructureOf } from './live-preview.ts';
+
+await test('the offline preview keeps the same structure before and after a fence language loads', async () => {
+  const language = fenceLanguageOf('python');
+  assert.ok(language !== null);
+  assert.equal(language.support, undefined);
+  const doc = '```python\ndef f(x):\n    return x\n```\n\n# After code\n';
+  const before = previewStructureOf(doc);
+  assert.deepEqual(before, [
+    { kind: 'code-block', info: 'python' },
+    { kind: 'heading', level: 1, text: 'After code' },
+  ]);
+  assert.equal(language.support, undefined);
+  const state = parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown({ headless: true })] }),
+  );
+  assert.equal(syntaxTreeAvailable(state), true);
+  await language.load();
+  assert.deepEqual(previewStructureOf(doc), before);
+});
 
 /** Every tag the code highlight style paints, flattened. */
 function styledTags(): readonly Tag[] {
@@ -153,6 +177,18 @@ await test('parsedWhole refuses a document the bound cannot cover', () => {
     () => parsedWhole(fresh, { attempts: 0 }),
     /the parser stopped at \d+ of \d+ characters/,
   );
+});
+
+await test('parsedWhole installs a completed context tree in the state field', () => {
+  const doc = manyShortParagraphs(60);
+  const fresh = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  const tree = ensureSyntaxTree(fresh, doc.length, 5000);
+  assert.notEqual(tree, null);
+  assert.equal(syntaxTreeAvailable(fresh), true);
+  assert.notEqual(syntaxTree(fresh), tree);
+  const completed = parsedWhole(fresh);
+  assert.equal(syntaxTree(completed), tree);
+  assert.equal(syntaxTreeAvailable(completed), true);
 });
 
 /** Runs one state command on a note with the caret at `‸`, and answers the text. */

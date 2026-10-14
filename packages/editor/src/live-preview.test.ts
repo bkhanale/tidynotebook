@@ -41,7 +41,9 @@ import { richWidgets } from './widgets.ts';
  * until the tree covers the document or refuses.
  */
 function stateOf(doc: string): EditorState {
-  return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
+  return parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown({ headless: true })] }),
+  );
 }
 
 /**
@@ -966,7 +968,10 @@ await test('a reference of a long note is a footnote before the parse reaches it
     (_, index) => `Paragraph ${String(index)} of a long note.`,
   ).join('\n\n');
   const doc = `A claim[^1] at the top.\n\n${filler}\n\n[^1]: The note at the end.\n`;
-  const partial = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  const partial = EditorState.create({
+    doc,
+    extensions: [noteMarkdown({ headless: true })],
+  });
   assert.ok(
     syntaxTree(partial).length < doc.length,
     'the test needs a tree that stops before the end',
@@ -994,7 +999,7 @@ await test('a reference of a long note is a footnote before the parse reaches it
         parsedWhole(
           EditorState.create({
             doc: undefinedDoc,
-            extensions: [noteMarkdown()],
+            extensions: [noteMarkdown({ headless: true })],
           }),
         ),
       ),
@@ -1272,7 +1277,10 @@ await test('a reference link keeps its brackets and is styled', () => {
  * and disappears again cannot hide from the assertion.
  */
 function typeInto(text: string, onStep: (state: EditorState) => void): void {
-  let state = EditorState.create({ doc: '', extensions: [noteMarkdown()] });
+  let state = EditorState.create({
+    doc: '',
+    extensions: [noteMarkdown({ headless: true })],
+  });
   for (const character of text) {
     const at = state.doc.length;
     state = parsedWhole(
@@ -1459,7 +1467,7 @@ function lineElements(
       doc,
       selection: { anchor: doc.length },
       extensions: [
-        noteMarkdown(),
+        noteMarkdown({ headless: true }),
         preview,
         ...extensions,
         search({ top: true }),

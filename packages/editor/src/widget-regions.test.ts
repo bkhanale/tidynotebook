@@ -48,7 +48,10 @@ function opened(doc: string): {
   return {
     extension,
     state: parsedWhole(
-      EditorState.create({ doc, extensions: [noteMarkdown(), extension] }),
+      EditorState.create({
+        doc,
+        extensions: [noteMarkdown({ headless: true }), extension],
+      }),
     ),
   };
 }
@@ -176,7 +179,7 @@ await test('a parse that reaches further adds the regions of the new blocks', ()
   // A state that has not parsed the note yet holds only part of its tree.
   let state = EditorState.create({
     doc: longNote(2000),
-    extensions: [noteMarkdown(), extension],
+    extensions: [noteMarkdown({ headless: true }), extension],
   });
   state = parsedWhole(state);
   assert.deepEqual(regionsOf(state, extension), regionIndexOf(state).regions);
