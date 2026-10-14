@@ -404,6 +404,106 @@ try {
     });
   }
 
+  await test('create refuses before sign-in through the validated client callback', async () => {
+    const id = await register('Unsupported account creation');
+    const before = await admin.query(
+      `select (select count(*) from auth_session) as sessions,
+              (select count(*) from auth_oauth_consent) as consents,
+              (select count(*) from auth_verification) as codes`,
+    );
+    for (const clientId of [id, 'https://client.notes.invalid/create.json']) {
+      for (const sessionCookie of ['', cookie]) {
+        for (const prompt of ['create', 'login create consent', ' create  ']) {
+          const url = new URL(authorization(clientId), config.origin);
+          url.searchParams.set('prompt', prompt);
+          const answer = await app.inject({
+            url: `${url.pathname}${url.search}`,
+            headers: { cookie: sessionCookie },
+          });
+          assert.equal(answer.statusCode, 302, answer.body);
+          const destination = new URL(
+            String(answer.headers.location),
+            config.origin,
+          );
+          assert.equal(destination.origin, new URL(callback).origin);
+          assert.equal(destination.pathname, new URL(callback).pathname);
+          assert.equal(
+            destination.searchParams.get('error'),
+            'invalid_request',
+          );
+          assert.equal(
+            destination.searchParams.get('state'),
+            'one + two & three',
+          );
+          assert.equal(
+            destination.searchParams.get('iss'),
+            `${config.origin}/api/auth`,
+          );
+          assert.equal(destination.searchParams.has('code'), false);
+          assert.equal(answer.headers['set-cookie'], undefined);
+          assert.equal(
+            destination.searchParams.get('error_description'),
+            'Account creation is not supported.',
+          );
+        }
+      }
+    }
+    for (const mode of ['query', 'fragment']) {
+      const url = new URL(authorization(id), config.origin);
+      url.searchParams.set('prompt', 'create');
+      url.searchParams.set('response_mode', mode);
+      const answer = await app.inject({
+        url: `${url.pathname}${url.search}`,
+        headers: { accept: 'application/json' },
+      });
+      assert.equal(answer.statusCode, 200, answer.body);
+      assert.equal(answer.json().redirect, true);
+      const destination = new URL(answer.json().url);
+      assert.equal(destination.origin, new URL(callback).origin);
+      const fields =
+        mode === 'fragment'
+          ? new URLSearchParams(destination.hash.slice(1))
+          : destination.searchParams;
+      assert.equal(fields.get('error'), 'invalid_request');
+      assert.equal(fields.get('state'), 'one + two & three');
+      assert.equal(fields.get('iss'), `${config.origin}/api/auth`);
+      assert.equal(
+        fields.get('error_description'),
+        'Account creation is not supported.',
+      );
+    }
+    for (const change of [
+      { field: 'client_id', value: 'unknown-client' },
+      {
+        field: 'redirect_uri',
+        value: 'https://unregistered.notes.invalid/callback',
+      },
+    ]) {
+      const url = new URL(authorization(id), config.origin);
+      url.searchParams.set('prompt', 'create');
+      url.searchParams.set(change.field, change.value);
+      const answer = await app.inject({ url: `${url.pathname}${url.search}` });
+      assert.equal(answer.statusCode, 302, answer.body);
+      const destination = new URL(
+        String(answer.headers.location),
+        config.origin,
+      );
+      assert.equal(destination.origin, config.origin);
+      assert.notEqual(destination.pathname, oauthSignInRoute);
+    }
+    const after = await admin.query(
+      `select (select count(*) from auth_session) as sessions,
+              (select count(*) from auth_oauth_consent) as consents,
+              (select count(*) from auth_verification) as codes`,
+    );
+    assert.deepEqual(after, before);
+    const metadata = await app.inject({
+      url: '/.well-known/oauth-authorization-server/api/auth',
+    });
+    assert.equal(metadata.statusCode, 200);
+    assert.equal('prompt_values_supported' in metadata.json(), false);
+  });
+
   await test('a consent page whose session ended returns through the plain login page', async () => {
     const id = await register();
     const request = await consentRequest(id);

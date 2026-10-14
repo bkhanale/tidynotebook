@@ -1511,10 +1511,15 @@ function oauthRequestRefusal(
   return null;
 }
 
+// NUL is outside the OAuth prompt token grammar. The provider must reject
+// this value through its own client and redirect validation.
+const refusedOAuthCreatePrompt = 'tidy\u0000unsupported-create';
+
 /**
  * oauth2Authorize has an items?: undefined schema union that cannot satisfy
  * exactOptionalPropertyTypes. The contract owns this documentation. Remove
- * this adapter when the upstream endpoint type can be used directly.
+ * the metadata adjustment when the upstream endpoint type can be used directly.
+ * The adapter also refuses account creation before an OAuth page opens.
  */
 export function adaptOAuthProvider(
   provider: ReturnType<typeof oauthProvider>,
@@ -1527,7 +1532,63 @@ export function adaptOAuthProvider(
     metadata: { ...original.options.metadata, openapi },
   };
   const authorize = Object.assign(
-    (...args: Parameters<typeof original>) => original(...args),
+    async (...args: Parameters<typeof original>) => {
+      const [input] = args;
+      const prompt = input?.query?.prompt;
+      if (
+        input === undefined ||
+        typeof prompt !== 'string' ||
+        !prompt.split(' ').includes('create')
+      )
+        return original(...args);
+      const response = await original({
+        ...input,
+        body: input.body ?? {},
+        query: { ...input.query, prompt: refusedOAuthCreatePrompt },
+        asResponse: true,
+      });
+      const neutralAddress = (raw: string): string => {
+        const url = new URL(raw);
+        for (const fields of [
+          url.searchParams,
+          new URLSearchParams(url.hash.slice(1)),
+        ]) {
+          if (
+            fields.get('error_description')?.includes(refusedOAuthCreatePrompt)
+          )
+            fields.set(
+              'error_description',
+              'Account creation is not supported.',
+            );
+          if (fields !== url.searchParams && url.hash !== '')
+            url.hash = fields.toString();
+        }
+        return url.href;
+      };
+      const location = response.headers.get('location');
+      if (location !== null) {
+        const headers = new Headers(response.headers);
+        headers.set('location', neutralAddress(location));
+        return new Response(response.body, {
+          status: response.status,
+          headers,
+        });
+      }
+      const result = parseJson(await response.clone().text());
+      if (
+        result.ok &&
+        result.value !== null &&
+        typeof result.value === 'object'
+      ) {
+        const body = Object.fromEntries(Object.entries(result.value));
+        if (body.redirect === true && typeof body.url === 'string')
+          return new Response(
+            JSON.stringify({ ...body, url: neutralAddress(body.url) }),
+            { status: response.status, headers: response.headers },
+          );
+      }
+      return response;
+    },
     { ...original, path: original.path, options },
   );
   return {
