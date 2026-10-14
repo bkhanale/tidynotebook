@@ -2,9 +2,68 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   authProblemCode,
+  oauthCreateRequested,
   resetPasswordLink,
   withoutSessionToken,
 } from './better-auth.ts';
+
+await test('the create refusal trims each space-separated prompt token', () => {
+  const spaces = [
+    ' ',
+    '\t',
+    '\n',
+    '\r',
+    '\v',
+    '\f',
+    '\u00a0',
+    '\u1680',
+    '\u2000',
+    '\u2001',
+    '\u2002',
+    '\u2003',
+    '\u2004',
+    '\u2005',
+    '\u2006',
+    '\u2007',
+    '\u2008',
+    '\u2009',
+    '\u200a',
+    '\u2028',
+    '\u2029',
+    '\u202f',
+    '\u205f',
+    '\u3000',
+    '\ufeff',
+  ];
+  for (const space of spaces) {
+    for (const prompt of [
+      `${space}create${space}`,
+      `login ${space}create${space} consent`,
+      `create${space}`,
+    ])
+      assert.equal(oauthCreateRequested(prompt), true, JSON.stringify(prompt));
+  }
+});
+
+await test('the create refusal compares whole tokens with the same case', () => {
+  for (const prompt of [
+    'creates',
+    'xcreate',
+    'Create',
+    'cre ate',
+    '',
+    'login consent',
+    'login\tcreate',
+    'create\nconsent',
+    undefined,
+    null,
+    false,
+    0,
+    ['create'],
+    { prompt: 'create' },
+  ])
+    assert.equal(oauthCreateRequested(prompt), false, JSON.stringify(prompt));
+});
 
 await test('a sign-in answer loses its session token', () => {
   const answer = {
