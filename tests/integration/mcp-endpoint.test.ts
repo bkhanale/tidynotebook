@@ -566,7 +566,7 @@ try {
         let membershipLookups = 0;
         let installed = false;
         let operationsRun = 0;
-        const auth = createAuth(
+        const auth = await createAuth(
           { ...config, mcpOrigin: null },
           {
             mail: null,
