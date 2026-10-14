@@ -249,6 +249,59 @@ await test('the served list holds account metadata and the Settings decisions', 
   assert.equal((await listed(peer)).length, 1);
 });
 
+await test('an MCP access token is not a credential for connected app operations', async () => {
+  const person = await newPerson();
+  const clientId = await newClient();
+  const tokens = await exchange(
+    clientId,
+    await connect(person, clientId, 'notes:read notes:write offline_access'),
+  );
+  assert.ok(tokens.data?.refresh_token, JSON.stringify(tokens.error));
+  const accessToken = tokens.data.access_token;
+  const identity = await resolveOAuthToken(
+    runtime,
+    digest(accessToken),
+    resource,
+  );
+  assert.ok(identity, 'the issued MCP access token must be valid');
+  const apps = await listed(person);
+  assert.ok(apps[0]);
+  const grantId = apps[0].grantId;
+  async function storedState(): Promise<string> {
+    const rows = await admin.query<{ kind: string; value: unknown }>(
+      `select kind, value from (
+        select 'consent' as kind, to_jsonb(c) as value from auth_oauth_consent c where client_id=$1 and user_id=$2
+        union all select 'access', to_jsonb(t) from auth_oauth_access_token t where client_id=$1 and user_id=$2
+        union all select 'refresh', to_jsonb(t) from auth_oauth_refresh_token t where client_id=$1 and user_id=$2
+      ) held order by kind, value->>'id'`,
+      [clientId, person.userId],
+    );
+    return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+  }
+  const before = await storedState();
+  for (const withCookie of [false, true]) {
+    const headers = {
+      ...(withCookie ? person.headers : origin),
+      authorization: `Bearer ${accessToken}`,
+    };
+    for (const operation of [
+      () => listConnectedApps({ headers }),
+      () => revokeConnectedApp({ headers, path: { grantId } }),
+    ]) {
+      const answer = await operation();
+      assert.equal(answer.response?.status, 401);
+      assert.equal(answer.data, undefined);
+      assert.equal(await storedState(), before);
+      assert.deepEqual(await listed(person), apps);
+      assert.deepEqual(
+        await resolveOAuthToken(runtime, digest(accessToken), resource),
+        identity,
+        'a refused account operation must leave the MCP token valid',
+      );
+    }
+  }
+});
+
 await test('last use belongs to the pair and changes only at code exchange and refresh', async () => {
   const person = await newPerson();
   const peer = await newPerson();
