@@ -829,6 +829,11 @@ try {
     assert.ok(value && typeof value === 'object' && !Array.isArray(value));
     return Object.fromEntries(Object.entries(value));
   }
+  function stringField(body: Record<string, unknown>, key: string): string {
+    const value = body[key];
+    assert.ok(typeof value === 'string', `The ${key} field must be a string.`);
+    return value;
+  }
   async function callRead(
     name: string,
     input: Record<string, unknown>,
@@ -888,20 +893,21 @@ try {
         ),
       );
       const found = [...items(notes, 'notes'), ...items(nextNotes, 'notes')];
-      assert.deepEqual(
-        found
-          .map((item) => String(item.fileId))
-          .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
-        [fileId, backlinkId].sort((left, right) =>
-          left < right ? -1 : left > right ? 1 : 0,
-        ),
-      );
       assert.ok(
         found.every(
           (item) =>
             item.workspaceId === workspaceId &&
+            typeof item.fileId === 'string' &&
             typeof item.path === 'string' &&
             typeof item.name === 'string',
+        ),
+      );
+      assert.deepEqual(
+        found
+          .map((item) => stringField(item, 'fileId'))
+          .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
+        [fileId, backlinkId].sort((left, right) =>
+          left < right ? -1 : left > right ? 1 : 0,
         ),
       );
       const note = success(
@@ -972,7 +978,7 @@ try {
       },
     });
     assert.equal(moved.response?.status, 200, JSON.stringify(moved.error));
-    let whole = String(first.text);
+    let whole = stringField(first, 'text');
     let offset = first.nextOffset;
     while (typeof offset === 'number') {
       const page = success(
@@ -985,8 +991,7 @@ try {
       );
       assert.equal(page.version, firstVersion);
       assert.equal(page.name, 'Long');
-      assert.equal(typeof page.text, 'string');
-      whole += String(page.text);
+      whole += stringField(page, 'text');
       offset = page.nextOffset;
     }
     assert.equal(whole, longText);
@@ -1029,10 +1034,9 @@ try {
           ...(typeof version === 'string' ? { version } : {}),
         }),
       );
-      const part = page.text;
-      assert.equal(typeof part, 'string');
-      assert.ok(String(part).length < 16 * 1024);
-      whole += String(part);
+      const part = stringField(page, 'text');
+      assert.ok(part.length < 16 * 1024);
+      whole += part;
       version = page.version;
       offset = page.nextOffset;
     }
@@ -1101,7 +1105,7 @@ try {
         }),
       );
       found.push(
-        ...items(page, 'hits').map((item) => String(item.workspaceId)),
+        ...items(page, 'hits').map((item) => stringField(item, 'workspaceId')),
       );
       cursor = page.nextCursor;
       pages += 1;
