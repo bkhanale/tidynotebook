@@ -1,0 +1,29 @@
+{
+  'type': 'object',
+  'description': 'Accept or deny the signed authorization request. A scope can reduce write to read.',
+  'additionalProperties': false,
+  'required': ['accept', 'oauth_query'],
+  'properties':
+    {
+      'accept':
+        {
+          'type': 'boolean',
+          'description': 'Whether to allow this request.',
+          'writeOnly': true,
+        },
+      'scope':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'oauth_query':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+    },
+}

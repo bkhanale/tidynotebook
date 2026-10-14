@@ -1,0 +1,24 @@
+{
+  'type': 'object',
+  'description': 'The client address with the authorization result and issuer.',
+  'additionalProperties': false,
+  'required': ['redirect', 'url'],
+  'properties':
+    {
+      'redirect':
+        {
+          'type': 'boolean',
+          'const': true,
+          'description': 'The caller follows the address.',
+          'readOnly': true,
+        },
+      'url':
+        {
+          'type': 'string',
+          'format': 'uri-reference',
+          'description': 'The address to open.',
+          'readOnly': true,
+          'maxLength': 16384,
+        },
+    },
+}

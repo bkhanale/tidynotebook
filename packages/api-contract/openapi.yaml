@@ -62,6 +62,20 @@ security:
   - sessionCookie: []
   - personalApiKey: []
 paths:
+  /.well-known/oauth-authorization-server/api/auth:
+    $ref: './paths/.well-known_oauth-authorization-server_api_auth.yaml'
+  /api/auth/oauth2/register:
+    $ref: './paths/api_auth_oauth2_register.yaml'
+  /api/auth/oauth2/token:
+    $ref: './paths/api_auth_oauth2_token.yaml'
+  /api/auth/oauth2/consent:
+    $ref: './paths/api_auth_oauth2_consent.yaml'
+  /api/auth/oauth2/continue:
+    $ref: './paths/api_auth_oauth2_continue.yaml'
+  /api/auth/oauth2/revoke:
+    $ref: './paths/api_auth_oauth2_revoke.yaml'
+  /api/auth/oauth2/public-client:
+    $ref: './paths/api_auth_oauth2_public-client.yaml'
   /api/account/keys:
     $ref: './paths/api_account_keys.yaml'
   /api/account/keys/{keyId}:
@@ -560,6 +574,28 @@ components:
     PortalAddress:
       $ref: './components/responses/PortalAddress.yaml'
   schemas:
+    OAuthTokenRequest:
+      $ref: './components/schemas/OAuthTokenRequest.yaml'
+    OAuthToken:
+      $ref: './components/schemas/OAuthToken.yaml'
+    OAuthRevokeRequest:
+      $ref: './components/schemas/OAuthRevokeRequest.yaml'
+    OAuthRegistrationRequest:
+      $ref: './components/schemas/OAuthRegistrationRequest.yaml'
+    OAuthRedirect:
+      $ref: './components/schemas/OAuthRedirect.yaml'
+    OAuthMetadata:
+      $ref: './components/schemas/OAuthMetadata.yaml'
+    OAuthError:
+      $ref: './components/schemas/OAuthError.yaml'
+    OAuthContinueRequest:
+      $ref: './components/schemas/OAuthContinueRequest.yaml'
+    OAuthConsentRequest:
+      $ref: './components/schemas/OAuthConsentRequest.yaml'
+    OAuthPublicClient:
+      $ref: './components/schemas/OAuthPublicClient.yaml'
+    OAuthClient:
+      $ref: './components/schemas/OAuthClient.yaml'
     ApiKey:
       $ref: './components/schemas/ApiKey.yaml'
     ApiKeyCreateInput:

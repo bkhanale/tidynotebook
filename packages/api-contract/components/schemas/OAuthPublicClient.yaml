@@ -1,0 +1,21 @@
+{
+  'type': 'object',
+  'description': 'Public client claims for a signed-in person.',
+  'additionalProperties': true,
+  'required': ['client_id'],
+  'properties':
+    {
+      'client_id':
+        {
+          'type': 'string',
+          'description': 'Registered client identity.',
+          'readOnly': true,
+        },
+      'client_name':
+        {
+          'type': ['string', 'null'],
+          'description': 'The name claimed by this client.',
+          'readOnly': true,
+        },
+    },
+}

@@ -1,8 +1,7 @@
 # packages/core
 
 Read the root [AGENTS.md](../../AGENTS.md) first. This file adds the rules of
-this directory. The recipe for a whole feature is in
-[docs/development/feature-workflow.md](../../docs/development/feature-workflow.md).
+this directory.
 
 ## Purpose
 
@@ -19,6 +18,7 @@ the role and action matrix, and the storage ports that a runtime implements.
 - `src/identity/` holds the actor, the workspace role and action matrix, and
   the UUID helper. `installation.ts` holds the second matrix, the one of the
   installation role, and the two never read each other (0109).
+  `oauth.ts` holds the MCP scopes, grants and token bounds (0226).
   `administration.ts` and `registration.ts` hold the use cases of accounts,
   invitations and the one registration path, over the ports of `ports.ts`
   (0108 to 0112). `installation-settings.ts` holds the rules of the mail

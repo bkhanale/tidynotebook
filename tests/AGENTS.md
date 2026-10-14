@@ -78,6 +78,7 @@ generated operation and checks the server state.
 | `integration/support/database.ts`             | Creates and migrates a disposable database |
 | `integration/support/server.ts`               | Starts a listening test server             |
 | `integration/contract.test.ts`                | Every operation and its handler            |
+| `integration/oauth-authorization.test.ts`     | OAuth refusals, grants and replica races   |
 | `integration/row-access.test.ts`              | The row access policies                    |
 | `integration/published-write-refusal.test.ts` | Every write, with a published token        |
 | `integration/theme-variables.test.ts`         | The built stylesheet and the palette       |

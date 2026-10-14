@@ -229,6 +229,11 @@ const readerWrites = [
  * and the test below proves that it never becomes one.
  */
 const protocolWrites = [
+  'exchangeOAuthToken',
+  'registerOAuthClient',
+  'revokeOAuthToken',
+  'giveOAuthConsent',
+  'continueOAuthAuthorization',
   'requestPasswordReset',
   'resetPassword',
   'signInWithPassword',

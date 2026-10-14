@@ -32,16 +32,45 @@
  *   * SMTP password recovery when a transport is configured, and the operator
  *     recovery command when none is.
  */
+import { randomBytes } from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthPlugin } from 'better-auth';
+import {
+  oauthProvider,
+  type ClientMetadataResourceFetch,
+} from '@better-auth/oauth-provider';
+import { cimd } from '@better-auth/cimd';
+import { fetchClientMetadataResource } from '@better-auth/cimd/node';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { passwordBounds, productName } from '@notesapp/core';
+import {
+  oauthAccessLifetimeSeconds,
+  oauthRefreshLifetimeSeconds,
+  oauthScopes,
+  oauthGrantTypes,
+  oauthScopeAllowed,
+  oauthConsentScopeAllowed,
+  isOperationalError,
+  passwordBounds,
+  productName,
+} from '@notesapp/core';
 import { checkBreach, type RangeQuery } from './breach-check.ts';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { FastifyRequest } from 'fastify';
 import pg from 'pg';
 import {
+  oauthAccessToken,
+  oauthRefreshToken,
+  oauthClient,
+  oauthResource,
+  oauthClientResource,
+  oauthConsent,
+  oauthClientAssertion,
+  oauthRequestTransaction,
+  oauthReplayCandidate,
+  revokeOAuthReplay,
+  revokeOAuthToken,
+  oauthClientRoom,
   authAccount,
   authRateLimit,
   authSession,
@@ -57,6 +86,12 @@ import { createProblem, problemMediaType } from '../plugins/problem.ts';
 import type { ProtocolAdapter, ProtocolResult } from '../plugins/register.ts';
 import { noMailer, type Mailer, type MailMessage } from './mail.ts';
 import { passwordChangedMessage, passwordResetMessage } from './messages.ts';
+import {
+  attemptAddress,
+  type AttemptCounter,
+} from '../plugins/attempt-store.ts';
+import { secretDigest } from './publication-secrets.ts';
+import { createServerLogger } from '../logging.ts';
 import { applicationOrigins } from '../served-origins.ts';
 
 /** Base path of every Better Auth route. */
@@ -78,9 +113,64 @@ export const betterAuthProtocol = 'better-auth';
  * browser navigation endpoints carry no contract operation, because a redirect
  * is not a generated call.
  */
+export const oauthMetadataPath =
+  '/.well-known/oauth-authorization-server/api/auth';
+export const oauthRoutes: readonly {
+  readonly method: 'GET' | 'POST';
+  readonly path: string;
+  readonly oauth: true;
+  readonly oauthErrors?: true;
+}[] = [
+  { method: 'GET', path: oauthMetadataPath, oauth: true },
+  {
+    method: 'GET',
+    path: `${authBasePath}/oauth2/authorize`,
+    oauth: true,
+    oauthErrors: true,
+  },
+  {
+    method: 'POST',
+    path: `${authBasePath}/oauth2/register`,
+    oauth: true,
+    oauthErrors: true,
+  },
+  {
+    method: 'POST',
+    path: `${authBasePath}/oauth2/token`,
+    oauth: true,
+    oauthErrors: true,
+  },
+  {
+    method: 'POST',
+    path: `${authBasePath}/oauth2/revoke`,
+    oauth: true,
+    oauthErrors: true,
+  },
+  {
+    method: 'POST',
+    path: `${authBasePath}/oauth2/consent`,
+    oauth: true,
+    oauthErrors: true,
+  },
+  {
+    method: 'POST',
+    path: `${authBasePath}/oauth2/continue`,
+    oauth: true,
+    oauthErrors: true,
+  },
+  {
+    method: 'GET',
+    path: `${authBasePath}/oauth2/public-client`,
+    oauth: true,
+    oauthErrors: true,
+  },
+];
+
 export const authRoutes: readonly {
   readonly method: 'GET' | 'POST';
   readonly path: string;
+  readonly oauth?: boolean;
+  readonly oauthErrors?: boolean;
 }[] = [
   { method: 'POST', path: `${authBasePath}/sign-in/email` },
   { method: 'POST', path: `${authBasePath}/sign-out` },
@@ -91,6 +181,7 @@ export const authRoutes: readonly {
   // library route that answers a link with a redirect is not mounted.
   { method: 'POST', path: `${authBasePath}/reset-password` },
   { method: 'GET', path: `${authBasePath}/error` },
+  ...oauthRoutes,
 ];
 
 /** One record that the protocol library wants to write. */
@@ -101,6 +192,13 @@ export type AuthLogRecord = {
 
 /** What the auth instance needs besides the validated configuration. */
 export type AuthOptions = {
+  /** Test transport, or the pinned safe Node CIMD transport. */
+  readonly oauthFetch?: ClientMetadataResourceFetch;
+  /** The shared counters and the identity pool, when MCP is enabled. */
+  readonly oauth?: {
+    readonly attempts: AttemptCounter;
+    readonly pool: pg.Pool;
+  };
   /**
    * Sends the reset message and the notice after a reset, or `null` for a
    * process that sends no mail. The composition gives the budgeted mailer of
@@ -226,8 +324,9 @@ function authLogLevel(level: ServerConfig['logLevel']): {
 function buildAuth(
   config: ServerConfig,
   options: AuthOptions,
-  database: ReturnType<typeof drizzle>,
+  database: NodePgDatabase,
   pending: Set<Promise<void>>,
+  tokenRequest = false,
 ) {
   const mail = options.mail ?? noMailer;
   // A message that the answer does not wait for. Its failure reaches the
@@ -274,6 +373,88 @@ function buildAuth(
     basePath: authBasePath,
     secret: config.authSecret,
     telemetry: { enabled: false },
+    // BetterCall prints unexpected faults after its default error hook. Throw
+    // them to the OAuth boundary instead. APIError responses and redirects stay intact.
+    ...(config.mcpOrigin === null ? {} : { onAPIError: { throw: true } }),
+    plugins:
+      config.mcpOrigin === null
+        ? []
+        : [
+            adaptOAuthProvider(
+              oauthProvider({
+                loginPage: '/sign-in',
+                consentPage: '/oauth/consent',
+                disableJwtPlugin: true,
+                grantTypes: [...oauthGrantTypes],
+                scopes: [...oauthScopes],
+                resources: [
+                  {
+                    identifier: `${config.mcpOrigin}/mcp`,
+                    name: productName,
+                    accessTokenTtl: oauthAccessLifetimeSeconds,
+                    refreshTokenTtl: oauthRefreshLifetimeSeconds,
+                    allowedScopes: [...oauthScopes],
+                  },
+                ],
+                resourceSeedMode: 'overwrite',
+                clientRegistrationDefaultResources: [`${config.mcpOrigin}/mcp`],
+                enforcePerClientResources: true,
+                allowDynamicClientRegistration: true,
+                allowUnauthenticatedClientRegistration: true,
+                clientRegistrationRequirePKCE: true,
+                accessTokenExpiresIn: oauthAccessLifetimeSeconds,
+                refreshTokenExpiresIn: oauthRefreshLifetimeSeconds,
+                refreshTokenReuseInterval: 0,
+                rateLimit: Object.fromEntries(
+                  ['token', 'authorize', 'revoke', 'register'].map((name) => [
+                    name,
+                    {
+                      window: config.rateLimit.windowSeconds,
+                      max: config.rateLimit.max,
+                    },
+                  ]),
+                ),
+                storeTokens: { hash: (token) => secretDigest.digest(token) },
+                // A token request reads persisted CIMD metadata. It performs no fetch.
+                ...(tokenRequest
+                  ? {
+                      extensions: [
+                        {
+                          clientDiscovery: {
+                            id: 'cimd',
+                            matches: (id: string) => id.startsWith('https://'),
+                            resolve: (_ctx, _id, existing) => existing,
+                          },
+                        },
+                      ],
+                    }
+                  : {}),
+              }),
+            ),
+            ...(tokenRequest
+              ? []
+              : [
+                  cimd({
+                    metadataProfile: 'mcp-2026-07-28',
+                    fetchClientMetadataResource: boundedOAuthFetch(
+                      options.oauthFetch ?? fetchClientMetadataResource,
+                    ),
+                    isMetadataDocumentUrlAllowed: async (_url, ctx) => {
+                      if (options.oauth === undefined) return false;
+                      const address = ctx.headers?.get('x-forwarded-for') ?? '';
+                      const attempt = await options.oauth.attempts.count(
+                        `oauth-client:${attemptAddress(address)}`,
+                        config.rateLimit.windowSeconds * 1000,
+                        Date.now(),
+                      );
+                      return (
+                        attempt.current <= config.rateLimit.max &&
+                        (await oauthClientRoom(options.oauth.pool))
+                      );
+                    },
+                  }),
+                ]),
+          ],
     // This policy is explicit in every environment. It does not use the
     // protocol library default, which changes with NODE_ENV.
     rateLimit: {
@@ -305,13 +486,20 @@ function buildAuth(
     },
     database: drizzleAdapter(database, {
       provider: 'pg',
-      transaction: true,
+      transaction: !tokenRequest,
       schema: {
         user: authUser,
         session: authSession,
         account: authAccount,
         verification: authVerification,
         rateLimit: authRateLimit,
+        oauthClient,
+        oauthResource,
+        oauthClientResource,
+        oauthConsent,
+        oauthAccessToken,
+        oauthRefreshToken,
+        oauthClientAssertion,
       },
     }),
     // The served origins are the trusted origins, and nothing else is. Better
@@ -592,8 +780,8 @@ const droppedResponseHeaders = new Set(['content-length', 'content-encoding']);
 /**
  * The stable application error code of a refused protocol request.
  *
- * Better Auth answers a failure with its own JSON body. The deployment answers
- * RFC 9457 problem details everywhere, so the status becomes one of the
+ * Better Auth answers a failure with its own JSON body. Other identity routes answer
+ * RFC 9457 problem details, so the status becomes one of the
  * documented codes and the library's message is dropped: it can name an
  * address, and no failure answer should confirm that one exists.
  */
@@ -689,13 +877,184 @@ export function createAuthProtocol(
    * with no account store leaves it out.
    */
   before?: (request: FastifyRequest) => Promise<void>,
+  oauth?: { readonly pool: pg.Pool; readonly options: AuthOptions },
 ): ProtocolAdapter {
   return {
     protocol: betterAuthProtocol,
     routes: authRoutes,
+    enabled: (route) => route.oauth !== true || config.mcpOrigin !== null,
     handle: async (request): Promise<ProtocolResult> => {
-      await before?.(request);
-      const response = await auth.handler(toWebRequest(config.origin, request));
+      const path = request.url.split('?')[0] ?? '';
+      const isOAuth = oauthRoutes.some((route) => route.path === path);
+      // OAuth token and revocation requests check their stored account in the
+      // request transaction. Only consent and continue use the cookie write gate.
+      if (!isOAuth || path.endsWith('/consent') || path.endsWith('/continue'))
+        await before?.(request);
+      const webRequest = toWebRequest(config.origin, request);
+      let response: Response;
+      if (isOAuth) {
+        const guarded = oauthRequestRefusal(config, request);
+        if (guarded !== null) return guarded;
+        if (path.endsWith('/register')) {
+          if (oauth === undefined)
+            return oauthFailure('temporarily_unavailable', 503);
+          const attempt = await oauth.options.oauth?.attempts.count(
+            `oauth-client:${attemptAddress(request.ip)}`,
+            config.rateLimit.windowSeconds * 1000,
+            Date.now(),
+          );
+          if (attempt === undefined || attempt.current > config.rateLimit.max)
+            return oauthFailure('temporarily_unavailable', 429);
+          if (!(await oauthClientRoom(oauth.pool)))
+            return oauthFailure('temporarily_unavailable', 503);
+        }
+        try {
+          if (path.endsWith('/token') || path.endsWith('/revoke')) {
+            if (oauth === undefined)
+              return oauthFailure('temporarily_unavailable', 503);
+            const fields = oauthRequestFields(request);
+            const token =
+              fields.get('code') ??
+              fields.get('refresh_token') ??
+              fields.get('token');
+            response = await oauthRequestTransaction(
+              oauth.pool,
+              token === null || token === undefined
+                ? null
+                : {
+                    digest: secretDigest.digest(token),
+                    kind: fields.has('code') ? 'authorization_code' : 'token',
+                    ...(fields.get('token_type_hint') === null
+                      ? {}
+                      : { hint: fields.get('token_type_hint') ?? '' }),
+                  },
+              async (client, allowed) => {
+                if (path.endsWith('/token') && !allowed)
+                  return new Response(
+                    JSON.stringify({ error: 'invalid_grant' }),
+                    {
+                      status: 400,
+                      headers: { 'content-type': 'application/json' },
+                    },
+                  );
+                const scoped = buildAuth(
+                  config,
+                  oauth.options,
+                  drizzle({ client }),
+                  new Set(),
+                  true,
+                );
+                if (path.endsWith('/revoke')) {
+                  // The provider authenticates against a token that has no row.
+                  // Only the narrow storage write below can revoke a credential.
+                  const authenticationRequest =
+                    oauthRevocationAuthenticationRequest(webRequest, fields);
+                  const authenticated = await scoped.handler(
+                    authenticationRequest,
+                  );
+                  const parsed = parseJson(await authenticated.clone().text());
+                  const failure =
+                    parsed.ok &&
+                    parsed.value !== null &&
+                    typeof parsed.value === 'object'
+                      ? Object.fromEntries(Object.entries(parsed.value)).error
+                      : undefined;
+                  if (
+                    oauthRevocationAuthenticationSucceeded(
+                      authenticated.status,
+                      parsed.ok ? parsed.value : undefined,
+                    )
+                  ) {
+                    const authenticatedClient =
+                      basicClientId(webRequest.headers.get('authorization')) ??
+                      fields.get('client_id');
+                    if (
+                      authenticatedClient === null ||
+                      authenticatedClient === undefined
+                    )
+                      throw new Error('The provider accepted no client.');
+                    if (token !== null && token !== undefined)
+                      await revokeOAuthToken(
+                        client,
+                        secretDigest.digest(token),
+                        authenticatedClient,
+                      );
+                    return new Response(null, { status: 200 });
+                  }
+                  if (
+                    ['invalid_client', 'invalid_request'].some(
+                      (error) => error === failure,
+                    )
+                  )
+                    return authenticated;
+                  throw new Error(
+                    'The OAuth revocation authentication failed unexpectedly.',
+                  );
+                }
+                const replay =
+                  path.endsWith('/token') &&
+                  fields.get('grant_type') === 'refresh_token' &&
+                  token !== null &&
+                  token !== undefined
+                    ? await oauthReplayCandidate(
+                        client,
+                        secretDigest.digest(token),
+                      )
+                    : null;
+                const answer = await scoped.handler(webRequest);
+                // For an unexpired consumed token, this refusal comes after the
+                // provider authenticates its client. Expiry and other refusals do not revoke.
+                if (
+                  replay !== null &&
+                  replay.expires_at.getTime() > Date.now() &&
+                  answer.status === 400
+                ) {
+                  const refusal = parseJson(await answer.clone().text());
+                  if (
+                    refusal.ok &&
+                    refusal.value !== null &&
+                    typeof refusal.value === 'object'
+                  ) {
+                    const value = Object.fromEntries(
+                      Object.entries(refusal.value),
+                    );
+                    if (
+                      value.error === 'invalid_grant' &&
+                      value.error_description === 'invalid refresh token'
+                    ) {
+                      // A wrong client has the same refusal but keeps the consent.
+                      const presented =
+                        basicClientId(
+                          webRequest.headers.get('authorization'),
+                        ) ?? fields.get('client_id');
+                      if (presented === replay.client_id)
+                        await revokeOAuthReplay(client, replay);
+                    }
+                  }
+                }
+                return answer;
+              },
+              (answer) => answer.status < 500,
+            );
+          } else response = await auth.handler(webRequest);
+        } catch (error) {
+          if (path === oauthMetadataPath) throw error;
+          createServerLogger(request.log)
+            .bind({ requestId: request.id })
+            .emit('http.request.failed', {
+              operationId:
+                request.routeOptions.config.operationId ?? 'oauth2Authorize',
+              errorName: isOperationalError(error) ? error.kind : 'unexpected',
+            });
+          const unavailable =
+            isOperationalError(error) &&
+            (error.kind === 'timeout' || error.kind === 'unavailable');
+          return oauthFailure(
+            unavailable ? 'temporarily_unavailable' : 'server_error',
+            unavailable ? 503 : 500,
+          );
+        }
+      } else response = await auth.handler(webRequest);
       const headers: [string, string][] = [];
       for (const [name, value] of response.headers) {
         if (name.toLowerCase() === 'set-cookie') continue;
@@ -708,6 +1067,86 @@ export function createAuthProtocol(
         ?.trim()
         .toLowerCase();
       const text = await response.text();
+      if (isOAuth && path.endsWith('/revoke') && response.status === 200)
+        return {
+          status: 200,
+          mediaType: '',
+          headers,
+          cookies,
+          body: undefined,
+          bytes: null,
+        };
+      if (
+        isOAuth &&
+        path !== oauthMetadataPath &&
+        mediaType === 'application/json'
+      ) {
+        const parsed = parseJson(text);
+        if (!parsed.ok)
+          throw new Error('The OAuth provider returned invalid JSON.');
+        if (
+          response.status >= 400 &&
+          parsed.value !== null &&
+          typeof parsed.value === 'object' &&
+          typeof Reflect.get(parsed.value, 'error') !== 'string'
+        )
+          return {
+            ...oauthFailure(
+              response.status >= 500
+                ? 'server_error'
+                : response.status === 401 || response.status === 403
+                  ? 'access_denied'
+                  : 'invalid_request',
+              response.status,
+            ),
+            headers: headers.filter(
+              ([name]) => name.toLowerCase() !== 'content-type',
+            ),
+            cookies,
+          };
+        if (response.status === 429)
+          return {
+            ...oauthFailure('temporarily_unavailable', 429),
+            headers: headers.filter(
+              ([name]) => name.toLowerCase() !== 'content-type',
+            ),
+            cookies,
+          };
+        if (
+          path.endsWith('/token') &&
+          response.status === 401 &&
+          parsed.value !== null &&
+          typeof parsed.value === 'object'
+        ) {
+          const fields = Object.fromEntries(Object.entries(parsed.value));
+          if (
+            fields.error === 'invalid_request' &&
+            fields.error_description === 'code verification failed'
+          )
+            return {
+              ...oauthFailure('invalid_grant'),
+              headers: headers.filter(
+                ([name]) => name.toLowerCase() !== 'content-type',
+              ),
+              cookies,
+            };
+        }
+        return {
+          status: response.status,
+          mediaType: 'application/json',
+          headers: headers.filter(
+            ([name]) => name.toLowerCase() !== 'content-type',
+          ),
+          cookies,
+          body:
+            path === oauthMetadataPath &&
+            parsed.value !== null &&
+            typeof parsed.value === 'object'
+              ? servedOAuthMetadata(parsed.value)
+              : parsed.value,
+          bytes: null,
+        };
+      }
       if (response.status >= 400) {
         const libraryCode = libraryCodeOf(text);
         return {
@@ -750,9 +1189,263 @@ export function createAuthProtocol(
           ([name]) => name.toLowerCase() !== 'content-type',
         ),
         cookies,
-        body: withoutSessionToken(parsed.value),
+        body:
+          path === oauthMetadataPath &&
+          parsed.value !== null &&
+          typeof parsed.value === 'object'
+            ? servedOAuthMetadata(parsed.value)
+            : withoutSessionToken(parsed.value),
         bytes: null,
       };
     },
   };
+}
+
+/** Bounds DNS, the connection and the response, including a stalled DNS lookup. */
+export function boundedOAuthFetch(
+  transport: ClientMetadataResourceFetch,
+): ClientMetadataResourceFetch {
+  return async (input, init) => {
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(3000),
+      ...(init?.signal ? [init.signal] : []),
+    ]);
+    const failed = new Promise<never>((_resolve, reject) => {
+      if (signal.aborted)
+        reject(new Error('The client metadata request stopped.'));
+      else
+        signal.addEventListener(
+          'abort',
+          () => reject(new Error('The client metadata request stopped.')),
+          { once: true },
+        );
+    });
+    const fetchAndCheck = async (): Promise<Response> => {
+      const response = await transport(input, { ...init, signal });
+      if (response.status !== 200 || response.body === null) return response;
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          size += part.value.byteLength;
+          if (size > 50 * 1024)
+            throw new Error('The client metadata document is too large.');
+          chunks.push(part.value);
+        }
+      } finally {
+        await reader.cancel();
+      }
+      const bytes = Buffer.concat(chunks);
+      // This field is deployment policy. The CIMD plugin still validates the document.
+      const parsed = parseJson(bytes.toString('utf8'));
+      if (
+        parsed.ok &&
+        parsed.value !== null &&
+        typeof parsed.value === 'object'
+      ) {
+        const fields = Object.fromEntries(Object.entries(parsed.value));
+        if (
+          fields.token_endpoint_auth_method !== undefined &&
+          fields.token_endpoint_auth_method !== 'none'
+        )
+          throw new Error('The client authentication method is not supported.');
+      }
+      return new Response(bytes, {
+        status: response.status,
+        headers: response.headers,
+      });
+    };
+    return Promise.race([fetchAndCheck(), failed]);
+  };
+}
+
+/** Reads the identifier only after the provider has authenticated these credentials. */
+function basicClientId(value: string | null): string | null {
+  if (value === null || !/^Basic /i.test(value)) return null;
+  try {
+    return decodeURIComponent(
+      Buffer.from(value.slice(6), 'base64').toString('utf8').split(':')[0] ??
+        '',
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** A content-free OAuth refusal. A credential never enters its text. */
+export function oauthFailure(error: string, status = 400): ProtocolResult {
+  return {
+    status,
+    mediaType: 'application/json',
+    headers: [
+      ['cache-control', 'no-store'],
+      ['pragma', 'no-cache'],
+    ],
+    cookies: [],
+    body: { error },
+    bytes: null,
+  };
+}
+
+/** Parses one supported protocol request without changing its bytes. */
+function oauthRequestFields(request: FastifyRequest): URLSearchParams {
+  const path = request.url.split('?')[0] ?? '';
+  if (request.method === 'GET')
+    return new URL(request.url, 'http://request.invalid').searchParams;
+  if (!Buffer.isBuffer(request.body)) return new URLSearchParams();
+  if (path.endsWith('/token') || path.endsWith('/revoke'))
+    return new URLSearchParams(request.body.toString('utf8'));
+  const parsed = parseJson(request.body.toString('utf8'));
+  if (!parsed.ok || parsed.value === null || typeof parsed.value !== 'object')
+    return new URLSearchParams();
+  const fields = new URLSearchParams();
+  for (const [key, value] of Object.entries(parsed.value))
+    if (typeof value === 'string') fields.set(key, value);
+  return fields;
+}
+
+/** The deployment accepts this MCP resource, these grants, and S256 only. */
+function oauthRequestRefusal(
+  config: ServerConfig,
+  request: FastifyRequest,
+): ProtocolResult | null {
+  const path = request.url.split('?')[0] ?? '';
+  const fields = oauthRequestFields(request);
+  if (path.endsWith('/token')) {
+    if (fields.has('client_assertion') || fields.has('client_assertion_type'))
+      return oauthFailure('invalid_client');
+    if (!oauthGrantTypes.some((grant) => grant === fields.get('grant_type')))
+      return oauthFailure('unsupported_grant_type');
+    if (
+      fields.get('resource') !== `${config.mcpOrigin}/mcp` ||
+      fields.getAll('resource').length !== 1
+    )
+      return oauthFailure('invalid_target');
+    if (fields.has('scope') && !oauthScopeAllowed(fields.get('scope') ?? ''))
+      return oauthFailure('invalid_scope');
+  }
+  if (
+    path.endsWith('/register') &&
+    fields.has('token_endpoint_auth_method') &&
+    !['none', 'client_secret_basic', 'client_secret_post'].includes(
+      fields.get('token_endpoint_auth_method') ?? '',
+    )
+  )
+    return oauthFailure('invalid_client_metadata');
+  if (path.endsWith('/authorize')) {
+    if (
+      fields.get('resource') !== `${config.mcpOrigin}/mcp` ||
+      fields.getAll('resource').length !== 1
+    )
+      return oauthFailure('invalid_target');
+    if (
+      fields.get('code_challenge_method') !== 'S256' ||
+      !/^[A-Za-z0-9_-]{43}$/.test(fields.get('code_challenge') ?? '')
+    )
+      return oauthFailure('invalid_request');
+    if (!oauthScopeAllowed(fields.get('scope') ?? ''))
+      return oauthFailure('invalid_scope');
+  }
+  if (path.endsWith('/consent') || path.endsWith('/continue')) {
+    const query = new URLSearchParams(fields.get('oauth_query') ?? '');
+    if (
+      query.get('resource') !== `${config.mcpOrigin}/mcp` ||
+      query.getAll('resource').length !== 1
+    )
+      return oauthFailure('invalid_target');
+    if (query.get('code_challenge_method') !== 'S256')
+      return oauthFailure('invalid_request');
+    if (
+      fields.has('scope') &&
+      !oauthConsentScopeAllowed(
+        query.get('scope') ?? '',
+        fields.get('scope') ?? '',
+      )
+    )
+      return oauthFailure('invalid_scope');
+  }
+  return null;
+}
+
+/**
+ * oauth2Authorize has an items?: undefined schema union that cannot satisfy
+ * exactOptionalPropertyTypes. The contract owns this documentation. Remove
+ * this adapter when the upstream endpoint type can be used directly.
+ */
+export function adaptOAuthProvider(
+  provider: ReturnType<typeof oauthProvider>,
+): BetterAuthPlugin {
+  const original = provider.endpoints.oauth2Authorize;
+  const { parameters: _parameters, ...openapi } =
+    original.options.metadata.openapi;
+  const options = {
+    ...original.options,
+    metadata: { ...original.options.metadata, openapi },
+  };
+  const authorize = Object.assign(
+    (...args: Parameters<typeof original>) => original(...args),
+    { ...original, path: original.path, options },
+  );
+  return {
+    ...provider,
+    endpoints: { ...provider.endpoints, oauth2Authorize: authorize },
+  };
+}
+
+/** Metadata contains only the mounted and enforced OAuth surface. */
+function servedOAuthMetadata(value: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([name]) =>
+          !name.startsWith('introspection_endpoint') &&
+          ![
+            'userinfo_endpoint',
+            'jwks_uri',
+            'end_session_endpoint',
+            'token_endpoint_auth_signing_alg_values_supported',
+            'revocation_endpoint_auth_signing_alg_values_supported',
+          ].includes(name),
+      )
+      .map(([name, field]) => [
+        name,
+        name.endsWith('_auth_methods_supported') && Array.isArray(field)
+          ? field.filter((method: unknown) => method !== 'private_key_jwt')
+          : field,
+      ]),
+  );
+}
+
+/** No real token or hint reaches the provider on revocation. */
+export function oauthRevocationAuthenticationRequest(
+  original: Request,
+  fields: URLSearchParams,
+): Request {
+  const authentication = new URLSearchParams(fields);
+  authentication.set('token', randomBytes(32).toString('base64url'));
+  authentication.delete('token_type_hint');
+  return new Request(original.url, {
+    method: 'POST',
+    headers: original.headers,
+    body: authentication.toString(),
+  });
+}
+
+/** Pin the provider outcomes that occur only after client authentication. */
+export function oauthRevocationAuthenticationSucceeded(
+  status: number,
+  value: unknown,
+): boolean {
+  if (status === 200) return true;
+  if (status !== 400 || value === null || typeof value !== 'object')
+    return false;
+  const fields = Object.fromEntries(Object.entries(value));
+  return (
+    fields.error === 'unsupported_token_type' ||
+    (fields.error === 'invalid_request' &&
+      fields.error_description === 'token not found')
+  );
 }

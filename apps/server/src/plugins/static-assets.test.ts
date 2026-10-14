@@ -246,3 +246,9 @@ await test('the diagram script of a published page is the one file of its name',
   }
   assert.equal(publishedPageScriptHref(join(directory, 'gone')), null);
 });
+
+await test('MCP is reserved by the server and never receives the application shell', () => {
+  assert.equal(servesBrowserAssets('/mcp'), false);
+  assert.equal(servesBrowserAssets('/mcp/unknown'), false);
+  assert.equal(servesBrowserAssets('/mcp-notes'), true);
+});

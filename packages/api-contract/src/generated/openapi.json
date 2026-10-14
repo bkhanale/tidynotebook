@@ -72,6 +72,113 @@
     }
   ],
   "paths": {
+    "/.well-known/oauth-authorization-server/api/auth": {
+      "get": {
+        "operationId": "getOAuthMetadata",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in discovery route serves OAuth metadata on success and Problem Details on errors.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "200": {
+            "description": "The protocol request is complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthMetadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/account": {
       "get": {
         "operationId": "getAccount",
@@ -862,6 +969,718 @@
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth2/consent": {
+      "post": {
+        "operationId": "giveOAuthConsent",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "200": {
+            "description": "The protocol request is complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthRedirect"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The OAuth protocol request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthConsentRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth2/continue": {
+      "post": {
+        "operationId": "continueOAuthAuthorization",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "200": {
+            "description": "The protocol request is complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthRedirect"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The OAuth protocol request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthContinueRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth2/public-client": {
+      "get": {
+        "operationId": "getOAuthClient",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "200": {
+            "description": "The protocol request is complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthPublicClient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            },
+            "description": "The client does not exist."
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": true,
+            "style": "form",
+            "explode": true,
+            "description": "The client to show at consent.",
+            "schema": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            }
+          }
+        ]
+      }
+    },
+    "/api/auth/oauth2/register": {
+      "post": {
+        "operationId": "registerOAuthClient",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "201": {
+            "description": "The protocol request is complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthClient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The OAuth protocol request.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthRegistrationRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth2/revoke": {
+      "post": {
+        "operationId": "revokeOAuthToken",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "200": {
+            "description": "The token is revoked or is not known. The empty answer is the same for both."
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The OAuth protocol request.",
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthRevokeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/oauth2/token": {
+      "post": {
+        "operationId": "exchangeOAuthToken",
+        "summary": "Process the OAuth request.",
+        "description": "The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-notesapp-protocol": "better-auth",
+        "responses": {
+          "200": {
+            "description": "The protocol request is complete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The protocol request is refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "The OAuth protocol request.",
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthTokenRequest"
               }
             }
           }
@@ -10623,6 +11442,515 @@
             ],
             "readOnly": true,
             "description": "The stored outcome of the accepted request, or null. It repeats what the first answer stated, so a device that lost the answer can settle its queue without sending again."
+          }
+        }
+      },
+      "OAuthClient": {
+        "type": "object",
+        "description": "Client metadata from the authorization server. Names are client claims.",
+        "additionalProperties": true,
+        "required": [
+          "client_id",
+          "redirect_uris"
+        ],
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Registered redirect addresses."
+          },
+          "client_name": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          }
+        }
+      },
+      "OAuthConsentRequest": {
+        "type": "object",
+        "description": "Accept or deny the signed authorization request. A scope can reduce write to read.",
+        "additionalProperties": false,
+        "required": [
+          "accept",
+          "oauth_query"
+        ],
+        "properties": {
+          "accept": {
+            "type": "boolean",
+            "description": "Whether to allow this request.",
+            "writeOnly": true
+          },
+          "scope": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "oauth_query": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          }
+        }
+      },
+      "OAuthContinueRequest": {
+        "type": "object",
+        "description": "Continue the signed authorization request after sign-in.",
+        "additionalProperties": false,
+        "required": [
+          "oauth_query"
+        ],
+        "properties": {
+          "oauth_query": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          }
+        }
+      },
+      "OAuthError": {
+        "type": "object",
+        "description": "An OAuth protocol refusal under RFC 6749.",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "enum": [
+              "invalid_request",
+              "invalid_client",
+              "invalid_grant",
+              "unauthorized_client",
+              "unsupported_grant_type",
+              "invalid_scope",
+              "access_denied",
+              "unsupported_response_type",
+              "server_error",
+              "temporarily_unavailable",
+              "unsupported_token_type",
+              "invalid_target",
+              "invalid_redirect_uri",
+              "invalid_client_metadata",
+              "not_found"
+            ]
+          },
+          "error_description": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "error_uri": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          }
+        }
+      },
+      "OAuthMetadata": {
+        "type": "object",
+        "description": "OAuth authorization server metadata under RFC 8414.",
+        "additionalProperties": true,
+        "required": [
+          "issuer",
+          "authorization_endpoint",
+          "token_endpoint",
+          "registration_endpoint",
+          "grant_types_supported",
+          "code_challenge_methods_supported"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "authorization_endpoint": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "token_endpoint": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "registration_endpoint": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "revocation_endpoint": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096
+          },
+          "grant_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Supported protocol values."
+          },
+          "code_challenge_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Supported protocol values."
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Supported protocol values."
+          }
+        }
+      },
+      "OAuthPublicClient": {
+        "type": "object",
+        "description": "Public client claims for a signed-in person.",
+        "additionalProperties": true,
+        "required": [
+          "client_id"
+        ],
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "description": "Registered client identity.",
+            "readOnly": true
+          },
+          "client_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The name claimed by this client.",
+            "readOnly": true
+          }
+        }
+      },
+      "OAuthRedirect": {
+        "type": "object",
+        "description": "The client address with the authorization result and issuer.",
+        "additionalProperties": false,
+        "required": [
+          "redirect",
+          "url"
+        ],
+        "properties": {
+          "redirect": {
+            "type": "boolean",
+            "const": true,
+            "description": "The caller follows the address.",
+            "readOnly": true
+          },
+          "url": {
+            "type": "string",
+            "format": "uri-reference",
+            "description": "The address to open.",
+            "readOnly": true,
+            "maxLength": 16384
+          }
+        }
+      },
+      "OAuthRegistrationRequest": {
+        "type": "object",
+        "description": "Client registration metadata under RFC 7591.",
+        "additionalProperties": false,
+        "required": [
+          "redirect_uris"
+        ],
+        "properties": {
+          "client_name": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_uri": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "logo_uri": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "tos_uri": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "policy_uri": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "software_id": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "software_version": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "scope": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "application_type": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "token_endpoint_auth_method": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Requested client metadata.",
+            "writeOnly": true
+          },
+          "grant_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Requested client metadata.",
+            "writeOnly": true
+          },
+          "response_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Requested client metadata.",
+            "writeOnly": true
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Protocol value.",
+              "maxLength": 4096
+            },
+            "description": "Requested client metadata.",
+            "writeOnly": true
+          }
+        }
+      },
+      "OAuthRevokeRequest": {
+        "type": "object",
+        "description": "Revoke an opaque token under RFC 7009.",
+        "additionalProperties": false,
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "token_type_hint": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_assertion": {
+            "type": "string",
+            "description": "Client assertion authentication under RFC 7523.",
+            "maxLength": 16384,
+            "writeOnly": true
+          },
+          "client_assertion_type": {
+            "type": "string",
+            "description": "Client assertion authentication under RFC 7523.",
+            "maxLength": 16384,
+            "writeOnly": true
+          }
+        }
+      },
+      "OAuthToken": {
+        "type": "object",
+        "description": "Opaque resource-bound tokens. Keep each token private.",
+        "additionalProperties": true,
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "scope"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "readOnly": true
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "readOnly": true
+          },
+          "token_type": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "readOnly": true
+          },
+          "scope": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "readOnly": true
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "The token life in seconds.",
+            "readOnly": true
+          }
+        }
+      },
+      "OAuthTokenRequest": {
+        "type": "object",
+        "description": "A form request to exchange a code or refresh token.",
+        "additionalProperties": false,
+        "required": [
+          "grant_type"
+        ],
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_secret": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "code": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "code_verifier": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "scope": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "resource": {
+            "type": "string",
+            "description": "Protocol value.",
+            "maxLength": 4096,
+            "writeOnly": true
+          },
+          "client_assertion": {
+            "type": "string",
+            "description": "Client assertion authentication under RFC 7523.",
+            "maxLength": 16384,
+            "writeOnly": true
+          },
+          "client_assertion_type": {
+            "type": "string",
+            "description": "Client assertion authentication under RFC 7523.",
+            "maxLength": 16384,
+            "writeOnly": true
           }
         }
       },

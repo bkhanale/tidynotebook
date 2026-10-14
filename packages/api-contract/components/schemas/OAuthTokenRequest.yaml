@@ -1,0 +1,86 @@
+{
+  'type': 'object',
+  'description': 'A form request to exchange a code or refresh token.',
+  'additionalProperties': false,
+  'required': ['grant_type'],
+  'properties':
+    {
+      'grant_type':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_id':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_secret':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'code':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'code_verifier':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'redirect_uri':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'refresh_token':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'scope':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'resource':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_assertion':
+        {
+          'type': 'string',
+          'description': 'Client assertion authentication under RFC 7523.',
+          'maxLength': 16384,
+          'writeOnly': true,
+        },
+      'client_assertion_type':
+        {
+          'type': 'string',
+          'description': 'Client assertion authentication under RFC 7523.',
+          'maxLength': 16384,
+          'writeOnly': true,
+        },
+    },
+}

@@ -6,7 +6,7 @@
  * or calls a transport. The generated client owns all of that.
  */
 import { client } from './generated/client.gen.ts';
-import type { ProblemDetails } from './generated/types.gen.ts';
+import type { ProblemDetails, OAuthError } from './generated/types.gen.ts';
 import {
   ResponseReadError,
   responseWithProgress,
@@ -87,7 +87,63 @@ export function configureClient(
       request.headers.set('authorization', `Bearer ${value}`);
     return request;
   });
-  client.interceptors.error.use((error, response) =>
-    normalizeProblem(error, response),
+  client.interceptors.error.use((error, response, request) =>
+    normalizeProtocolError(error, response, request),
   );
+}
+
+/** The declared RFC errors, including the extensions used by this server. */
+export const oauthErrorCodes = [
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+  'access_denied',
+  'unsupported_response_type',
+  'server_error',
+  'temporarily_unavailable',
+  'unsupported_token_type',
+  'invalid_target',
+  'invalid_redirect_uri',
+  'invalid_client_metadata',
+  'not_found',
+] as const satisfies readonly OAuthError['error'][];
+
+/** Parse the closed OAuth error before it can reach a typed generated caller. */
+function isOAuthError(value: unknown): value is OAuthError {
+  if (value === null || typeof value !== 'object' || Array.isArray(value))
+    return false;
+  const fields = Object.fromEntries(Object.entries(value));
+  if (!oauthErrorCodes.some((code) => code === fields.error)) return false;
+  return Object.entries(fields).every(
+    ([name, field]) =>
+      ['error', 'error_description', 'error_uri'].includes(name) &&
+      typeof field === 'string' &&
+      field.length <= 4096,
+  );
+}
+
+const oauthPathPrefix = '/api/auth/oauth2/';
+
+/** Only the contract's OAuth paths preserve their RFC error shape (0226). */
+export function normalizeProtocolError(
+  error: unknown,
+  response: Response | undefined,
+  request: Request | undefined,
+): ProblemDetails | OAuthError {
+  const type = response?.headers
+    .get('content-type')
+    ?.split(';')[0]
+    ?.trim()
+    .toLowerCase();
+  if (
+    request !== undefined &&
+    new URL(request.url).pathname.startsWith(oauthPathPrefix) &&
+    type === 'application/json' &&
+    isOAuthError(error)
+  )
+    return error;
+  return normalizeProblem(error, response);
 }

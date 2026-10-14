@@ -1691,6 +1691,312 @@ export type MutationReceipt = {
 };
 
 /**
+ * Client metadata from the authorization server. Names are client claims.
+ */
+export type OAuthClient = {
+    /**
+     * Protocol value.
+     */
+    client_id: string;
+    /**
+     * Registered redirect addresses.
+     */
+    redirect_uris: Array<string>;
+    /**
+     * Protocol value.
+     */
+    client_name?: string;
+    /**
+     * Protocol value.
+     */
+    client_secret?: string;
+    [key: string]: unknown;
+};
+
+/**
+ * Accept or deny the signed authorization request. A scope can reduce write to read.
+ */
+export type OAuthConsentRequest = {
+    /**
+     * Whether to allow this request.
+     */
+    accept: boolean;
+    /**
+     * Protocol value.
+     */
+    scope?: string;
+    /**
+     * Protocol value.
+     */
+    oauth_query: string;
+};
+
+/**
+ * Continue the signed authorization request after sign-in.
+ */
+export type OAuthContinueRequest = {
+    /**
+     * Protocol value.
+     */
+    oauth_query: string;
+};
+
+/**
+ * An OAuth protocol refusal under RFC 6749.
+ */
+export type OAuthError = {
+    /**
+     * Protocol value.
+     */
+    error: 'invalid_request' | 'invalid_client' | 'invalid_grant' | 'unauthorized_client' | 'unsupported_grant_type' | 'invalid_scope' | 'access_denied' | 'unsupported_response_type' | 'server_error' | 'temporarily_unavailable' | 'unsupported_token_type' | 'invalid_target' | 'invalid_redirect_uri' | 'invalid_client_metadata' | 'not_found';
+    /**
+     * Protocol value.
+     */
+    error_description?: string;
+    /**
+     * Protocol value.
+     */
+    error_uri?: string;
+};
+
+/**
+ * OAuth authorization server metadata under RFC 8414.
+ */
+export type OAuthMetadata = {
+    /**
+     * Protocol value.
+     */
+    issuer: string;
+    /**
+     * Protocol value.
+     */
+    authorization_endpoint: string;
+    /**
+     * Protocol value.
+     */
+    token_endpoint: string;
+    /**
+     * Protocol value.
+     */
+    registration_endpoint: string;
+    /**
+     * Protocol value.
+     */
+    revocation_endpoint?: string;
+    /**
+     * Supported protocol values.
+     */
+    grant_types_supported: Array<string>;
+    /**
+     * Supported protocol values.
+     */
+    code_challenge_methods_supported: Array<string>;
+    /**
+     * Supported protocol values.
+     */
+    scopes_supported?: Array<string>;
+    [key: string]: unknown;
+};
+
+/**
+ * Public client claims for a signed-in person.
+ */
+export type OAuthPublicClient = {
+    /**
+     * Registered client identity.
+     */
+    readonly client_id: string;
+    /**
+     * The name claimed by this client.
+     */
+    readonly client_name?: string | null;
+    [key: string]: unknown;
+};
+
+/**
+ * The client address with the authorization result and issuer.
+ */
+export type OAuthRedirect = {
+    /**
+     * The caller follows the address.
+     */
+    readonly redirect: true;
+    /**
+     * The address to open.
+     */
+    readonly url: string;
+};
+
+/**
+ * Client registration metadata under RFC 7591.
+ */
+export type OAuthRegistrationRequest = {
+    /**
+     * Protocol value.
+     */
+    client_name?: string;
+    /**
+     * Protocol value.
+     */
+    client_uri?: string;
+    /**
+     * Protocol value.
+     */
+    logo_uri?: string;
+    /**
+     * Protocol value.
+     */
+    tos_uri?: string;
+    /**
+     * Protocol value.
+     */
+    policy_uri?: string;
+    /**
+     * Protocol value.
+     */
+    software_id?: string;
+    /**
+     * Protocol value.
+     */
+    software_version?: string;
+    /**
+     * Protocol value.
+     */
+    scope?: string;
+    /**
+     * Protocol value.
+     */
+    application_type?: string;
+    /**
+     * Protocol value.
+     */
+    token_endpoint_auth_method?: string;
+    /**
+     * Requested client metadata.
+     */
+    redirect_uris: Array<string>;
+    /**
+     * Requested client metadata.
+     */
+    grant_types?: Array<string>;
+    /**
+     * Requested client metadata.
+     */
+    response_types?: Array<string>;
+    /**
+     * Requested client metadata.
+     */
+    contacts?: Array<string>;
+};
+
+/**
+ * Revoke an opaque token under RFC 7009.
+ */
+export type OAuthRevokeRequest = {
+    /**
+     * Protocol value.
+     */
+    token: string;
+    /**
+     * Protocol value.
+     */
+    token_type_hint?: string;
+    /**
+     * Protocol value.
+     */
+    client_id?: string;
+    /**
+     * Protocol value.
+     */
+    client_secret?: string;
+    /**
+     * Client assertion authentication under RFC 7523.
+     */
+    client_assertion?: string;
+    /**
+     * Client assertion authentication under RFC 7523.
+     */
+    client_assertion_type?: string;
+};
+
+/**
+ * Opaque resource-bound tokens. Keep each token private.
+ */
+export type OAuthToken = {
+    /**
+     * Protocol value.
+     */
+    readonly access_token: string;
+    /**
+     * Protocol value.
+     */
+    readonly refresh_token?: string;
+    /**
+     * Protocol value.
+     */
+    readonly token_type: string;
+    /**
+     * Protocol value.
+     */
+    readonly scope: string;
+    /**
+     * The token life in seconds.
+     */
+    readonly expires_in: number;
+    [key: string]: unknown;
+};
+
+/**
+ * A form request to exchange a code or refresh token.
+ */
+export type OAuthTokenRequest = {
+    /**
+     * Protocol value.
+     */
+    grant_type: string;
+    /**
+     * Protocol value.
+     */
+    client_id?: string;
+    /**
+     * Protocol value.
+     */
+    client_secret?: string;
+    /**
+     * Protocol value.
+     */
+    code?: string;
+    /**
+     * Protocol value.
+     */
+    code_verifier?: string;
+    /**
+     * Protocol value.
+     */
+    redirect_uri?: string;
+    /**
+     * Protocol value.
+     */
+    refresh_token?: string;
+    /**
+     * Protocol value.
+     */
+    scope?: string;
+    /**
+     * Protocol value.
+     */
+    resource?: string;
+    /**
+     * Client assertion authentication under RFC 7523.
+     */
+    client_assertion?: string;
+    /**
+     * Client assertion authentication under RFC 7523.
+     */
+    client_assertion_type?: string;
+};
+
+/**
  * One account as a service of the operator reads it (record 0190). It holds no note, no workspace and no published link.
  */
 export type OperatorAccount = {
@@ -3820,6 +4126,63 @@ export type PublishedPasswordForm = PublishedPasswordFormInput;
  */
 export type PublishedReportForm = PublishedReportFormInputWritable;
 
+export type GetOAuthMetadataData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/.well-known/oauth-authorization-server/api/auth';
+};
+
+export type GetOAuthMetadataErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    413: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    415: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    429: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    500: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    503: ProblemDetails;
+};
+
+export type GetOAuthMetadataError = GetOAuthMetadataErrors[keyof GetOAuthMetadataErrors];
+
+export type GetOAuthMetadataResponses = {
+    /**
+     * The protocol request is complete.
+     */
+    200: OAuthMetadata;
+};
+
+export type GetOAuthMetadataResponse = GetOAuthMetadataResponses[keyof GetOAuthMetadataResponses];
+
 export type GetAccountData = {
     body?: never;
     headers?: {
@@ -4734,6 +5097,366 @@ export type GetAuthSessionResponses = {
 };
 
 export type GetAuthSessionResponse = GetAuthSessionResponses[keyof GetAuthSessionResponses];
+
+export type GiveOAuthConsentData = {
+    /**
+     * The OAuth protocol request.
+     */
+    body: OAuthConsentRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/oauth2/consent';
+};
+
+export type GiveOAuthConsentErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    401: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    403: OAuthError;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    413: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    415: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    429: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    500: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    503: OAuthError;
+};
+
+export type GiveOAuthConsentError = GiveOAuthConsentErrors[keyof GiveOAuthConsentErrors];
+
+export type GiveOAuthConsentResponses = {
+    /**
+     * The protocol request is complete.
+     */
+    200: OAuthRedirect;
+};
+
+export type GiveOAuthConsentResponse = GiveOAuthConsentResponses[keyof GiveOAuthConsentResponses];
+
+export type ContinueOAuthAuthorizationData = {
+    /**
+     * The OAuth protocol request.
+     */
+    body: OAuthContinueRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/oauth2/continue';
+};
+
+export type ContinueOAuthAuthorizationErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    401: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    403: OAuthError;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    413: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    415: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    429: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    500: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    503: OAuthError;
+};
+
+export type ContinueOAuthAuthorizationError = ContinueOAuthAuthorizationErrors[keyof ContinueOAuthAuthorizationErrors];
+
+export type ContinueOAuthAuthorizationResponses = {
+    /**
+     * The protocol request is complete.
+     */
+    200: OAuthRedirect;
+};
+
+export type ContinueOAuthAuthorizationResponse = ContinueOAuthAuthorizationResponses[keyof ContinueOAuthAuthorizationResponses];
+
+export type GetOAuthClientData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Protocol value.
+         */
+        client_id: string;
+    };
+    url: '/api/auth/oauth2/public-client';
+};
+
+export type GetOAuthClientErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    401: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    403: OAuthError;
+    /**
+     * The client does not exist.
+     */
+    404: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    413: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    415: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    429: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    500: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    503: OAuthError;
+};
+
+export type GetOAuthClientError = GetOAuthClientErrors[keyof GetOAuthClientErrors];
+
+export type GetOAuthClientResponses = {
+    /**
+     * The protocol request is complete.
+     */
+    200: OAuthPublicClient;
+};
+
+export type GetOAuthClientResponse = GetOAuthClientResponses[keyof GetOAuthClientResponses];
+
+export type RegisterOAuthClientData = {
+    /**
+     * The OAuth protocol request.
+     */
+    body: OAuthRegistrationRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/oauth2/register';
+};
+
+export type RegisterOAuthClientErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    401: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    403: OAuthError;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    413: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    415: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    429: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    500: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    503: OAuthError;
+};
+
+export type RegisterOAuthClientError = RegisterOAuthClientErrors[keyof RegisterOAuthClientErrors];
+
+export type RegisterOAuthClientResponses = {
+    /**
+     * The protocol request is complete.
+     */
+    201: OAuthClient;
+};
+
+export type RegisterOAuthClientResponse = RegisterOAuthClientResponses[keyof RegisterOAuthClientResponses];
+
+export type RevokeOAuthTokenData = {
+    /**
+     * The OAuth protocol request.
+     */
+    body: OAuthRevokeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/oauth2/revoke';
+};
+
+export type RevokeOAuthTokenErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    401: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    403: OAuthError;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    413: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    415: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    429: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    500: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    503: OAuthError;
+};
+
+export type RevokeOAuthTokenError = RevokeOAuthTokenErrors[keyof RevokeOAuthTokenErrors];
+
+export type RevokeOAuthTokenResponses = {
+    /**
+     * The token is revoked or is not known. The empty answer is the same for both.
+     */
+    200: unknown;
+};
+
+export type ExchangeOAuthTokenData = {
+    /**
+     * The OAuth protocol request.
+     */
+    body: OAuthTokenRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/oauth2/token';
+};
+
+export type ExchangeOAuthTokenErrors = {
+    /**
+     * The protocol request is refused.
+     */
+    400: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    401: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    403: OAuthError;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The protocol request is refused.
+     */
+    413: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    415: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    429: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    500: OAuthError;
+    /**
+     * The protocol request is refused.
+     */
+    503: OAuthError;
+};
+
+export type ExchangeOAuthTokenError = ExchangeOAuthTokenErrors[keyof ExchangeOAuthTokenErrors];
+
+export type ExchangeOAuthTokenResponses = {
+    /**
+     * The protocol request is complete.
+     */
+    200: OAuthToken;
+};
+
+export type ExchangeOAuthTokenResponse = ExchangeOAuthTokenResponses[keyof ExchangeOAuthTokenResponses];
 
 export type RequestPasswordResetData = {
     /**

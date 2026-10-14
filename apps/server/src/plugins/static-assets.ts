@@ -102,7 +102,12 @@ export function servesApplicationShell(path: string): boolean {
  * reader that opens a mangled address must read that document or that refusal,
  * and never the application, which asks a person with no account to sign in.
  */
-const serverBoundaries = ['/api', '/.well-known', '/published'] as const;
+const serverBoundaries = [
+  '/api',
+  '/.well-known',
+  '/published',
+  '/mcp',
+] as const;
 
 /**
  * Whether the built browser assets answer this address at all.

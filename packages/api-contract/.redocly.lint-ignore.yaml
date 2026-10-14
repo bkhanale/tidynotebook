@@ -7,3 +7,64 @@
 paths/api_sync_notices.yaml:
   operation-2xx-response:
     - '#/get/responses'
+
+# OAuth errors use RFC 6749 (record 0226).
+paths/api_auth_oauth2_register.yaml:
+  operation-4xx-problem-details-rfc7807:
+    - '#/post/responses/400'
+    - '#/post/responses/401'
+    - '#/post/responses/403'
+    - '#/post/responses/413'
+    - '#/post/responses/415'
+    - '#/post/responses/429'
+
+# OAuth errors use RFC 6749 (record 0226).
+paths/api_auth_oauth2_token.yaml:
+  operation-4xx-problem-details-rfc7807:
+    - '#/post/responses/400'
+    - '#/post/responses/401'
+    - '#/post/responses/403'
+    - '#/post/responses/413'
+    - '#/post/responses/415'
+    - '#/post/responses/429'
+
+# OAuth errors use RFC 6749 (record 0226).
+paths/api_auth_oauth2_consent.yaml:
+  operation-4xx-problem-details-rfc7807:
+    - '#/post/responses/400'
+    - '#/post/responses/401'
+    - '#/post/responses/403'
+    - '#/post/responses/413'
+    - '#/post/responses/415'
+    - '#/post/responses/429'
+
+# OAuth errors use RFC 6749 (record 0226).
+paths/api_auth_oauth2_continue.yaml:
+  operation-4xx-problem-details-rfc7807:
+    - '#/post/responses/400'
+    - '#/post/responses/401'
+    - '#/post/responses/403'
+    - '#/post/responses/413'
+    - '#/post/responses/415'
+    - '#/post/responses/429'
+
+# OAuth errors use RFC 6749 (record 0226).
+paths/api_auth_oauth2_revoke.yaml:
+  operation-4xx-problem-details-rfc7807:
+    - '#/post/responses/400'
+    - '#/post/responses/401'
+    - '#/post/responses/403'
+    - '#/post/responses/413'
+    - '#/post/responses/415'
+    - '#/post/responses/429'
+
+# OAuth errors use RFC 6749 (record 0226).
+paths/api_auth_oauth2_public-client.yaml:
+  operation-4xx-problem-details-rfc7807:
+    - '#/get/responses/400'
+    - '#/get/responses/401'
+    - '#/get/responses/403'
+    - '#/get/responses/404'
+    - '#/get/responses/413'
+    - '#/get/responses/415'
+    - '#/get/responses/429'

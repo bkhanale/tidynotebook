@@ -1308,3 +1308,27 @@ await test('each cap of a month reads a whole count above zero', () => {
       `${name}=${value}`,
     );
 });
+
+await test('MCP authorization is opt-in and its setting is one origin', () => {
+  assert.equal(loadServerConfig(valid).mcpOrigin, null);
+  assert.equal(
+    loadServerConfig(environment({ NOTESAPP_MCP_ORIGIN: '' })).mcpOrigin,
+    null,
+  );
+  assert.equal(
+    loadServerConfig(
+      environment({ NOTESAPP_MCP_ORIGIN: 'https://mcp.example/' }),
+    ).mcpOrigin,
+    'https://mcp.example',
+  );
+  for (const origin of [
+    'https://mcp.example/mcp',
+    'https://mcp.example?x=1',
+    'ftp://mcp.example',
+    'https://user:pass@mcp.example',
+  ])
+    assert.throws(
+      () => loadServerConfig(environment({ NOTESAPP_MCP_ORIGIN: origin })),
+      ConfigError,
+    );
+});

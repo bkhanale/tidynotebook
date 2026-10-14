@@ -1,0 +1,34 @@
+type: object
+description: An OAuth protocol refusal under RFC 6749.
+additionalProperties: false
+required:
+  - error
+properties:
+  error:
+    type: string
+    description: Protocol value.
+    maxLength: 4096
+    enum:
+      - invalid_request
+      - invalid_client
+      - invalid_grant
+      - unauthorized_client
+      - unsupported_grant_type
+      - invalid_scope
+      - access_denied
+      - unsupported_response_type
+      - server_error
+      - temporarily_unavailable
+      - unsupported_token_type
+      - invalid_target
+      - invalid_redirect_uri
+      - invalid_client_metadata
+      - not_found
+  error_description:
+    type: string
+    description: Protocol value.
+    maxLength: 4096
+  error_uri:
+    type: string
+    description: Protocol value.
+    maxLength: 4096

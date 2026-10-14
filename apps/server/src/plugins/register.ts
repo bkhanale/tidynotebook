@@ -33,6 +33,7 @@ import {
   responseValidator,
 } from '@notesapp/api-contract';
 import {
+  classifyError,
   RequestContractError,
   RequestMediaTypeError,
   ResponseContractError,
@@ -193,7 +194,11 @@ export type ProtocolAdapter = {
   readonly routes: readonly {
     readonly method: 'GET' | 'POST';
     readonly path: string;
+    readonly oauth?: boolean;
+    readonly oauthErrors?: boolean;
   }[];
+  /** Disabled opt-in routes answer as an unknown route. */
+  readonly enabled?: (route: { readonly oauth?: boolean }) => boolean;
   /**
    * Serves one request and returns its answer.
    *
@@ -607,6 +612,7 @@ export function registerOperations(
   },
   limits: RouteBodyLimits,
   answered?: AnswerHook,
+  oauthEnabled = false,
 ): void {
   checkRegistration(
     operations,
@@ -760,7 +766,7 @@ export function registerOperations(
     );
   }
   for (const adapter of protocols)
-    registerProtocol(app, adapter, protocolRoutes);
+    registerProtocol(app, adapter, protocolRoutes, oauthEnabled);
 
   // A GET whose address the contract also serves as a HEAD of its own leaves
   // the HEAD to that operation, so the framework adds no second one.
@@ -869,6 +875,20 @@ function readRawJson(request: FastifyRequest): unknown {
   const body = request.body;
   if (!Buffer.isBuffer(body) || body.length === 0) return undefined;
   const text = body.toString('utf8');
+  if (
+    baseMediaType(request.headers['content-type']) ===
+    'application/x-www-form-urlencoded'
+  ) {
+    const fields: Record<string, string> = {};
+    for (const [name, value] of new URLSearchParams(text)) {
+      if (Object.hasOwn(fields, name))
+        throw new RequestContractError('body', [
+          { path: '/', message: 'a form field must occur once' },
+        ]);
+      Object.defineProperty(fields, name, { value, enumerable: true });
+    }
+    return fields;
+  }
   if (text.trim() === '') return undefined;
   try {
     const value: unknown = JSON.parse(text);
@@ -897,6 +917,7 @@ function registerProtocol(
   app: FastifyInstance,
   adapter: ProtocolAdapter,
   byRoute: ReadonlyMap<string, OperationId>,
+  oauthEnabled: boolean,
 ): void {
   const socket = adapter.socket;
   if (socket !== undefined) {
@@ -913,11 +934,40 @@ function registerProtocol(
       },
     );
     for (const route of adapter.routes) {
+      if (
+        (route.oauth === true && !oauthEnabled) ||
+        adapter.enabled?.(route) === false
+      )
+        continue;
       const id = byRoute.get(`${route.method} ${route.path}`);
       scope.route({
         method: route.method,
         url: route.path,
         ...(id === undefined ? {} : { config: { operationId: id } }),
+        ...(route.oauthErrors === true
+          ? {
+              errorHandler: async (error, _request, reply) => {
+                const classified = classifyError(error);
+                const status =
+                  classified.status === 423 ? 403 : classified.status;
+                await reply
+                  .status(status)
+                  .header('content-type', 'application/json')
+                  .header('cache-control', 'no-store')
+                  .header('pragma', 'no-cache')
+                  .send(
+                    JSON.stringify({
+                      error:
+                        status >= 500
+                          ? 'server_error'
+                          : status === 403
+                            ? 'access_denied'
+                            : 'invalid_request',
+                    }),
+                  );
+              },
+            }
+          : {}),
         handler: async (request, reply) => {
           if (id !== undefined) checkProtocolRequest(id, request);
           const result = await adapter.handle(request);
@@ -939,6 +989,15 @@ async function sendProtocolResult(
   if (result.cookies.length > 0)
     reply.header('set-cookie', [...result.cookies]);
   reply.status(result.status);
+  if (
+    result.mediaType === '' &&
+    result.body === undefined &&
+    result.bytes === null
+  ) {
+    reply.removeHeader('content-type');
+    await reply.send();
+    return;
+  }
   if (result.bytes !== null) {
     if (result.mediaType !== '') reply.header('content-type', result.mediaType);
     await reply.send(Buffer.from(result.bytes));
@@ -1034,6 +1093,10 @@ function checkProtocolResponse(
   id: OperationId,
   result: ProtocolResult,
 ): void {
+  if (result.mediaType === '') {
+    checkHandlerResult(request, id, result);
+    return;
+  }
   const declaredMediaTypes = responseMediaTypes(id, result.status);
   const shared = {
     operationId: id,

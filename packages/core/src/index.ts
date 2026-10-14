@@ -624,3 +624,13 @@ export type {
   UsageMeterOptions,
 } from './usage/meter.ts';
 export { createUsageMeter, maxKeptSubjects } from './usage/meter.ts';
+export {
+  maxOAuthClients,
+  oauthAccessLifetimeSeconds,
+  oauthConsentScopeAllowed,
+  oauthGrantTypes,
+  oauthRefreshLifetimeSeconds,
+  oauthScopeAllowed,
+  oauthScopes,
+  oauthUnusedClientDays,
+} from './identity/oauth.ts';

@@ -45,7 +45,7 @@ why the contract emits shared definitions. A WebSocket message follows
    refuses an unknown member rather than ignoring it, and generation fails when
    it does not.
 4. **Declare every response**, including the failure statuses that the
-   generator requires for the shape of the operation. Every error uses the
+   generator requires for the shape of the operation. OAuth errors use RFC 6749 JSON; other errors use the
    problem media type with a stable code. One status carries one media type.
 5. **Run `pnpm contract:lint`**, then **`pnpm generate`**, and commit the
    generated output with the contract. Generation refuses a source file that
@@ -119,8 +119,9 @@ is marked in the contract and is different in three ways.
   the answer are still validated, and the identity hook runs only when the
   operation names a security scheme, which no Better Auth operation does.
 
-The adapter still owns the error surface: it rewrites a refused answer into the
-problem shape, so every path of the deployment answers problem details.
+OAuth grant and client routes keep RFC 6749 errors ([record 0226](../decisions/0226-the-application-origin-issues-mcp-grants.md)).
+Every other protocol route keeps problem details. Form inputs and empty
+success answers remain subject to the declared contract.
 
 ## The authentication fragment
 

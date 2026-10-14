@@ -1,0 +1,43 @@
+{
+  'type': 'object',
+  'description': 'Opaque resource-bound tokens. Keep each token private.',
+  'additionalProperties': true,
+  'required': ['access_token', 'token_type', 'expires_in', 'scope'],
+  'properties':
+    {
+      'access_token':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'readOnly': true,
+        },
+      'refresh_token':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'readOnly': true,
+        },
+      'token_type':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'readOnly': true,
+        },
+      'scope':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'readOnly': true,
+        },
+      'expires_in':
+        {
+          'type': 'integer',
+          'description': 'The token life in seconds.',
+          'readOnly': true,
+        },
+    },
+}

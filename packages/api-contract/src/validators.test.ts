@@ -561,3 +561,43 @@ await test('every operator operation takes the operator token alone', () => {
         operation.id,
       );
 });
+
+test('OAuth forms and RFC 6749 errors keep their declared boundary', () => {
+  const request = requestValidator('exchangeOAuthToken', 'body');
+  assert.ok(request);
+  assert.equal(
+    request({
+      grant_type: 'refresh_token',
+      refresh_token: 'opaque',
+      client_id: 'public',
+      resource: 'https://mcp.example/mcp',
+    }),
+    true,
+  );
+  assert.equal(
+    request({ grant_type: 'refresh_token', unexpected: 'value' }),
+    false,
+  );
+  assert.equal(request({ grant_type: ['refresh_token'] }), false);
+  const response = responseValidator(
+    'exchangeOAuthToken',
+    400,
+    'application/json',
+  );
+  assert.ok(response);
+  assert.equal(response({ error: 'invalid_grant' }), true);
+  assert.equal(
+    response({
+      error: 'invalid_request',
+      error_description: 'The request is refused.',
+    }),
+    true,
+  );
+  assert.equal(response({ code: 'invalid_grant', status: 400 }), false);
+  assert.deepEqual(responseMediaTypes('revokeOAuthToken', 200), []);
+  assert.deepEqual(
+    operations.find((operation) => operation.id === 'revokeOAuthToken')
+      ?.noContent,
+    [200],
+  );
+});

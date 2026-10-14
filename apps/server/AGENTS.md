@@ -1,9 +1,7 @@
 # apps/server
 
 Read the root [AGENTS.md](../../AGENTS.md) first. This file adds the rules of this
-directory. The recipe for a whole feature is in
-[docs/development/feature-workflow.md](../../docs/development/feature-workflow.md).
-The Fastify HTTP adapter serves the web application, the REST API, and the
+directory. The Fastify HTTP adapter serves the web application, the REST API, and the
 authentication routes on one origin, and it holds no domain rule.
 
 ## What lives here and what does not
@@ -34,6 +32,8 @@ authentication routes on one origin, and it holds no domain rule.
   of open registration, `verification.ts` the token of its link (0114), and
   `proof-of-work.ts` the challenges of a sign-up (0115). `src/jobs/` holds background work, `src/cli/` the operator
   commands. `routes/administration.ts` serves the installation operations (0109).
+- `src/auth/better-auth.ts` also holds the opt-in OAuth profile, exact discovery
+  address, form transport and OAuth error boundary (0226). No MCP endpoint lives here.
 - `src/installation-settings.ts` decides the mail, the legal documents and the policy lock (0148, 0206).
 - A domain rule lives in `packages/core`, every SQL statement in
   `packages/storage-server`, and every request shape in `packages/api-contract/`.

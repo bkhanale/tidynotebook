@@ -43,7 +43,11 @@ import {
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import type { ObjectStoreSettings } from '@notesapp/storage-server';
-import { readServedOrigins, type ServedOrigin } from './served-origins.ts';
+import {
+  readOrigin,
+  readServedOrigins,
+  type ServedOrigin,
+} from './served-origins.ts';
 import { readTrustedProxies } from './trusted-proxies.ts';
 
 const logLevels = [
@@ -98,6 +102,8 @@ export type ServerConfig = {
    * [decision 0042](../../../docs/decisions/0042-the-listening-socket-is-not-the-public-origin.md).
    */
   readonly origin: string;
+  /** MCP is off when this setting is absent (0225). */
+  readonly mcpOrigin: string | null;
   /** PostgreSQL connection URL of the runtime role. */
   readonly databaseUrl: string;
   /**
@@ -366,6 +372,7 @@ const variables = [
 export const optionalVariables = [
   'NOTESAPP_ADDITIONAL_ORIGINS',
   'NOTESAPP_PUBLISHED_ORIGIN',
+  'NOTESAPP_MCP_ORIGIN',
   'NOTESAPP_HOST',
   'NOTESAPP_PORT',
   'NOTESAPP_TRUSTED_PROXIES',
@@ -627,6 +634,7 @@ const configSchema: SchemaObject = {
     // a value that is not exactly one origin and names what to write instead.
     NOTESAPP_ADDITIONAL_ORIGINS: { type: 'string', maxLength: 1024 },
     NOTESAPP_PUBLISHED_ORIGIN: { type: 'string', maxLength: 1024 },
+    NOTESAPP_MCP_ORIGIN: { type: 'string', maxLength: 1024 },
     NOTESAPP_HOST: { type: 'string', minLength: 1, maxLength: 255 },
     NOTESAPP_PORT: positiveInteger,
     // The shape of one entry is decided by `trusted-proxies.ts`, which refuses
@@ -762,6 +770,25 @@ export function loadServerConfig(
     throw new ConfigError([
       'NOTESAPP_ORIGIN: name the origin of this installation.',
     ]);
+  const mcpOrigin =
+    raw.NOTESAPP_MCP_ORIGIN === undefined
+      ? null
+      : readOrigin(raw.NOTESAPP_MCP_ORIGIN);
+  if (raw.NOTESAPP_MCP_ORIGIN !== undefined && mcpOrigin === null)
+    throw new ConfigError([
+      'NOTESAPP_MCP_ORIGIN: name one full origin with no path or query.',
+    ]);
+  if (
+    mcpOrigin !== null &&
+    served.origins.some(
+      (entry) =>
+        entry.role === 'published' &&
+        new URL(entry.origin).hostname === new URL(mcpOrigin).hostname,
+    )
+  )
+    throw new ConfigError([
+      'NOTESAPP_MCP_ORIGIN: use a host that is not the published host.',
+    ]);
   const trusted = readTrustedProxies(raw.NOTESAPP_TRUSTED_PROXIES);
   if (!trusted.ok) throw new ConfigError(trusted.issues);
   const listen = {
@@ -829,6 +856,7 @@ export function loadServerConfig(
   );
   return {
     origin: canonical,
+    mcpOrigin,
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,

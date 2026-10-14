@@ -143,3 +143,26 @@ export {
   type WorkspaceSeed,
 } from './provision.ts';
 export { writeChargeBytes } from './workspace-store/sync-repository.ts';
+
+export {
+  oauthAccessToken,
+  oauthRefreshToken,
+  oauthClient,
+  oauthResource,
+  oauthClientResource,
+  oauthConsent,
+  oauthClientAssertion,
+} from './schema.ts';
+export {
+  expireOAuthClients,
+  oauthReplayCandidate,
+  revokeOAuthReplay,
+  revokeOAuthToken,
+  oauthClientRoom,
+  oauthLockTimeoutMs,
+  oauthRequestTransaction,
+  oauthStatementTimeoutMs,
+  resolveOAuthToken,
+  type OAuthTokenIdentity,
+  type OAuthTokenLocator,
+} from './oauth-store.ts';

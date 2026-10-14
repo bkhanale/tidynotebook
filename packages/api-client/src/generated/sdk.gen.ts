@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client/index.js';
-import type { AbortWorkspaceImportData, AbortWorkspaceImportErrors, AbortWorkspaceImportResponses, AcceptLegalDocumentsData, AcceptLegalDocumentsErrors, AcceptLegalDocumentsResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CompleteWorkspaceImportData, CompleteWorkspaceImportErrors, CompleteWorkspaceImportResponses, CreateApiKeyData, CreateApiKeyErrors, CreateApiKeyResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteThemeData, DeleteThemeErrors, DeleteThemeResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, DismissReportData, DismissReportErrors, DismissReportResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, FindOperatorAccountData, FindOperatorAccountErrors, FindOperatorAccountResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetLegalDocumentData, GetLegalDocumentErrors, GetLegalDocumentResponses, GetLegalDocumentSettingsData, GetLegalDocumentSettingsErrors, GetLegalDocumentSettingsResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetReportPageData, GetReportPageErrors, GetReportPageResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSignUpChallengeData, GetSignUpChallengeErrors, GetSignUpChallengeResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, GetTemplateSettingsData, GetTemplateSettingsErrors, GetTemplateSettingsResponses, ImportThemeData, ImportThemeErrors, ImportThemeResponses, InspectWorkspaceExportData, InspectWorkspaceExportErrors, InspectWorkspaceExportResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListApiKeysData, ListApiKeysErrors, ListApiKeysResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListOperatorAccountEventsData, ListOperatorAccountEventsErrors, ListOperatorAccountEventsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListReportsData, ListReportsErrors, ListReportsResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenAccountPortalData, OpenAccountPortalErrors, OpenAccountPortalResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, OpenSyncNoticesData, OpenSyncNoticesErrors, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, ReadOperatorAccountData, ReadOperatorAccountErrors, ReadOperatorAccountResponses, ReadOperatorTotalsData, ReadOperatorTotalsErrors, ReadOperatorTotalsResponses, RedeemAccountHandoffData, RedeemAccountHandoffErrors, RedeemAccountHandoffResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveLegalDocumentData, RemoveLegalDocumentErrors, RemoveLegalDocumentResponses, RemoveMailSettingsData, RemoveMailSettingsErrors, RemoveMailSettingsResponses, RemoveOperatorAccountData, RemoveOperatorAccountErrors, RemoveOperatorAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, ReportPublishedLinkData, ReportPublishedLinkErrors, ReportPublishedLinkResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeApiKeyData, RevokeApiKeyErrors, RevokeApiKeyResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokeOtherSessionsData, RevokeOtherSessionsErrors, RevokeOtherSessionsResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, RevokeSessionData, RevokeSessionErrors, RevokeSessionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SendTestMessageData, SendTestMessageErrors, SendTestMessageResponses, SendWorkspaceImportPartData, SendWorkspaceImportPartErrors, SendWorkspaceImportPartResponses, SetOperatorAccountControlsData, SetOperatorAccountControlsErrors, SetOperatorAccountControlsResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, SignUpAccountData, SignUpAccountErrors, SignUpAccountResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, StartWorkspaceImportData, StartWorkspaceImportErrors, StartWorkspaceImportResponses, TakeDownReportedLinkData, TakeDownReportedLinkErrors, TakeDownReportedLinkResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdateLegalDocumentData, UpdateLegalDocumentErrors, UpdateLegalDocumentResponses, UpdateMailSettingsData, UpdateMailSettingsErrors, UpdateMailSettingsResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpdateTemplateSettingsData, UpdateTemplateSettingsErrors, UpdateTemplateSettingsResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses, VerifyAddressData, VerifyAddressErrors, VerifyAddressResponses } from './types.gen.js';
+import type { AbortWorkspaceImportData, AbortWorkspaceImportErrors, AbortWorkspaceImportResponses, AcceptLegalDocumentsData, AcceptLegalDocumentsErrors, AcceptLegalDocumentsResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CompleteWorkspaceImportData, CompleteWorkspaceImportErrors, CompleteWorkspaceImportResponses, ContinueOAuthAuthorizationData, ContinueOAuthAuthorizationErrors, ContinueOAuthAuthorizationResponses, CreateApiKeyData, CreateApiKeyErrors, CreateApiKeyResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteThemeData, DeleteThemeErrors, DeleteThemeResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, DismissReportData, DismissReportErrors, DismissReportResponses, ExchangeOAuthTokenData, ExchangeOAuthTokenErrors, ExchangeOAuthTokenResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, FindOperatorAccountData, FindOperatorAccountErrors, FindOperatorAccountResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetLegalDocumentData, GetLegalDocumentErrors, GetLegalDocumentResponses, GetLegalDocumentSettingsData, GetLegalDocumentSettingsErrors, GetLegalDocumentSettingsResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetOAuthClientData, GetOAuthClientErrors, GetOAuthClientResponses, GetOAuthMetadataData, GetOAuthMetadataErrors, GetOAuthMetadataResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetReportPageData, GetReportPageErrors, GetReportPageResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSignUpChallengeData, GetSignUpChallengeErrors, GetSignUpChallengeResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, GetTemplateSettingsData, GetTemplateSettingsErrors, GetTemplateSettingsResponses, GiveOAuthConsentData, GiveOAuthConsentErrors, GiveOAuthConsentResponses, ImportThemeData, ImportThemeErrors, ImportThemeResponses, InspectWorkspaceExportData, InspectWorkspaceExportErrors, InspectWorkspaceExportResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListApiKeysData, ListApiKeysErrors, ListApiKeysResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListOperatorAccountEventsData, ListOperatorAccountEventsErrors, ListOperatorAccountEventsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListReportsData, ListReportsErrors, ListReportsResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenAccountPortalData, OpenAccountPortalErrors, OpenAccountPortalResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, OpenSyncNoticesData, OpenSyncNoticesErrors, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, ReadOperatorAccountData, ReadOperatorAccountErrors, ReadOperatorAccountResponses, ReadOperatorTotalsData, ReadOperatorTotalsErrors, ReadOperatorTotalsResponses, RedeemAccountHandoffData, RedeemAccountHandoffErrors, RedeemAccountHandoffResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RegisterOAuthClientData, RegisterOAuthClientErrors, RegisterOAuthClientResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveLegalDocumentData, RemoveLegalDocumentErrors, RemoveLegalDocumentResponses, RemoveMailSettingsData, RemoveMailSettingsErrors, RemoveMailSettingsResponses, RemoveOperatorAccountData, RemoveOperatorAccountErrors, RemoveOperatorAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, ReportPublishedLinkData, ReportPublishedLinkErrors, ReportPublishedLinkResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeApiKeyData, RevokeApiKeyErrors, RevokeApiKeyResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokeOAuthTokenData, RevokeOAuthTokenErrors, RevokeOAuthTokenResponses, RevokeOtherSessionsData, RevokeOtherSessionsErrors, RevokeOtherSessionsResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, RevokeSessionData, RevokeSessionErrors, RevokeSessionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SendTestMessageData, SendTestMessageErrors, SendTestMessageResponses, SendWorkspaceImportPartData, SendWorkspaceImportPartErrors, SendWorkspaceImportPartResponses, SetOperatorAccountControlsData, SetOperatorAccountControlsErrors, SetOperatorAccountControlsResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, SignUpAccountData, SignUpAccountErrors, SignUpAccountResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, StartWorkspaceImportData, StartWorkspaceImportErrors, StartWorkspaceImportResponses, TakeDownReportedLinkData, TakeDownReportedLinkErrors, TakeDownReportedLinkResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdateLegalDocumentData, UpdateLegalDocumentErrors, UpdateLegalDocumentResponses, UpdateMailSettingsData, UpdateMailSettingsErrors, UpdateMailSettingsResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpdateTemplateSettingsData, UpdateTemplateSettingsErrors, UpdateTemplateSettingsResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses, VerifyAddressData, VerifyAddressErrors, VerifyAddressResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,13 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in discovery route serves OAuth metadata on success and Problem Details on errors.
+ */
+export const getOAuthMetadata = <ThrowOnError extends boolean = false>(options?: Options<GetOAuthMetadataData, ThrowOnError>): RequestResult<GetOAuthMetadataResponses, GetOAuthMetadataErrors, ThrowOnError> => (options?.client ?? client).get<GetOAuthMetadataResponses, GetOAuthMetadataErrors, ThrowOnError>({ url: '/.well-known/oauth-authorization-server/api/auth', ...options });
 
 /**
  * Report the signed in account and its settings.
@@ -352,6 +359,85 @@ export const updateAccount = <ThrowOnError extends boolean = false>(options: Opt
  * Reports the session that the request cookie names, or null when there is none.
  */
 export const getAuthSession = <ThrowOnError extends boolean = false>(options?: Options<GetAuthSessionData, ThrowOnError>): RequestResult<GetAuthSessionResponses, GetAuthSessionErrors, ThrowOnError> => (options?.client ?? client).get<GetAuthSessionResponses, GetAuthSessionErrors, ThrowOnError>({ url: '/api/auth/get-session', ...options });
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.
+ */
+export const giveOAuthConsent = <ThrowOnError extends boolean = false>(options: Options<GiveOAuthConsentData, ThrowOnError>): RequestResult<GiveOAuthConsentResponses, GiveOAuthConsentErrors, ThrowOnError> => (options.client ?? client).post<GiveOAuthConsentResponses, GiveOAuthConsentErrors, ThrowOnError>({
+    url: '/api/auth/oauth2/consent',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.
+ */
+export const continueOAuthAuthorization = <ThrowOnError extends boolean = false>(options: Options<ContinueOAuthAuthorizationData, ThrowOnError>): RequestResult<ContinueOAuthAuthorizationResponses, ContinueOAuthAuthorizationErrors, ThrowOnError> => (options.client ?? client).post<ContinueOAuthAuthorizationResponses, ContinueOAuthAuthorizationErrors, ThrowOnError>({
+    url: '/api/auth/oauth2/continue',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.
+ */
+export const getOAuthClient = <ThrowOnError extends boolean = false>(options: Options<GetOAuthClientData, ThrowOnError>): RequestResult<GetOAuthClientResponses, GetOAuthClientErrors, ThrowOnError> => (options.client ?? client).get<GetOAuthClientResponses, GetOAuthClientErrors, ThrowOnError>({ url: '/api/auth/oauth2/public-client', ...options });
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.
+ */
+export const registerOAuthClient = <ThrowOnError extends boolean = false>(options: Options<RegisterOAuthClientData, ThrowOnError>): RequestResult<RegisterOAuthClientResponses, RegisterOAuthClientErrors, ThrowOnError> => (options.client ?? client).post<RegisterOAuthClientResponses, RegisterOAuthClientErrors, ThrowOnError>({
+    url: '/api/auth/oauth2/register',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.
+ */
+export const revokeOAuthToken = <ThrowOnError extends boolean = false>(options: Options<RevokeOAuthTokenData, ThrowOnError>): RequestResult<RevokeOAuthTokenResponses, RevokeOAuthTokenErrors, ThrowOnError> => (options.client ?? client).post<RevokeOAuthTokenResponses, RevokeOAuthTokenErrors, ThrowOnError>({
+    ...urlSearchParamsBodySerializer,
+    url: '/api/auth/oauth2/revoke',
+    ...options,
+    headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...options.headers
+    }
+});
+
+/**
+ * Process the OAuth request.
+ *
+ * The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.
+ */
+export const exchangeOAuthToken = <ThrowOnError extends boolean = false>(options: Options<ExchangeOAuthTokenData, ThrowOnError>): RequestResult<ExchangeOAuthTokenResponses, ExchangeOAuthTokenErrors, ThrowOnError> => (options.client ?? client).post<ExchangeOAuthTokenResponses, ExchangeOAuthTokenErrors, ThrowOnError>({
+    ...urlSearchParamsBodySerializer,
+    url: '/api/auth/oauth2/token',
+    ...options,
+    headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...options.headers
+    }
+});
 
 /**
  * Ask for a password reset message.

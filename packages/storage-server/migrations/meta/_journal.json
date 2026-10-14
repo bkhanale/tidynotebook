@@ -253,6 +253,20 @@
       "when": 1791706613386,
       "tag": "0035_direct_search_index",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791988768698,
+      "tag": "0036_oauth_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791989460675,
+      "tag": "0037_oauth_grants",
+      "breakpoints": true
     }
   ]
 }

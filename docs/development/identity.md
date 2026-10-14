@@ -57,6 +57,17 @@ marks it secure. A cookie write must name a served origin. See
 [HTTP API access](api.md) and
 [decision 0039](../decisions/0039-one-list-of-served-origins.md).
 
+## MCP authorization
+
+[Record 0226](../decisions/0226-the-application-origin-issues-mcp-grants.md) owns the opt-in
+OAuth server in `better-auth.ts` and the identity storage in `oauth-store.ts`.
+The issuer is the application origin with `/api/auth`. Its only metadata address
+uses path insertion: `/.well-known/oauth-authorization-server/api/auth`.
+The grant identity is the consent of one client and one account.
+Deleting that consent revokes the whole grant; an authenticated, unexpired
+refresh replay deletes it. Token and revocation requests hold account then pair
+locks in one bounded transaction, with no network work inside it.
+
 ## Administration
 
 Each account has an installation role, administrator or member. The matrix of
@@ -78,8 +89,6 @@ Disabling an account ends every session of it in the same transaction.
 Removing an account erases every workspace it owns and its identity, and keeps
 its row as a tombstone. A person removes their own account after they give the
 password again.
-
-## Storage
 
 The byte limit belongs to the account and counts every workspace that it owns
 ([record 0112](../decisions/0112-the-owner-account-holds-the-storage-quota.md)).
@@ -116,8 +125,6 @@ writes it. A reset ends every session of the account and sends a notice to the
 address. Without a transport, the operator runs `pnpm account:recover`. The
 command reads a password from a protected file or a hidden prompt and revokes
 the old sessions.
-
-## Messages
 
 `apps/server/src/auth/messages.ts` writes the words of every message, and
 `apps/server/src/auth/mail.ts` sends it with the automatic headers of RFC 3834.

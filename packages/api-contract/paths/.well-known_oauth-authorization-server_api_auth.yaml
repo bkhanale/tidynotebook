@@ -1,0 +1,67 @@
+get:
+  operationId: getOAuthMetadata
+  summary: Process the OAuth request.
+  description:
+    The opt-in discovery route serves OAuth metadata on success and Problem
+    Details on errors.
+  tags:
+    - auth
+  security: []
+  x-notesapp-protocol: better-auth
+  responses:
+    '200':
+      description: The protocol request is complete.
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/OAuthMetadata.yaml
+    '400':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '401':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '403':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '413':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '415':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '429':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '500':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '503':
+      description: The protocol request is refused.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../components/schemas/ProblemDetails.yaml
+    '404':
+      $ref: ../components/responses/NotFound.yaml

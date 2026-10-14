@@ -1,0 +1,16 @@
+{
+  'type': 'object',
+  'description': 'Continue the signed authorization request after sign-in.',
+  'additionalProperties': false,
+  'required': ['oauth_query'],
+  'properties':
+    {
+      'oauth_query':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+    },
+}

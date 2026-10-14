@@ -1,0 +1,138 @@
+{
+  'post':
+    {
+      'operationId': 'registerOAuthClient',
+      'summary': 'Process the OAuth request.',
+      'description': 'The opt-in OAuth provider serves this operation under record 0226. The route answers not found when MCP is off. OAuth errors keep their protocol format.',
+      'tags': ['auth'],
+      'security': [],
+      'x-notesapp-protocol': 'better-auth',
+      'responses':
+        {
+          '201':
+            {
+              'description': 'The protocol request is complete.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthClient.yaml' },
+                    },
+                },
+            },
+          '400':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '401':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '403':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '413':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '415':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '429':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '500':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '503':
+            {
+              'description': 'The protocol request is refused.',
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        { '$ref': '../components/schemas/OAuthError.yaml' },
+                    },
+                },
+            },
+          '404': { '$ref': '../components/responses/NotFound.yaml' },
+        },
+      'requestBody':
+        {
+          'required': true,
+          'description': 'The OAuth protocol request.',
+          'content':
+            {
+              'application/json':
+                {
+                  'schema':
+                    {
+                      '$ref': '../components/schemas/OAuthRegistrationRequest.yaml',
+                    },
+                },
+            },
+        },
+    },
+}

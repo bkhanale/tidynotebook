@@ -1,9 +1,7 @@
 # packages/api-contract
 
 Read the root [AGENTS.md](../../AGENTS.md) first. This file adds the rules of
-this directory. The recipe for a whole feature is in
-[docs/development/feature-workflow.md](../../docs/development/feature-workflow.md).
-This package is the only source of the notesapp HTTP interface and of the
+this directory. This package is the only source of the notesapp HTTP interface and of the
 messages of its WebSocket channels. It also exposes the generated operation and
 channel index and the compiled Ajv 2020-12 validators that the server boundary
 uses.
@@ -23,7 +21,7 @@ from a path file, `'./<Name>.yaml'` in one section, and `'../<section>/<Name>.ya
 
 - `openapi.yaml`, `paths/` and `components/` are authoritative. `redocly.yaml`
   holds the rules of `pnpm contract:lint` and `.redocly.lint-ignore.yaml` its
-  one exception, the 101 of the upgrade (0128).
+  exact exceptions for the 101 upgrade (0128) and OAuth RFC 6749 errors (0226).
 - `asyncapi.yaml` is the message root (0126), and `channels/` holds one file
   per channel. A payload is a schema that `openapi.yaml` also lists, in the
   keywords that AsyncAPI 3.0 and JSON Schema 2020-12 share.
@@ -59,7 +57,8 @@ No workspace package. Only `ajv` and `ajv-formats`.
 - **A schema member.** Set `additionalProperties: false` on a write body object.
   Mark a client only member `writeOnly` and a server only member `readOnly`.
   Reference the schema, because an orphan fails generation. A failure answers
-  `ProblemDetails` with a stable `code`, or a closed narrowing of it.
+  `ProblemDetails` with a stable `code`, or a closed narrowing of it. OAuth
+  operations use `OAuthError` (0226). Token and revocation requests use forms.
 
 ## Testing conventions here
 

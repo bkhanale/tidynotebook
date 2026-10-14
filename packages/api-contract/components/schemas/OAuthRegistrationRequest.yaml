@@ -1,0 +1,127 @@
+{
+  'type': 'object',
+  'description': 'Client registration metadata under RFC 7591.',
+  'additionalProperties': false,
+  'required': ['redirect_uris'],
+  'properties':
+    {
+      'client_name':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_uri':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'logo_uri':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'tos_uri':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'policy_uri':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'software_id':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'software_version':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'scope':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'application_type':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'token_endpoint_auth_method':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'redirect_uris':
+        {
+          'type': 'array',
+          'items':
+            {
+              'type': 'string',
+              'description': 'Protocol value.',
+              'maxLength': 4096,
+            },
+          'description': 'Requested client metadata.',
+          'writeOnly': true,
+        },
+      'grant_types':
+        {
+          'type': 'array',
+          'items':
+            {
+              'type': 'string',
+              'description': 'Protocol value.',
+              'maxLength': 4096,
+            },
+          'description': 'Requested client metadata.',
+          'writeOnly': true,
+        },
+      'response_types':
+        {
+          'type': 'array',
+          'items':
+            {
+              'type': 'string',
+              'description': 'Protocol value.',
+              'maxLength': 4096,
+            },
+          'description': 'Requested client metadata.',
+          'writeOnly': true,
+        },
+      'contacts':
+        {
+          'type': 'array',
+          'items':
+            {
+              'type': 'string',
+              'description': 'Protocol value.',
+              'maxLength': 4096,
+            },
+          'description': 'Requested client metadata.',
+          'writeOnly': true,
+        },
+    },
+}

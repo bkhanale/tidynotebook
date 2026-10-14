@@ -1,0 +1,51 @@
+{
+  'type': 'object',
+  'description': 'Revoke an opaque token under RFC 7009.',
+  'additionalProperties': false,
+  'required': ['token'],
+  'properties':
+    {
+      'token':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'token_type_hint':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_id':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_secret':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+          'writeOnly': true,
+        },
+      'client_assertion':
+        {
+          'type': 'string',
+          'description': 'Client assertion authentication under RFC 7523.',
+          'maxLength': 16384,
+          'writeOnly': true,
+        },
+      'client_assertion_type':
+        {
+          'type': 'string',
+          'description': 'Client assertion authentication under RFC 7523.',
+          'maxLength': 16384,
+          'writeOnly': true,
+        },
+    },
+}

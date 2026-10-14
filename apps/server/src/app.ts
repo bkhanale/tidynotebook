@@ -42,7 +42,7 @@ import type {
   ProtocolAdapter,
 } from './plugins/register.ts';
 import { registerOperations } from './plugins/register.ts';
-import type { AuthLogRecord } from './auth/better-auth.ts';
+import type { AuthLogRecord, AuthOptions } from './auth/better-auth.ts';
 import {
   createAuth,
   createAuthPool,
@@ -62,6 +62,7 @@ import { createMailPasswordSeal } from './auth/seal.ts';
 import { createInstallationSettings } from './installation-settings.ts';
 import {
   createDocumentService,
+  expireOAuthClients,
   openAttachmentStore,
   openCoordination,
   openSyncListener,
@@ -213,6 +214,8 @@ export function webAssetsDirectory(
 export type AppOptions = {
   /** One handler per contract operation id. */
   readonly handlers: HandlerMap;
+  /** Injected safe CIMD transport for protocol integration tests. */
+  readonly oauthFetch?: AuthOptions['oauthFetch'];
   /** Resolves the actor of an operation that declares a security scheme. */
   readonly identity?: IdentityResolver;
   /** Destination of the structured log, for tests that read log records. */
@@ -644,6 +647,7 @@ export async function createAppWithHandlers(
     config.rateLimit,
     config.limits,
     usage === undefined ? undefined : countAnswer(usage),
+    config.mcpOrigin !== null,
   );
   return app;
 }
@@ -847,17 +851,18 @@ async function composeApp(
   );
   const authPool = createAuthPool(config);
   opened.push(() => authPool.end());
-  const auth = createAuth(
-    config,
-    {
-      mail: strangerMail,
-      allowSignUp: true,
-      sessionAllowed: sessionAllowedBy(identity),
-      log: (record) => sink.write?.(record),
-      onBreachUnavailable: () => sink.breachUnavailable?.(),
-    },
-    authPool,
-  );
+  const authOptions: AuthOptions = {
+    mail: strangerMail,
+    allowSignUp: true,
+    sessionAllowed: sessionAllowedBy(identity),
+    log: (record) => sink.write?.(record),
+    onBreachUnavailable: () => sink.breachUnavailable?.(),
+    oauth: { attempts, pool: authPool },
+    ...(options?.oauthFetch === undefined
+      ? {}
+      : { oauthFetch: options.oauthFetch }),
+  };
+  const auth = createAuth(config, authOptions, authPool);
   opened.push(() => auth.close());
   // The notice gateway of this process (record 0129). Its log sink is filled
   // once the instance exists, as the sinks above are.
@@ -971,12 +976,17 @@ async function composeApp(
     protocols: [
       // A locked account keeps the identity operations of the library and
       // not the change of its profile (record 0201).
-      createAuthProtocol(config, auth.auth, async (request) => {
-        const id = request.routeOptions.config.operationId;
-        if (id === undefined || lockedAccountKeeps(id)) return;
-        const resolved = await adapter.resolveActor(request);
-        if (resolved !== null) refuseLocked(resolved.standing, id);
-      }),
+      createAuthProtocol(
+        config,
+        auth.auth,
+        async (request) => {
+          const id = request.routeOptions.config.operationId;
+          if (id === undefined || lockedAccountKeeps(id)) return;
+          const resolved = await adapter.resolveActor(request);
+          if (resolved !== null) refuseLocked(resolved.standing, id);
+        },
+        { pool: authPool, options: authOptions },
+      ),
       createSyncNoticesProtocol({
         gateway,
         servedOrigins: config.servedOrigins,
@@ -1058,7 +1068,13 @@ async function composeApp(
     // A process that stopped without its drain leaves reservations that
     // expired (record 0129).
     { name: 'streams', run: () => coordination.pruneStreams() },
-    { name: 'removals', run: () => removeAccounts() },
+    {
+      name: 'removals',
+      run: async () => {
+        await removeAccounts();
+        if (config.mcpOrigin !== null) await expireOAuthClients(authPool);
+      },
+    },
   ];
   const runCleanup = async (): Promise<void> => {
     if (cleanupRunning) return;

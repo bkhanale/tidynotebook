@@ -1,0 +1,38 @@
+{
+  'type': 'object',
+  'description': 'Client metadata from the authorization server. Names are client claims.',
+  'additionalProperties': true,
+  'required': ['client_id', 'redirect_uris'],
+  'properties':
+    {
+      'client_id':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+        },
+      'redirect_uris':
+        {
+          'type': 'array',
+          'items':
+            {
+              'type': 'string',
+              'description': 'Protocol value.',
+              'maxLength': 4096,
+            },
+          'description': 'Registered redirect addresses.',
+        },
+      'client_name':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+        },
+      'client_secret':
+        {
+          'type': 'string',
+          'description': 'Protocol value.',
+          'maxLength': 4096,
+        },
+    },
+}
