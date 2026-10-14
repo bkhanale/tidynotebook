@@ -889,8 +889,12 @@ try {
       );
       const found = [...items(notes, 'notes'), ...items(nextNotes, 'notes')];
       assert.deepEqual(
-        found.map((item) => item.fileId).sort(),
-        [fileId, backlinkId].sort(),
+        found
+          .map((item) => String(item.fileId))
+          .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
+        [fileId, backlinkId].sort((left, right) =>
+          left < right ? -1 : left > right ? 1 : 0,
+        ),
       );
       assert.ok(
         found.every(
@@ -1104,7 +1108,10 @@ try {
       assert.ok(pages <= 3);
     } while (typeof cursor === 'string');
     assert.equal(pages, 2);
-    assert.deepEqual(found.sort(), wanted.sort());
+    assert.deepEqual(
+      found.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
+      wanted.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
+    );
   });
   await test('an issued MCP token keeps only the locked-account operation list', async () => {
     const invitation = await createInvitation({
