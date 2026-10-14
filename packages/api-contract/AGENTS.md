@@ -59,8 +59,7 @@ No workspace package. Only `ajv` and `ajv-formats`.
   Mark a client only member `writeOnly` and a server only member `readOnly`.
   Reference the schema, because an orphan fails generation. A failure answers
   `ProblemDetails` with a stable `code`, or a closed narrowing of it. OAuth
-  operations use `OAuthError` (0226). The MCP endpoint answers JSON-RPC errors
-  and `OAuthError` for its auth challenges (0225). Token and revocation requests use forms.
+  operations use `OAuthError` (0226). The MCP endpoint answers JSON-RPC errors and `OAuthError` for its auth challenges (0225). Token and revocation requests use forms.
 
 ## Testing conventions here
 
