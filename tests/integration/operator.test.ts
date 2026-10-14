@@ -14,6 +14,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { setImmediate } from 'node:timers/promises';
 import {
   configureClient,
   createInvitation,
@@ -391,30 +392,132 @@ await test('a handoff works once and expires', async () => {
   assert.equal(codeOf(expired.error), 'not_found');
 });
 
+/** Follows the served feed until the member calls end and the feed is empty. */
+async function memberEvents(
+  cursor: number,
+  makeMember = member,
+  readPage = async (after: number, signal: AbortSignal) => {
+    const page = await listOperatorAccountEvents({
+      headers: operator,
+      query: { after, limit: 3 },
+      signal,
+    });
+    assert.equal(responseOf(page.response).status, 200);
+    assert.ok(page.data);
+    return page.data;
+  },
+) {
+  const seen: { cursor: number; accountId: string; kind: string }[] = [];
+  let writing = true;
+  const signal = AbortSignal.timeout(10_000);
+  // A reader follows the cursor while accounts are made at the same time. A
+  // cursor that a later commit could pass would leave a hole in what it saw.
+  const reader = (async () => {
+    for (let pages = 0; pages < 1000; pages += 1) {
+      signal.throwIfAborted();
+      const page = await readPage(cursor, signal);
+      for (const event of page.events) seen.push(event);
+      cursor = page.cursor;
+      if (!writing && page.events.length === 0) return;
+    }
+    throw new Error('The event reader did not reach the end of the feed.');
+  })();
+  // Handle a reader failure at once. Its cleanup must not replace a member
+  // failure, but a successful writer must still report a failed reader.
+  const stoppedReader = reader.catch(() => {});
+  let made;
+  try {
+    made = await Promise.all(Array.from({ length: 6 }, () => makeMember()));
+  } finally {
+    writing = false;
+    await stoppedReader;
+  }
+  await reader;
+  return { made, seen };
+}
+
+for (const readerFails of [false, true]) {
+  await test(`a rejected member call stops the event reader and keeps its failure (${readerFails ? 'failed read' : 'empty feed'})`, async () => {
+    const failure = new Error('One member call failed.');
+    const firstRead = Promise.withResolvers<void>();
+    let calls = 0;
+    let reads = 0;
+    let activeReads = 0;
+    await assert.rejects(
+      memberEvents(
+        0,
+        async () => {
+          const index = calls++;
+          await firstRead.promise;
+          if (index === 3) throw failure;
+          return {
+            email: '',
+            headers: { origin: '', cookie: '' },
+            accountId: '',
+          };
+        },
+        async (cursor) => {
+          reads += 1;
+          // This guard also stops the old reader when the regression fails.
+          if (reads > 8) throw new Error('The reader still runs.');
+          activeReads += 1;
+          try {
+            firstRead.resolve();
+            await setImmediate();
+            if (readerFails) throw new Error('The read also failed.');
+            return { cursor, events: [] };
+          } finally {
+            activeReads -= 1;
+          }
+        },
+      ),
+      (error: unknown) => error === failure,
+    );
+    assert.equal(calls, 6);
+    assert.equal(activeReads, 0);
+    assert.equal(reads, 1);
+  });
+}
+
+await test('an event reader that never reaches an empty page fails at its bound', async () => {
+  let reads = 0;
+  await assert.rejects(
+    memberEvents(
+      0,
+      () =>
+        Promise.resolve({
+          email: '',
+          headers: { origin: '', cookie: '' },
+          accountId: '',
+        }),
+      (cursor) => {
+        reads += 1;
+        // An unbounded old reader must also end when this regression fails.
+        if (reads > 1000) throw new Error('The reader passed its bound.');
+        return Promise.resolve({
+          cursor: cursor + 1,
+          events: [
+            {
+              cursor: cursor + 1,
+              accountId: '',
+              kind: 'made' as const,
+              occurredAt: '',
+            },
+          ],
+        });
+      },
+    ),
+    { message: 'The event reader did not reach the end of the feed.' },
+  );
+  assert.equal(reads, 1000);
+});
+
 await test('the event cursor misses no event', async () => {
   const start = await listOperatorAccountEvents({
     headers: operator,
     query: { after: 0, limit: 500 },
   });
-  let cursor = start.data?.cursor ?? 0;
-  const seen: { cursor: number; accountId: string; kind: string }[] = [];
-  let writing = true;
-  // A reader follows the cursor while accounts are made at the same time. A
-  // cursor that a later commit could pass would leave a hole in what it saw.
-  const reader = (async () => {
-    for (;;) {
-      const page = await listOperatorAccountEvents({
-        headers: operator,
-        query: { after: cursor, limit: 3 },
-      });
-      for (const event of page.data?.events ?? []) seen.push(event);
-      cursor = page.data?.cursor ?? cursor;
-      if (!writing && (page.data?.events.length ?? 0) === 0) return;
-    }
-  })();
-  const made = await Promise.all(Array.from({ length: 6 }, () => member()));
-  writing = false;
-  await reader;
+  const { made, seen } = await memberEvents(start.data?.cursor ?? 0);
   const everything = await listOperatorAccountEvents({
     headers: operator,
     query: { after: start.data?.cursor ?? 0, limit: 500 },

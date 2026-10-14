@@ -139,7 +139,8 @@ function failureName(value: unknown): string {
  * The first four are Node socket codes that the driver reports in the same
  * `code` field as a SQLSTATE. `3D000` is a missing database, `28000` and
  * `28P01` are a refused login, `08*` is a broken connection, and `57P03` is a
- * server that is still starting.
+ * server that is still starting. Class `53` means the database has too few
+ * resources, including a full connection limit, to serve the request now.
  */
 const unavailableCodes = new Set([
   'ECONNREFUSED',
@@ -156,7 +157,12 @@ const unavailableCodes = new Set([
 function failureKind(code: string): OperationalErrorKind {
   if (code === '40001' || code === '40P01') return 'serialization';
   if (code === '57014') return 'timeout';
-  if (unavailableCodes.has(code) || code.startsWith('08')) return 'unavailable';
+  if (
+    unavailableCodes.has(code) ||
+    code.startsWith('08') ||
+    code.startsWith('53')
+  )
+    return 'unavailable';
   return 'unexpected';
 }
 
