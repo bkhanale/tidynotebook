@@ -6,21 +6,29 @@
  * reads both, so it holds the list to the contract here: a name of the list
  * that the contract does not declare fails, and so does an operation that a
  * session reaches, that the list does not name, and that cannot answer 423.
+ * The OAuth consent writes instead answer their declared RFC refusal at 403.
  * A new operation therefore stays refused for a locked account until the
  * list names it, and the boundary can always answer that refusal.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { operations, responseMediaTypes } from '@notesapp/api-contract';
+import {
+  operations,
+  responseMediaTypes,
+  responseValidator,
+} from '@notesapp/api-contract';
 import { lockedAccountKeeps, lockedAccountOperations } from '@notesapp/core';
 import { AccountLockedError } from '../plugins/problem.ts';
 import { refuseLocked } from './actor.ts';
+import { oauthRoutes, oauthCookieWritePaths } from './better-auth.ts';
 
 /** Whether a session reaches an operation, through the hook or a library. */
 function sessionReaches(operation: (typeof operations)[number]): boolean {
   return (
     operation.security.some((requirement) => 'sessionCookie' in requirement) ||
-    operation.protocol !== null
+    (operation.protocol !== null &&
+      (!oauthRoutes.some((route) => route.path === operation.path) ||
+        oauthCookieWritePaths.some((path) => path === operation.path)))
   );
 }
 
@@ -39,12 +47,34 @@ await test('every operation that a locked account loses can answer account_locke
   );
   assert.ok(refused.some((operation) => operation.id === 'commitChangeset'));
   assert.ok(refused.some((operation) => operation.id === 'updateProfile'));
-  for (const operation of refused)
+  for (const operation of refused) {
+    if (oauthCookieWritePaths.some((path) => path === operation.path)) {
+      assert.deepEqual(
+        responseMediaTypes(operation.id, 403),
+        ['application/json'],
+        operation.id,
+      );
+      const validate = responseValidator(operation.id, 403, 'application/json');
+      assert.ok(validate);
+      assert.equal(validate({ error: 'access_denied' }), true);
+      assert.equal(validate({ status: 423, code: 'account_locked' }), false);
+      continue;
+    }
     assert.deepEqual(
       responseMediaTypes(operation.id, 423),
       ['application/problem+json'],
       `${operation.id} declares no 423, so a locked account would get a server error`,
     );
+  }
+  assert.deepEqual(
+    operations
+      .filter((operation) =>
+        oauthCookieWritePaths.some((path) => path === operation.path),
+      )
+      .map((operation) => operation.id)
+      .sort(),
+    ['continueOAuthAuthorization', 'giveOAuthConsent'],
+  );
 });
 
 await test('no operation that a locked account keeps declares account_locked', () => {

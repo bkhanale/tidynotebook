@@ -166,6 +166,11 @@ export const oauthRoutes: readonly {
   },
 ];
 
+export const oauthCookieWritePaths = [
+  `${authBasePath}/oauth2/consent`,
+  `${authBasePath}/oauth2/continue`,
+] as const;
+
 export const authRoutes: readonly {
   readonly method: 'GET' | 'POST';
   readonly path: string;
@@ -888,7 +893,7 @@ export function createAuthProtocol(
       const isOAuth = oauthRoutes.some((route) => route.path === path);
       // OAuth token and revocation requests check their stored account in the
       // request transaction. Only consent and continue use the cookie write gate.
-      if (!isOAuth || path.endsWith('/consent') || path.endsWith('/continue'))
+      if (!isOAuth || oauthCookieWritePaths.some((known) => known === path))
         await before?.(request);
       const webRequest = toWebRequest(config.origin, request);
       let response: Response;

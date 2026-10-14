@@ -66,6 +66,8 @@ services:
       # its own, on a host name that the application does not use. An empty
       # value serves published pages from the origin above.
       NOTESAPP_PUBLISHED_ORIGIN: ${NOTESAPP_PUBLISHED_ORIGIN:-}
+      # Empty keeps MCP authorization off. The application origin is the issuer.
+      NOTESAPP_MCP_ORIGIN: ${NOTESAPP_MCP_ORIGIN:-}
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}
