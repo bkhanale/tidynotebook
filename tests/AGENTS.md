@@ -31,7 +31,7 @@ See
   selected or excluded entry. Test-only aliases call the real note handlers.
   There is no expected failure list.
   `integration/mcp-endpoint.test.ts` owns modern protocol, authorization
-  challenge, ten note tools, version checks, write races, paging, locked accounts, internal delegation
+  challenge, ten note tools, version checks, races before the commit lock, paging, locked accounts, internal delegation
   and shared request limit proof (0227).
 - A unit test does not live here. It lives next to its module in a package
   `src` tree and runs under `pnpm test:unit`.

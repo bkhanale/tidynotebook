@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { commitChangeset } from '@notesapp/core';
+import { commitChangeset, type WorkspaceStore } from '@notesapp/core';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,6 +31,8 @@ import {
 import {
   bootstrapOwner,
   createApp,
+  createAppWithHandlers,
+  createMcpProtocol,
   createAuth,
   createHandlers,
   createIdentityAdapter,
@@ -42,6 +44,7 @@ import {
 } from '@notesapp/server';
 import {
   openIdentityStore,
+  openCoordination,
   openWorkspaceStore,
   createDocumentService,
 } from '@notesapp/storage-server';
@@ -53,7 +56,12 @@ import {
   memberActor,
 } from './support/database.ts';
 import { firstSave } from './support/documents.ts';
-import { startTestServer, testEnvironment } from './support/server.ts';
+import {
+  startTestServer,
+  stubProtocol,
+  completeTestHandlers,
+  testEnvironment,
+} from './support/server.ts';
 
 const database = await createDisposableDatabase();
 const root = await mkdtemp(join(tmpdir(), 'notesapp-mcp-'));
@@ -1537,6 +1545,193 @@ try {
             await racing.close();
           }
         });
+  });
+
+  await test('MCP writes refuse a head moved after the REST condition and before the commit lock', async (t) => {
+    const auth = await createAuth(
+      { ...config, mcpOrigin: null },
+      { mail: null, sessionAllowed: () => Promise.resolve(false) },
+    );
+    const adapter = createIdentityAdapter({
+      auth: auth.auth,
+      identity,
+      servedOrigins: config.servedOrigins,
+    });
+    const coordination = openCoordination(database.runtimeUrl);
+    const attempts = {
+      count: (key: string, window: number) =>
+        coordination.countAttempt(key, window),
+      read: (key: string, window: number) =>
+        coordination.readAttempt(key, window),
+    };
+    try {
+      for (const era of ['modern', 'legacy'])
+        for (const name of ['edit_note', 'move_note', 'move_note_to_trash'])
+          await t.test(`${era} ${name}`, { timeout: 15000 }, async () => {
+            const created = success(
+              await callWrite(
+                'create_note',
+                {
+                  workspaceId: writeWorkspaceId,
+                  path: `commit-races/${era}-${name}.md`,
+                  text: 'Before the commit race.',
+                },
+                era,
+              ),
+            );
+            const id = stringField(created, 'fileId');
+            const version = stringField(created, 'version');
+            const atCommit = Promise.withResolvers<void>();
+            const release = Promise.withResolvers<void>();
+            let transactions = 0;
+            let sawConditionalHead = false;
+            let conditionalStatus: number | undefined;
+            const heldStore: WorkspaceStore = {
+              documents: contentStore.documents,
+              transact: async (actor, scope, run, options) => {
+                transactions += 1;
+                const position = transactions;
+                // The tool read, receipt read and REST conditionalHead all
+                // finish. Hold the commit before it takes the workspace lock.
+                if (position === 4) {
+                  assert.equal(sawConditionalHead, true);
+                  atCommit.resolve();
+                  await release.promise;
+                }
+                return contentStore.transact(
+                  actor,
+                  scope,
+                  (tx) =>
+                    run({
+                      ...tx,
+                      revision: async (revisionId) => {
+                        const head = await tx.revision(revisionId);
+                        if (position === 3 && revisionId === version) {
+                          assert.equal(head?.revisionId, version);
+                          sawConditionalHead = true;
+                        }
+                        return head;
+                      },
+                    }),
+                  options,
+                );
+              },
+            };
+            const handlers = createHandlers(config, undefined, {
+              store: identity,
+              content: heldStore,
+            });
+            const operation =
+              name === 'move_note_to_trash' ? 'deleteFile' : 'updateFile';
+            const handler = handlers[operation];
+            assert.ok(handler);
+            const heldHandler: NonNullable<typeof handler> = async (
+              request,
+              reply,
+            ) => {
+              assert.equal(request.headers['if-match'], `"${version}"`);
+              return handler(request, reply);
+            };
+            const racing: Awaited<ReturnType<typeof createAppWithHandlers>> =
+              await createAppWithHandlers(config, {
+                handlers: completeTestHandlers({
+                  ...handlers,
+                  [operation]: heldHandler,
+                }),
+                identity: adapter.resolver,
+                attempts,
+                protocols: [
+                  stubProtocol,
+                  createMcpProtocol({
+                    config,
+                    identity,
+                    attempts,
+                    app: () => racing,
+                  }),
+                ],
+                webDist: null,
+              });
+            racing.addHook('onSend', async (request, reply, payload) => {
+              if (request.routeOptions.config.operationId === operation)
+                conditionalStatus = reply.statusCode;
+              return payload;
+            });
+            let pending: ReturnType<typeof callRead> | undefined;
+            try {
+              pending = callRead(
+                name,
+                {
+                  workspaceId: writeWorkspaceId,
+                  fileId: id,
+                  version,
+                  ...(name === 'edit_note'
+                    ? { oldText: 'Before', newText: 'Tool text before' }
+                    : name === 'move_note'
+                      ? { path: `commit-races/${era}-tool-moved.md` }
+                      : {}),
+                },
+                era,
+                write,
+                racing,
+              );
+              await Promise.race([
+                atCommit.promise,
+                pending.then((answer) => {
+                  throw new Error(
+                    `The MCP write ended before its commit: ${JSON.stringify(answer)}`,
+                  );
+                }),
+              ]);
+              assert.equal(transactions, 4);
+              assert.equal(sawConditionalHead, true);
+              // A rename changes the head without changing the observed text.
+              // It exposes the old stale-delete rebase as well as stale edits.
+              const competing = await updateFile({
+                headers: { ...browserHeaders, 'if-match': `"${version}"` },
+                path: { workspaceId: writeWorkspaceId, fileId: id },
+                body: {
+                  revisionId: randomUUID(),
+                  mutationId: randomUUID(),
+                  deviceId: 'browser-commit-race',
+                  path: `commit-races/${era}-browser-${name}.md`,
+                },
+              });
+              assert.equal(
+                competing.response?.status,
+                200,
+                JSON.stringify(competing.error),
+              );
+              const before = await noteState(id);
+              assert.notEqual(before.head.revisionId, version);
+              assert.equal(before.head.text, 'Before the commit race.');
+              const stored = () =>
+                admin.query(
+                  `select
+                (select count(*) from revisions where workspace_id = $1) as revisions,
+                (select count(*) from contents where workspace_id = $1) as contents,
+                (select count(*) from changesets where workspace_id = $1) as changesets,
+                (select count(*) from mutation_receipts where workspace_id = $1) as receipts,
+                (select count(*) from sync_changes where workspace_id = $1) as changes,
+                (select to_jsonb(c) from workspace_cursors c where workspace_id = $1) as cursor,
+                (select to_jsonb(u) from workspace_usage u where workspace_id = $1) as usage`,
+                  [writeWorkspaceId],
+                );
+              const storedBefore = await stored();
+              release.resolve();
+              failure(await pending, /Read the note again/);
+              assert.equal(conditionalStatus, 412);
+              assert.deepEqual(await noteState(id), before);
+              assert.deepEqual(await stored(), storedBefore);
+            } finally {
+              release.resolve();
+              await pending;
+              await racing.close();
+            }
+          });
+    } finally {
+      await coordination.close();
+      await auth.close();
+    }
   });
 
   await test('an issued MCP token keeps only the locked-account operation list', async () => {

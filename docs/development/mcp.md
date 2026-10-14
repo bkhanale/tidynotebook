@@ -65,8 +65,9 @@ head and checks the required version. Exact text must occur once. A whole
 replacement keeps document identities through the same service. An unchanged
 edit or move returns the current version without a write. The internal
 contract port maps the expected version to the contract write condition, so a
-head change during a call refuses the write. Trash sends the observed state
-and no text update. Create relies on the contract refusal of an occupied path.
+head change during a call refuses the write. The contract checks that head
+again under the workspace lock before any rebase or write. Trash sends the
+observed state and no text update. Create relies on the contract refusal of an occupied path.
 
 A handler receives only its input and a contract call function. It receives
 no protocol context, progress function or logging function. A unit test holds
@@ -102,6 +103,8 @@ authentication challenges, protocol answers, refusals, delegation and the
 separate limits across replicas. It drives each read tool in both protocol
 eras, text continuation after a head change, search continuation, read-only
 delegation, write retries, concurrent edits, Trash races and locked accounts.
+It holds each write after the REST head check and before the commit lock.
+A competing move causes a refusal and keeps the saved workspace state.
 Its tool fixtures exist only in its test composition.
 
 `tests/integration/mcp-conformance.test.ts` runs the official released suite
