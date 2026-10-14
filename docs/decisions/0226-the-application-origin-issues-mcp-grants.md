@@ -38,9 +38,9 @@ edition sends nothing out (record 0186). See
   give consent.
 - An access token is opaque, and only its digest is at rest. It lives `1 h`.
   A refresh token rotates on each use and lives `30 d` from its last use. A
-  reused refresh token revokes the whole grant. A token request holds an
-  advisory lock on the digest of its refresh token, so a rotation and a
-  revocation on two replicas never interleave.
+  reused refresh token revokes the whole grant. A token request finds the
+  client and the account of its token, takes an advisory lock on that pair,
+  and reads the token again. Every issue and revocation of the pair holds it.
 - A grant covers every workspace of the account and resolves to the actor of
   record 0208, with the account and its rights read on each request.
 - A grant is a connected app. Settings lists each one with its client, its
