@@ -1,0 +1,39 @@
+type: object
+description: The public facts of one connected app. No credential is returned.
+additionalProperties: false
+required:
+  - grantId
+  - clientId
+  - clientName
+  - scopes
+  - lastUsedAt
+properties:
+  grantId:
+    type: string
+    minLength: 1
+    maxLength: 128
+    readOnly: true
+    description: Opaque identifier of the consent to revoke.
+  clientId:
+    type: string
+    minLength: 1
+    readOnly: true
+    description: The registered client identifier or its metadata document address.
+  clientName:
+    type: [string, 'null']
+    readOnly: true
+    description: The name that the client claims, or null when no name is supplied.
+  scopes:
+    type: array
+    readOnly: true
+    uniqueItems: true
+    maxItems: 2
+    items:
+      type: string
+      enum: ['notes:read', 'notes:write']
+    description: The access that this account gives to the client.
+  lastUsedAt:
+    type: [string, 'null']
+    format: date-time
+    readOnly: true
+    description: Last token issue of this pair, or null when no token is issued yet.

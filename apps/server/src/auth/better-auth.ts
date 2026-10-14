@@ -37,6 +37,7 @@ import { Buffer } from 'node:buffer';
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import {
   oauthProvider,
+  verifyOAuthQueryParams,
   type ClientMetadataResourceFetch,
 } from '@better-auth/oauth-provider';
 import { cimd } from '@better-auth/cimd';
@@ -73,6 +74,10 @@ import {
   revokeOAuthReplay,
   revokeOAuthToken,
   oauthClientRoom,
+  oauthGrantRoom,
+  oauthConsentTransaction,
+  oauthConsentClientExists,
+  isOAuthGrantLimit,
   authAccount,
   authRateLimit,
   authSession,
@@ -971,7 +976,84 @@ export function createAuthProtocol(
             return oauthFailure('temporarily_unavailable', 503);
         }
         try {
-          if (path.endsWith('/token') || path.endsWith('/revoke')) {
+          const consentFields = path.endsWith('/consent')
+            ? oauthRequestFields(request)
+            : null;
+          const session =
+            consentFields === null
+              ? null
+              : await auth.api.getSession({ headers: webRequest.headers });
+          const consentClient =
+            consentFields === null
+              ? null
+              : new URLSearchParams(consentFields.get('oauth_query') ?? '').get(
+                  'client_id',
+                );
+          if (
+            consentFields !== null &&
+            session !== null &&
+            consentClient !== null
+          ) {
+            if (oauth === undefined)
+              return oauthFailure('temporarily_unavailable', 503);
+            response = await oauthConsentTransaction(
+              oauth.pool,
+              consentClient,
+              session.user.id,
+              async (client) => {
+                // Use the provider check before the count, then let its handler check again.
+                if (
+                  !(await verifyOAuthQueryParams(
+                    consentFields.get('oauth_query') ?? '',
+                    config.authSecret,
+                  ))
+                )
+                  return new Response(
+                    JSON.stringify({ error: 'invalid_request' }),
+                    {
+                      status: 400,
+                      headers: { 'content-type': 'application/json' },
+                    },
+                  );
+                if (!(await oauthConsentClientExists(client, consentClient)))
+                  return new Response(
+                    JSON.stringify({ error: 'invalid_client' }),
+                    {
+                      status: 400,
+                      headers: { 'content-type': 'application/json' },
+                    },
+                  );
+                if (
+                  consentFields.get('accept') === 'true' &&
+                  !(await oauthGrantRoom(
+                    client,
+                    consentClient,
+                    session.user.id,
+                  ))
+                )
+                  return new Response(
+                    JSON.stringify({
+                      error: 'invalid_request',
+                      error_description: 'oauth_grant_limit',
+                    }),
+                    {
+                      status: 400,
+                      headers: { 'content-type': 'application/json' },
+                    },
+                  );
+                const scoped = buildAuth(
+                  config,
+                  oauth.options,
+                  drizzle({ client }),
+                  new Set(),
+                  true,
+                );
+                await scoped.$context;
+                return scoped.handler(webRequest);
+              },
+              (answer) => answer.status < 400,
+            );
+          } else if (path.endsWith('/token') || path.endsWith('/revoke')) {
             if (oauth === undefined)
               return oauthFailure('temporarily_unavailable', 503);
             const fields = oauthRequestFields(request);
@@ -1142,6 +1224,14 @@ export function createAuthProtocol(
                 : webRequest,
             );
         } catch (error) {
+          if (isOAuthGrantLimit(error))
+            return {
+              ...oauthFailure('invalid_request'),
+              body: {
+                error: 'invalid_request',
+                error_description: 'oauth_grant_limit',
+              },
+            };
           if (path === oauthMetadataPath) throw error;
           createServerLogger(request.log)
             .bind({ requestId: request.id })
@@ -1196,6 +1286,22 @@ export function createAuthProtocol(
         const parsed = parseJson(text);
         if (!parsed.ok)
           throw new Error('The OAuth provider returned invalid JSON.');
+        // The provider signature refusal is private. RFC 6749 calls it invalid_request.
+        if (
+          path.endsWith('/consent') &&
+          response.status >= 400 &&
+          parsed.value !== null &&
+          typeof parsed.value === 'object' &&
+          Reflect.get(parsed.value, 'error') === 'invalid_signature'
+        )
+          return {
+            ...oauthFailure('invalid_request'),
+            headers: headers.filter(
+              ([name]) => name.toLowerCase() !== 'content-type',
+            ),
+            cookies,
+          };
+
         if (
           response.status >= 400 &&
           parsed.value !== null &&

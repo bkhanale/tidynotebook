@@ -87,6 +87,8 @@ const database = await createDisposableDatabase();
 const storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-write-refusal-'));
 const config = loadServerConfig({
   NOTESAPP_ORIGIN: 'http://127.0.0.1',
+  // Keep the opt-in credential operations in the guarded write drive.
+  NOTESAPP_MCP_ORIGIN: 'https://mcp.notes.invalid',
   NOTESAPP_DATABASE_URL: database.runtimeUrl,
   NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
   NOTESAPP_STORAGE_ROOT: storageRoot,
@@ -262,6 +264,7 @@ const pathValues: Readonly<Record<string, string>> = {
   accountId: randomUUID(),
   invitationId: randomUUID(),
   sessionId: randomUUID(),
+  grantId: randomUUID(),
   keyId: randomUUID(),
   themeId: randomUUID(),
   reportId: randomUUID(),

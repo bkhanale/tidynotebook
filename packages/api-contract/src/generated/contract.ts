@@ -60,6 +60,7 @@ export type OperationId =
   | 'listAccounts'
   | 'listApiKeys'
   | 'listBacklinks'
+  | 'listConnectedApps'
   | 'listDeletedFiles'
   | 'listFiles'
   | 'listHistory'
@@ -92,6 +93,7 @@ export type OperationId =
   | 'restoreFile'
   | 'restoreRevision'
   | 'revokeApiKey'
+  | 'revokeConnectedApp'
   | 'revokeInvitation'
   | 'revokeOAuthToken'
   | 'revokeOtherSessions'
@@ -6915,6 +6917,11 @@ export const operations: readonly OperationEntry[] = [
             "accountPortal"
           ],
           "properties": {
+            "mcpAuthorization": {
+              "type": "boolean",
+              "readOnly": true,
+              "description": "Whether MCP authorization is on for this installation."
+            },
             "accountId": {
               "allOf": [
                 {
@@ -11349,6 +11356,171 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 423,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "listConnectedApps",
+    "method": "get",
+    "path": "/api/account/connected-apps",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "personalApiKey": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared2"
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The connected apps of this account.",
+          "additionalProperties": false,
+          "required": [
+            "apps"
+          ],
+          "properties": {
+            "apps": {
+              "type": "array",
+              "readOnly": true,
+              "maxItems": 25,
+              "items": {
+                "type": "object",
+                "description": "The public facts of one connected app. No credential is returned.",
+                "additionalProperties": false,
+                "required": [
+                  "grantId",
+                  "clientId",
+                  "clientName",
+                  "scopes",
+                  "lastUsedAt"
+                ],
+                "properties": {
+                  "grantId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "readOnly": true,
+                    "description": "Opaque identifier of the consent to revoke."
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "readOnly": true,
+                    "description": "The registered client identifier or its metadata document address."
+                  },
+                  "clientName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "readOnly": true,
+                    "description": "The name that the client claims, or null when no name is supplied."
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "readOnly": true,
+                    "uniqueItems": true,
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "notes:read",
+                        "notes:write"
+                      ]
+                    },
+                    "description": "The access that this account gives to the client."
+                  },
+                  "lastUsedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "readOnly": true,
+                    "description": "Last token issue of this pair, or null when no token is issued yet."
+                  }
+                }
+              },
+              "description": "Each consent of the account, newest first."
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 404,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -15978,6 +16150,116 @@ export const operations: readonly OperationEntry[] = [
         },
         "required": [
           "keyId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared2"
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Removed"
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "revokeConnectedApp",
+    "method": "delete",
+    "path": "/api/account/connected-apps/{grantId}",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "personalApiKey": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "grantId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "grantId"
         ],
         "additionalProperties": false
       },

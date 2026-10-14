@@ -119,6 +119,8 @@ on each rule below.
 | `src/logging.ts`                              | Browser sink for log events         |
 | `src/features/accounts/portal.tsx`            | The route of the portal (0190)      |
 | `src/features/accounts/api-keys.tsx`          | Personal key controls (0208)        |
+| `src/features/accounts/connected-apps.tsx`    | Connected app controls (0226)       |
+| `src/lib/connected-apps.ts`                   | Grant access and relative use       |
 | `src/lib/api-keys.ts`                         | The key facts a person reads (0208) |
 | `src/lib/sign-in-return.ts`                   | Where sign-in goes back to          |
 | `src/features/oauth/oauth-pages.tsx`          | MCP consent and signed sign-in      |

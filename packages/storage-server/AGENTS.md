@@ -88,6 +88,8 @@ well: `row-access.test.ts` is the pattern, and `object-store.test.ts` holds both
 | `src/migrate.ts`                     | Migration run and `requiredSchemaVersion`        |
 | `src/profiles.ts`                    | The profile guards and the deploy secrets (0207) |
 | `src/oauth-store.ts`                 | OAuth transactions and the narrow token resolver |
+| `src/connected-app-row.ts`           | Public grant metadata without credentials (0226) |
+| `src/identity-store.ts`              | Account ports and narrow grant functions (0226)  |
 | `src/api-key-row.ts`                 | Public key metadata without secrets (0208)       |
 | `src/pool.ts`                        | The one factory of a connection pool             |
 | `src/object-store/port.ts`           | The port of every byte that outlives one request |

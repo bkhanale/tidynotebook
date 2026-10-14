@@ -1,0 +1,13 @@
+type: object
+description: The connected apps of this account.
+additionalProperties: false
+required:
+  - apps
+properties:
+  apps:
+    type: array
+    readOnly: true
+    maxItems: 25
+    items:
+      $ref: './ConnectedApp.yaml'
+    description: Each consent of the account, newest first.

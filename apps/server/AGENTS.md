@@ -80,20 +80,21 @@ request that no generated operation can express uses `app.inject()`.
 
 ## Key files
 
-| File                                   | Purpose                                        |
-| -------------------------------------- | ---------------------------------------------- |
-| `src/app.ts`                           | Builds the Fastify application                 |
-| `src/plugins/register.ts`              | Contract driven routes and boundary checks     |
-| `src/plugins/security-headers.ts`      | Content security policy and frame rules        |
-| `src/plugins/static-assets.ts`         | Precompressed assets, caching, `ETag`          |
-| `src/routes/handlers.ts`               | One handler per operation id                   |
-| `src/routes/health.ts`                 | Liveness, readiness, and the probes            |
-| `src/routes/published.ts`              | The reader path and document of a link         |
-| `src/routes/published-render-cache.ts` | The bounded cache of published bodies          |
-| `src/auth/actor.ts`                    | Turns a session or key into a verified actor   |
-| `src/auth/better-auth.ts`              | Better Auth settings and the exact route list  |
-| `src/lifecycle.ts`                     | The order of the start and of the stop         |
-| `src/config.ts`                        | Settings, secrets (0207) and refusal messages  |
-| `src/served-origins.ts`                | The one list of origins this deployment serves |
-| `src/trusted-proxies.ts`               | The one list of proxies this deployment trusts |
-| `src/logging.ts`                       | Pino sink for the shared event catalog         |
+| File                                   | Purpose                                          |
+| -------------------------------------- | ------------------------------------------------ |
+| `src/app.ts`                           | Builds the Fastify application                   |
+| `src/plugins/register.ts`              | Contract driven routes and boundary checks       |
+| `src/plugins/security-headers.ts`      | Content security policy and frame rules          |
+| `src/plugins/static-assets.ts`         | Precompressed assets, caching, `ETag`            |
+| `src/routes/accounts.ts`               | Account and opt-in connected app controls (0226) |
+| `src/routes/handlers.ts`               | One handler per operation id                     |
+| `src/routes/health.ts`                 | Liveness, readiness, and the probes              |
+| `src/routes/published.ts`              | The reader path and document of a link           |
+| `src/routes/published-render-cache.ts` | The bounded cache of published bodies            |
+| `src/auth/actor.ts`                    | Turns a session or key into a verified actor     |
+| `src/auth/better-auth.ts`              | Better Auth settings and the exact route list    |
+| `src/lifecycle.ts`                     | The order of the start and of the stop           |
+| `src/config.ts`                        | Settings, secrets (0207) and refusal messages    |
+| `src/served-origins.ts`                | The one list of origins this deployment serves   |
+| `src/trusted-proxies.ts`               | The one list of proxies this deployment trusts   |
+| `src/logging.ts`                       | Pino sink for the shared event catalog           |

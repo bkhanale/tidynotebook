@@ -37,7 +37,9 @@ await test('a section of a fixed list reads its title and its heading', () => {
 
 await test('Settings shows Billing only when the installation names a portal', () => {
   const keys = (accountPortal: boolean): string[] =>
-    visibleSettingsSections({ accountPortal }).map((section) => section.key);
+    visibleSettingsSections({ accountPortal, mcpAuthorization: true }).map(
+      (section) => section.key,
+    );
   // Billing opens the portal, so with no portal it would be a dead section.
   assert.ok(!keys(false).includes('billing'));
   assert.deepEqual(
@@ -92,4 +94,24 @@ await test('All notes lists one section for each group, in page order', () => {
     { id: 'group-earlier-this-week', title: 'Earlier this week' },
     { id: 'group-older', title: 'Older' },
   ]);
+});
+
+await test('Settings shows connected apps only with MCP authorization', () => {
+  for (const mcpAuthorization of [undefined, false]) {
+    const input =
+      mcpAuthorization === undefined
+        ? { accountPortal: false }
+        : { accountPortal: false, mcpAuthorization };
+    assert.ok(
+      !visibleSettingsSections(input).some(
+        (section) => section.key === 'connected-apps',
+      ),
+    );
+  }
+  assert.ok(
+    visibleSettingsSections({
+      accountPortal: false,
+      mcpAuthorization: true,
+    }).some((section) => section.key === 'connected-apps'),
+  );
 });

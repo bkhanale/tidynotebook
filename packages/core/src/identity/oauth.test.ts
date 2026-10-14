@@ -5,6 +5,8 @@ import {
   oauthConsentScopeAllowed,
   oauthRedirectAddress,
   oauthScopeAllowed,
+  oauthGrantCountAllowed,
+  maxOAuthGrants,
 } from './oauth.ts';
 
 await test('MCP scopes keep read access and refuse other access', () => {
@@ -105,3 +107,13 @@ await test('a native scheme is an app and a bad address is refused', () => {
   ])
     assert.deepEqual(oauthRedirectAddress(raw), { kind: 'invalid' });
 });
+
+await test('only a new grant needs room in the account', () => {
+  assert.equal(maxOAuthGrants, 25);
+  assert.equal(oauthGrantCountAllowed(maxOAuthGrants - 1, false), true);
+  assert.equal(oauthGrantCountAllowed(maxOAuthGrants, false), false);
+  assert.equal(oauthGrantCountAllowed(maxOAuthGrants, true), true);
+  for (const count of [-1, NaN, Infinity, 0.5])
+    assert.equal(oauthGrantCountAllowed(count, true), false);
+});
+

@@ -253,6 +253,7 @@ export function createHandlers(
       async () => (await settings.legal()).documents,
       config.accountPortal,
       usage,
+      config.mcpOrigin !== null,
     ),
     ...createOperatorHandlers({
       store: dependencies.operator ?? missingOperatorStore(),

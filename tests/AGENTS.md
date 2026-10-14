@@ -87,6 +87,7 @@ generated operation and checks the server state.
 | `integration/contract.test.ts`                | Every operation and its handler            |
 | `integration/oauth-authorization.test.ts`     | OAuth refusals, grants and replica races   |
 | `integration/oauth-consent.test.ts`           | Consent facts, answers and sign-in return  |
+| `integration/connected-apps.test.ts`          | Grant controls, limits and isolation       |
 | `integration/row-access.test.ts`              | The row access policies                    |
 | `integration/published-write-refusal.test.ts` | Every write, with a published token        |
 | `integration/theme-variables.test.ts`         | The built stylesheet and the palette       |

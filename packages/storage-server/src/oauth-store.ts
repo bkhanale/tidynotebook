@@ -3,11 +3,57 @@ import type pg from 'pg';
 import {
   OperationalError,
   maxOAuthClients,
+  oauthGrantCountAllowed,
   type ControlStanding,
 } from '@notesapp/core';
 
 export const oauthLockTimeoutMs = 2000;
 export const oauthStatementTimeoutMs = 5000;
+
+/** A consent refusal uses one fixed marker through a wrapped driver fault. */
+export function isOAuthGrantLimit(error: unknown): boolean {
+  let current = error;
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (current === null || typeof current !== 'object') return false;
+    if (
+      'code' in current &&
+      current.code === 'P0001' &&
+      'message' in current &&
+      current.message === 'oauth_grant_limit'
+    )
+      return true;
+    if (!('cause' in current)) return false;
+    current = current.cause;
+  }
+  return false;
+}
+
+/** The consent transaction holds the pair before it checks room. */
+export async function oauthGrantRoom(
+  client: pg.PoolClient,
+  clientId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await client.query<{ count: number; existing: boolean }>(
+    `select count(*)::int as count, coalesce(bool_or(client_id = $1), false) as existing
+      from auth_oauth_consent where user_id = $2`,
+    [clientId, userId],
+  );
+  const row = rows.rows[0];
+  return row !== undefined && oauthGrantCountAllowed(row.count, row.existing);
+}
+
+/** Consent uses stored client metadata. It never fetches a missing client. */
+export async function oauthConsentClientExists(
+  client: pg.PoolClient,
+  clientId: string,
+): Promise<boolean> {
+  const rows = await client.query<{ present: boolean }>(
+    'select exists(select 1 from auth_oauth_client where client_id=$1) as present',
+    [clientId],
+  );
+  return rows.rows[0]?.present === true;
+}
 
 export type OAuthTokenLocator = {
   readonly digest: string;
@@ -72,6 +118,35 @@ export async function oauthRequestTransaction<T>(
   commitWhen: (value: T) => boolean = () => true,
 ): Promise<T> {
   const pair = locator === null ? null : await tokenPair(pool, locator);
+  return oauthPairTransaction(pool, pair, locator, run, commitWhen);
+}
+
+/** The verified session selects the account. The provider still verifies its query. */
+export function oauthConsentTransaction<T>(
+  pool: pg.Pool,
+  clientId: string,
+  userId: string,
+  run: (client: pg.PoolClient) => Promise<T>,
+  accepted: (value: T) => boolean,
+): Promise<T> {
+  return oauthPairTransaction(
+    pool,
+    { client_id: clientId, user_id: userId },
+    null,
+    (client) => run(client),
+    () => true,
+    (value) => !accepted(value),
+  );
+}
+
+async function oauthPairTransaction<T>(
+  pool: pg.Pool,
+  pair: Pair | null,
+  locator: OAuthTokenLocator | null,
+  run: (client: pg.PoolClient, accountAllowed: boolean) => Promise<T>,
+  commitWhen: (value: T) => boolean,
+  rollbackWhen: (value: T) => boolean = () => false,
+): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('begin');
@@ -88,7 +163,7 @@ export async function oauthRequestTransaction<T>(
         pair.user_id,
       ]);
       const current =
-        locator === null ? null : await tokenPair(client, locator);
+        locator === null ? pair : await tokenPair(client, locator);
       const active = await client.query<{ allowed: boolean }>(
         'select notesapp_oauth_grant_allowed($1,$2) as allowed',
         [pair.client_id, pair.user_id],
@@ -103,7 +178,7 @@ export async function oauthRequestTransaction<T>(
         'unexpected',
         'The OAuth protocol request failed.',
       );
-    await client.query('commit');
+    await client.query(rollbackWhen(value) ? 'rollback' : 'commit');
     return value;
   } catch (error) {
     await client.query('rollback');

@@ -130,6 +130,17 @@ all your current access and stops at its expiry. A new key appears once, so
 copy it when it shows. Select **Revoke** to stop a program at once. See
 [API keys and programs](api.md).
 
+## Connected apps
+
+This section shows only when the server permits connected apps. Each row shows
+the name that the app claims, its identity, its access and when it was last
+used. Read access covers every workspace of your account. Write access also
+lets the app change notes. A name alone does not prove who made the app.
+
+Select **Revoke** to stop an app at once. You can connect it again from the
+app later. Your account can hold 25 connected apps. Remove one before you
+connect another when the list is full.
+
 ## Sessions
 
 Each device that is signed in to your account has one row. The row shows its

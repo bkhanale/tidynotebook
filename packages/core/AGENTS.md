@@ -80,15 +80,17 @@ Every test must prove both the accepted path and the refusal, with the exact
 
 ## Key files
 
-| File                           | Purpose                                     |
-| ------------------------------ | ------------------------------------------- |
-| `src/index.ts`                 | The one public entry point                  |
-| `src/files/ports.ts`           | `WorkspaceStore` and `WorkspaceTransaction` |
-| `src/files/model.ts`           | `Result`, `DomainError`, `ok`, `fail`       |
-| `src/files/commit.ts`          | Changeset commit and rebase rules           |
-| `src/files/path.ts`            | Note path rules and the one `.md` suffix    |
-| `src/identity/actor.ts`        | Roles, actions, and `verifyActor`           |
-| `src/identity/api-keys.ts`     | Personal key and profile rules (0208)       |
-| `src/identity/installation.ts` | The installation role and action matrix     |
-| `src/publications/errors.ts`   | The one refusal of the reader path          |
-| `src/product.ts`               | The one name a person reads (0187)          |
+| File                             | Purpose                                     |
+| -------------------------------- | ------------------------------------------- |
+| `src/index.ts`                   | The one public entry point                  |
+| `src/files/ports.ts`             | `WorkspaceStore` and `WorkspaceTransaction` |
+| `src/files/model.ts`             | `Result`, `DomainError`, `ok`, `fail`       |
+| `src/files/commit.ts`            | Changeset commit and rebase rules           |
+| `src/files/path.ts`              | Note path rules and the one `.md` suffix    |
+| `src/identity/actor.ts`          | Roles, actions, and `verifyActor`           |
+| `src/identity/connected-apps.ts` | Account grant list and revoke rules (0226)  |
+| `src/identity/oauth.ts`          | MCP scopes and shared bounds (0226)         |
+| `src/identity/api-keys.ts`       | Personal key and profile rules (0208)       |
+| `src/identity/installation.ts`   | The installation role and action matrix     |
+| `src/publications/errors.ts`     | The one refusal of the reader path          |
+| `src/product.ts`                 | The one name a person reads (0187)          |

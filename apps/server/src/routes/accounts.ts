@@ -21,6 +21,8 @@ import {
   createApiKey,
   defaultApiKeyDays,
   listApiKeys,
+  listConnectedApps,
+  revokeConnectedApp,
   revokeApiKey,
   updateProfile,
   consentRequired,
@@ -167,8 +169,37 @@ export function createAccountHandlers(
   accountPortal: string | null,
   /** The counts and the closures of the month (record 0193). */
   usage: Pick<UsageMeter, 'accountMonth'>,
+  mcpAuthorization = false,
 ): HandlerMap {
   return {
+    listConnectedApps: async (request): Promise<HandlerResult> => {
+      if (!mcpAuthorization) throw new NotFoundError();
+      const apps = unwrapDomain(
+        await listConnectedApps(store, requireActor(request).actor),
+      );
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        headers: [['cache-control', 'no-store']],
+        body: { apps },
+      };
+    },
+    revokeConnectedApp: async (request): Promise<HandlerResult> => {
+      if (!mcpAuthorization) throw new NotFoundError();
+      unwrapDomain(
+        await revokeConnectedApp(
+          store,
+          requireActor(request).actor,
+          readParameter(request, 'grantId'),
+        ),
+      );
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        headers: [['cache-control', 'no-store']],
+        body: { removed: true },
+      };
+    },
     listApiKeys: async (request): Promise<HandlerResult> => ({
       status: 200,
       mediaType: jsonMediaType,
@@ -262,6 +293,7 @@ export function createAccountHandlers(
           // it until the next month (record 0193).
           month: accountMonthBody(month),
           accountPortal: accountPortal !== null,
+          mcpAuthorization,
         },
       };
     },

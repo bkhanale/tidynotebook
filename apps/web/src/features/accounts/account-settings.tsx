@@ -1,3 +1,4 @@
+import { ConnectedAppSettings } from './connected-apps.tsx';
 /**
  * The Settings page of the workspace frame (record 0091).
  *
@@ -835,6 +836,7 @@ export function AccountSettingsPage(): ReactNode {
       </SettingsSection>
     ),
     'api-keys': <ApiKeySettings />,
+    'connected-apps': <ConnectedAppSettings />,
     sessions: <SessionsSettings />,
     'sign-out': (
       <SettingsSection

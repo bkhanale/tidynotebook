@@ -93,6 +93,10 @@ export type AcceptedRevision = {
  */
 export type Account = {
     /**
+     * Whether MCP authorization is on for this installation.
+     */
+    readonly mcpAuthorization?: boolean;
+    /**
      * Stable identifier of the account inside this deployment.
      */
     readonly accountId: Uuid;
@@ -842,6 +846,42 @@ export type ChangesetInput = {
  * Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.
  */
 export type CheckpointMessage = string | null;
+
+/**
+ * The public facts of one connected app. No credential is returned.
+ */
+export type ConnectedApp = {
+    /**
+     * Opaque identifier of the consent to revoke.
+     */
+    readonly grantId: string;
+    /**
+     * The registered client identifier or its metadata document address.
+     */
+    readonly clientId: string;
+    /**
+     * The name that the client claims, or null when no name is supplied.
+     */
+    readonly clientName: string | null;
+    /**
+     * The access that this account gives to the client.
+     */
+    readonly scopes: Array<'notes:read' | 'notes:write'>;
+    /**
+     * Last token issue of this pair, or null when no token is issued yet.
+     */
+    readonly lastUsedAt: string | null;
+};
+
+/**
+ * The connected apps of this account.
+ */
+export type ConnectedAppList = {
+    /**
+     * Each consent of the account, newest first.
+     */
+    readonly apps: Array<ConnectedApp>;
+};
 
 /**
  * The versions of the two legal documents that a person accepts.
@@ -4418,6 +4458,105 @@ export type GetAccountResponses = {
 };
 
 export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type ListConnectedAppsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/connected-apps';
+};
+
+export type ListConnectedAppsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListConnectedAppsError = ListConnectedAppsErrors[keyof ListConnectedAppsErrors];
+
+export type ListConnectedAppsResponses = {
+    /**
+     * List the connected apps of the account.
+     */
+    200: ConnectedAppList;
+};
+
+export type ListConnectedAppsResponse = ListConnectedAppsResponses[keyof ListConnectedAppsResponses];
+
+export type RevokeConnectedAppData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Opaque identifier of the consent to revoke.
+         */
+        grantId: string;
+    };
+    query?: never;
+    url: '/api/account/connected-apps/{grantId}';
+};
+
+export type RevokeConnectedAppErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeConnectedAppError = RevokeConnectedAppErrors[keyof RevokeConnectedAppErrors];
+
+export type RevokeConnectedAppResponses = {
+    /**
+     * Revoke a connected app.
+     */
+    200: Removed;
+};
+
+export type RevokeConnectedAppResponse = RevokeConnectedAppResponses[keyof RevokeConnectedAppResponses];
 
 export type AcceptLegalDocumentsData = {
     /**

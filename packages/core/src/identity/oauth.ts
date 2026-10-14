@@ -9,6 +9,19 @@ export const oauthAccessLifetimeSeconds = 60 * 60;
 export const oauthRefreshLifetimeSeconds = 30 * 24 * 60 * 60;
 export const oauthUnusedClientDays = 30;
 export const maxOAuthClients = 1000;
+export const maxOAuthGrants = 25;
+
+/** Repeat consent keeps its slot. Only a new pair needs room. */
+export function oauthGrantCountAllowed(
+  count: number,
+  existing: boolean,
+): boolean {
+  return (
+    Number.isInteger(count) &&
+    count >= 0 &&
+    (existing || count < maxOAuthGrants)
+  );
+}
 
 /** Read access is always present. Write access is an optional addition. */
 export function oauthScopeAllowed(value: string): boolean {

@@ -1,0 +1,36 @@
+delete:
+  operationId: revokeConnectedApp
+  summary: Revoke a connected app.
+  description: >-
+    Revokes one consent of this account and all its tokens and pending codes. The next request is refused. Another account cannot revoke this grant. A locked account keeps this operation. With MCP authorization off, this operation answers 404.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - name: grantId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Opaque identifier of the consent to revoke.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  responses:
+    '200':
+      description: Revoke a connected app.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/Removed.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

@@ -317,6 +317,103 @@
         }
       }
     },
+    "/api/account/connected-apps": {
+      "get": {
+        "operationId": "listConnectedApps",
+        "summary": "List the connected apps of the account.",
+        "description": "Lists each client, its access and the last token issue of its grant. A locked account keeps this operation. With MCP authorization off, this operation answers 404. No credential is returned.",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List the connected apps of the account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectedAppList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/api/account/connected-apps/{grantId}": {
+      "delete": {
+        "operationId": "revokeConnectedApp",
+        "summary": "Revoke a connected app.",
+        "description": "Revokes one consent of this account and all its tokens and pending codes. The next request is refused. Another account cannot revoke this grant. A locked account keeps this operation. With MCP authorization off, this operation answers 404.",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestId"
+          },
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "description": "Opaque identifier of the consent to revoke.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoke a connected app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Removed"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
     "/api/account/consent": {
       "post": {
         "operationId": "acceptLegalDocuments",
@@ -8566,6 +8663,11 @@
           "accountPortal"
         ],
         "properties": {
+          "mcpAuthorization": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Whether MCP authorization is on for this installation."
+          },
           "accountId": {
             "allOf": [
               {
@@ -10023,6 +10125,83 @@
         ],
         "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
         "maxLength": 512
+      },
+      "ConnectedApp": {
+        "type": "object",
+        "description": "The public facts of one connected app. No credential is returned.",
+        "additionalProperties": false,
+        "required": [
+          "grantId",
+          "clientId",
+          "clientName",
+          "scopes",
+          "lastUsedAt"
+        ],
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "readOnly": true,
+            "description": "Opaque identifier of the consent to revoke."
+          },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "readOnly": true,
+            "description": "The registered client identifier or its metadata document address."
+          },
+          "clientName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "readOnly": true,
+            "description": "The name that the client claims, or null when no name is supplied."
+          },
+          "scopes": {
+            "type": "array",
+            "readOnly": true,
+            "uniqueItems": true,
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "notes:read",
+                "notes:write"
+              ]
+            },
+            "description": "The access that this account gives to the client."
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Last token issue of this pair, or null when no token is issued yet."
+          }
+        }
+      },
+      "ConnectedAppList": {
+        "type": "object",
+        "description": "The connected apps of this account.",
+        "additionalProperties": false,
+        "required": [
+          "apps"
+        ],
+        "properties": {
+          "apps": {
+            "type": "array",
+            "readOnly": true,
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/ConnectedApp"
+            },
+            "description": "Each consent of the account, newest first."
+          }
+        }
       },
       "ConsentInput": {
         "type": "object",

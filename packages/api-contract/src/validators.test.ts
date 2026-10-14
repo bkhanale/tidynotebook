@@ -663,3 +663,27 @@ await test('OAuth continuation confirms the signed-in account and no other stage
   ])
     assert.equal(request(body), false);
 });
+
+await test('connected app answers refuse secrets, unknown access and an excessive count', () => {
+  const validate = responseValidator(
+    'listConnectedApps',
+    200,
+    'application/json',
+  );
+  assert.ok(validate);
+  const app = {
+    grantId: 'grant',
+    clientId: 'client',
+    clientName: 'My app',
+    scopes: ['notes:read'],
+    lastUsedAt: null,
+  };
+  assert.equal(validate({ apps: [app] }), true);
+  for (const value of [
+    { apps: [{ ...app, token: 'secret' }] },
+    { apps: [{ ...app, scopes: ['openid'] }] },
+    { apps: [{ ...app, lastUsedAt: 'invalid' }] },
+    { apps: Array.from({ length: 26 }, () => app) },
+  ])
+    assert.equal(validate(value), false);
+});

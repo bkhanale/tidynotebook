@@ -1,3 +1,4 @@
+import type { ConnectedAppRecord } from '../identity/connected-apps.ts';
 /**
  * Storage ports for accounts and workspaces.
  *
@@ -121,6 +122,10 @@ export type WorkspaceSummary = {
  * mistake.
  */
 export type AccountTransaction = {
+  /** Public facts of this account's grants, without a token or a digest. */
+  connectedApps(): Promise<readonly ConnectedAppRecord[]>;
+  /** Ends one consent and all its credentials. False means no such grant. */
+  revokeConnectedApp(grantId: string): Promise<boolean>;
   /** Key metadata of this account only. No token or digest is returned. */
   apiKeys(): Promise<readonly ApiKeyRecord[]>;
   /** Creates a key under the account lock. Null means the count is full. */

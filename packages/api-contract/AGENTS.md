@@ -22,6 +22,7 @@ from a path file, `'./<Name>.yaml'` in one section, and `'../<section>/<Name>.ya
 - `openapi.yaml`, `paths/` and `components/` are authoritative. `redocly.yaml`
   holds the rules of `pnpm contract:lint` and `.redocly.lint-ignore.yaml` its
   exact exceptions for the 101 upgrade (0128), OAuth (0226) and MCP errors (0225).
+- The account connected app paths list and revoke consent metadata (0226).
 - `asyncapi.yaml` is the message root (0126), and `channels/` holds one file
   per channel. A payload is a schema that `openapi.yaml` also lists, in the
   keywords that AsyncAPI 3.0 and JSON Schema 2020-12 share.

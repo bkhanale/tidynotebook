@@ -24,6 +24,11 @@ export type {
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
 export type { ApiKeyRecord, NewApiKey } from './identity/api-keys.ts';
+export type { ConnectedAppRecord } from './identity/connected-apps.ts';
+export {
+  listConnectedApps,
+  revokeConnectedApp,
+} from './identity/connected-apps.ts';
 export {
   apiKeyDaysHold,
   apiKeyNameProblem,
@@ -626,6 +631,8 @@ export type {
 export { createUsageMeter, maxKeptSubjects } from './usage/meter.ts';
 export {
   maxOAuthClients,
+  maxOAuthGrants,
+  oauthGrantCountAllowed,
   oauthAccessLifetimeSeconds,
   oauthConsentScopeAllowed,
   oauthClientIdentity,

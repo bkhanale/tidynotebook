@@ -21,6 +21,7 @@
 import { randomUUID } from 'node:crypto';
 import { resolveOAuthToken, type OAuthTokenIdentity } from './oauth-store.ts';
 import { apiKeyOf, type ApiKeyRow } from './api-key-row.ts';
+import { connectedAppOf, type ConnectedAppRow } from './connected-app-row.ts';
 import {
   installationSettingsOf,
   type InstallationSettingsRow,
@@ -548,6 +549,19 @@ export function openIdentityStore(
           'select * from notesapp_account_keys()',
         );
         return rows.rows.map(apiKeyOf);
+      },
+      async connectedApps() {
+        const rows = await client.query<ConnectedAppRow>(
+          'select * from notesapp_account_connected_apps()',
+        );
+        return rows.rows.map(connectedAppOf);
+      },
+      async revokeConnectedApp(grantId) {
+        const rows = await client.query<{ revoked: boolean }>(
+          'select notesapp_revoke_connected_app($1) as revoked',
+          [grantId],
+        );
+        return rows.rows[0]?.revoked ?? false;
       },
       async createApiKey(input) {
         const rows = await client.query<ApiKeyRow>(

@@ -22,6 +22,11 @@ export const settingsSections = [
   { key: 'account', id: 'account-heading', title: 'Account' },
   { key: 'billing', id: 'billing-heading', title: 'Billing' },
   { key: 'api-keys', id: 'api-keys-heading', title: 'API keys' },
+  {
+    key: 'connected-apps',
+    id: 'connected-apps-heading',
+    title: 'Connected apps',
+  },
   { key: 'sessions', id: 'sessions-heading', title: 'Sessions' },
   { key: 'sign-out', id: 'signout-heading', title: 'Sign out' },
   {
@@ -46,9 +51,12 @@ export type SettingsSection = (typeof settingsSections)[number];
  */
 export function visibleSettingsSections(account: {
   readonly accountPortal: boolean;
+  readonly mcpAuthorization?: boolean;
 }): readonly SettingsSection[] {
   return settingsSections.filter(
-    (section) => section.key !== 'billing' || account.accountPortal,
+    (section) =>
+      (section.key !== 'billing' || account.accountPortal) &&
+      (section.key !== 'connected-apps' || account.mcpAuthorization === true),
   );
 }
 

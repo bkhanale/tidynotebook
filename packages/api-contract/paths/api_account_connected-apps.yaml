@@ -1,0 +1,26 @@
+get:
+  operationId: listConnectedApps
+  summary: List the connected apps of the account.
+  description: >-
+    Lists each client, its access and the last token issue of its grant. A locked account keeps this operation. With MCP authorization off, this operation answers 404. No credential is returned.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      description: List the connected apps of the account.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/ConnectedAppList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

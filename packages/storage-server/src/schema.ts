@@ -1926,6 +1926,7 @@ export const oauthConsent = pgTable(
     resources: text('resources').array(),
     requestedUserInfoClaims: text('requested_user_info_claims').array(),
     scopes: text('scopes').array().notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
   },

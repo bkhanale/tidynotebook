@@ -7,6 +7,8 @@ await test('a locked account keeps the way to pay, to export and to leave', () =
     'signInWithPassword',
     'signOut',
     'getAccount',
+    'listConnectedApps',
+    'revokeConnectedApp',
     'listWorkspaces',
     'exportWorkspace',
     'openAccountPortal',

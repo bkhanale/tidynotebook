@@ -128,6 +128,8 @@ function createFakeStore(): FakeStore {
     run: (tx: AccountTransaction) => Promise<T>,
   ): Promise<T> => {
     const tx: AccountTransaction = {
+      connectedApps: () => Promise.resolve([]),
+      revokeConnectedApp: () => Promise.resolve(false),
       apiKeys: () => Promise.resolve([]),
       createApiKey: () => Promise.resolve(null),
       revokeApiKey: () => Promise.resolve(false),

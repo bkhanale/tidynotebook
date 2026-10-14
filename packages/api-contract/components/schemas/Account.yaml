@@ -11,6 +11,10 @@ required:
   - month
   - accountPortal
 properties:
+  mcpAuthorization:
+    type: boolean
+    readOnly: true
+    description: Whether MCP authorization is on for this installation.
   accountId:
     allOf:
       - $ref: './Uuid.yaml'

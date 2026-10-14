@@ -2,7 +2,6 @@
 
 This page owns account registration, sign-in and administration.
 One installation serves several people. No person reads another person's notes.
-
 `apps/server/src/auth/` owns this area. Read `registration.ts` for the one
 registration path, `setup.ts` for the public operations that make an account,
 and `better-auth.ts` for the mounted routes and the configuration. The rules
@@ -61,16 +60,17 @@ marks it secure. A cookie write must name a served origin. See
 OAuth server in `better-auth.ts` and the identity storage in `oauth-store.ts`.
 The issuer is the application origin with `/api/auth`. Its only metadata address
 uses path insertion: `/.well-known/oauth-authorization-server/api/auth`.
-Every OAuth client is unowned. Only Settings and the grant rules govern access.
-The grant identity is the consent of one client and one account.
+Every OAuth client is unowned. Only Settings and the grant rules govern access. The grant identity is the consent of one client and one account.
+The account lock guards the grant count, and the pair lock follows it. Repeat consent keeps its slot.
+Token issue updates the last use of that grant. An MCP request does not update it.
+Settings shows connected apps only when MCP authorization is on. With it off, list and revoke answer not found.
 Deleting that consent revokes the whole grant; an authenticated, unexpired
-refresh replay deletes it. Token and revocation requests hold account then pair
-locks in one bounded transaction, with no network work inside it.
+refresh replay deletes it. Consent, token and revocation requests hold account then pair
+locks before row work, in one bounded transaction with no network work inside it.
 
 A refresh token that is revoked and has no rotation uses its own shared counter.
-Its fixed window uses the provider token window and maximum.
-Other token requests use the provider counter. Its window follows the last count.
-The stores are separate. One address can use twice the maximum.
+Its fixed window uses the provider token window and maximum. Other token requests
+use the provider counter. Its window follows the last count. The stores are separate. One address can use twice the maximum.
 
 ## Administration
 

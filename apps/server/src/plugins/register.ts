@@ -669,7 +669,13 @@ export function registerOperations(
     );
   }
 
-  const served = operations.filter((operation) => operation.protocol === null);
+  const served = operations.filter(
+    (operation) =>
+      operation.protocol === null &&
+      (oauthEnabled ||
+        (operation.id !== 'listConnectedApps' &&
+          operation.id !== 'revokeConnectedApp')),
+  );
   const routeOperations = new Map<string, OperationId>();
   for (const operation of served) {
     const route = toRoutePath(operation.path);

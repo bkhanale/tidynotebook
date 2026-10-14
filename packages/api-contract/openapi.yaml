@@ -70,6 +70,10 @@ paths:
     $ref: './paths/.well-known_oauth-protected-resource_mcp.yaml'
   /.well-known/oauth-protected-resource:
     $ref: './paths/.well-known_oauth-protected-resource.yaml'
+  /api/account/connected-apps:
+    $ref: './paths/api_account_connected-apps.yaml'
+  /api/account/connected-apps/{grantId}:
+    $ref: './paths/api_account_connected-apps_grantId.yaml'
   /.well-known/oauth-authorization-server/api/auth:
     $ref: './paths/.well-known_oauth-authorization-server_api_auth.yaml'
   /api/auth/oauth2/register:
@@ -590,6 +594,10 @@ components:
       $ref: './components/schemas/McpMessage.yaml'
     McpMetadata:
       $ref: './components/schemas/McpMetadata.yaml'
+    ConnectedApp:
+      $ref: './components/schemas/ConnectedApp.yaml'
+    ConnectedAppList:
+      $ref: './components/schemas/ConnectedAppList.yaml'
     OAuthTokenRequest:
       $ref: './components/schemas/OAuthTokenRequest.yaml'
     OAuthToken:

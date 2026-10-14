@@ -21,6 +21,8 @@ export const lockedAccountOperations = [
   'revokeOtherSessions',
   'listApiKeys',
   'revokeApiKey',
+  'listConnectedApps',
+  'revokeConnectedApp',
   // The check of an address, which a sign-up needs before any account.
   'verifyAddress',
   // The consent to a new version of the legal documents (record 0120).

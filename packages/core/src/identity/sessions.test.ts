@@ -59,6 +59,8 @@ function storeWith(sessions: SessionRecord[]): WorkspaceAdminStore & {
     account: (_actor, run) =>
       run({
         ...tx,
+        connectedApps: () => Promise.resolve([]),
+        revokeConnectedApp: () => Promise.resolve(false),
         apiKeys: fail,
         createApiKey: fail,
         revokeApiKey: fail,

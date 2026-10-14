@@ -45,6 +45,8 @@ function fixture(full = false): {
     account: (who, run) => {
       assert.equal(who, actor);
       return run({
+        connectedApps: () => Promise.resolve([]),
+        revokeConnectedApp: () => Promise.resolve(false),
         apiKeys: async () => held,
         createApiKey: async (value) => {
           inputs.push(value);
