@@ -156,6 +156,7 @@ export {
 export {
   expireOAuthClients,
   oauthReplayCandidate,
+  oauthRefreshRequest,
   revokeOAuthReplay,
   revokeOAuthToken,
   oauthClientRoom,

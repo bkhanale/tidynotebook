@@ -646,6 +646,82 @@ try {
     });
     assert.match(String(next.headers.location), /oauth\/consent\?/);
   });
+  await test('an ordinarily revoked refresh keeps the consent and other live credentials', async () => {
+    const id = await register();
+    const other = await register();
+    const revoked = await tokens(id);
+    const retained = await tokens(id);
+    const answer = await app.inject({
+      method: 'POST',
+      url: '/api/auth/oauth2/revoke',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({
+        token: revoked.refresh,
+        client_id: id,
+      }).toString(),
+    });
+    assert.equal(answer.statusCode, 200, answer.body);
+    const snapshot = async () => ({
+      consent: await identity.query(
+        'select * from auth_oauth_consent where client_id=$1',
+        [id],
+      ),
+      access: await identity.query(
+        'select * from auth_oauth_access_token where client_id=$1 order by id',
+        [id],
+      ),
+      refresh: await identity.query(
+        'select * from auth_oauth_refresh_token where client_id=$1 order by id',
+        [id],
+      ),
+    });
+    const before = await snapshot();
+    const state = await identity.query<{
+      rotated_at: Date | null;
+      revoked: Date | null;
+    }>(
+      'select rotated_at,revoked from auth_oauth_refresh_token where token=$1',
+      [digest(revoked.refresh)],
+    );
+    assert.equal(state[0]?.rotated_at, null);
+    assert.ok(state[0]?.revoked);
+    const badAuth = await app.inject({
+      method: 'POST',
+      url: '/api/auth/oauth2/token',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: id,
+        client_secret: 'bad-secret',
+        refresh_token: revoked.refresh,
+        resource,
+      }).toString(),
+    });
+    assert.equal(badAuth.json().error, 'invalid_client');
+    assert.deepEqual(await snapshot(), before);
+    const wrongClient = await refresh(other, revoked.refresh);
+    assert.equal(wrongClient.statusCode, 400, wrongClient.body);
+    assert.equal(wrongClient.json().error, 'invalid_grant');
+    assert.deepEqual(await snapshot(), before);
+    const refused = await refresh(id, revoked.refresh);
+    assert.equal(refused.statusCode, 400, refused.body);
+    assert.equal(refused.json().error, 'invalid_grant');
+    assert.deepEqual(await snapshot(), before);
+    assert.ok(
+      await resolveOAuthToken(runtime, digest(retained.access), resource),
+    );
+    const renewed = await refresh(id, retained.refresh, replica);
+    assert.equal(renewed.statusCode, 200, renewed.body);
+    assert.equal(
+      (
+        await identity.query(
+          'select id from auth_oauth_consent where client_id=$1',
+          [id],
+        )
+      ).length,
+      1,
+    );
+  });
   await test('expired consumed and unconsumed refresh tokens keep the consent', async () => {
     for (const consumed of [false, true]) {
       const id = await register();
@@ -1523,6 +1599,81 @@ try {
       )[0]?.count,
       maxOAuthClients,
     );
+  });
+  await test('known CIMD clients revalidate at capacity but keep the address bound', async () => {
+    const id = 'https://cimd.example/client.json';
+    assert.equal(
+      (
+        await identity.query<{ count: number }>(
+          'select count(*)::int as count from auth_oauth_client',
+        )
+      )[0]?.count,
+      maxOAuthClients,
+    );
+    let calls = 0;
+    const restarted = await createApp(
+      { ...config, rateLimit: { ...config.rateLimit, max: 2 } },
+      {
+        oauthFetch: () => {
+          calls += 1;
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                client_id: id,
+                client_name: 'Revalidated client',
+                redirect_uris: [callback],
+                token_endpoint_auth_method: 'none',
+              }),
+              {
+                headers: {
+                  'content-type': 'application/json',
+                  'cache-control': 'no-store',
+                },
+              },
+            ),
+          );
+        },
+      },
+    );
+    try {
+      const authorized = await restarted.inject({
+        url: authorization(id),
+        remoteAddress: '198.51.100.46',
+        headers: { cookie },
+      });
+      assert.equal(authorized.statusCode, 302, authorized.body);
+      assert.equal(calls, 1);
+      const lookup = `/api/auth/oauth2/public-client?${new URLSearchParams({ client_id: id })}`;
+      const publicClient = await restarted.inject({
+        url: lookup,
+        remoteAddress: '198.51.100.46',
+        headers: { cookie },
+      });
+      assert.equal(publicClient.statusCode, 200, publicClient.body);
+      assert.equal(publicClient.json().client_name, 'Revalidated client');
+      assert.equal(calls, 2);
+      const refused = await restarted.inject({
+        url: lookup,
+        remoteAddress: '198.51.100.46',
+        headers: { cookie },
+      });
+      assert.equal(refused.statusCode, 400, refused.body);
+      assert.equal(
+        calls,
+        2,
+        'the address counter refuses before an existing client fetch',
+      );
+      assert.equal(
+        (
+          await identity.query<{ count: number }>(
+            'select count(*)::int as count from auth_oauth_client',
+          )
+        )[0]?.count,
+        maxOAuthClients,
+      );
+    } finally {
+      await restarted.close();
+    }
   });
   await test('no OAuth route answers when the setting is absent', async () => {
     const disabled = await createApp({ ...config, mcpOrigin: null });

@@ -68,6 +68,7 @@ import {
   oauthClientAssertion,
   oauthRequestTransaction,
   oauthReplayCandidate,
+  oauthRefreshRequest,
   revokeOAuthReplay,
   revokeOAuthToken,
   oauthClientRoom,
@@ -444,7 +445,7 @@ function buildAuth(
                     fetchClientMetadataResource: boundedOAuthFetch(
                       options.oauthFetch ?? fetchClientMetadataResource,
                     ),
-                    isMetadataDocumentUrlAllowed: async (_url, ctx) => {
+                    isMetadataDocumentUrlAllowed: async (url, ctx) => {
                       if (options.oauth === undefined) return false;
                       const address = ctx.headers?.get('x-forwarded-for') ?? '';
                       const attempt = await options.oauth.attempts.count(
@@ -454,7 +455,7 @@ function buildAuth(
                       );
                       return (
                         attempt.current <= config.rateLimit.max &&
-                        (await oauthClientRoom(options.oauth.pool))
+                        (await oauthClientRoom(options.oauth.pool, url))
                       );
                     },
                   }),
@@ -1006,7 +1007,16 @@ export function createAuthProtocol(
                         secretDigest.digest(token),
                       )
                     : null;
-                const answer = await scoped.handler(webRequest);
+                const answer =
+                  fields.get('grant_type') === 'refresh_token' &&
+                  token !== null &&
+                  token !== undefined
+                    ? await oauthRefreshRequest(
+                        client,
+                        secretDigest.digest(token),
+                        () => scoped.handler(webRequest),
+                      )
+                    : await scoped.handler(webRequest);
                 // For an unexpired consumed token, this refusal comes after the
                 // provider authenticates its client. Expiry and other refusals do not revoke.
                 if (

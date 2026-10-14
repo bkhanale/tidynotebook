@@ -119,7 +119,10 @@ export async function oauthRequestTransaction<T>(
 }
 
 /** A pre-fetch check is advisory. The insert trigger enforces the total bound too. */
-export async function oauthClientRoom(pool: pg.Pool): Promise<boolean> {
+export async function oauthClientRoom(
+  pool: pg.Pool,
+  clientId?: string,
+): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query('begin');
@@ -132,11 +135,16 @@ export async function oauthClientRoom(pool: pg.Pool): Promise<boolean> {
     await client.query(
       "select pg_advisory_xact_lock(hashtext('notesapp:oauth-client-bound')::bigint)",
     );
-    const rows = await client.query<{ count: number }>(
-      'select count(*)::int as count from auth_oauth_client',
+    const rows = await client.query<{ count: number; existing: boolean }>(
+      `select count(*)::int as count, coalesce(bool_or(client_id = $1), false) as existing
+      from auth_oauth_client`,
+      [clientId ?? null],
     );
     await client.query('commit');
-    return (rows.rows[0]?.count ?? maxOAuthClients) < maxOAuthClients;
+    return (
+      rows.rows[0]?.existing === true ||
+      (rows.rows[0]?.count ?? maxOAuthClients) < maxOAuthClients
+    );
   } catch (error) {
     await client.query('rollback');
     throw error;
@@ -276,10 +284,31 @@ export async function oauthReplayCandidate(
 ): Promise<(Pair & { expires_at: Date }) | null> {
   const rows = await client.query<Pair & { expires_at: Date }>(
     `select client_id, user_id, expires_at
-    from auth_oauth_refresh_token where token = $1 and revoked is not null and expires_at > clock_timestamp()`,
+    from auth_oauth_refresh_token where token = $1 and revoked is not null
+      and rotated_at is not null and expires_at > clock_timestamp()`,
     [digest],
   );
   return rows.rows[0] ?? null;
+}
+
+/** The provider authenticates an ordinary revocation, but none of its writes persist. */
+export async function oauthRefreshRequest<T>(
+  client: pg.PoolClient,
+  digest: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const rows = await client.query(
+    `select id from auth_oauth_refresh_token
+    where token = $1 and revoked is not null and rotated_at is null`,
+    [digest],
+  );
+  if (rows.rows.length === 0) return run();
+  // The account and pair locks were taken before this savepoint, so they stay held.
+  await client.query('savepoint oauth_ordinary_revocation');
+  const answer = await run();
+  await client.query('rollback to savepoint oauth_ordinary_revocation');
+  await client.query('release savepoint oauth_ordinary_revocation');
+  return answer;
 }
 
 /** The consent delete trigger revokes the complete pair, including pending codes. */
