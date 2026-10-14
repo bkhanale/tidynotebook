@@ -1480,7 +1480,7 @@ export function adaptOAuthProvider(
   const authorize = Object.assign(
     async (...args: Parameters<typeof original>) => {
       const [input] = args;
-      const prompt = input?.query?.prompt;
+      const prompt: unknown = input?.query?.prompt;
       if (
         input === undefined ||
         typeof prompt !== 'string' ||
