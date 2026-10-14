@@ -296,6 +296,7 @@ export async function oauthRefreshRequest<T>(
   client: pg.PoolClient,
   digest: string,
   run: () => Promise<T>,
+  countAttempt: () => Promise<T | null>,
 ): Promise<T> {
   const rows = await client.query(
     `select id from auth_oauth_refresh_token
@@ -303,6 +304,9 @@ export async function oauthRefreshRequest<T>(
     [digest],
   );
   if (rows.rows.length === 0) return run();
+  // This count uses its own committed store, before the provider savepoint.
+  const refused = await countAttempt();
+  if (refused !== null) return refused;
   // The account and pair locks were taken before this savepoint, so they stay held.
   await client.query('savepoint oauth_ordinary_revocation');
   const answer = await run();

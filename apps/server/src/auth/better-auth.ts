@@ -41,6 +41,7 @@ import {
 } from '@better-auth/oauth-provider';
 import { cimd } from '@better-auth/cimd';
 import { fetchClientMetadataResource } from '@better-auth/cimd/node';
+import { createRateLimitKey, getIP } from '@better-auth/core/utils/ip';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import {
   oauthAccessLifetimeSeconds,
@@ -1015,6 +1016,34 @@ export function createAuthProtocol(
                         client,
                         secretDigest.digest(token),
                         () => scoped.handler(webRequest),
+                        async () => {
+                          // Match the provider token bucket. Its own increment is
+                          // rolled back with the credential writes on this path.
+                          const attempt =
+                            await oauth.options.oauth?.attempts.count(
+                              createRateLimitKey(
+                                getIP(webRequest, scoped.options) ??
+                                  'no-trusted-ip',
+                                '/oauth2/token',
+                              ),
+                              config.rateLimit.windowSeconds * 1000,
+                              Date.now(),
+                            );
+                          return attempt === undefined ||
+                            attempt.current > config.rateLimit.max
+                            ? new Response(
+                                JSON.stringify({
+                                  error: 'temporarily_unavailable',
+                                }),
+                                {
+                                  status: attempt === undefined ? 503 : 429,
+                                  headers: {
+                                    'content-type': 'application/json',
+                                  },
+                                },
+                              )
+                            : null;
+                        },
                       )
                     : await scoped.handler(webRequest);
                 // For an unexpired consumed token, this refusal comes after the

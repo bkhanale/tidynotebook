@@ -722,6 +722,89 @@ try {
       1,
     );
   });
+  await test('ordinary revoked refresh attempts persist across replicas and credential rollback', async () => {
+    const id = await register();
+    const revoked = await tokens(id);
+    const retained = await tokens(id);
+    const revocation = await app.inject({
+      method: 'POST',
+      url: '/api/auth/oauth2/revoke',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({
+        token: revoked.refresh,
+        client_id: id,
+      }).toString(),
+    });
+    assert.equal(revocation.statusCode, 200, revocation.body);
+    const snapshot = async () => ({
+      consent: await identity.query(
+        'select * from auth_oauth_consent where client_id=$1',
+        [id],
+      ),
+      access: await identity.query(
+        'select * from auth_oauth_access_token where client_id=$1 order by id',
+        [id],
+      ),
+      refresh: await identity.query(
+        'select * from auth_oauth_refresh_token where client_id=$1 order by id',
+        [id],
+      ),
+    });
+    const before = await snapshot();
+    const limitedConfig = {
+      ...config,
+      rateLimit: { ...config.rateLimit, max: 2 },
+    };
+    const first = await createApp(limitedConfig);
+    const second = await createApp(limitedConfig);
+    try {
+      for (const [n, target] of [first, second, first, second].entries()) {
+        const answer = await target.inject({
+          method: 'POST',
+          url: '/api/auth/oauth2/token',
+          remoteAddress: '198.51.100.47',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          payload: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: id,
+            refresh_token: revoked.refresh,
+            resource,
+            ...(n === 3 ? {} : { client_secret: 'bad-secret' }),
+          }).toString(),
+        });
+        if (n < 2) {
+          assert.equal(answer.json().error, 'invalid_client', answer.body);
+        } else {
+          assert.equal(answer.statusCode, 429, answer.body);
+          assert.match(
+            String(answer.headers['content-type']),
+            /^application\/json/,
+          );
+          assert.deepEqual(answer.json(), { error: 'temporarily_unavailable' });
+        }
+        assert.deepEqual(await snapshot(), before);
+      }
+      const counted = await admin.query<{ count: number }>(
+        'select count from attempt_counters where key=$1',
+        ['198.51.100.47|/oauth2/token'],
+      );
+      assert.equal(counted[0]?.count, 4);
+      const renewed = await refresh(id, retained.refresh, replica);
+      assert.equal(renewed.statusCode, 200, renewed.body);
+      assert.equal(
+        (
+          await identity.query(
+            'select id from auth_oauth_consent where client_id=$1',
+            [id],
+          )
+        ).length,
+        1,
+      );
+    } finally {
+      await first.close();
+      await second.close();
+    }
+  });
   await test('expired consumed and unconsumed refresh tokens keep the consent', async () => {
     for (const consumed of [false, true]) {
       const id = await register();
