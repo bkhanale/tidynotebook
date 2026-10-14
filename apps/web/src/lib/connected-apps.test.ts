@@ -50,6 +50,22 @@ await test('a used write grant shows relative use and only the metadata host', (
     connectedAppIdentity({ ...app, clientId: 'http://client.example/private' }),
     'Client identity: Not verified.',
   );
+  assert.equal(
+    connectedAppIdentity({
+      ...app,
+      clientId: 'https://client.example:8443/private/client.json',
+    }),
+    'Client identity: client.example:8443.',
+  );
+  for (const clientId of [
+    'https://',
+    'https://brand.example@evil.example/client',
+    'https://client.example/private#claim',
+  ])
+    assert.equal(
+      connectedAppIdentity({ ...app, clientId }),
+      'Client identity: Not verified.',
+    );
 });
 await test('revoke says what stops and how to connect again', () => {
   assert.equal(

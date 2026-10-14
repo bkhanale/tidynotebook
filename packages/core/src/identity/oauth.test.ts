@@ -116,4 +116,3 @@ await test('only a new grant needs room in the account', () => {
   for (const count of [-1, NaN, Infinity, 0.5])
     assert.equal(oauthGrantCountAllowed(count, true), false);
 });
-

@@ -378,14 +378,21 @@ await test('every guarded write refuses a published token with no session', asyn
     // This installation names no operator token, so a write of the operator
     // API answers that the API is off, whatever bearer token it carries. The
     // operator tests prove the refusal of a wrong token where one is set.
-    const expected =
-      operation.protocol === 'mcp'
-        ? { status: 404, code: 'route_not_found' }
-        : takesOperatorToken(operation)
-          ? { status: 404, code: 'operator_off' }
-          : { status: 401, code: 'unauthenticated' };
-    assert.equal(response.statusCode, expected.status, operation.id);
-    assert.equal(problemCodeOf(response.body), expected.code, operation.id);
+    if (operation.protocol === 'mcp') {
+      assert.equal(response.statusCode, 401, operation.id);
+      assert.deepEqual(response.json(), { error: 'invalid_token' });
+      assert.equal(
+        response.headers['www-authenticate'],
+        `Bearer resource_metadata="${config.mcpOrigin}/.well-known/oauth-protected-resource/mcp", scope="notes:read"`,
+        operation.id,
+      );
+    } else {
+      const expected = takesOperatorToken(operation)
+        ? { status: 404, code: 'operator_off' }
+        : { status: 401, code: 'unauthenticated' };
+      assert.equal(response.statusCode, expected.status, operation.id);
+      assert.equal(problemCodeOf(response.body), expected.code, operation.id);
+    }
     // The refusal names no note, no link and neither secret.
     assert.ok(!response.body.includes(token), operation.id);
     assert.ok(!response.body.includes(ticket), operation.id);
