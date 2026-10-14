@@ -126,17 +126,22 @@ const admin = {
 };
 
 /** Invites and registers one member, and answers its session. */
-async function member(): Promise<{
+async function member(signal: AbortSignal | null = null): Promise<{
   email: string;
   headers: { origin: string; cookie: string };
   accountId: string;
 }> {
   const email = `member-${randomUUID()}@notes.invalid`;
-  const made = await createInvitation({ headers: admin, body: { email } });
+  const made = await createInvitation({
+    headers: admin,
+    body: { email },
+    signal,
+  });
   const token = new URL(made.data?.link ?? 'http://x/').hash.slice(1);
   const registered = await registerAccount({
     headers: origin,
     body: { invitation: token, password: 'member-password-123456' },
+    signal,
   });
   assert.equal(responseOf(registered.response).status, 201);
   const headers = {
@@ -145,7 +150,7 @@ async function member(): Promise<{
       responseOf(registered.response).headers.getSetCookie(),
     ),
   };
-  const account = await getAccount({ headers });
+  const account = await getAccount({ headers, signal });
   return { email, headers, accountId: account.data?.accountId ?? '' };
 }
 
@@ -425,16 +430,67 @@ async function memberEvents(
   // Handle a reader failure at once. Its cleanup must not replace a member
   // failure, but a successful writer must still report a failed reader.
   const stoppedReader = reader.catch(() => {});
+  const writers = Array.from({ length: 6 }, () => makeMember(signal));
   let made;
   try {
-    made = await Promise.all(Array.from({ length: 6 }, () => makeMember()));
+    made = await Promise.all(writers);
   } finally {
     writing = false;
+    await Promise.allSettled(writers);
     await stoppedReader;
   }
   await reader;
   return { made, seen };
 }
+
+await test('a rejected member call waits for pending members and keeps the first failure', async () => {
+  const failure = new Error('The first member call failed.');
+  const laterFailure = new Error('The pending member call also failed.');
+  const pending = Promise.withResolvers<void>();
+  let calls = 0;
+  let activeMembers = 0;
+  let exited = false;
+  const result = memberEvents(
+    0,
+    async () => {
+      const index = calls++;
+      if (index === 0) throw failure;
+      if (index === 1) {
+        activeMembers += 1;
+        try {
+          await pending.promise;
+          throw laterFailure;
+        } finally {
+          activeMembers -= 1;
+        }
+      }
+      return { email: '', headers: { origin: '', cookie: '' }, accountId: '' };
+    },
+    (cursor) => Promise.resolve({ cursor, events: [] }),
+  ).then(
+    () => {
+      exited = true;
+      return undefined;
+    },
+    (error: unknown) => {
+      exited = true;
+      return error;
+    },
+  );
+  try {
+    await setImmediate();
+    assert.equal(calls, 6);
+    assert.equal(activeMembers, 1);
+    assert.equal(exited, false);
+    pending.resolve();
+    assert.equal(await result, failure);
+    assert.equal(activeMembers, 0);
+  } finally {
+    // Release the pending member even when the old cleanup fails this check.
+    pending.resolve();
+    await result;
+  }
+});
 
 for (const readerFails of [false, true]) {
   await test(`a rejected member call stops the event reader and keeps its failure (${readerFails ? 'failed read' : 'empty feed'})`, async () => {
