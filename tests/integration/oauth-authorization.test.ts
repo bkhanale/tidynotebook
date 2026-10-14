@@ -317,6 +317,63 @@ const consoleMocks = (['error', 'warn', 'log', 'info', 'debug'] as const).map(
 );
 
 try {
+  await test('served DCR and CIMD grants do not write the resource policy', async () => {
+    const metadata = await getOAuthMetadata();
+    const before = await identity.query('select * from auth_oauth_resource');
+    await admin.query(`create function refuse_resource_write() returns trigger
+      language plpgsql as $$ begin raise exception 'served resource write'; end $$`);
+    await admin.query(`create trigger refuse_resource_write before insert or update
+      on auth_oauth_resource for each row execute function refuse_resource_write()`);
+    try {
+      for (const clientId of [
+        await register(),
+        'https://no-write.example/client.json',
+      ]) {
+        const granted = await tokens(clientId);
+        const stored = await identity.query<{ resources: string[] }>(
+          'select resources from auth_oauth_access_token where token=$1',
+          [digest(granted.access)],
+        );
+        assert.deepEqual(stored[0]?.resources, [resource]);
+        const rotated = await refresh(clientId, granted.refresh, replica);
+        assert.equal(rotated.statusCode, 200, rotated.body);
+        const refused = await app.inject({
+          url: authorization(clientId, {
+            resource: 'https://unknown.example/mcp',
+          }),
+          headers: { cookie },
+        });
+        assert.equal(refused.statusCode, 400);
+        assert.equal(refused.json().error, 'invalid_target');
+        const wrongTarget = await app.inject({
+          method: 'POST',
+          url: '/api/auth/oauth2/token',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          payload: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: clientId,
+            refresh_token:
+              body(rotated.json()).refresh_token === undefined
+                ? ''
+                : String(body(rotated.json()).refresh_token),
+            resource: 'https://unknown.example/mcp',
+          }).toString(),
+        });
+        assert.equal(wrongTarget.statusCode, 400);
+        assert.equal(wrongTarget.json().error, 'invalid_target');
+      }
+      assert.deepEqual(
+        await identity.query('select * from auth_oauth_resource'),
+        before,
+      );
+      assert.deepEqual((await getOAuthMetadata()).data, metadata.data);
+    } finally {
+      await admin.query(
+        'drop trigger refuse_resource_write on auth_oauth_resource',
+      );
+      await admin.query('drop function refuse_resource_write()');
+    }
+  });
   await test('discovery names the exact issuer and the two grants', async () => {
     const metadata = await getOAuthMetadata();
     assert.equal(
@@ -998,7 +1055,7 @@ try {
   await test('DCR stays unowned with a cookie and removing its maker keeps another account grant', async () => {
     const accountId = randomUUID();
     await seedWorkspace(database, randomUUID(), [{ accountId, role: 'owner' }]);
-    const fixture = createAuth(
+    const fixture = await createAuth(
       config,
       { mail: null, sessionAllowed: () => Promise.resolve(false) },
       authPool,
@@ -1464,7 +1521,7 @@ try {
           assert.equal(answer.body, '');
         }
     }
-    const provider = createAuth(
+    const provider = await createAuth(
       config,
       { mail: null, sessionAllowed: () => Promise.resolve(true) },
       authPool,

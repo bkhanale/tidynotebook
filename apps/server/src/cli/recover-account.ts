@@ -15,7 +15,11 @@ import { openIdentityStore } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
 import { checkBreach } from '../auth/breach-check.ts';
-import { createAuth, pwnedRangeQuery } from '../auth/better-auth.ts';
+import {
+  createAuth,
+  pwnedRangeQuery,
+  type AuthHandle,
+} from '../auth/better-auth.ts';
 import { assertNewPassword, readArgument, readSecret } from './prompt.ts';
 
 /** What the recovery command changed. */
@@ -57,11 +61,12 @@ export async function recoverAccount(
     );
   const identity = openIdentityStore(input.config.databaseUrl, { poolSize: 2 });
   // The command starts no session, so the hook refuses every one.
-  const auth = createAuth(input.config, {
-    mail: null,
-    sessionAllowed: () => Promise.resolve(false),
-  });
+  let auth: AuthHandle | undefined;
   try {
+    auth = await createAuth(input.config, {
+      mail: null,
+      sessionAllowed: () => Promise.resolve(false),
+    });
     const context = await auth.auth.$context;
     const found = await context.internalAdapter.findUserByEmail(input.email);
     if (found === null)
@@ -84,7 +89,7 @@ export async function recoverAccount(
       await identity.recordAccountAudit(accountId, 'account.recover');
     return { authUserId: found.user.id, accountId, email: input.email };
   } finally {
-    await auth.close();
+    await auth?.close();
     await identity.close();
   }
 }

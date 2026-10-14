@@ -486,7 +486,7 @@ await test('an upgraded installation still signs in its existing accounts', asyn
       ),
     );
     const identity = openIdentityStore(upgraded.databaseUrl, { poolSize: 1 });
-    const auth = createAuth(upgraded, {
+    const auth = await createAuth(upgraded, {
       mail: null,
       allowSignUp: true,
       sessionAllowed: async (id) =>

@@ -862,7 +862,7 @@ async function composeApp(
       ? {}
       : { oauthFetch: options.oauthFetch }),
   };
-  const auth = createAuth(config, authOptions, authPool);
+  const auth = await createAuth(config, authOptions, authPool);
   opened.push(() => auth.close());
   // The notice gateway of this process (record 0129). Its log sink is filled
   // once the instance exists, as the sinks above are.

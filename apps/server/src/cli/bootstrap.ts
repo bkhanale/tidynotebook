@@ -17,7 +17,7 @@ import {
   openWorkspaceStore,
 } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
-import { createAuth } from '../auth/better-auth.ts';
+import { createAuth, type AuthHandle } from '../auth/better-auth.ts';
 import { registerIdentity } from '../auth/registration.ts';
 import { seedWelcomeNote } from '../auth/welcome-note.ts';
 import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
@@ -59,12 +59,13 @@ export async function bootstrapOwner(
     { poolSize: 2 },
   );
   // The command starts no session, so the hook refuses every one.
-  const auth = createAuth(input.config, {
-    mail: null,
-    allowSignUp: true,
-    sessionAllowed: () => Promise.resolve(false),
-  });
+  let auth: AuthHandle | undefined;
   try {
+    auth = await createAuth(input.config, {
+      mail: null,
+      allowSignUp: true,
+      sessionAllowed: () => Promise.resolve(false),
+    });
     if (await identity.hasAccount())
       throw new Error('notesapp: the first account already exists.');
     // The check above runs outside the write, so it can only report early.
@@ -96,7 +97,7 @@ export async function bootstrapOwner(
       email: made.value.email,
     };
   } finally {
-    await auth.close();
+    await auth?.close();
     await content.close();
     await identity.close();
   }

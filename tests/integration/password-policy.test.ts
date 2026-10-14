@@ -43,7 +43,7 @@ const pool = createAuthPool(config);
 let service: 'listed' | 'clear' | 'down' = 'clear';
 const asked: string[] = [];
 let unavailable = 0;
-const auth = createAuth(
+const auth = await createAuth(
   config,
   {
     mail: null,

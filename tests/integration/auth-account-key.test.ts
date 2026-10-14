@@ -68,7 +68,7 @@ const config = loadServerConfig({
   NOTESAPP_BREACH_CHECK: 'off',
 });
 const identity = openIdentityStore(config.databaseUrl, { poolSize: 1 });
-const auth = createAuth(config, {
+const auth = await createAuth(config, {
   mail: null,
   allowSignUp: true,
   sessionAllowed: async (id) => (await identity.sessionAccount(id)) !== null,

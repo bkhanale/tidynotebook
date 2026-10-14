@@ -80,6 +80,7 @@ import {
   authVerification,
   defaultConnectionTimeoutMs,
   openPool,
+  openCoordination,
   poolSizes,
 } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
@@ -334,6 +335,7 @@ function buildAuth(
   database: NodePgDatabase,
   pending: Set<Promise<void>>,
   tokenRequest = false,
+  seedResources = false,
 ) {
   const mail = options.mail ?? noMailer;
   // A message that the answer does not wait for. Its failure reaches the
@@ -403,7 +405,9 @@ function buildAuth(
                     allowedScopes: [...oauthScopes],
                   },
                 ],
-                resourceSeedMode: 'overwrite',
+                // Only the startup seed may replace the stored policy. The
+                // serving and request contexts only check an existing row.
+                resourceSeedMode: seedResources ? 'overwrite' : 'insertOnly',
                 clientRegistrationDefaultResources: [`${config.mcpOrigin}/mcp`],
                 enforcePerClientResources: true,
                 allowDynamicClientRegistration: true,
@@ -671,6 +675,17 @@ export type AuthHandle = {
   close(): Promise<void>;
 };
 
+/** A startup fault that an operator command can report without driver details. */
+class AuthInitializationError extends Error {
+  constructor(cause: unknown) {
+    super(
+      'notesapp: the identity provider could not start. Check that the database accepts connections and that its migrations are complete.',
+      { cause },
+    );
+    this.name = 'AuthInitializationError';
+  }
+}
+
 /**
  * Builds the configured Better Auth instance.
  *
@@ -681,15 +696,53 @@ export type AuthHandle = {
  * token are therefore unreachable from the application's own connection,
  * whatever identity it sets.
  */
-export function createAuth(
+export async function createAuth(
   config: ServerConfig,
   options: AuthOptions,
   shared?: pg.Pool,
-): AuthHandle {
+): Promise<AuthHandle> {
   const pool = shared ?? createAuthPool(config);
   const pending = new Set<Promise<void>>();
+  let auth;
+  try {
+    if (config.mcpOrigin !== null) {
+      const coordination = openCoordination(config.databaseUrl, {
+        poolSize: 1,
+      });
+      try {
+        await coordination.runSerialized('oauth-resource-seed', async () => {
+          // Provider init starts when the instance is built. Build inside the
+          // lock and await it here, before another process can read the row.
+          const seed = buildAuth(
+            config,
+            options,
+            drizzle({ client: pool }),
+            pending,
+            false,
+            true,
+          );
+          await seed.$context;
+        });
+      } finally {
+        await coordination.close();
+      }
+    }
+    // The provider also has a lazy seed path. This separate serving context
+    // uses insertOnly, so the first resource lookup cannot replace its policy.
+    auth = buildAuth(config, options, drizzle({ client: pool }), pending);
+    await auth.$context;
+  } catch (error) {
+    if (shared === undefined) {
+      try {
+        await pool.end();
+      } catch {
+        // A failed close must not replace the fault that stopped startup.
+      }
+    }
+    throw new AuthInitializationError(error);
+  }
   return {
-    auth: buildAuth(config, options, drizzle({ client: pool }), pending),
+    auth,
     breached: breachGuard(config, options),
     close: async (): Promise<void> => {
       // A message on its way still reads the budget of its address, so it
@@ -949,6 +1002,7 @@ export function createAuthProtocol(
                   new Set(),
                   true,
                 );
+                await scoped.$context;
                 if (path.endsWith('/revoke')) {
                   // The provider authenticates against a token that has no row.
                   // Only the narrow storage write below can revoke a credential.

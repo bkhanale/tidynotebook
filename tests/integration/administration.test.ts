@@ -280,7 +280,7 @@ await test('two acceptances of one invitation make one account and leave nothing
 
 await test('a failed link deletes the identity user that it made', async () => {
   const pool = createAuthPool(config);
-  const auth = createAuth(
+  const auth = await createAuth(
     config,
     {
       mail: null,

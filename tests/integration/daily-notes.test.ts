@@ -117,7 +117,7 @@ const attachments = openAttachmentStore(
   },
 );
 const authPool = createAuthPool(config);
-const auth = createAuth(
+const auth = await createAuth(
   config,
   { mail: null, sessionAllowed: sessionAllowedBy(identity) },
   authPool,
