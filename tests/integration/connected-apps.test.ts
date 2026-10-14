@@ -354,6 +354,98 @@ await test('last use belongs to the pair and changes only at code exchange and r
   assert.equal((await listed(peer))[0]?.lastUsedAt, null);
 });
 
+await test('token resolution keeps the daily client bound and token issue alone writes consent use', async () => {
+  const person = await newPerson();
+  const clientId = await newClient();
+  const code = await connect(person, clientId);
+  assert.equal((await listed(person))[0]?.lastUsedAt, null);
+  await admin.query(
+    'create table oauth_use_writes (client_id text not null, source text not null)',
+  );
+  await admin.query(`create function count_oauth_use_write() returns trigger
+    language plpgsql as $$ begin
+      insert into public.oauth_use_writes values (NEW.client_id, TG_TABLE_NAME);
+      return NEW;
+    end $$`);
+  for (const table of ['auth_oauth_client', 'auth_oauth_consent'] as const)
+    await admin.query(`create trigger count_oauth_use_write after update of last_used_at
+      on ${table} for each row execute function count_oauth_use_write()`);
+  const counts = async () => {
+    const rows = await admin.query<{ clients: number; consents: number }>(
+      `select count(*) filter (where source='auth_oauth_client')::int as clients,
+        count(*) filter (where source='auth_oauth_consent')::int as consents
+        from oauth_use_writes where client_id=$1`,
+      [clientId],
+    );
+    return rows[0];
+  };
+  const call = (token: string) =>
+    serveMcp({
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: 'application/json, text/event-stream',
+      },
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'list_workspaces', arguments: {} },
+      },
+    });
+  try {
+    const tokens = await exchange(clientId, code);
+    assert.ok(tokens.data?.refresh_token, JSON.stringify(tokens.error));
+    const firstUse = (await listed(person))[0]?.lastUsedAt;
+    assert.ok(firstUse);
+    assert.equal((await counts())?.consents, 1);
+    await admin.query(
+      'update auth_oauth_client set last_used_at=null where client_id=$1',
+      [clientId],
+    );
+    await admin.query('delete from oauth_use_writes');
+    for (let index = 0; index < 2; index += 1) {
+      assert.equal(
+        (await call(tokens.data.access_token)).response?.status,
+        200,
+      );
+      assert.deepEqual(await counts(), { clients: 1, consents: 0 });
+      assert.equal((await listed(person))[0]?.lastUsedAt, firstUse);
+    }
+    const refreshed = await exchangeOAuthToken({
+      body: {
+        grant_type: 'refresh_token',
+        client_id: clientId,
+        refresh_token: tokens.data.refresh_token,
+        resource,
+      },
+    });
+    assert.equal(
+      refreshed.response?.status,
+      200,
+      JSON.stringify(refreshed.error),
+    );
+    assert.ok(refreshed.data);
+    const nextUse = (await listed(person))[0]?.lastUsedAt;
+    assert.ok(nextUse);
+    assert.notEqual(nextUse, firstUse);
+    assert.equal((await counts())?.consents, 1);
+    await admin.query('delete from oauth_use_writes');
+    for (let index = 0; index < 2; index += 1) {
+      assert.equal(
+        (await call(refreshed.data.access_token)).response?.status,
+        200,
+      );
+      assert.deepEqual(await counts(), { clients: 0, consents: 0 });
+      assert.equal((await listed(person))[0]?.lastUsedAt, nextUse);
+    }
+  } finally {
+    for (const table of ['auth_oauth_client', 'auth_oauth_consent'] as const)
+      await admin.query(`drop trigger count_oauth_use_write on ${table}`);
+    await admin.query('drop function count_oauth_use_write()');
+    await admin.query('drop table oauth_use_writes');
+  }
+});
+
 await test('a locked account lists and revokes its grant, tokens and pending code', async () => {
   const person = await newPerson();
   const peer = await newPerson();
