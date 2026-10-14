@@ -713,7 +713,7 @@ export type AuthSession = {
      */
     token?: unknown;
     /**
-     * Address to open, when the answer asks for a redirect.
+     * Address to open when the answer asks for a redirect. With oauth_query, this is the OAuth continuation address.
      */
     readonly url?: string;
     user?: AuthUser;
@@ -1777,6 +1777,10 @@ export type OAuthConsentRequest = {
  * Continue the signed authorization request after sign-in.
  */
 export type OAuthContinueRequest = {
+    /**
+     * Confirms that the signed-in account continues this authorization.
+     */
+    selected: true;
     /**
      * Protocol value.
      */
@@ -3474,6 +3478,32 @@ export type AuthPasswordResetWritable = {
      * Token from the reset message.
      */
     token?: string;
+};
+
+/**
+ * Address and password of a local account.
+ */
+export type AuthPasswordSignInWritable = {
+    /**
+     * Sign-in address of the account.
+     */
+    email: string;
+    /**
+     * Password of the account.
+     */
+    password: string;
+    /**
+     * Whether the session survives a browser restart.
+     */
+    rememberMe?: boolean;
+    /**
+     * Address to open after a completed sign-in.
+     */
+    callbackURL?: string;
+    /**
+     * The signed OAuth request of the explicit OAuth sign-in page.
+     */
+    oauth_query?: string;
 };
 
 /**
@@ -5737,7 +5767,7 @@ export type SignInWithPasswordData = {
     /**
      * Address and password of a local account.
      */
-    body: AuthPasswordSignIn;
+    body: AuthPasswordSignInWritable;
     path?: never;
     query?: never;
     url: '/api/auth/sign-in/email';

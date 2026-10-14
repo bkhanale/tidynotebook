@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { queryAddress, queryValue } from './address-query.ts';
+import { queryAddress, queryValue, queryValues } from './address-query.ts';
 
 await test('a member of the query reads decoded', () => {
   assert.equal(queryValue('?path=%2Fmembers%2Fjoin', 'path'), '/members/join');
@@ -25,4 +25,16 @@ await test('an address with one member reads back as it was written', () => {
     queryValue(address.slice('/portal'.length), 'path'),
     '/a b&c=d?e#f',
   );
+});
+
+await test('all values keep duplicates, decoded names, and form spaces', () => {
+  assert.deepEqual(queryValues('?scope=read&sc%6Fpe=write+notes', 'scope'), [
+    'read',
+    'write notes',
+  ]);
+  assert.deepEqual(queryValues('?scope&scope=', 'scope'), ['', '']);
+  assert.deepEqual(queryValues('?', 'scope'), []);
+  assert.deepEqual(queryValues('?other=1', 'scope'), []);
+  assert.equal(queryValues('?scope=%E0%A4%A', 'scope'), null);
+  assert.equal(queryValues('?%E0%A4%A=1&scope=read', 'scope'), null);
 });

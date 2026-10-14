@@ -650,3 +650,16 @@ await test('MCP refusals have one JSON media type and closed protocol bodies', (
   }
   assert.deepEqual(responseMediaTypes('serveMcp', 202), []);
 });
+
+await test('OAuth continuation confirms the signed-in account and no other stage', () => {
+  const request = requestValidator('continueOAuthAuthorization', 'body');
+  assert.ok(request);
+  assert.equal(request({ oauth_query: 'signed-query', selected: true }), true);
+  for (const body of [
+    { oauth_query: 'signed-query' },
+    { oauth_query: 'signed-query', selected: false },
+    { oauth_query: 'signed-query', selected: true, created: true },
+    { oauth_query: 'signed-query', selected: true, postLogin: true },
+  ])
+    assert.equal(request(body), false);
+});

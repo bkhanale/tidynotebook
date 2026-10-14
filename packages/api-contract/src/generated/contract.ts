@@ -4361,9 +4361,16 @@ export const operations: readonly OperationEntry[] = [
         "description": "Continue the signed authorization request after sign-in.",
         "additionalProperties": false,
         "required": [
-          "oauth_query"
+          "oauth_query",
+          "selected"
         ],
         "properties": {
+          "selected": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the signed-in account continues this authorization.",
+            "writeOnly": true
+          },
           "oauth_query": {
             "type": "string",
             "description": "Protocol value.",
@@ -17486,6 +17493,12 @@ export const operations: readonly OperationEntry[] = [
             "type": "string",
             "description": "Address to open after a completed sign-in.",
             "maxLength": 2048
+          },
+          "oauth_query": {
+            "type": "string",
+            "description": "The signed OAuth request of the explicit OAuth sign-in page.",
+            "maxLength": 4096,
+            "writeOnly": true
           }
         }
       },
@@ -17516,8 +17529,8 @@ export const operations: readonly OperationEntry[] = [
             "url": {
               "type": "string",
               "readOnly": true,
-              "description": "Address to open, when the answer asks for a redirect.",
-              "maxLength": 2048
+              "description": "Address to open when the answer asks for a redirect. With oauth_query, this is the OAuth continuation address.",
+              "maxLength": 16384
             },
             "user": {
               "$ref": "https://notesapp.invalid/contract-definitions#/$defs/AuthUser"

@@ -38,6 +38,7 @@ import {
   verificationRoute,
 } from './lib/accounts.ts';
 import { portalRoute } from './lib/portal.ts';
+import { oauthConsentRoute, oauthSignInRoute } from './lib/oauth-consent.ts';
 const loadShell = () => import('./shell/shell.tsx');
 const loadNoteView = () => import('./features/notes/note-view.tsx');
 const loadNotesHome = () => import('./features/notes/notes-home.tsx');
@@ -92,6 +93,12 @@ const ResetPasswordPage = lazy(async () => ({
 const PortalPage = lazy(async () => ({
   default: (await import('./features/accounts/portal.tsx')).PortalPage,
 }));
+const OAuthConsentPage = lazy(async () => ({
+  default: (await import('./features/oauth/oauth-pages.tsx')).OAuthConsentPage,
+}));
+const OAuthSignInPage = lazy(async () => ({
+  default: (await import('./features/oauth/oauth-pages.tsx')).OAuthSignInPage,
+}));
 const PublishedLinksView = lazy(async () => ({
   default: (await import('./features/publishing/published-links.tsx'))
     .PublishedLinksView,
@@ -130,6 +137,8 @@ const routes: RouteObject[] = [
     errorElement: <RouteError scope="application" />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: oauthSignInRoute, element: deferred(<OAuthSignInPage />) },
+      { path: oauthConsentRoute, element: deferred(<OAuthConsentPage />) },
       // The page that an invitation link opens. It needs no session, and the
       // server writes the same path into every link.
       { path: invitationRoute, element: deferred(<InvitationPage />) },

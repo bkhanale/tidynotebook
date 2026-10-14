@@ -25,6 +25,27 @@ await test('no return goes to the root', () => {
   assert.equal(returnAddress(''), '/');
 });
 
+await test('both OAuth pages keep a long signed query through sign-in', () => {
+  const values = {
+    client_id: 'https://client.example/metadata.json',
+    state: 'a+b & c'.repeat(200),
+    sig: 'signed-value',
+    exp: '1234567890',
+  };
+  const query = Object.entries(values)
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+    )
+    .join('&');
+  for (const path of ['/oauth/sign-in', '/oauth/consent']) {
+    const back = `${path}?${query}`;
+    const login = signInAddress(back);
+    assert.equal(returnAddress(back), back);
+    assert.equal(returnOf(login.slice('/login'.length)), back);
+  }
+});
+
 await test('a return that names another host or a scheme goes to the root', () => {
   // `tests/integration/web-delivery.test.ts` reads the same values through
   // the URL standard of Node.
