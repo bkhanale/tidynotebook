@@ -389,7 +389,7 @@ function buildAuth(
         : [
             adaptOAuthProvider(
               oauthProvider({
-                loginPage: '/sign-in',
+                loginPage: '/oauth/sign-in',
                 consentPage: '/oauth/consent',
                 disableJwtPlugin: true,
                 grantTypes: [...oauthGrantTypes],
@@ -804,6 +804,7 @@ export function authProblemCode(
   // person can do: open the link of the sign-up, or ask an administrator.
   if (libraryCode === 'EMAIL_NOT_VERIFIED') return 'address_unverified';
   if (libraryCode === accountUnavailableCode) return 'account_unavailable';
+  if (libraryCode === 'invalid_signature') return 'oauth_request_invalid';
   if (status === 401) return 'unauthenticated';
   if (status === 403) return 'forbidden';
   if (status === 404) return 'not_found';
@@ -853,7 +854,8 @@ function libraryCodeOf(text: string): string | null {
   const fields: Record<string, unknown> = Object.fromEntries(
     Object.entries(refusal.value),
   );
-  return typeof fields.code === 'string' ? fields.code : null;
+  if (typeof fields.code === 'string') return fields.code;
+  return fields.error === 'invalid_signature' ? 'invalid_signature' : null;
 }
 
 /** Reads a JSON answer without trusting that it is JSON. */
@@ -1197,6 +1199,7 @@ export function createAuthProtocol(
       }
       if (response.status >= 400) {
         const libraryCode = libraryCodeOf(text);
+        const code = authProblemCode(response.status, libraryCode);
         return {
           status: response.status,
           mediaType: problemMediaType,
@@ -1205,9 +1208,12 @@ export function createAuthProtocol(
           ),
           cookies,
           body: createProblem({
-            code: authProblemCode(response.status, libraryCode),
+            code,
             status: response.status,
-            detail: 'The authentication endpoint refused the request.',
+            detail:
+              code === 'oauth_request_invalid'
+                ? 'This access request is not valid. Go back to the client and connect again.'
+                : 'The authentication endpoint refused the request.',
             instance: request.url.split('?')[0] ?? request.url,
             requestId: request.id,
           }),

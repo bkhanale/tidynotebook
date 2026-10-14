@@ -29,6 +29,7 @@ export const problemMediaType = 'application/problem+json';
 export type ProblemCode =
   | 'api_key_limit'
   | 'invalid_request'
+  | 'oauth_request_invalid'
   | 'host_not_allowed'
   | 'payload_too_large'
   | 'unsupported_media_type'
@@ -122,6 +123,8 @@ export type Problem = {
 const titles: Readonly<Record<ProblemCode, string>> = {
   api_key_limit: 'The account keeps as many API keys as it may.',
   invalid_request: 'The request did not match the contract.',
+  oauth_request_invalid:
+    'This access request is not valid. Go back to the client and connect again.',
   host_not_allowed: 'The Host header is not served by this deployment.',
   payload_too_large: 'The request body is larger than the configured limit.',
   unsupported_media_type: 'The request media type is not supported.',

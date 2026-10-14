@@ -2,9 +2,16 @@
   'type': 'object',
   'description': 'Continue the signed authorization request after sign-in.',
   'additionalProperties': false,
-  'required': ['oauth_query'],
+  'required': ['oauth_query', 'selected'],
   'properties':
     {
+      'selected':
+        {
+          'type': 'boolean',
+          'const': true,
+          'description': 'Confirms that the signed-in account continues this authorization.',
+          'writeOnly': true,
+        },
       'oauth_query':
         {
           'type': 'string',

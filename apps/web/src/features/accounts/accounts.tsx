@@ -55,6 +55,11 @@ import {
 } from '../../lib/locked.ts';
 import { portalHome } from '../../lib/portal.ts';
 import { returnOf } from '../../lib/sign-in-return.ts';
+import {
+  oauthInvalidMessage,
+  oauthResetSentence,
+  oauthSignInDescription,
+} from '../../lib/oauth-consent.ts';
 import { useOpenPortal } from './open-portal.ts';
 import { useNow } from '../../shell/now.ts';
 import { LegalLinks } from './legal-links.tsx';
@@ -457,7 +462,9 @@ type SetupStatus =
  * field from the start, so nobody learns it from a refusal. A status call
  * that does not answer offers Retry instead of a dead submit button.
  */
-export function LoginPage(): ReactNode {
+export function LoginPage({
+  oauthQuery,
+}: { readonly oauthQuery?: string } = {}): ReactNode {
   const session = useSession();
   const navigate = useNavigate();
   // Where sign-in goes back to: a path of this origin, or the root.
@@ -514,11 +521,21 @@ export function LoginPage(): ReactNode {
     setError('');
     const result = setup
       ? await createOwner({ body: { email, password } })
-      : await signInWithPassword({ body: { email, password } });
+      : await signInWithPassword({
+          body: {
+            email,
+            password,
+            ...(oauthQuery === undefined ? {} : { oauth_query: oauthQuery }),
+          },
+        });
     setBusy(false);
     if (result.error !== undefined || result.data === undefined) {
       const code = problemCode(result.error);
       const httpStatus = result.response?.status ?? problemStatus(result.error);
+      if (code === 'oauth_request_invalid') {
+        setError(problemMessage(result.error));
+        return;
+      }
       if (
         httpStatus === 400 ||
         httpStatus === 401 ||
@@ -535,11 +552,22 @@ export function LoginPage(): ReactNode {
       setError(problemMessage(result.error));
       return;
     }
+    if (oauthQuery !== undefined) {
+      if (
+        'redirect' in result.data &&
+        result.data.redirect &&
+        typeof result.data.url === 'string'
+      )
+        window.location.assign(result.data.url);
+      else setError(oauthInvalidMessage);
+      return;
+    }
     session.refresh();
     void navigate(back);
   }
 
-  if (session.status === 'signed-in') return <Navigate to={back} replace />;
+  if (session.status === 'signed-in' && oauthQuery === undefined)
+    return <Navigate to={back} replace />;
 
   const title = setup ? 'Create your account' : 'Sign in';
   const documents = status.kind === 'ready' ? status.legalDocuments : null;
@@ -570,7 +598,9 @@ export function LoginPage(): ReactNode {
           <p className="mb-5 mt-0 text-control text-muted">
             {setup
               ? 'This installation has no account yet. What you enter here becomes the first account. It administers the installation and invites other people.'
-              : 'Enter the address and the password of your account.'}
+              : oauthQuery === undefined
+                ? 'Enter the address and the password of your account.'
+                : oauthSignInDescription}
           </p>
           <form
             onSubmit={(event): void => {
@@ -632,12 +662,19 @@ export function LoginPage(): ReactNode {
             </Button>
           </form>
           {status.kind === 'ready' && !setup && status.passwordReset ? (
-            <Link
-              className={`mt-3 w-full ${buttonClassName({ variant: 'ghost' })}`}
-              to={forgotPasswordRoute}
-            >
-              Forgot password
-            </Link>
+            <>
+              <Link
+                className={`mt-3 w-full ${buttonClassName({ variant: 'ghost' })}`}
+                to={forgotPasswordRoute}
+              >
+                Forgot password
+              </Link>
+              {oauthQuery === undefined ? null : (
+                <p className="mt-2 text-control text-muted">
+                  {oauthResetSentence}
+                </p>
+              )}
+            </>
           ) : null}
           {status.kind === 'ready' && !setup && status.openRegistration ? (
             <Link

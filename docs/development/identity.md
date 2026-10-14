@@ -61,7 +61,8 @@ marks it secure. A cookie write must name a served origin. See
 OAuth server in `better-auth.ts` and the identity storage in `oauth-store.ts`.
 The issuer is the application origin with `/api/auth`. Its only metadata address
 uses path insertion: `/.well-known/oauth-authorization-server/api/auth`.
-Every client is unowned. The grant identity is the consent of one client and one account.
+Every OAuth client is unowned. Only Settings and the grant rules govern access.
+The grant identity is the consent of one client and one account.
 Deleting that consent revokes the whole grant; an authenticated, unexpired
 refresh replay deletes it. Token and revocation requests hold account then pair
 locks in one bounded transaction, with no network work inside it.

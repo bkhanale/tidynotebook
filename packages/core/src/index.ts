@@ -628,9 +628,15 @@ export {
   maxOAuthClients,
   oauthAccessLifetimeSeconds,
   oauthConsentScopeAllowed,
+  oauthClientIdentity,
+  oauthRedirectAddress,
   oauthGrantTypes,
   oauthRefreshLifetimeSeconds,
   oauthScopeAllowed,
   oauthScopes,
   oauthUnusedClientDays,
+} from './identity/oauth.ts';
+export type {
+  OAuthClientIdentity,
+  OAuthRedirectAddress,
 } from './identity/oauth.ts';

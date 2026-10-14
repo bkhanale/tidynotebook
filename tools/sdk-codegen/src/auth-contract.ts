@@ -155,8 +155,9 @@ export function authContractSchemas(): Json {
         url: {
           type: 'string',
           readOnly: true,
-          description: 'Address to open, when the answer asks for a redirect.',
-          maxLength: 2048,
+          description:
+            'Address to open when the answer asks for a redirect. With oauth_query, this is the OAuth continuation address.',
+          maxLength: 16384,
         },
         user: { $ref: '#/components/schemas/AuthUser' },
       },
@@ -252,6 +253,13 @@ export function authContractSchemas(): Json {
           type: 'string',
           description: 'Address to open after a completed sign-in.',
           maxLength: 2048,
+        },
+        oauth_query: {
+          type: 'string',
+          description:
+            'The signed OAuth request of the explicit OAuth sign-in page.',
+          maxLength: 4096,
+          writeOnly: true,
         },
       },
     },
