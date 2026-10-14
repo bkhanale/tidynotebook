@@ -7,7 +7,7 @@ import {
   type McpTool,
 } from './registry.ts';
 
-await test('the production registry has exactly the six read tools of plan 022', () => {
+await test('the production registry has exactly the ten note tools of plan 022', () => {
   assert.deepEqual(
     mcpTools.map((tool) => [tool.definition.name, tool.scope, tool.operations]),
     [
@@ -17,14 +17,18 @@ await test('the production registry has exactly the six read tools of plan 022',
       ['search_notes', 'notes:read', ['listWorkspaces', 'searchFiles']],
       ['list_backlinks', 'notes:read', ['listBacklinks']],
       ['list_note_history', 'notes:read', ['listHistory']],
+      ['create_note', 'notes:write', ['createFile']],
+      ['edit_note', 'notes:write', ['getFile', 'updateFile']],
+      ['move_note', 'notes:write', ['getFile', 'updateFile']],
+      ['move_note_to_trash', 'notes:write', ['getFile', 'deleteFile']],
     ],
   );
   for (const tool of mcpTools) {
     assert.equal(tool.definition.inputSchema.type, 'object');
     assert.equal(tool.definition.outputSchema?.type, 'object');
     assert.deepEqual(tool.definition.annotations, {
-      readOnlyHint: true,
-      destructiveHint: false,
+      readOnlyHint: tool.scope === 'notes:read',
+      destructiveHint: tool.definition.name === 'move_note_to_trash',
       idempotentHint: true,
       openWorldHint: false,
     });

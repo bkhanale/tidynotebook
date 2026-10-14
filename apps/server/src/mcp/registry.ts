@@ -2,11 +2,14 @@
 import { findOperation, type OperationId } from '@notesapp/api-contract';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/server';
 import { readTools } from './read-tools.ts';
+import { writeTools } from './write-tools.ts';
 
 export type ContractInput = {
   readonly params?: Readonly<Record<string, string>>;
   readonly query?: Readonly<Record<string, string | number | boolean>>;
   readonly body?: unknown;
+  /** Internal only. The dispatcher maps this observed version to If-Match. */
+  readonly expectedVersion?: string;
 };
 export type ContractAnswer = {
   readonly status: number;
@@ -28,8 +31,8 @@ export type McpTool = {
   ) => Promise<CallToolResult>;
 };
 
-/** The six read tools of plan 022, item 6. */
-export const mcpTools: readonly McpTool[] = readTools;
+/** Exactly the ten note tools of plan 022. */
+export const mcpTools: readonly McpTool[] = [...readTools, ...writeTools];
 
 export function checkToolRegistry(tools: readonly McpTool[]): void {
   const names = new Set<string>();

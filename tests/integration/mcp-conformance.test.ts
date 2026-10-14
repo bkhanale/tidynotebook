@@ -126,7 +126,7 @@ await test(
       password: 'conformance-owner-safe-password',
     });
     // The official suite calls fixed tool names. Only this test composition
-    // aliases the real read handlers. Production exposes only the six names.
+    // aliases the real read handlers. Production exposes only the ten names.
     function readTool(name: string): McpTool {
       const tool = mcpTools.find((entry) => entry.definition.name === name);
       assert.ok(tool);

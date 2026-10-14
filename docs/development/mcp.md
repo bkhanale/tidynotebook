@@ -42,8 +42,8 @@ through its existing runtime pool.
 ## Tools and delegation
 
 `apps/server/src/mcp/registry.ts` holds the tool definitions, required scopes
-and permitted contract operations. It exposes the six read tools of plan 022.
-`apps/server/src/mcp/read-tools.ts` maps each tool to only those operations.
+and permitted contract operations. It exposes the ten note tools of plan 022.
+`apps/server/src/mcp/read-tools.ts` maps each read tool to only those operations.
 A tool list does not filter by scope. The adapter checks write scope before it calls
 a tool, so a read grant receives a challenge for more access.
 
@@ -57,6 +57,16 @@ Unicode pair together.
 Account search visits a bounded set of workspaces in list order. Its cursor
 keeps the workspace position and the match offset. Search reaches only the
 best matches that the contract returns. A narrower query can find more.
+
+`apps/server/src/mcp/write-tools.ts` maps writes to their declared operations.
+It uses the existing document service of `packages/storage-server` to build
+updates through `packages/note-document`. Each write on a live note reads its
+head and checks the required version. Exact text must occur once. A whole
+replacement keeps document identities through the same service. An unchanged
+edit or move returns the current version without a write. The internal
+contract port maps the expected version to the contract write condition, so a
+head change during a call refuses the write. Trash sends the observed state
+and no text update. Create relies on the contract refusal of an occupied path.
 
 A handler receives only its input and a contract call function. It receives
 no protocol context, progress function or logging function. A unit test holds
@@ -80,23 +90,25 @@ validation, locked account rule, usage limits and logs of the pipeline.
 
 ## Proof
 
-`apps/server/src/mcp/registry.test.ts` pins the six production read tools and
+`apps/server/src/mcp/registry.test.ts` pins the ten production note tools and
 checks their operations and scopes. `apps/server/src/mcp/protocol.test.ts`
-holds each real registered read while its contract call waits. It proves
+holds each real registered note tool while its contract call waits. It proves
 that no notification can precede its result.
-`apps/server/src/mcp/read-tools.test.ts` proves schemas, bounds and paging.
+`apps/server/src/mcp/read-tools.test.ts` proves read schemas, bounds and paging.
+`apps/server/src/mcp/write-tools.test.ts` proves write schemas, exact matching,
+version checks, no-op changes and document updates.
 `tests/integration/mcp-endpoint.test.ts` proves the served metadata,
 authentication challenges, protocol answers, refusals, delegation and the
 separate limits across replicas. It drives each read tool in both protocol
 eras, text continuation after a head change, search continuation, read-only
-delegation and locked accounts. Its tool fixtures exist only in its test
-composition.
+delegation, write retries, concurrent edits, Trash races and locked accounts.
+Its tool fixtures exist only in its test composition.
 
 `tests/integration/mcp-conformance.test.ts` runs the official released suite
 against the server scenarios that apply. It names each selected scenario and
 each excluded scenario. An added scenario fails until it has a classification.
 There is no expected failure list. Test-only aliases let the released suite
-call the real read handlers at its fixed names. Production refuses those names.
+call the real note handlers at its fixed names. Production refuses those names.
 The test composition supplies a real issued
 credential because the released suite has no credential option.
 Our integration tests cover the modern protocol and authorization. The full

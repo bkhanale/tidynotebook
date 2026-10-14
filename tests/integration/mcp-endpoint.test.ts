@@ -24,6 +24,9 @@ import {
   listWorkspaces,
   getFile,
   updateFile,
+  listHistory,
+  listDeletedFiles,
+  restoreFile,
 } from '@notesapp/api-client';
 import {
   bootstrapOwner,
@@ -345,7 +348,7 @@ try {
       await foreign.close();
     }
   });
-  await test('the modern and earlier stateless protocols show exactly the six production read tools', async () => {
+  await test('the modern and earlier stateless protocols show exactly the ten production note tools', async () => {
     for (const [payload, requestHeaders] of [
       [legacy(), headers()],
       [modern(), modernHeaders('tools/list')],
@@ -791,6 +794,7 @@ try {
   const workspaceList = await listWorkspaces({ headers: browserHeaders });
   const workspaceId = workspaceList.data?.workspaces[0]?.workspaceId;
   assert.ok(workspaceId);
+  const writeWorkspaceId: string = workspaceId;
   scopeWorkspaceId = workspaceId;
   const grantIdentity = await identity.oauthTokenIdentity(
     createHash('sha256').update(read).digest('hex'),
@@ -839,8 +843,9 @@ try {
     input: Record<string, unknown>,
     era = 'modern',
     credential = read,
+    target = app,
   ) {
-    const answer = await app.inject({
+    const answer = await target.inject({
       method: 'POST',
       url: '/mcp',
       headers:
@@ -1117,6 +1122,423 @@ try {
       wanted.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)),
     );
   });
+  const callWrite = (
+    name: string,
+    input: Record<string, unknown>,
+    era = 'modern',
+  ) => callRead(name, input, era, write);
+  function failure(result: Record<string, unknown>, message: RegExp) {
+    assert.equal(result.isError, true, JSON.stringify(result));
+    assert.equal(result.structuredContent, undefined);
+    assert.match(JSON.stringify(result.content), message);
+  }
+  async function noteState(id: string) {
+    const found = await getFile({
+      headers: browserHeaders,
+      path: { workspaceId: writeWorkspaceId, fileId: id },
+    });
+    assert.equal(found.response?.status, 200, JSON.stringify(found.error));
+    assert.ok(found.data?.head);
+    const history = await listHistory({
+      headers: browserHeaders,
+      path: { workspaceId: writeWorkspaceId, fileId: id },
+    });
+    assert.ok(history.data);
+    return { head: found.data.head, history: history.data };
+  }
+  async function browserEdit(id: string, text: string) {
+    const before = await noteState(id);
+    assert.ok(before.head.document && before.head.epoch);
+    const documents = createDocumentService();
+    const bytes = Buffer.from(before.head.document, 'base64');
+    const next = documents.replaceText(bytes, text);
+    assert.ok(next.ok);
+    const changed = await updateFile({
+      headers: { ...browserHeaders, 'if-match': `"${before.head.revisionId}"` },
+      path: { workspaceId: writeWorkspaceId, fileId: id },
+      body: {
+        revisionId: randomUUID(),
+        mutationId: randomUUID(),
+        deviceId: 'browser-race',
+        document: {
+          update: Buffer.from(
+            documents.delta(next.value.bytes, documents.stateVector(bytes)),
+          ).toString('base64'),
+          epoch: before.head.epoch,
+          observed: Buffer.from(documents.observe(bytes)).toString('base64'),
+        },
+      },
+    });
+    assert.equal(changed.response?.status, 200, JSON.stringify(changed.error));
+    return noteState(id);
+  }
+  await test('the four production writes preserve version and retry rules in both protocol eras', async () => {
+    for (const era of ['modern', 'legacy']) {
+      const path = `writes/${era}.md`;
+      const created = success(
+        await callWrite(
+          'create_note',
+          { workspaceId: writeWorkspaceId, path, text: 'Keep old text.' },
+          era,
+        ),
+      );
+      const id = stringField(created, 'fileId');
+      const version = stringField(created, 'version');
+      assert.deepEqual(created, {
+        workspaceId: writeWorkspaceId,
+        fileId: id,
+        version,
+        path,
+        name: era,
+        deleted: false,
+        changed: true,
+      });
+      const first = await noteState(id);
+      assert.equal(first.head.text, 'Keep old text.');
+      assert.equal(first.head.revisionId, version);
+      failure(
+        await callWrite(
+          'create_note',
+          { workspaceId: writeWorkspaceId, path, text: 'Do not replace this.' },
+          era,
+        ),
+        /conflicts/,
+      );
+      assert.deepEqual(await noteState(id), first);
+      for (const oldText of ['missing', 'e']) {
+        failure(
+          await callWrite(
+            'edit_note',
+            {
+              workspaceId: writeWorkspaceId,
+              fileId: id,
+              version,
+              oldText,
+              newText: 'new',
+            },
+            era,
+          ),
+          /Read the note again/,
+        );
+        assert.deepEqual(await noteState(id), first);
+      }
+      const exactInput = {
+        workspaceId: writeWorkspaceId,
+        fileId: id,
+        version,
+        oldText: 'old',
+        newText: 'new old',
+      };
+      const edited = success(await callWrite('edit_note', exactInput, era));
+      assert.notEqual(edited.version, version);
+      const second = await noteState(id);
+      assert.equal(second.head.text, 'Keep new old text.');
+      assert.equal(
+        second.history.revisions.length,
+        first.history.revisions.length + 1,
+      );
+      // New text still holds old text. The repeated request must not edit twice.
+      failure(
+        await callWrite('edit_note', exactInput, era),
+        /Read the note again/,
+      );
+      failure(
+        await callWrite(
+          'move_note',
+          {
+            workspaceId: writeWorkspaceId,
+            fileId: id,
+            version,
+            path: 'Stale.md',
+          },
+          era,
+        ),
+        /Read the note again/,
+      );
+      failure(
+        await callWrite(
+          'move_note_to_trash',
+          { workspaceId: writeWorkspaceId, fileId: id, version },
+          era,
+        ),
+        /Read the note again/,
+      );
+      assert.deepEqual(await noteState(id), second);
+      const wholeInput = {
+        workspaceId: writeWorkspaceId,
+        fileId: id,
+        version: edited.version,
+        text: 'Whole text 😀',
+      };
+      const whole = success(await callWrite('edit_note', wholeInput, era));
+      const third = await noteState(id);
+      assert.equal(third.head.text, wholeInput.text);
+      failure(
+        await callWrite('edit_note', wholeInput, era),
+        /Read the note again/,
+      );
+      assert.deepEqual(await noteState(id), third);
+      for (const [name, input] of [
+        [
+          'edit_note',
+          {
+            workspaceId: writeWorkspaceId,
+            fileId: id,
+            version: whole.version,
+            text: wholeInput.text,
+          },
+        ],
+        [
+          'edit_note',
+          {
+            workspaceId: writeWorkspaceId,
+            fileId: id,
+            version: whole.version,
+            oldText: 'Whole',
+            newText: 'Whole',
+          },
+        ],
+        [
+          'move_note',
+          {
+            workspaceId: writeWorkspaceId,
+            fileId: id,
+            version: whole.version,
+            path,
+          },
+        ],
+      ] as const) {
+        const same = success(await callWrite(name, input, era));
+        assert.equal(same.version, whole.version);
+        assert.equal(same.changed, false);
+        assert.deepEqual(await noteState(id), third);
+      }
+      const moveInput = {
+        workspaceId: writeWorkspaceId,
+        fileId: id,
+        version: whole.version,
+        path: `writes/${era}-moved.md`,
+      };
+      const moved = success(await callWrite('move_note', moveInput, era));
+      const fourth = await noteState(id);
+      assert.equal(fourth.head.path, moveInput.path);
+      assert.equal(fourth.head.text, wholeInput.text);
+      assert.equal(
+        fourth.history.revisions.length,
+        third.history.revisions.length + 1,
+      );
+      failure(
+        await callWrite('move_note', moveInput, era),
+        /Read the note again/,
+      );
+      // A rename also changes the version that an edit or Trash must name.
+      failure(
+        await callWrite(
+          'edit_note',
+          {
+            workspaceId: writeWorkspaceId,
+            fileId: id,
+            version: whole.version,
+            text: 'Do not revert the move.',
+          },
+          era,
+        ),
+        /Read the note again/,
+      );
+      failure(
+        await callWrite(
+          'move_note_to_trash',
+          { workspaceId: writeWorkspaceId, fileId: id, version: whole.version },
+          era,
+        ),
+        /Read the note again/,
+      );
+      assert.deepEqual(await noteState(id), fourth);
+      const trashInput = {
+        workspaceId: writeWorkspaceId,
+        fileId: id,
+        version: moved.version,
+      };
+      const trashed = success(
+        await callWrite('move_note_to_trash', trashInput, era),
+      );
+      assert.equal(trashed.deleted, true);
+      const missing = await getFile({
+        headers: browserHeaders,
+        path: { workspaceId: writeWorkspaceId, fileId: id },
+      });
+      assert.equal(missing.response?.status, 404);
+      const history = await listHistory({
+        headers: browserHeaders,
+        path: { workspaceId: writeWorkspaceId, fileId: id },
+      });
+      assert.ok(history.data);
+      assert.equal(
+        history.data.revisions.length,
+        fourth.history.revisions.length + 1,
+      );
+      const trash = await listDeletedFiles({
+        headers: browserHeaders,
+        path: { workspaceId: writeWorkspaceId },
+      });
+      assert.ok(trash.data?.files.some((file) => file.fileId === id));
+      failure(
+        await callWrite('move_note_to_trash', trashInput, era),
+        /not available/,
+      );
+      const repeatedHistory = await listHistory({
+        headers: browserHeaders,
+        path: { workspaceId: writeWorkspaceId, fileId: id },
+      });
+      assert.deepEqual(repeatedHistory.data, history.data);
+      const restored = await restoreFile({
+        headers: browserHeaders,
+        path: { workspaceId: writeWorkspaceId, fileId: id },
+        body: {
+          mutationId: randomUUID(),
+          revisionId: randomUUID(),
+          deviceId: 'restore-test',
+          clientTime: new Date().toISOString(),
+        },
+      });
+      assert.equal(
+        restored.response?.status,
+        200,
+        JSON.stringify(restored.error),
+      );
+      assert.equal((await noteState(id)).head.text, wholeInput.text);
+    }
+  });
+  await test('concurrent creates at one path accept only one note', async () => {
+    const input = {
+      workspaceId: writeWorkspaceId,
+      path: 'writes/concurrent.md',
+      text: 'One note.',
+    };
+    const attempts = await Promise.all([
+      callWrite('create_note', input),
+      callWrite('create_note', input),
+    ]);
+    const accepted = attempts.filter((result) => result.isError === undefined);
+    const refused = attempts.filter((result) => result.isError === true);
+    assert.equal(accepted.length, 1);
+    assert.equal(refused.length, 1);
+    assert.ok(accepted[0] && refused[0]);
+    failure(refused[0], /conflicts/);
+    const note = success(accepted[0]);
+    const state = await noteState(stringField(note, 'fileId'));
+    assert.equal(state.head.text, input.text);
+    assert.equal(state.history.revisions.length, 1);
+  });
+  await test('every production write called with a read grant receives the full scope challenge', async () => {
+    for (const era of ['modern', 'legacy'])
+      for (const tool of mcpTools.filter(
+        (entry) => entry.scope === 'notes:write',
+      )) {
+        const name = tool.definition.name;
+        const answer = await app.inject({
+          method: 'POST',
+          url: '/mcp',
+          headers:
+            era === 'modern'
+              ? modernHeaders('tools/call', read, name)
+              : headers(),
+          payload:
+            era === 'modern'
+              ? modern('tools/call', { name, arguments: {} })
+              : legacy('tools/call', { name, arguments: {} }),
+        });
+        assert.equal(answer.statusCode, 403, answer.body);
+        assert.deepEqual(json(answer), { error: 'insufficient_scope' });
+        assert.match(
+          String(answer.headers['www-authenticate']),
+          /error="insufficient_scope"/,
+        );
+        assert.match(
+          String(answer.headers['www-authenticate']),
+          /scope="notes:read notes:write"/,
+        );
+        assert.match(
+          String(answer.headers['www-authenticate']),
+          /resource_metadata="http:\/\/mcp\.notes\.invalid\/\.well-known\/oauth-protected-resource\/mcp"/,
+        );
+        assert.equal(answer.headers['set-cookie'], undefined);
+      }
+  });
+  await test('a browser edit between the tool read and its write refuses edit, move and Trash without a merge', async (t) => {
+    for (const era of ['modern', 'legacy'])
+      for (const name of ['edit_note', 'move_note', 'move_note_to_trash'])
+        await t.test(`${era} ${name}`, async () => {
+          const created = success(
+            await callWrite(
+              'create_note',
+              {
+                workspaceId: writeWorkspaceId,
+                path: `races/${era}-${name}.md`,
+                text: 'Before the race.',
+              },
+              era,
+            ),
+          );
+          const id = stringField(created, 'fileId');
+          const entered = Promise.withResolvers<void>();
+          const released = Promise.withResolvers<void>();
+          // Hold the real tool after its getFile result. All calls still pass
+          // through the real delegated contract pipeline of this test app.
+          const racing = await createApp(config, {
+            mcpTools: mcpTools.map((tool) =>
+              tool.definition.name !== name
+                ? tool
+                : {
+                    ...tool,
+                    run: (input, context) =>
+                      tool.run(input, {
+                        call: async (operation, request) => {
+                          const answer = await context.call(operation, request);
+                          if (operation === 'getFile') {
+                            entered.resolve();
+                            await released.promise;
+                          }
+                          return answer;
+                        },
+                      }),
+                  },
+            ),
+          });
+          let pending: ReturnType<typeof callRead> | undefined;
+          try {
+            const input = {
+              workspaceId: writeWorkspaceId,
+              fileId: id,
+              version: created.version,
+              ...(name === 'edit_note'
+                ? { text: 'Tool text.' }
+                : name === 'move_note'
+                  ? { path: `races/${era}-moved.md` }
+                  : {}),
+            };
+            pending = callRead(name, input, era, write, racing);
+            await Promise.race([
+              entered.promise,
+              pending.then((answer) => {
+                throw new Error(
+                  `The tool did not hold its read: ${JSON.stringify(answer)}`,
+                );
+              }),
+            ]);
+            const browser = await browserEdit(id, 'Browser text.');
+            released.resolve();
+            failure(await pending, /Read the note again/);
+            assert.deepEqual(await noteState(id), browser);
+            assert.equal(browser.head.merged, false);
+          } finally {
+            released.resolve();
+            await pending;
+            await racing.close();
+          }
+        });
+  });
+
   await test('an issued MCP token keeps only the locked-account operation list', async () => {
     const invitation = await createInvitation({
       headers: browserHeaders,
@@ -1144,7 +1566,7 @@ try {
     const owned = await listWorkspaces({ headers: { cookie: lockedCookie } });
     const lockedWorkspace = owned.data?.workspaces[0]?.workspaceId;
     assert.ok(lockedWorkspace);
-    const lockedToken = await token('notes:read', lockedCookie);
+    const lockedToken = await token('notes:read notes:write', lockedCookie);
     const lockedFile = randomUUID();
     const lockedVersion = randomUUID();
     const madeNote = await createFile({
@@ -1179,6 +1601,36 @@ try {
     try {
       success(await callRead('list_workspaces', {}, 'modern', lockedToken));
       for (const [name, input] of [
+        [
+          'create_note',
+          { workspaceId: lockedWorkspace, path: 'Refused.md', text: 'Refused' },
+        ],
+        [
+          'edit_note',
+          {
+            workspaceId: lockedWorkspace,
+            fileId: lockedFile,
+            version: lockedVersion,
+            text: 'Refused',
+          },
+        ],
+        [
+          'move_note',
+          {
+            workspaceId: lockedWorkspace,
+            fileId: lockedFile,
+            version: lockedVersion,
+            path: 'Moved.md',
+          },
+        ],
+        [
+          'move_note_to_trash',
+          {
+            workspaceId: lockedWorkspace,
+            fileId: lockedFile,
+            version: lockedVersion,
+          },
+        ],
         ['list_notes', { workspaceId: lockedWorkspace }],
         ['read_note', { workspaceId: lockedWorkspace, fileId: lockedFile }],
         [

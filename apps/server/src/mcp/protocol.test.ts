@@ -42,13 +42,17 @@ await test('the exact registered handler refuses a write before tool or contract
   assert.equal(contractCalls, 0);
 });
 
-await test('all six registered read handlers send no notification before or with their result', async (t) => {
+await test('all ten registered note handlers send no notification before or with their result', async (t) => {
   const { InMemoryTransport } = await import('@modelcontextprotocol/server');
   const { createMcpServer } = await import('./protocol.ts');
   const { mcpTools } = await import('./registry.ts');
   const { randomUUID } = await import('node:crypto');
   const workspaceId = randomUUID();
   const fileId = randomUUID();
+  const version = randomUUID();
+  const { createDocumentService } = await import('@notesapp/storage-server');
+  const documents = createDocumentService();
+  const bytes = documents.start('Text');
   for (const tool of mcpTools)
     await t.test(tool.definition.name, async () => {
       const entered = Promise.withResolvers<void>();
@@ -57,7 +61,7 @@ await test('all six registered read handlers send no notification before or with
       const messages: unknown[] = [];
       let calls = 0;
       const server = createMcpServer(
-        grant,
+        { ...grant, scopes: ['notes:read', 'notes:write'] },
         [
           {
             ...tool,
@@ -68,12 +72,12 @@ await test('all six registered read handlers send no notification before or with
             },
           },
         ],
-        async () => {
+        async (id) => {
           calls += 1;
           entered.resolve();
           await release.promise;
           return {
-            status: 200,
+            status: id === 'createFile' ? 201 : 200,
             body: {
               workspaces: [],
               files: [],
@@ -83,13 +87,22 @@ await test('all six registered read handlers send no notification before or with
               nextCursor: null,
               fileId,
               path: 'Note.md',
-              head: {
+              kind: 'note',
+              revision: {
                 fileId,
                 path: 'Note.md',
                 revisionId: randomUUID(),
+                deleted: id === 'deleteFile',
+              },
+              head: {
+                fileId,
+                path: 'Note.md',
+                revisionId: version,
                 kind: 'note',
                 deleted: false,
                 text: 'Text',
+                epoch: 1,
+                document: Buffer.from(bytes).toString('base64'),
               },
             },
           };
@@ -131,7 +144,15 @@ await test('all six registered read handlers send no notification before or with
               ? { workspaceId }
               : tool.definition.name === 'search_notes'
                 ? { query: 'find' }
-                : { workspaceId, fileId };
+                : tool.definition.name === 'create_note'
+                  ? { workspaceId, path: 'New.md', text: 'New' }
+                  : tool.definition.name === 'edit_note'
+                    ? { workspaceId, fileId, version, text: 'New' }
+                    : tool.definition.name === 'move_note'
+                      ? { workspaceId, fileId, version, path: 'Moved.md' }
+                      : tool.definition.name === 'move_note_to_trash'
+                        ? { workspaceId, fileId, version }
+                        : { workspaceId, fileId };
         await client.send({
           jsonrpc: '2.0',
           id: 2,
@@ -148,13 +169,13 @@ await test('all six registered read handlers send no notification before or with
         await Promise.race([
           entered.promise,
           done.promise.then(() => {
-            throw new Error('The real tool did not start a contract read.');
+            throw new Error('The real tool did not start a contract call.');
           }),
         ]);
         assert.equal(
           messages.length,
           0,
-          'A held read must send no progress or logging notification.',
+          'A held contract call must send no progress or logging notification.',
         );
         release.resolve();
         await done.promise;

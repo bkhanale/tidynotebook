@@ -150,16 +150,18 @@ function contractCall(
     const result = await app().inject({
       method,
       url: `${path}${query.size === 0 ? '' : `?${query.toString()}`}`,
-      headers: { host: new URL(origin).host },
+      headers: {
+        host: new URL(origin).host,
+        ...(input.expectedVersion === undefined
+          ? {}
+          : { 'if-match': `"${input.expectedVersion}"` }),
+        ...(input.body === undefined
+          ? {}
+          : { 'content-type': 'application/json' }),
+      },
       ...(input.body === undefined
         ? {}
-        : {
-            payload: JSON.stringify(input.body),
-            headers: {
-              host: new URL(origin).host,
-              'content-type': 'application/json',
-            },
-          }),
+        : { payload: JSON.stringify(input.body) }),
     });
     const body: unknown = result.body === '' ? undefined : result.json();
     return { status: result.statusCode, body };

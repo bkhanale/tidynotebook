@@ -100,7 +100,7 @@ await test('each read mapping calls only its declared operations', async () => {
       nextCursor: null,
     },
   };
-  for (const entry of mcpTools) {
+  for (const entry of mcpTools.filter((tool) => tool.scope === 'notes:read')) {
     const calls: string[] = [];
     const input =
       entry.definition.name === 'list_workspaces'
