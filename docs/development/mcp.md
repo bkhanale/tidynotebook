@@ -42,9 +42,21 @@ through its existing runtime pool.
 ## Tools and delegation
 
 `apps/server/src/mcp/registry.ts` holds the tool definitions, required scopes
-and permitted contract operations. The production registry is empty. A tool
-list does not filter by scope. The adapter checks write scope before it calls
+and permitted contract operations. It exposes the six read tools of plan 022.
+`apps/server/src/mcp/read-tools.ts` maps each tool to only those operations.
+A tool list does not filter by scope. The adapter checks write scope before it calls
 a tool, so a read grant receives a challenge for more access.
+
+`apps/server/src/mcp/read-support.ts` owns the named bounds and schema checks.
+Each answer contains text and structured data. Lists keep whole items. A paged
+operation keeps its own cursor. A large page repeats the same read with a
+smaller limit. Other lists use an offset. A text page names its immutable
+version, and its continuation requires that version. A text page keeps each
+Unicode pair together.
+
+Account search visits a bounded set of workspaces in list order. Its cursor
+keeps the workspace position and the match offset. Search reaches only the
+best matches that the contract returns. A narrower query can find more.
 
 A handler receives only its input and a contract call function. It receives
 no protocol context, progress function or logging function. A unit test holds
@@ -68,17 +80,24 @@ validation, locked account rule, usage limits and logs of the pipeline.
 
 ## Proof
 
-`apps/server/src/mcp/registry.test.ts` proves the empty production registry,
-operation and scope checks, and the absence of a notification context.
+`apps/server/src/mcp/registry.test.ts` pins the six production read tools and
+checks their operations and scopes. `apps/server/src/mcp/protocol.test.ts`
+holds each real registered read while its contract call waits. It proves
+that no notification can precede its result.
+`apps/server/src/mcp/read-tools.test.ts` proves schemas, bounds and paging.
 `tests/integration/mcp-endpoint.test.ts` proves the served metadata,
 authentication challenges, protocol answers, refusals, delegation and the
-separate limits across replicas. Its write fixture exists only in its test
+separate limits across replicas. It drives each read tool in both protocol
+eras, text continuation after a head change, search continuation, read-only
+delegation and locked accounts. Its tool fixtures exist only in its test
 composition.
 
 `tests/integration/mcp-conformance.test.ts` runs the official released suite
 against the server scenarios that apply. It names each selected scenario and
 each excluded scenario. An added scenario fails until it has a classification.
-There is no expected failure list. The test composition supplies a real issued
+There is no expected failure list. Test-only aliases let the released suite
+call the real read handlers at its fixed names. Production refuses those names.
+The test composition supplies a real issued
 credential because the released suite has no credential option.
 Our integration tests cover the modern protocol and authorization. The full
 authorization proof is in `tests/integration/oauth-authorization.test.ts`.

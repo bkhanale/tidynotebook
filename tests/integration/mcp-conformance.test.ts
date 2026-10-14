@@ -14,7 +14,13 @@ import {
   giveOAuthConsent,
   exchangeOAuthToken,
 } from '@notesapp/api-client';
-import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
+import {
+  bootstrapOwner,
+  createApp,
+  loadServerConfig,
+  mcpTools,
+  type McpTool,
+} from '@notesapp/server';
 import { createDisposableDatabase } from './support/database.ts';
 import { testEnvironment } from './support/server.ts';
 
@@ -22,29 +28,25 @@ const selected = [
   'server-initialize',
   'ping',
   'tools-list',
+  'tools-call-simple-text',
+  'tools-call-error',
+  'json-schema-2020-12',
   'dns-rebinding-protection',
 ] as const;
 const excluded: Readonly<Record<string, string>> = {
   'logging-set-level': 'Tools only: no logging capability (0225).',
   'completion-complete': 'No resources or prompts (0225).',
-  'tools-call-simple-text':
-    'Empty registry; enabled by the first tool issue (0227).',
-  'tools-call-image':
-    'Empty registry; enabled by the first tool issue (0227) if applicable to note tools.',
-  'tools-call-audio':
-    'Empty registry; enabled by the first tool issue (0227) if applicable to note tools.',
+  'tools-call-image': 'Note tools return text and structured data only (0227).',
+  'tools-call-audio': 'Note tools return text and structured data only (0227).',
   'tools-call-embedded-resource':
-    'No resources; empty registry; enabled by the first tool issue if applicable (0225).',
+    'Note tools return no embedded resources (0225, 0227).',
   'tools-call-mixed-content':
-    'Empty registry; enabled by the first tool issue (0227) if applicable to note tools.',
+    'Note tools return text and structured data only (0227).',
   'tools-call-with-logging': 'Tools only: no logging notifications (0225).',
-  'tools-call-error': 'Empty registry; enabled by the first tool issue (0227).',
   'tools-call-with-progress':
     'No event stream or progress notifications (0225).',
   'tools-call-sampling': 'Tools only: no sampling (0225).',
   'tools-call-elicitation': 'Tools only: no elicitation (0225).',
-  'json-schema-2020-12':
-    'Empty registry; enabled by the first tool issue (0227).',
   'elicitation-sep1034-defaults': 'Tools only: no elicitation (0225).',
   'server-sse-polling': 'No event stream (0225).',
   'server-sse-multiple-streams': 'No event stream (0225).',
@@ -123,7 +125,45 @@ await test(
       name: 'Conformance',
       password: 'conformance-owner-safe-password',
     });
-    const app = await createApp(config);
+    // The official suite calls fixed tool names. Only this test composition
+    // aliases the real read handlers. Production exposes only the six names.
+    function readTool(name: string): McpTool {
+      const tool = mcpTools.find((entry) => entry.definition.name === name);
+      assert.ok(tool);
+      return tool;
+    }
+    const list = readTool('list_workspaces');
+    const read = readTool('read_note');
+    const aliases: readonly McpTool[] = [
+      { ...list, definition: { ...list.definition, name: 'test_simple_text' } },
+      {
+        ...read,
+        definition: { ...read.definition, name: 'test_error_handling' },
+      },
+      {
+        ...list,
+        definition: {
+          ...list.definition,
+          name: 'json_schema_2020_12_tool',
+          inputSchema: {
+            ...list.definition.inputSchema,
+            $schema: 'https://json-schema.org/draft/2020-12/schema',
+            $defs: {
+              address: {
+                type: 'object',
+                properties: {
+                  street: { type: 'string' },
+                  city: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    ];
+    const app = await createApp(config, {
+      mcpTools: [...mcpTools, ...aliases],
+    });
     let credential: string | null = null;
     // The released suite has no credential option. Only this test composition
     // supplies its real issued token. The production resolver still checks it.

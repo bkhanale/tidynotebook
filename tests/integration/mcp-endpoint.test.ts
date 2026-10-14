@@ -1,7 +1,8 @@
 /** The served MCP boundary and the capability of one tool call (0225, 0227). */
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { commitChangeset } from '@notesapp/core';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +16,14 @@ import {
   getRootMcpMetadata,
   createApiKey,
   serveMcp,
+  createWorkspace,
+  createFile,
+  createInvitation,
+  registerAccount,
+  getAccount,
+  listWorkspaces,
+  getFile,
+  updateFile,
 } from '@notesapp/api-client';
 import {
   bootstrapOwner,
@@ -26,9 +35,21 @@ import {
   requestActor,
   withToolDelegation,
   type McpTool,
+  mcpTools,
 } from '@notesapp/server';
-import { openIdentityStore } from '@notesapp/storage-server';
-import { createDisposableDatabase, openSession } from './support/database.ts';
+import {
+  openIdentityStore,
+  openWorkspaceStore,
+  createDocumentService,
+} from '@notesapp/storage-server';
+import {
+  createDisposableDatabase,
+  openSession,
+  changeset,
+  revision,
+  memberActor,
+} from './support/database.ts';
+import { firstSave } from './support/documents.ts';
 import { startTestServer, testEnvironment } from './support/server.ts';
 
 const database = await createDisposableDatabase();
@@ -53,7 +74,37 @@ await bootstrapOwner({
   password: 'mcp-owner-safe-password',
 });
 let writeExecutions = 0;
+let scopeWorkspaceId = '';
+const blockedFileId = randomUUID();
 const tools: readonly McpTool[] = [
+  {
+    definition: {
+      name: 'test_read_scope',
+      inputSchema: { type: 'object' },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    scope: 'notes:read',
+    operations: ['listFiles'],
+    run: async (_input, context) => {
+      const listed = await context.call('listFiles', {
+        params: { workspaceId: scopeWorkspaceId },
+      });
+      assert.equal(listed.status, 200);
+      const refused = await context.call('createFile', {
+        params: { workspaceId: scopeWorkspaceId },
+        body: {
+          fileId: blockedFileId,
+          revisionId: randomUUID(),
+          mutationId: randomUUID(),
+          deviceId: 'forbidden-tool',
+          path: 'Forbidden.md',
+          document: firstSave('Do not write this.'),
+        },
+      });
+      assert.equal(refused.status, 401);
+      return { content: [{ type: 'text', text: 'The write is refused.' }] };
+    },
+  },
   {
     definition: {
       name: 'test_write',
@@ -82,6 +133,11 @@ const fixture = await createApp(config, {
 });
 const identity = openIdentityStore(database.runtimeUrl);
 const admin = await openSession(database.migrationUrl);
+const contentStore = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  { poolSize: 2 },
+);
 await app.listen({ host: '127.0.0.1', port: 0 });
 const address = app.server.address();
 assert.ok(address && typeof address !== 'string');
@@ -100,7 +156,7 @@ const verifier = 'a'.repeat(43);
 const challenge = createHash('sha256').update(verifier).digest('base64url');
 const protectedValues = [cookie, config.authSecret, 'mcp-owner-safe-password'];
 
-async function token(scopes = 'notes:read') {
+async function token(scopes = 'notes:read', sessionCookie = cookie) {
   const client = await registerOAuthClient({
     body: {
       redirect_uris: ['https://client.example/callback'],
@@ -122,11 +178,11 @@ async function token(scopes = 'notes:read') {
   });
   const authorized = await app.inject({
     url: `/api/auth/oauth2/authorize?${query}`,
-    headers: { cookie },
+    headers: { cookie: sessionCookie },
   });
   assert.equal(authorized.statusCode, 302, authorized.body);
   const consent = await giveOAuthConsent({
-    headers: { cookie, origin: config.origin },
+    headers: { cookie: sessionCookie, origin: config.origin },
     body: {
       accept: true,
       oauth_query: new URL(
@@ -289,7 +345,7 @@ try {
       await foreign.close();
     }
   });
-  await test('the modern and earlier stateless protocols show the empty production registry', async () => {
+  await test('the modern and earlier stateless protocols show exactly the six production read tools', async () => {
     for (const [payload, requestHeaders] of [
       [legacy(), headers()],
       [modern(), modernHeaders('tools/list')],
@@ -305,12 +361,18 @@ try {
       assert.ok(body && typeof body === 'object');
       const result: unknown = Reflect.get(body, 'result');
       assert.ok(result && typeof result === 'object');
-      assert.deepEqual(Reflect.get(result, 'tools'), []);
+      assert.deepEqual(
+        Reflect.get(result, 'tools'),
+        mcpTools.map((tool) => tool.definition),
+      );
       if ('mcp-protocol-version' in requestHeaders) {
         assert.equal(Reflect.get(result, 'resultType'), 'complete');
         assert.equal(Reflect.get(result, 'cacheScope'), 'private');
         assert.equal(Reflect.get(result, 'ttlMs'), 0);
-      } else assert.deepEqual(result, { tools: [] });
+      } else
+        assert.deepEqual(result, {
+          tools: mcpTools.map((tool) => tool.definition),
+        });
       assert.equal(answer.headers['mcp-session-id'], undefined);
     }
     const discovery = await app.inject({
@@ -368,7 +430,10 @@ try {
       payload: legacy(),
     });
     assert.equal(listed.statusCode, 200, listed.body);
-    assert.equal(listed.json().result.tools[0].name, 'test_write');
+    assert.deepEqual(
+      listed.json().result.tools.map((tool: { name: string }) => tool.name),
+      ['test_read_scope', 'test_write'],
+    );
     for (const [payload, requestHeaders] of [
       [legacy('tools/call', { name: 'test_write', arguments: {} }), headers()],
       [
@@ -721,6 +786,421 @@ try {
       await disabled.close();
     }
   });
+
+  const browserHeaders = { cookie, origin: config.origin };
+  const workspaceList = await listWorkspaces({ headers: browserHeaders });
+  const workspaceId = workspaceList.data?.workspaces[0]?.workspaceId;
+  assert.ok(workspaceId);
+  scopeWorkspaceId = workspaceId;
+  const grantIdentity = await identity.oauthTokenIdentity(
+    createHash('sha256').update(read).digest('hex'),
+    resource,
+  );
+  assert.ok(grantIdentity);
+  const fileId = randomUUID();
+  const firstVersion = randomUUID();
+  const longText = 'a'.repeat(16 * 1024 - 1) + '😀' + 'b'.repeat(20 * 1024);
+  async function seedNote(
+    workspace: string,
+    path: string,
+    text: string,
+    id = randomUUID(),
+    version = randomUUID(),
+  ) {
+    const entry = revision({ id: version, fileId: id, path, text });
+    const input = changeset(workspace, [entry]);
+    assert.ok(grantIdentity);
+    const accepted = await commitChangeset(
+      contentStore,
+      memberActor(grantIdentity.accountId, workspace),
+      input,
+      `mcp-${input.mutationId}`,
+    );
+    assert.equal(accepted.ok, true, JSON.stringify(accepted));
+    return id;
+  }
+  await seedNote(workspaceId, 'folder/Long.md', longText, fileId, firstVersion);
+  const backlinkId = await seedNote(
+    workspaceId,
+    'Reference.md',
+    '[Long](folder/Long.md)\nneedleword',
+  );
+  function object(value: unknown): Record<string, unknown> {
+    assert.ok(value && typeof value === 'object' && !Array.isArray(value));
+    return Object.fromEntries(Object.entries(value));
+  }
+  async function callRead(
+    name: string,
+    input: Record<string, unknown>,
+    era = 'modern',
+    credential = read,
+  ) {
+    const answer = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers:
+        era === 'modern'
+          ? modernHeaders('tools/call', credential, name)
+          : headers(credential),
+      payload:
+        era === 'modern'
+          ? modern('tools/call', { name, arguments: input })
+          : legacy('tools/call', { name, arguments: input }),
+    });
+    assert.equal(answer.statusCode, 200, answer.body);
+    assert.equal(answer.headers['set-cookie'], undefined);
+    const body = object(json(answer));
+    const result = object(body.result);
+    assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 64 * 1024);
+    return result;
+  }
+  function success(result: Record<string, unknown>) {
+    assert.equal(result.isError, undefined, JSON.stringify(result));
+    return object(result.structuredContent);
+  }
+  function items(body: Record<string, unknown>, name: string) {
+    const value = body[name];
+    assert.ok(Array.isArray(value));
+    return value.map(object);
+  }
+  await test('each production read tool serves real notes through both protocol eras', async () => {
+    for (const era of ['modern', 'legacy']) {
+      const workspaces = success(await callRead('list_workspaces', {}, era));
+      assert.ok(
+        items(workspaces, 'workspaces').some(
+          (item) => item.workspaceId === workspaceId,
+        ),
+      );
+      const notes = success(
+        await callRead(
+          'list_notes',
+          { workspaceId, sort: 'path', limit: 1 },
+          era,
+        ),
+      );
+      assert.equal(items(notes, 'notes').length, 1);
+      assert.ok(typeof notes.nextCursor === 'string');
+      const nextNotes = success(
+        await callRead(
+          'list_notes',
+          { workspaceId, sort: 'path', limit: 1, cursor: notes.nextCursor },
+          era,
+        ),
+      );
+      const found = [...items(notes, 'notes'), ...items(nextNotes, 'notes')];
+      assert.deepEqual(
+        found.map((item) => item.fileId).sort(),
+        [fileId, backlinkId].sort(),
+      );
+      assert.ok(
+        found.every(
+          (item) =>
+            item.workspaceId === workspaceId &&
+            typeof item.path === 'string' &&
+            typeof item.name === 'string',
+        ),
+      );
+      const note = success(
+        await callRead('read_note', { workspaceId, fileId }, era),
+      );
+      assert.equal(note.version, firstVersion);
+      assert.equal(note.name, 'Long');
+      assert.equal(note.text, longText.slice(0, 16 * 1024 - 1));
+      const search = success(
+        await callRead(
+          'search_notes',
+          { workspaceId, query: 'needleword' },
+          era,
+        ),
+      );
+      assert.deepEqual(
+        items(search, 'hits').map((item) => [
+          item.workspaceId,
+          item.fileId,
+          item.name,
+        ]),
+        [[workspaceId, backlinkId, 'Reference']],
+      );
+      const backlinks = success(
+        await callRead('list_backlinks', { workspaceId, fileId }, era),
+      );
+      assert.deepEqual(
+        items(backlinks, 'backlinks').map((item) => [
+          item.workspaceId,
+          item.fileId,
+          item.name,
+        ]),
+        [[workspaceId, backlinkId, 'Reference']],
+      );
+      const history = success(
+        await callRead(
+          'list_note_history',
+          { workspaceId, fileId, limit: 1 },
+          era,
+        ),
+      );
+      assert.deepEqual(
+        items(history, 'revisions').map((item) => [
+          item.workspaceId,
+          item.fileId,
+          item.version,
+        ]),
+        [[workspaceId, fileId, firstVersion]],
+      );
+      assert.ok(
+        items(history, 'revisions').every(
+          (item) => item.text === undefined && item.document === undefined,
+        ),
+      );
+    }
+  });
+  await test('long note continuation reads the first version after its head moves', async () => {
+    const first = success(await callRead('read_note', { workspaceId, fileId }));
+    const movedVersion = randomUUID();
+    const moved = await updateFile({
+      headers: { ...browserHeaders, 'if-match': `"${firstVersion}"` },
+      path: { workspaceId, fileId },
+      body: {
+        revisionId: movedVersion,
+        mutationId: randomUUID(),
+        deviceId: 'mcp-page-test',
+        path: 'folder/Moved.md',
+      },
+    });
+    assert.equal(moved.response?.status, 200, JSON.stringify(moved.error));
+    let whole = String(first.text);
+    let offset = first.nextOffset;
+    while (typeof offset === 'number') {
+      const page = success(
+        await callRead('read_note', {
+          workspaceId,
+          fileId,
+          version: first.version,
+          offset,
+        }),
+      );
+      assert.equal(page.version, firstVersion);
+      assert.equal(page.name, 'Long');
+      assert.equal(typeof page.text, 'string');
+      whole += String(page.text);
+      offset = page.nextOffset;
+    }
+    assert.equal(whole, longText);
+    assert.equal(
+      success(await callRead('read_note', { workspaceId, fileId })).version,
+      movedVersion,
+    );
+    const history = success(
+      await callRead('list_note_history', { workspaceId, fileId, limit: 1 }),
+    );
+    assert.equal(items(history, 'revisions')[0]?.version, movedVersion);
+    const earlier = success(
+      await callRead('list_note_history', {
+        workspaceId,
+        fileId,
+        limit: 1,
+        cursor: history.nextCursor,
+      }),
+    );
+    assert.equal(items(earlier, 'revisions')[0]?.version, firstVersion);
+    const noVersion = await callRead('read_note', {
+      workspaceId,
+      fileId,
+      offset: first.nextOffset,
+    });
+    assert.equal(noVersion.isError, true);
+  });
+  await test('the serialized answer cap reduces a Unicode text page and keeps all text', async () => {
+    const source = '界'.repeat(16 * 1024 * 2);
+    const id = await seedNote(workspaceId, 'Unicode.md', source);
+    let whole = '';
+    let offset: unknown = 0;
+    let version: unknown;
+    while (typeof offset === 'number') {
+      const page = success(
+        await callRead('read_note', {
+          workspaceId,
+          fileId: id,
+          offset,
+          ...(typeof version === 'string' ? { version } : {}),
+        }),
+      );
+      const part = page.text;
+      assert.equal(typeof part, 'string');
+      assert.ok(String(part).length < 16 * 1024);
+      whole += String(part);
+      version = page.version;
+      offset = page.nextOffset;
+    }
+    assert.equal(whole, source);
+  });
+  await test('a read-tool delegation cannot write through the normal pipeline', async () => {
+    for (const era of ['modern', 'legacy']) {
+      const answer = await fixture.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers:
+          era === 'modern'
+            ? modernHeaders('tools/call', read, 'test_read_scope')
+            : headers(),
+        payload:
+          era === 'modern'
+            ? modern('tools/call', { name: 'test_read_scope', arguments: {} })
+            : legacy('tools/call', { name: 'test_read_scope', arguments: {} }),
+      });
+      assert.equal(answer.statusCode, 200, answer.body);
+      assert.equal(object(object(json(answer)).result).isError, undefined);
+    }
+    const absent = await getFile({
+      headers: browserHeaders,
+      path: { workspaceId, fileId: blockedFileId },
+    });
+    assert.equal(absent.response?.status, 404);
+  });
+  await test('official suite aliases are unknown in the production registry', async () => {
+    for (const name of [
+      'test_simple_text',
+      'test_error_handling',
+      'json_schema_2020_12_tool',
+    ]) {
+      const result = await app.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: headers(),
+        payload: legacy('tools/call', { name, arguments: {} }),
+      });
+      assert.equal(result.statusCode, 200, result.body);
+      assert.equal(object(object(json(result)).error).code, -32601);
+    }
+  });
+  await test('account search continues past ten workspaces with each workspace identity', async () => {
+    const wanted: string[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      const made = await createWorkspace({
+        headers: browserHeaders,
+        body: { name: `Search ${i}` },
+      });
+      assert.equal(made.response?.status, 201, JSON.stringify(made.error));
+      const workspace = made.data?.workspaceId;
+      assert.ok(workspace);
+      wanted.push(workspace);
+      await seedNote(workspace, 'Needle.md', 'crossworkspaceneedle');
+    }
+    const found: string[] = [];
+    let cursor: unknown;
+    let pages = 0;
+    do {
+      const page = success(
+        await callRead('search_notes', {
+          query: 'crossworkspaceneedle',
+          ...(typeof cursor === 'string' ? { cursor } : {}),
+        }),
+      );
+      found.push(
+        ...items(page, 'hits').map((item) => String(item.workspaceId)),
+      );
+      cursor = page.nextCursor;
+      pages += 1;
+      assert.ok(pages <= 3);
+    } while (typeof cursor === 'string');
+    assert.equal(pages, 2);
+    assert.deepEqual(found.sort(), wanted.sort());
+  });
+  await test('an issued MCP token keeps only the locked-account operation list', async () => {
+    const invitation = await createInvitation({
+      headers: browserHeaders,
+      body: { email: 'mcp-locked@notes.invalid' },
+    });
+    assert.ok(invitation.data?.link);
+    const registered = await registerAccount({
+      headers: { origin: config.origin },
+      body: {
+        invitation: new URL(invitation.data.link).hash.slice(1),
+        password: 'locked-account-safe-password',
+      },
+    });
+    assert.equal(
+      registered.response?.status,
+      201,
+      JSON.stringify(registered.error),
+    );
+    const lockedCookie = registered.response.headers
+      .getSetCookie()
+      .map((value) => value.split(';')[0])
+      .join('; ');
+    const account = await getAccount({ headers: { cookie: lockedCookie } });
+    assert.ok(account.data);
+    const owned = await listWorkspaces({ headers: { cookie: lockedCookie } });
+    const lockedWorkspace = owned.data?.workspaces[0]?.workspaceId;
+    assert.ok(lockedWorkspace);
+    const lockedToken = await token('notes:read', lockedCookie);
+    const lockedFile = randomUUID();
+    const lockedVersion = randomUUID();
+    const madeNote = await createFile({
+      headers: { cookie: lockedCookie, origin: config.origin },
+      path: { workspaceId: lockedWorkspace },
+      body: {
+        fileId: lockedFile,
+        revisionId: lockedVersion,
+        mutationId: randomUUID(),
+        deviceId: 'locked-test',
+        path: 'Locked note.md',
+        document: firstSave('needleword'),
+      },
+    });
+    assert.equal(
+      madeNote.response?.status,
+      201,
+      JSON.stringify(madeNote.error),
+    );
+    success(
+      await callRead(
+        'read_note',
+        { workspaceId: lockedWorkspace, fileId: lockedFile },
+        'modern',
+        lockedToken,
+      ),
+    );
+    protectedValues.push(lockedCookie, 'locked-account-safe-password');
+    await admin.query("update accounts set standing='locked' where id=$1", [
+      account.data.accountId,
+    ]);
+    try {
+      success(await callRead('list_workspaces', {}, 'modern', lockedToken));
+      for (const [name, input] of [
+        ['list_notes', { workspaceId: lockedWorkspace }],
+        ['read_note', { workspaceId: lockedWorkspace, fileId: lockedFile }],
+        [
+          'read_note',
+          {
+            workspaceId: lockedWorkspace,
+            fileId: lockedFile,
+            version: lockedVersion,
+          },
+        ],
+        ['search_notes', { workspaceId: lockedWorkspace, query: 'needleword' }],
+        ['search_notes', { query: 'needleword' }],
+        [
+          'list_backlinks',
+          { workspaceId: lockedWorkspace, fileId: lockedFile },
+        ],
+        [
+          'list_note_history',
+          { workspaceId: lockedWorkspace, fileId: lockedFile },
+        ],
+      ] as const) {
+        const result = await callRead(name, input, 'modern', lockedToken);
+        assert.equal(result.isError, true, JSON.stringify(result));
+        assert.equal(result.structuredContent, undefined);
+        assert.match(JSON.stringify(result.content), /account is locked/);
+      }
+    } finally {
+      await admin.query("update accounts set standing='active' where id=$1", [
+        account.data.accountId,
+      ]);
+    }
+  });
+
   await test('no SDK notice or credential reaches a console or server log', () => {
     assert.deepEqual(notices, []);
     for (const value of protectedValues)
@@ -731,6 +1211,7 @@ try {
   await app.close();
   await fixture.close();
   await identity.close();
+  await contentStore.close();
   await admin.close();
   await database.destroy();
   await rm(root, { recursive: true, force: true });

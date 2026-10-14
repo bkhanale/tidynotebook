@@ -7,8 +7,28 @@ import {
   type McpTool,
 } from './registry.ts';
 
-await test('the production registry has no tool', () => {
-  assert.deepEqual(mcpTools, []);
+await test('the production registry has exactly the six read tools of plan 022', () => {
+  assert.deepEqual(
+    mcpTools.map((tool) => [tool.definition.name, tool.scope, tool.operations]),
+    [
+      ['list_workspaces', 'notes:read', ['listWorkspaces']],
+      ['list_notes', 'notes:read', ['listFiles']],
+      ['read_note', 'notes:read', ['getFile', 'getRevision']],
+      ['search_notes', 'notes:read', ['listWorkspaces', 'searchFiles']],
+      ['list_backlinks', 'notes:read', ['listBacklinks']],
+      ['list_note_history', 'notes:read', ['listHistory']],
+    ],
+  );
+  for (const tool of mcpTools) {
+    assert.equal(tool.definition.inputSchema.type, 'object');
+    assert.equal(tool.definition.outputSchema?.type, 'object');
+    assert.deepEqual(tool.definition.annotations, {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    });
+  }
   checkToolRegistry(mcpTools);
 });
 const definition = {

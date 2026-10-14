@@ -41,3 +41,140 @@ await test('the exact registered handler refuses a write before tool or contract
   assert.equal(executions, 0);
   assert.equal(contractCalls, 0);
 });
+
+await test('all six registered read handlers send no notification before or with their result', async (t) => {
+  const { InMemoryTransport } = await import('@modelcontextprotocol/server');
+  const { createMcpServer } = await import('./protocol.ts');
+  const { mcpTools } = await import('./registry.ts');
+  const { randomUUID } = await import('node:crypto');
+  const workspaceId = randomUUID();
+  const fileId = randomUUID();
+  for (const tool of mcpTools)
+    await t.test(tool.definition.name, async () => {
+      const entered = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const done = Promise.withResolvers<void>();
+      const messages: unknown[] = [];
+      let calls = 0;
+      const server = createMcpServer(
+        grant,
+        [
+          {
+            ...tool,
+            run: (input, context) => {
+              assert.deepEqual(Object.keys(context), ['call']);
+              assert.equal(Object.isFrozen(context), true);
+              return tool.run(input, context);
+            },
+          },
+        ],
+        async () => {
+          calls += 1;
+          entered.resolve();
+          await release.promise;
+          return {
+            status: 200,
+            body: {
+              workspaces: [],
+              files: [],
+              hits: [],
+              backlinks: [],
+              revisions: [],
+              nextCursor: null,
+              fileId,
+              path: 'Note.md',
+              head: {
+                fileId,
+                path: 'Note.md',
+                revisionId: randomUUID(),
+                kind: 'note',
+                deleted: false,
+                text: 'Text',
+              },
+            },
+          };
+        },
+      );
+      const [client, transport] = InMemoryTransport.createLinkedPair();
+      client.onmessage = (message) => {
+        messages.push(message);
+        if ('id' in message && message.id === 2) done.resolve();
+      };
+      try {
+        await server.connect(transport);
+        await client.start();
+        const initialized = Promise.withResolvers<void>();
+        const receive = client.onmessage;
+        client.onmessage = (message) => {
+          if ('id' in message && message.id === 1) initialized.resolve();
+          else receive(message);
+        };
+        await client.send({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'unit', version: '1' },
+          },
+        });
+        await initialized.promise;
+        await client.send({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        });
+        const input =
+          tool.definition.name === 'list_workspaces'
+            ? {}
+            : tool.definition.name === 'list_notes'
+              ? { workspaceId }
+              : tool.definition.name === 'search_notes'
+                ? { query: 'find' }
+                : { workspaceId, fileId };
+        await client.send({
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: {
+            name: tool.definition.name,
+            arguments: input,
+            _meta: {
+              progressToken: 'progress-test',
+              'io.modelcontextprotocol/logLevel': 'debug',
+            },
+          },
+        });
+        await Promise.race([
+          entered.promise,
+          done.promise.then(() => {
+            throw new Error('The real tool did not start a contract read.');
+          }),
+        ]);
+        assert.equal(
+          messages.length,
+          0,
+          'A held read must send no progress or logging notification.',
+        );
+        release.resolve();
+        await done.promise;
+        assert.ok(calls > 0);
+        assert.equal(messages.length, 1);
+        const message = messages[0];
+        assert.ok(
+          message && typeof message === 'object' && 'result' in message,
+        );
+        assert.ok(message.result && typeof message.result === 'object');
+        assert.equal(Reflect.get(message.result, 'isError'), undefined);
+        assert.equal(
+          'method' in message,
+          false,
+          'Only the result can leave the registered handler.',
+        );
+      } finally {
+        release.resolve();
+        await server.close();
+        await client.close();
+      }
+    });
+});

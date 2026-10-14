@@ -28,9 +28,11 @@ See
   dependencies or peers (record 0222).
 - `integration/mcp-conformance.test.ts` runs the released official MCP suite
   for the declared surface (0225). Each installed scenario has an explicit
-  selected or excluded entry. There is no expected failure list.
+  selected or excluded entry. Test-only aliases call the real read handlers.
+  There is no expected failure list.
   `integration/mcp-endpoint.test.ts` owns modern protocol, authorization
-  challenge, internal delegation and shared request limit proof (0227).
+  challenge, six read tools, paging, locked accounts, internal delegation
+  and shared request limit proof (0227).
 - A unit test does not live here. It lives next to its module in a package
   `src` tree and runs under `pnpm test:unit`.
 - A test that drives a browser does not live here, and no gate starts one.

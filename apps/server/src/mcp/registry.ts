@@ -1,6 +1,7 @@
 /** The one tool registry and its contract-only execution port (0227). */
 import { findOperation, type OperationId } from '@notesapp/api-contract';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/server';
+import { readTools } from './read-tools.ts';
 
 export type ContractInput = {
   readonly params?: Readonly<Record<string, string>>;
@@ -27,8 +28,8 @@ export type McpTool = {
   ) => Promise<CallToolResult>;
 };
 
-/** Later tool issues add rows here. The endpoint starts with no tools. */
-export const mcpTools: readonly McpTool[] = [];
+/** The six read tools of plan 022, item 6. */
+export const mcpTools: readonly McpTool[] = readTools;
 
 export function checkToolRegistry(tools: readonly McpTool[]): void {
   const names = new Set<string>();
