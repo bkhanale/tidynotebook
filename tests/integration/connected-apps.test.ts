@@ -16,6 +16,7 @@ import {
   exchangeOAuthToken,
   listConnectedApps,
   revokeConnectedApp,
+  serveMcp,
   type ConnectedApp,
 } from '@notesapp/api-client';
 import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
@@ -392,6 +393,24 @@ await test('a locked account lists and revokes its grant, tokens and pending cod
     path: { grantId: apps[0].grantId },
   });
   assert.equal(revoked.response?.status, 200, JSON.stringify(revoked.error));
+  const refused = await serveMcp({
+    headers: {
+      authorization: `Bearer ${refreshed.data.access_token}`,
+      accept: 'application/json, text/event-stream',
+    },
+    body: {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'list_workspaces', arguments: {} },
+    },
+  });
+  assert.equal(refused.response?.status, 401);
+  assert.deepEqual(refused.error, { error: 'invalid_token' });
+  assert.equal(
+    refused.response?.headers.get('www-authenticate'),
+    `Bearer resource_metadata="${config.mcpOrigin}/.well-known/oauth-protected-resource/mcp", scope="notes:read"`,
+  );
   assert.equal(revoked.response?.headers.get('cache-control'), 'no-store');
   assert.deepEqual(await listed(person), []);
   assert.equal(
