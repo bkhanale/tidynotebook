@@ -3,9 +3,30 @@ import test from 'node:test';
 import {
   authProblemCode,
   oauthCreateRequested,
+  oauthNormalizedPrompt,
   resetPasswordLink,
   withoutSessionToken,
 } from './better-auth.ts';
+
+await test('prompt normalization trims and deduplicates in first token order', () => {
+  for (const [input, expected] of [
+    ['\tlogin\t', 'login'],
+    ['login\n', 'login'],
+    ['\tlogin\t consent', 'login consent'],
+    ['login login consent', 'login consent'],
+    [' consent  login consent login ', 'consent login'],
+    [' create login create consent login ', 'create login consent'],
+    ['none none', 'none'],
+    ['select_account select_account', 'select_account'],
+    ['creates Create cre ate', 'creates Create cre ate'],
+    ['login\tconsent', 'login\tconsent'],
+    ['', undefined],
+    [' \t \n ', undefined],
+  ]) {
+    assert.ok(typeof input === 'string');
+    assert.equal(oauthNormalizedPrompt(input), expected);
+  }
+});
 
 await test('the create refusal trims each space-separated prompt token', () => {
   const spaces = [

@@ -404,6 +404,106 @@ try {
     });
   }
 
+  for (const prompt of [
+    '\tlogin\t',
+    'login\n',
+    '\tlogin\t consent',
+    'login login consent',
+    ' consent  login consent login ',
+  ]) {
+    await test(`one password completes the normalized login prompt ${JSON.stringify(prompt)}`, async () => {
+      const id = await register('Prompt normalization');
+      const url = new URL(authorization(id), config.origin);
+      url.searchParams.set('prompt', prompt);
+      const start = await app.inject({
+        url: `${url.pathname}${url.search}`,
+        headers: { cookie },
+      });
+      assert.equal(start.statusCode, 302, start.body);
+      const loginPage = new URL(String(start.headers.location), config.origin);
+      assert.equal(loginPage.pathname, oauthSignInRoute);
+      const signed = loginPage.searchParams;
+      assert.equal(signed.get('client_id'), id);
+      assert.equal(signed.get('redirect_uri'), callback);
+      assert.equal(signed.get('state'), 'one + two & three');
+      const login = await signInWithPassword({
+        body: { email, password, oauth_query: loginPage.search.slice(1) },
+        headers: { origin: config.origin },
+      });
+      assert.equal(login.response?.status, 200, JSON.stringify(login.error));
+      assert.ok(login.response);
+      cookie = login.response.headers
+        .getSetCookie()
+        .map((value) => value.split(';')[0])
+        .join('; ');
+      assert.ok(login.data?.url);
+      const consent = new URL(login.data.url, config.origin);
+      assert.equal(
+        consent.pathname,
+        oauthConsentRoute,
+        'one password must reach consent',
+      );
+      const answer = await giveOAuthConsent({
+        body: {
+          accept: true,
+          oauth_query: consent.search.slice(1),
+          scope: 'notes:read',
+        },
+        headers: { cookie, origin: config.origin },
+      });
+      assert.equal(answer.response?.status, 200, JSON.stringify(answer.error));
+      assert.ok(answer.data);
+      const destination = new URL(answer.data.url);
+      assert.equal(destination.origin, new URL(callback).origin);
+      assert.equal(destination.searchParams.get('state'), 'one + two & three');
+      assert.equal(
+        destination.searchParams.get('iss'),
+        `${config.origin}/api/auth`,
+      );
+      assert.ok(destination.searchParams.get('code'));
+    });
+  }
+
+  await test('empty and repeated consent prompts finish with one consent answer', async () => {
+    for (const [prompt, expected] of [
+      ['', null],
+      [' \t \n ', null],
+      ['consent consent', 'consent'],
+      [' \tconsent\t consent ', 'consent'],
+    ] as const) {
+      const id = await register('Consent prompt normalization');
+      const url = new URL(authorization(id), config.origin);
+      url.searchParams.set('prompt', prompt);
+      const start = await app.inject({
+        url: `${url.pathname}${url.search}`,
+        headers: { cookie },
+      });
+      assert.equal(start.statusCode, 302, start.body);
+      const consent = new URL(String(start.headers.location), config.origin);
+      assert.equal(consent.pathname, oauthConsentRoute);
+      assert.equal(consent.searchParams.get('prompt'), expected);
+      assert.equal(consent.searchParams.get('client_id'), id);
+      assert.equal(consent.searchParams.get('redirect_uri'), callback);
+      assert.equal(consent.searchParams.get('state'), 'one + two & three');
+      const answer = await giveOAuthConsent({
+        body: {
+          accept: true,
+          oauth_query: consent.search.slice(1),
+          scope: 'notes:read',
+        },
+        headers: { cookie, origin: config.origin },
+      });
+      assert.equal(answer.response?.status, 200, JSON.stringify(answer.error));
+      assert.ok(answer.data);
+      const destination = new URL(answer.data.url);
+      assert.equal(destination.origin, new URL(callback).origin);
+      assert.ok(
+        destination.searchParams.get('code'),
+        'one consent answer must reach the client',
+      );
+    }
+  });
+
   await test('create refuses before sign-in through the validated client callback', async () => {
     const id = await register('Unsupported account creation');
     const before = await admin.query(
@@ -416,6 +516,7 @@ try {
         for (const prompt of [
           'create',
           'login create consent',
+          ' create create login create ',
           ' create  ',
           'create\n',
           ...[

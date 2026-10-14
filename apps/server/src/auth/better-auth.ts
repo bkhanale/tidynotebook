@@ -1527,6 +1527,16 @@ export function oauthCreateRequested(prompt: unknown): boolean {
   );
 }
 
+/** Canonical tokens let the provider remove each completed step once. */
+export function oauthNormalizedPrompt(prompt: string): string | undefined {
+  const tokens = prompt
+    .split(' ')
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const normalized = [...new Set(tokens)].join(' ');
+  return normalized === '' ? undefined : normalized;
+}
+
 /**
  * oauth2Authorize has an items?: undefined schema union that cannot satisfy
  * exactOptionalPropertyTypes. The contract owns this documentation. Remove
@@ -1547,12 +1557,17 @@ export function adaptOAuthProvider(
     async (...args: Parameters<typeof original>) => {
       const [input] = args;
       const prompt: unknown = input?.query?.prompt;
-      if (input === undefined || !oauthCreateRequested(prompt))
+      if (input === undefined || typeof prompt !== 'string')
         return original(...args);
+      const query: Record<string, unknown> = { ...input.query };
+      const normalized = oauthNormalizedPrompt(prompt);
+      if (normalized === undefined) delete query.prompt;
+      else query.prompt = normalized;
+      const normalizedInput = { ...input, body: input.body ?? {}, query };
+      if (!oauthCreateRequested(normalized)) return original(normalizedInput);
       const response = await original({
-        ...input,
-        body: input.body ?? {},
-        query: { ...input.query, prompt: refusedOAuthCreatePrompt },
+        ...normalizedInput,
+        query: { ...query, prompt: refusedOAuthCreatePrompt },
         asResponse: true,
       });
       const neutralAddress = (raw: string): string => {
