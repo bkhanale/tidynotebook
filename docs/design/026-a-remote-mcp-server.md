@@ -123,15 +123,26 @@ token lives a short time. A refresh token rotates on each use, and a reused
 refresh token ends the whole grant.
 
 Two scopes state what a client can do: `notes:read` and `notes:write`. The
-consent page names the client, the host that receives the answer, and the
-access in plain words. The person selects read only or read and write. A
-client that registered itself through DCR shows as not verified, because its
-name is only what it says about itself.
+first challenge asks for read only. A write tool that a read grant calls gets
+a challenge for write, so the client asks the person again. When a client asks
+for write, the person can give read only instead.
+
+A client chooses its own name, so the consent page shows every name as the
+claim of the client. The identity that the page shows is the host of the CIMD
+document. A client that registered itself through DCR has no such host and
+shows as not verified. When the answer goes to an app on the same computer,
+the page says so.
 
 A grant covers every workspace of the account, as a personal key does. A
 narrower grant per workspace would add a second rights matrix, which
-record 0208 refused. The scopes only narrow which tools a client sees and
-calls. The rights of the account still decide each operation.
+record 0208 refused. The scopes only narrow which tools a client can call.
+The rights of the account still decide each operation.
+
+A refresh token rotates. When a stolen refresh token is used again, the whole
+grant ends. Two replicas can see the rotation and the reuse at the same
+moment, so a token request holds an advisory lock on the digest of its refresh
+token. The OAuth routes keep the error body of RFC 6749 and the form encoding
+of a token request, and the other identity routes keep their problem answer.
 
 Settings gets a section of connected apps. It lists each grant with its
 client, its access and when it was last used, and it revokes one. A password
@@ -166,19 +177,25 @@ present a delegation
 
 The text of a note is a CRDT document
 ([record 0076](../decisions/0076-the-text-of-a-note-is-a-crdt-document.md)).
-An edit tool reads the head document, applies the new text through
-`packages/note-document`, and sends the update with the head that it read. A
-change that a browser made at the same time joins the edit as it joins any
-other save, so an assistant never overwrites the work of the person.
+A write tool on a note names the version that the client read. The tool
+reads the head, and when the head is another version, it refuses and asks the
+client to read the note again. So an assistant never changes text that it did
+not see, and a repeated call changes nothing. An edit replaces exact text or
+the whole text. It makes the update through `packages/note-document` and
+sends it through `updateFile` with that version. A merge with a change of the
+browser at the same moment is possible through `commitChangeset`, but a
+repeated edit would then apply twice, so the first version refuses instead.
+The cost is a refused edit while the person types in the same note.
 
 ## Cost and limits
 
 Every MCP request passes the attempt counters that every process shares
 ([record 0121](../decisions/0121-every-limit-and-every-job-holds-across-server-processes.md)).
 A grant and an account each have a request bound. An answer has a size bound,
-and a long note continues through an offset. Registration through DCR has a
-bound per client address and a bound in total, and a client that no grant uses
-expires. A CIMD fetch has a time bound and a size bound and is cached.
+and a long note continues through an offset. Registration through DCR or
+CIMD has a bound per client address before any work. One total bound covers the clients
+of DCR and of CIMD, because the CIMD plugin stores each client too. A client
+that no grant uses expires. A CIMD fetch has a time bound and a size bound.
 
 ## Self-hosted and cloud
 
@@ -193,7 +210,7 @@ its own host or the application origin. The cloud sets
 The gate proves the pure rules in `packages/core`, the served flow through the
 test stack, and the protocol through the official MCP conformance suite.
 Integration tests prove discovery, CIMD and DCR registration, consent, PKCE,
-the issuer, audience binding, refresh rotation and reuse, revocation, scopes,
+the issuer, audience binding, refresh rotation and reuse on two instances, revocation, scopes,
 the refusal of a token of another resource, the refusal of a personal key at
 the MCP route, the locked account, and that a delegation shape from the
 network resolves nothing. Browser checks prove the consent page and the

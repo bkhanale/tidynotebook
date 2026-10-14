@@ -23,19 +23,19 @@ work and not plain text. See [design 026](../design/026-a-remote-mcp-server.md).
   operation refuses it.
 - No request from the network can present a delegation, and no delegation
   outlives its tool call or appears in a log.
-- The tool list of a grant shows only the tools that its scopes permit. A call
-  to a tool outside them answers `403` with `insufficient_scope` and the
-  scope that it needs.
+- The tool list shows every tool, with its annotations. A write tool called
+  with a read grant gets the `403` challenge of record 0225, so a client can
+  ask the person for more access.
 - A tool names a note by its workspace identifier and its file identifier.
   The list and search tools return both with the path and the name.
-- An edit tool reads the head document, makes the update through
-  `packages/note-document`, and sends it with the head that it read, so a
-  change of a browser at the same time joins the edit. An edit replaces exact
-  text that occurs once in the head, so a repeated call finds nothing to
-  replace and writes nothing. An edit of the whole text names the version
-  that the client read, and it refuses when the head has moved, so it never
-  removes work that the client did not see. A create refuses a path that holds
-  a note.
+- A write tool on a note names the version that the client read. It reads
+  the head and refuses when the head is another version, so it never changes
+  work that the client did not see, and a repeated call refuses. The tool error
+  asks the client to read the note again.
+- An edit replaces exact text that occurs once, or the whole text. The tool
+  makes the update through `packages/note-document` and sends it through
+  `updateFile` with that version. Move to Trash sends the observed state of
+  that head through `deleteFile`. A create refuses a path that holds a note.
 - No tool removes a note for good, publishes a link, or changes an account, a
   workspace, a member, a key or a grant. Move to Trash is the only removal.
 - Each tool has an input schema and an output schema, and the annotations of
@@ -54,5 +54,5 @@ work and not plain text. See [design 026](../design/026-a-remote-mcp-server.md).
 - A unit test proves that each tool names existing operations and a scope, and
   that the write operations need `notes:write`. Integration tests prove that a
   delegation cannot reach another operation, that a locked account keeps its
-  list, that an edit joins a concurrent save, and that a repeated call writes
-  nothing.
+  list, that a write refuses a head that moved, and that a repeated call
+  writes nothing.

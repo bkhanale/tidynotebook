@@ -29,7 +29,11 @@ specification forbids. See [design 026](../design/026-a-remote-mcp-server.md).
   Resource Metadata operation (RFC 9728) at the well-known path of the
   resource and at the root.
 - A request without a valid token answers `401` with a `WWW-Authenticate`
-  header that names the metadata address and both scopes.
+  header that names the metadata address and the scope `notes:read`. A write
+  tool called with a read grant answers `403` with `error="insufficient_scope"`,
+  the scope `notes:read notes:write` and the metadata address.
+- The protocol boundary of `apps/server/src/plugins/register.ts` answers a
+  notification with `202` and no body.
 - A request that carries an `Origin` header answers `403` unless that origin
   is the MCP origin or an application origin.
 - The endpoint accepts only an access token of record 0226 whose resource is
@@ -46,6 +50,6 @@ specification forbids. See [design 026](../design/026-a-remote-mcp-server.md).
 - MCP traffic shares the replicas of the application. The bounds of
   record 0227 keep it from taking them.
 - Integration tests run the official MCP conformance suite against the served
-  endpoint, and prove the `401` challenge, the `Origin` refusal, the refusal
-  of a cookie and a key, and that no MCP or OAuth route answers with no
-  setting.
+  endpoint, and prove the headers of the `401` and `403` challenges, the `202`
+  answer, the `Origin` refusal, the refusal of a cookie and a key, and that no
+  MCP or OAuth route answers with no setting.
