@@ -5,6 +5,35 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.19.0 - 2026-10-15
+
+This release updates tidy notebook.
+
+### Added
+
+- Future images use the core package. Read the official manifest before you move an image pin. ELK diagram requests use the standard layout. Distributions carry license notices and required source. Image checks return safe text, and a failed upload shows one message with Try again. Quick start keeps PostgreSQL data private and permits access through its bind root.
+- The guide is rewritten for the person who does each step. New scripts in `tools/ops/` write the secret files, prepare the quick start and select a published image. The account commands now run in the application container.
+- Add opt-in OAuth authorization for MCP clients with `NOTESAPP_MCP_ORIGIN`. Add identity tables for OAuth clients, client assertions, client resources, resources, consent, access tokens and refresh tokens. Use safe client registration, opaque tokens and shared refresh rotation.
+- Add an opt-in remote MCP server with OAuth resource discovery and bounded grant access.
+- Connect an app through a consent page that shows its claimed name, identity and answer destination. Choose read only or read and write, then allow or deny access.
+- Connect an assistant to find and read notes through the six MCP read tools. Long notes and lists continue in bounded pages.
+- Use a connected AI client with Write access to create, edit, move, or send notes to Trash. A changed note asks the client to read it again before a write.
+- Settings shows connected MCP apps and lets you revoke their access.
+
+### Fixed
+
+- Update the Node runtime to 26.10.0.
+- Separate release preparation from publication and publish prepared remote artifacts without repeating source tests. Keep latest version writes under one shared publication lock.
+- Fix the quick start and image CI configuration. Update affected dependencies and the public contribution and security guides.
+- Fix the affected transitive math and compiler dependencies. Keep diagram math and note math on the same fixed renderer release.
+- Update Better Auth and its adapters to the release required by the OAuth provider.
+- Fix incomplete offline Markdown reads and editor test failures when a parse time limit ends.
+- Replicas and operator commands can start together with OAuth on. A database failure stops startup with one clear message.
+- Limit OAuth client last-use writes to once a day during token resolution.
+- Conditional edits, moves, and moves to Trash refuse a note version that changes before the commit.
+- Native source downloads use fixed time bounds and retry temporary network failures during image builds.
+- Classify PostgreSQL resource failures as unavailable in storage.
+
 ## 0.18.1 - 2026-10-09
 
 This release updates tidy notebook.

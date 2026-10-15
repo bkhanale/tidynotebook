@@ -7,7 +7,7 @@ can invite other people. Each account has its own notes.
 A note is a plain Markdown file. You can take every note out as Markdown files
 at any time.
 
-**Status:** 0.18.1 is the current release. See
+**Status:** 0.19.0 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
 [GitHub project board](https://github.com/users/bkhanale/projects/2) for the
 open work.
