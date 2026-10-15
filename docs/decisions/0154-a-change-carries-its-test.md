@@ -1,6 +1,6 @@
 # 0154. A change carries its test
 
-- Status: Accepted
+- Status: Accepted. Process parts superseded by [0228](0228-hosted-proof-and-release.md)
 - Date: 2026-10-02
 
 ## Context

@@ -1,6 +1,6 @@
 # 0215. Release publishes prepared artifacts
 
-- Status: Accepted
+- Status: Superseded by [0228](0228-hosted-proof-and-release.md)
 - Date: 2026-10-10
 
 ## Context

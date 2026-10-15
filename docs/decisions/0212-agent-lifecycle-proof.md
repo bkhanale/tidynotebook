@@ -1,6 +1,6 @@
 # 0212. Agent lifecycle uses exact input proof
 
-- Status: Accepted
+- Status: Superseded by [0228](0228-hosted-proof-and-release.md)
 - Date: 2026-10-09
 
 ## Context

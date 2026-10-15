@@ -259,6 +259,7 @@ and needs no record.
 | [0225](0225-the-server-answers-mcp-on-its-own-origin.md)                              | The server answers MCP on its own origin                                        |
 | [0226](0226-the-application-origin-issues-mcp-grants.md)                              | The application origin issues MCP grants                                        |
 | [0227](0227-a-tool-calls-the-contract-as-the-actor-of-its-grant.md)                   | A tool calls the contract as the actor of its grant                             |
+| [0228](0228-hosted-proof-and-release.md)                                              | Hosted checks prove changes and one workflow releases them                      |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

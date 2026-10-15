@@ -1,6 +1,6 @@
 # 0218. Review is optional for landing
 
-- Status: Accepted
+- Status: Accepted. Process parts superseded by [0228](0228-hosted-proof-and-release.md)
 - Date: 2026-10-10
 
 ## Context

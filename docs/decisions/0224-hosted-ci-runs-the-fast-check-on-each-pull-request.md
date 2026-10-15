@@ -1,6 +1,6 @@
 # 0224. Hosted CI runs the fast check on each pull request
 
-- Status: Accepted
+- Status: Superseded by [0228](0228-hosted-proof-and-release.md)
 - Date: 2026-10-13
 
 ## Context
