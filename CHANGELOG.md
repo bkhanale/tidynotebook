@@ -33,6 +33,7 @@ This release updates tidy notebook.
 - Conditional edits, moves, and moves to Trash refuse a note version that changes before the commit.
 - Native source downloads use fixed time bounds and retry temporary network failures during image builds.
 - Classify PostgreSQL resource failures as unavailable in storage.
+- Recover stopped unpublished release preparation with checked remote absence and fresh notes.
 
 ## 0.18.1 - 2026-10-09
 
