@@ -1,6 +1,6 @@
 # A remote MCP server
 
-Status: active
+Status: complete
 
 A person wants an AI assistant to read and change the notes of their account.
 Claude, ChatGPT, editors and agent tools reach a service through the Model

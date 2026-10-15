@@ -38,7 +38,7 @@ policy needs a decision record before its implementation.
 | 4    | [318](https://github.com/tidynotebook/tidynotebook/issues/318) | Review history, images, comments, logs, archives and release material for public use.                             | Retained-material review is complete. Its audit and proof still need landing.                         |
 | 5    | [319](https://github.com/tidynotebook/tidynotebook/issues/319) | Set and read back the public GitHub controls and contributor access path.                                         | CI, alerts and security fixes are enabled and read back. Public controls remain.                      |
 | 6    | [320](https://github.com/tidynotebook/tidynotebook/issues/320) | Prove a fresh standalone checkout, final source, image and self-hosted setup.                                     | Open for the final candidate.                                                                         |
-| 7    | [284](https://github.com/tidynotebook/tidynotebook/issues/284) | Perform the accepted public launch after all dependencies pass.                                                   | Existing launch issue. Source visibility follows record 0223. Release and deployment remain separate. |
+| 7 | Record 0223 | The owner opens the core source. | Complete. The owner opened the source on 2026-10-15. Release and deployment remain separate. |
 
 ## Checklist
 
@@ -85,7 +85,7 @@ policy needs a decision record before its implementation.
 - [ ] The source and image gates pass for the exact final candidate.
 - [ ] GitHub checks pass for that head, including the image and performance jobs.
 - [ ] [Issue 326](https://github.com/tidynotebook/tidynotebook/issues/326) calibrates Save latency on supported hardware and in the browser. Save target misses remain visible and advisory under [record 0221](../decisions/0221-save-latency-is-an-advisory-target.md). Search stays blocking.
-- [ ] The owner opens the core source under record 0223 and issue 284.
+- [x] The owner opened the core source on 2026-10-15 under record 0223.
 - [ ] An unauthenticated reader can get the public source and source guide after the visibility switch.
 - [ ] An anonymous old-image pull fails, and every retained version identity matches the saved private readback.
 

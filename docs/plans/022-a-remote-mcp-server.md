@@ -1,6 +1,6 @@
 # Plan 022: A remote MCP server
 
-Status: active
+Status: complete
 
 The [project board](https://github.com/users/bkhanale/projects/2) holds the live
 work. Each item below becomes one issue and one pull request, with its
@@ -8,6 +8,10 @@ milestone, a priority label and an area label.
 [Design 026](../design/026-a-remote-mcp-server.md) states the problem and the
 choices. Every choice is closed. An item that finds a fact in the code that a
 record did not foresee stops and reports it.
+
+Core items 1 to 9 are complete. [Issue 350](https://github.com/tidynotebook/tidynotebook/issues/350)
+holds the published release evidence. Cloud items 10 to 14 remain with the
+private repository and do not form part of this core completion.
 
 ## Decisions
 
