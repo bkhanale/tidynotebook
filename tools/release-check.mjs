@@ -111,6 +111,7 @@ export function compareVersions(left, right) {
  *   mainSha: string;
  *   holdsOriginMain: boolean;
  *   headSubject: string;
+ *   releaseState?: Record<string, unknown>;
  *   pending: string;
  *   localTag: boolean;
  *   remoteTag: boolean;
@@ -118,6 +119,30 @@ export function compareVersions(left, right) {
  *   imageBuild: string;
  * }} BeforeState
  */
+
+/** @param {Record<string, unknown> | undefined} saved @param {string} commit @param {string | undefined} readme @param {string} changelog */
+function reusesPreparedSource(saved, commit, readme, changelog) {
+  return (
+    commit !== '' &&
+    typeof readme === 'string' &&
+    saved?.releaseCommit === commit &&
+    saved.sourceCommit === commit &&
+    saved.prepareCommit === commit &&
+    record(saved.prepareIntent)['README.md'] === digest(readme) &&
+    record(saved.prepareIntent)['CHANGELOG.md'] === digest(changelog)
+  );
+}
+
+/** Git reads preserve all bytes of a note file.
+ * @param {string} directory @param {string} commit @param {string} name
+ */
+function committedNotes(directory, commit, name) {
+  const result = spawnSync('git', ['show', `${commit}:${name}`], {
+    cwd: directory,
+    encoding: 'utf8',
+  });
+  return result.status === 0 ? result.stdout : '';
+}
 
 /**
  * Reads the state of the prepare commit.
@@ -154,7 +179,13 @@ export function beforeChecks(state) {
         ),
   );
   checks.push(
-    state.headSubject === prepareSubject(version)
+    state.headSubject === prepareSubject(version) ||
+      reusesPreparedSource(
+        state.releaseState,
+        state.headSha,
+        state.readme,
+        state.changelog,
+      )
       ? ok('the prepare commit', state.headSubject)
       : failed(
           'the prepare commit',
@@ -336,6 +367,8 @@ export function buildImage(directory, revision = 'HEAD') {
  *   tagSigned: boolean;
  *   tagSubject: string;
  *   tagCommitSubject: string;
+ *   readme?: string;
+ *   releaseState?: Record<string, unknown>;
  *   localTagSha: string;
  *   remoteTagSha: string;
  *   mainHoldsTagCommit: boolean;
@@ -389,7 +422,13 @@ export function afterChecks(state) {
         ),
   );
   checks.push(
-    state.tagCommitSubject === prepareSubject(version)
+    state.tagCommitSubject === prepareSubject(version) ||
+      reusesPreparedSource(
+        state.releaseState,
+        state.localTagSha,
+        state.readme,
+        state.changelog,
+      )
       ? ok('the tagged commit', state.tagCommitSubject)
       : failed(
           'the tagged commit',
@@ -607,6 +646,7 @@ async function readBefore(version, directory) {
       : {}),
     changelog,
     readme,
+    releaseState,
     headSha: run('git', ['rev-parse', 'HEAD'], directory).out,
     mainSha: run(
       'git',
@@ -648,11 +688,11 @@ async function readAfter(version, directory) {
     ['rev-parse', `${tag}^{commit}`],
     directory,
   ).out;
-  const changelog = run(
-    'git',
-    ['show', `${localTagSha}:CHANGELOG.md`],
-    directory,
-  ).out;
+  const changelog = committedNotes(directory, localTagSha, 'CHANGELOG.md');
+  const readme = committedNotes(directory, localTagSha, 'README.md');
+  const releaseState = readState(
+    join(stateDirectory(directory), 'release.json'),
+  );
   const workflow = run(
     'git',
     ['show', `${localTagSha}:.github/workflows/release.yml`],
@@ -832,6 +872,8 @@ async function readAfter(version, directory) {
   return {
     version,
     changelog,
+    readme,
+    releaseState,
     imageDigest,
     imageRevision,
     assetsError,

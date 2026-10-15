@@ -16,7 +16,7 @@ import {
 } from './release-check.mjs';
 
 /** @param {string} cwd @param {string} reference */
-function remoteImage(cwd, reference) {
+export function remoteImage(cwd, reference) {
   const result = spawnSync(
     'docker',
     [
@@ -30,11 +30,21 @@ function remoteImage(cwd, reference) {
     { cwd, encoding: 'utf8' },
   );
   if (result.status !== 0) {
+    const message = (result.stderr ?? '').trim();
     if (
-      /manifest unknown|no such manifest|manifest.*not found/i.test(
-        result.stderr ?? '',
-      ) &&
-      !/denied|unauthorized|timeout/i.test(result.stderr ?? '')
+      !result.error &&
+      result.signal === null &&
+      !/denied|unauthorized|timeout/i.test(message) &&
+      (message === `ERROR: ${reference}: not found` ||
+        message
+          .split(/\r?\n/)
+          .every(
+            (line) =>
+              !/^ERROR: \S+: not found/.test(line) &&
+              /manifest unknown|no such manifest|manifest.*not found/i.test(
+                line,
+              ),
+          ))
     )
       return null;
     throw new Error(

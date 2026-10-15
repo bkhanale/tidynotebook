@@ -15,7 +15,21 @@ its fixed source name and stores official assets in a draft GitHub release:
 pnpm release:prepare
 pnpm release:prepare --status
 pnpm release:prepare --resume
+pnpm release:prepare --abandon
 ```
+
+To start again after a tooling fix, read status, then use abandon. The tool
+moves the stopped local state without a byte change into a unique archive under
+`.tooling/lifecycle/abandoned-releases/`. It keeps proof and logs. It refuses
+when a remote release asset or source image exists. An uncertain remote read
+also refuses. Resume that preparation instead.
+
+Fresh preparation selects the newest version tag as the previous release.
+It replaces an unpublished top changelog entry with notes from merged PR
+metadata and the new preparation date. It creates no duplicate entry.
+When the derived README and changelog bytes equal HEAD, it uses HEAD as the
+release source without an empty notes commit or another notes PR. Source and
+image proof still apply.
 
 Complete a pending notes PR through [review-change](../review-change/SKILL.md),
 then resume preparation. A missing prepared asset is a preparation dependency.

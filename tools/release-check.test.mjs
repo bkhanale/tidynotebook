@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { digest } from './lifecycle-state.mjs';
 import {
   afterChecks,
   beforeChecks,
@@ -316,5 +317,136 @@ await test('a fixed release date stays valid after midnight without a new prepar
   assert.deepEqual(
     failures(beforeChecks({ ...before, releaseDate: '2026-09-30' })),
     ['the changelog entry'],
+  );
+});
+
+await test('a reused source subject requires each saved commit and exact notes bytes', () => {
+  const state = {
+    ...before,
+    headSubject: 'fix: release tools',
+    releaseState: {
+      sourceCommit: before.headSha,
+      releaseCommit: before.headSha,
+      prepareCommit: before.headSha,
+      prepareIntent: {
+        'README.md': digest(before.readme),
+        'CHANGELOG.md': digest(before.changelog),
+      },
+    },
+  };
+  assert.deepEqual(failures(beforeChecks(state)), []);
+  for (const key of ['sourceCommit', 'releaseCommit', 'prepareCommit']) {
+    assert.ok(
+      failures(
+        beforeChecks({
+          ...state,
+          releaseState: {
+            ...state.releaseState,
+            [key]: 'other',
+          },
+        }),
+      ).includes('the prepare commit'),
+    );
+  }
+  for (const name of ['README.md', 'CHANGELOG.md']) {
+    assert.ok(
+      failures(
+        beforeChecks({
+          ...state,
+          releaseState: {
+            ...state.releaseState,
+            prepareIntent: {
+              ...state.releaseState.prepareIntent,
+              [name]: digest('other'),
+            },
+          },
+        }),
+      ).includes('the prepare commit'),
+    );
+  }
+  assert.ok(
+    failures(beforeChecks({ ...state, releaseState: {} })).includes(
+      'the prepare commit',
+    ),
+  );
+  assert.ok(
+    failures(beforeChecks({ ...state, readme: state.readme + '\n' })).includes(
+      'the prepare commit',
+    ),
+  );
+  assert.ok(
+    failures(
+      beforeChecks({ ...state, changelog: state.changelog + '\n' }),
+    ).includes('the prepare commit'),
+  );
+  assert.ok(
+    failures(beforeChecks({ ...state, imageBuild: 'failed' })).includes(
+      'the image build',
+    ),
+  );
+});
+
+await test('a reused tagged subject requires each saved commit and exact tagged notes bytes', () => {
+  const state = {
+    ...after,
+    tagCommitSubject: 'fix: release tools',
+    readme: before.readme,
+    releaseState: {
+      sourceCommit: after.localTagSha,
+      releaseCommit: after.localTagSha,
+      prepareCommit: after.localTagSha,
+      prepareIntent: {
+        'README.md': digest(before.readme),
+        'CHANGELOG.md': digest(after.changelog),
+      },
+    },
+  };
+  assert.deepEqual(failures(afterChecks(state)), []);
+  for (const key of ['sourceCommit', 'releaseCommit', 'prepareCommit']) {
+    assert.ok(
+      failures(
+        afterChecks({
+          ...state,
+          releaseState: {
+            ...state.releaseState,
+            [key]: 'other',
+          },
+        }),
+      ).includes('the tagged commit'),
+    );
+  }
+  for (const name of ['README.md', 'CHANGELOG.md']) {
+    assert.ok(
+      failures(
+        afterChecks({
+          ...state,
+          releaseState: {
+            ...state.releaseState,
+            prepareIntent: {
+              ...state.releaseState.prepareIntent,
+              [name]: digest('other'),
+            },
+          },
+        }),
+      ).includes('the tagged commit'),
+    );
+  }
+  assert.ok(
+    failures(afterChecks({ ...state, releaseState: {} })).includes(
+      'the tagged commit',
+    ),
+  );
+  assert.ok(
+    failures(afterChecks({ ...state, readme: state.readme + '\n' })).includes(
+      'the tagged commit',
+    ),
+  );
+  assert.ok(
+    failures(
+      afterChecks({ ...state, changelog: state.changelog + '\n' }),
+    ).includes('the tagged commit'),
+  );
+  assert.ok(
+    failures(afterChecks({ ...state, tagSigned: false })).includes('the tag'),
   );
 });

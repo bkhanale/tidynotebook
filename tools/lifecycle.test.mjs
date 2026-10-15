@@ -47,6 +47,7 @@ import {
   acquirePublicationLock,
   advancesLatest,
   publishPreparedImage,
+  remoteImage,
 } from './release-publish.mjs';
 import { coreReadingList, diffImpact } from './agent-context.mjs';
 import { prepare } from './task-prepare.mjs';
@@ -823,7 +824,7 @@ else if(a[0]==='release'&&a[1]==='view'){const fields=a[a.indexOf('--json')+1];i
 else if(a[0]==='api'&&a[1]==='graphql')json({data:{repository:{pullRequest:{reviewThreads:{nodes:s.unresolved?[{isResolved:false}]:[],pageInfo:{hasNextPage:false}}}}}});
 else if(a[0]==='api'&&a[1]==='user')console.log('owner');
 else if(a[0]==='api'&&a[1].startsWith('https://api.github.com/repos/example/notebook/releases/assets/')){const asset=s.assets.find(v=>v.url===a[1]);if(!asset)process.exit(1);process.stdout.write(asset.bytes);}
-else if(a[0]==='api'&&a[1].includes('/commits/'))json([{number:40,merged_at:'2026-10-09',base:{ref:'main'},body:'Release-Type: minor\\nRelease-Note: Read a new note.'}]);
+else if(a[0]==='api'&&a[1].includes('/commits/'))json(s.commitChanges?.[a[1].split('/').at(-2)]??[{number:40,merged_at:'2026-10-09',base:{ref:'main'},body:'Release-Type: minor\\nRelease-Note: Read a new note.'}]);
 else if(a[0]==='api'&&a[1].includes('/reactions'))json(s.automaticClean?[{user:{login:'chatgpt-codex-connector[bot]'},content:'+1',created_at:'2026-10-09T15:46:56Z'}]:[]);
 else if(a[0]==='api'&&a[1].includes('/reviews'))json(s.cleanReview?[{user:{login:'chatgpt-codex-connector[bot]'},commit_id:s.prepared,state:'COMMENTED',body:"Didn't find any major issues."}]:[]);
 else if(a[0]==='api'&&a[1].includes('/comments'))json(s.automaticClean?[...s.comments,{user:{login:'chatgpt-codex-connector[bot]'},body:'<!-- codex-pull-request-review-summary -->\\n\\n| Review | Status | Commit | Review trigger |\\n| --- | --- | --- | --- |\\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime="2026-10-09T15:46:52.440214Z">time</relative-time> | \`'+s.prepared.slice(0,7)+'\` | PR opened |'}]:s.comments);
@@ -846,7 +847,7 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
     `#!/usr/bin/env node
 import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
-if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){const ref=a[3];s.registryReads=[...(s.registryReads??[]),ref];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
+if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){if(s.registryError){console.error(s.registryError);process.exit(1);}const ref=a[3];s.registryReads=[...(s.registryReads??[]),ref];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
 else if(a[0]==='pull'){s.imageReads=[...(s.imageReads??[]),a[1]];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
@@ -2258,6 +2259,282 @@ await test('an occupied source prepare branch refuses before edits or external w
       readState(join(f.cwd, '.tooling/service.json')).writes,
       [],
     );
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('registry absence requires the exact inspected reference and gives access errors precedence', () => {
+  const f = releaseFixture();
+  try {
+    const reference = 'ghcr.io/example/core:source-' + 'a'.repeat(40);
+    const file = join(f.cwd, '.tooling/service.json');
+    for (const message of [
+      `ERROR: ${reference}: not found`,
+      'manifest unknown',
+      'no such manifest',
+      'manifest for image not found',
+    ]) {
+      save(file, { ...readState(file), registryError: message });
+      assert.equal(remoteImage(f.cwd, reference), null);
+    }
+    for (const message of [
+      `ERROR: ${reference}-other: not found`,
+      'ERROR: ghcr.io/manifest/other: not found',
+      'manifest unknown\nERROR: uncertain response',
+      `ERROR: ${reference}: not found: uncertain`,
+      `ERROR: ${reference}: not found\nERROR: uncertain response`,
+      ...['denied', 'unauthorized', 'timeout'].flatMap((error) => [
+        `ERROR: ${reference}: not found\n${error}`,
+        `${error}\nmanifest unknown`,
+      ]),
+      'connection failed',
+    ]) {
+      save(file, { ...readState(file), registryError: message });
+      assert.throws(() => remoteImage(f.cwd, reference), /uncertain/);
+    }
+    assert.deepEqual(readState(file).writes, []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('abandon archives the stopped state bytes and keeps proof and logs', async () => {
+  const f = releaseFixture();
+  try {
+    const file = join(stateDirectory(f.cwd), 'release.json');
+    const state = {
+      schemaVersion: 1,
+      stage: 'before',
+      version: '0.2.0',
+      sourceCommit: git(f.cwd, ['rev-parse', 'HEAD']),
+      releaseCommit: git(f.cwd, ['rev-parse', 'HEAD']),
+      origin: git(f.cwd, ['config', '--get', 'remote.origin.url']),
+    };
+    save(file, state);
+    const bytes = Buffer.from('  ' + JSON.stringify(state) + '\n\n');
+    writeFileSync(file, bytes);
+    const proof = join(stateDirectory(f.cwd), 'proof.json');
+    const log = join(f.cwd, '.tooling/diagnostic.log');
+    writeFileSync(proof, 'saved proof');
+    writeFileSync(log, 'saved log');
+    const dry = await prepareRelease({ cwd: f.cwd, abandon: true });
+    assert.equal(dry.stage, 'abandonable');
+    assert.deepEqual(readFileSync(file), bytes);
+    const result = await prepareRelease({
+      cwd: f.cwd,
+      abandon: true,
+      execute: true,
+    });
+    if (typeof result.archiveFile !== 'string')
+      throw new Error('Missing archive path.');
+    assert.ok(
+      result.archiveFile.startsWith(
+        join(stateDirectory(f.cwd), 'abandoned-releases') + '/',
+      ),
+    );
+    assert.deepEqual(readFileSync(result.archiveFile), bytes);
+    assert.equal(existsSync(file), false);
+    assert.equal(readFileSync(proof, 'utf8'), 'saved proof');
+    assert.equal(readFileSync(log, 'utf8'), 'saved log');
+    assert.deepEqual(
+      readState(join(f.cwd, '.tooling/service.json')).writes,
+      [],
+    );
+    const fresh = await prepareRelease({ cwd: f.cwd });
+    assert.equal(fresh.previous, '0.1.0');
+    assert.equal(fresh.version, '0.2.0');
+    assert.equal(existsSync(file), false);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('abandon refuses remote assets, source uploads, and uncertain reads without changing state', async () => {
+  for (const remote of [
+    {
+      release: true,
+      releaseName: 'tidy notebook 0.2.0',
+      draft: true,
+      assets: [{ name: 'other-prepared-asset', id: 3 }],
+    },
+    { publishedImage: true },
+    { releaseReadFailure: true },
+    { registryError: 'unauthorized' },
+    { registryError: 'timeout' },
+    { registryError: 'ERROR: ghcr.io/example/other: not found' },
+  ]) {
+    const f = releaseFixture();
+    try {
+      const file = join(stateDirectory(f.cwd), 'release.json');
+      save(file, {
+        schemaVersion: 1,
+        stage: 'before',
+        version: '0.2.0',
+        sourceCommit: git(f.cwd, ['rev-parse', 'HEAD']),
+        releaseCommit: git(f.cwd, ['rev-parse', 'HEAD']),
+        origin: git(f.cwd, ['config', '--get', 'remote.origin.url']),
+      });
+      const bytes = readFileSync(file);
+      const service = join(f.cwd, '.tooling/service.json');
+      save(service, { ...readState(service), ...remote });
+      await assert.rejects(
+        prepareRelease({ cwd: f.cwd, abandon: true, execute: true }),
+      );
+      assert.deepEqual(readFileSync(file), bytes);
+      assert.equal(
+        existsSync(join(stateDirectory(f.cwd), 'abandoned-releases')),
+        false,
+      );
+      assert.deepEqual(readState(service).writes, []);
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+/** @param {string} cwd @param {string} date @param {string} [version] */
+function unpublishedNotes(cwd, date, version = '0.2.0') {
+  writeFileSync(
+    join(cwd, 'CHANGELOG.md'),
+    releaseEntry(
+      readFileSync(join(cwd, 'CHANGELOG.md'), 'utf8'),
+      version,
+      [{ type: 'minor', note: 'Read a new note.' }],
+      date,
+    ),
+  );
+  writeFileSync(
+    join(cwd, 'README.md'),
+    `# Fixture\n\n**Status:** ${version} is the current release. See\n`,
+  );
+  git(cwd, ['add', '.']);
+  git(cwd, ['commit', '-m', 'fix: stopped release notes']);
+  git(cwd, ['push', 'origin', 'main']);
+}
+
+await test('fresh preparation replaces an unpublished top entry with current metadata and date', async () => {
+  for (const selected of [undefined, '0.3.0']) {
+    const f = releaseFixture();
+    try {
+      unpublishedNotes(f.cwd, '2026-01-02');
+      const source = git(f.cwd, ['rev-parse', 'HEAD']);
+      const service = join(f.cwd, '.tooling/service.json');
+      save(service, {
+        ...readState(service),
+        commitChanges: {
+          [source]: [
+            {
+              number: 42,
+              merged_at: '2026-10-15',
+              base: { ref: 'main' },
+              body: 'Release-Type: patch\nRelease-Note: Recover release preparation.',
+            },
+          ],
+        },
+      });
+      const plan = await prepareRelease({
+        cwd: f.cwd,
+        ...(selected ? { version: selected } : {}),
+      });
+      assert.equal(plan.previous, '0.1.0');
+      assert.equal(plan.version, selected ?? '0.2.0');
+      assert.equal(plan.date, new Date().toISOString().slice(0, 10));
+      const result = await prepareRelease({
+        cwd: f.cwd,
+        execute: true,
+        ...(selected ? { version: selected } : {}),
+      });
+      const text = readFileSync(join(f.cwd, 'CHANGELOG.md'), 'utf8');
+      assert.equal((text.match(/^## /gm) ?? []).length, 2);
+      assert.ok(text.includes(`## ${selected ?? '0.2.0'} - ${plan.date}`));
+      assert.ok(text.includes('- Recover release preparation.'));
+      assert.ok(text.includes('- Read a new note.'));
+      assert.notEqual(result.releaseCommit, source);
+      assert.equal(
+        git(f.cwd, ['log', '-1', '--format=%s']),
+        `chore(release): prepare ${selected ?? '0.2.0'}`,
+      );
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+await test('equal derived Git bytes reuse HEAD with no prepare commit or notes PR', async () => {
+  const f = releaseFixture();
+  try {
+    unpublishedNotes(f.cwd, new Date().toISOString().slice(0, 10));
+    const source = git(f.cwd, ['rev-parse', 'HEAD']);
+    const count = git(f.cwd, ['rev-list', '--count', 'HEAD']);
+    const service = join(f.cwd, '.tooling/service.json');
+    save(service, { ...readState(service), prepared: source });
+    const result = await prepareRelease({ cwd: f.cwd, execute: true });
+    assert.equal(result.stage, 'ready');
+    assert.equal(result.releaseCommit, source);
+    assert.equal(result.prepareCommit, source);
+    assert.equal(git(f.cwd, ['rev-list', '--count', 'HEAD']), count);
+    assert.equal(
+      readState(join(f.cwd, '.tooling/service.json')).created,
+      undefined,
+    );
+    assert.equal(
+      readState(join(stateDirectory(f.cwd), 'proof.json')).result,
+      'passed',
+    );
+    await publishRelease({ cwd: f.cwd, version: '0.2.0', execute: true });
+    save(service, { ...readState(service), milestone: true });
+    assert.equal(await releaseCheck('after', '0.2.0', f.cwd), 0);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('first preparation still creates one normal notes commit and PR', async () => {
+  const f = releaseFixture();
+  try {
+    const source = git(f.cwd, ['rev-parse', 'HEAD']);
+    const result = await prepareRelease({ cwd: f.cwd, execute: true });
+    assert.equal(result.previous, '0.1.0');
+    assert.equal(result.version, '0.2.0');
+    assert.notEqual(result.releaseCommit, source);
+    assert.equal(git(f.cwd, ['rev-parse', 'HEAD^']), source);
+    assert.equal(
+      git(f.cwd, ['log', '-1', '--format=%s']),
+      'chore(release): prepare 0.2.0',
+    );
+    assert.equal(readState(join(f.cwd, '.tooling/service.json')).created, true);
+  } finally {
+    f.cleanup();
+  }
+});
+
+await test('the abandon CLI keeps state bytes on uncertain access', () => {
+  const f = releaseFixture();
+  try {
+    const file = join(stateDirectory(f.cwd), 'release.json');
+    save(file, {
+      schemaVersion: 1,
+      stage: 'before',
+      version: '0.2.0',
+      sourceCommit: git(f.cwd, ['rev-parse', 'HEAD']),
+      origin: git(f.cwd, ['config', '--get', 'remote.origin.url']),
+    });
+    const bytes = readFileSync(file);
+    const service = join(f.cwd, '.tooling/service.json');
+    save(service, { ...readState(service), registryError: 'unauthorized' });
+    const result = spawnSync(
+      process.execPath,
+      ['tools/release.mjs', '--prepare', '--abandon', '--json'],
+      {
+        cwd: f.cwd,
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /uncertain/);
+    assert.deepEqual(readFileSync(file), bytes);
+    assert.deepEqual(readState(service).writes, []);
   } finally {
     f.cleanup();
   }
