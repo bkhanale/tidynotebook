@@ -847,7 +847,7 @@ else {console.error('Unhandled gh '+JSON.stringify(a));process.exit(2);}
     `#!/usr/bin/env node
 import {readFileSync,writeFileSync,appendFileSync,existsSync} from 'node:fs';
 const a=process.argv.slice(2),s=JSON.parse(readFileSync('.tooling/service.json','utf8'));
-if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){if(s.registryError){console.error(s.registryError);process.exit(1);}const ref=a[3];s.registryReads=[...(s.registryReads??[]),ref];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
+if(a[0]==='buildx'&&a[1]==='imagetools'){if(a[2]==='inspect'){if(s.registryError!==undefined){if(s.registryStdout)console.log(s.registryStdout);console.error(s.registryError);process.exit(s.registryExit??1);}const ref=a[3];s.registryReads=[...(s.registryReads??[]),ref];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(!ref.includes(':source-')&&!ref.includes('@')&&(!s.aliases||!s.aliases.includes(ref)))){console.error('manifest unknown');process.exit(1);}console.log(JSON.stringify({digest:'sha256:'+(s.imageDigest??'c'.repeat(64))}));}else{if(!s.publicationLock)throw new Error('alias write outside shared lock');s.aliases=[...(s.aliases??[]),a[a.indexOf('--tag')+1]];writeFileSync('.tooling/service.json',JSON.stringify(s));}}\nelse if(a[0]==='build'){if(!existsSync(a.at(-1)+'/source.txt'))process.exit(1);appendFileSync('.tooling/builds','build\\n');writeFileSync('.tooling/build-args',JSON.stringify(process.argv.slice(2)));}
 else if(a[0]==='pull'){s.imageReads=[...(s.imageReads??[]),a[1]];writeFileSync('.tooling/service.json',JSON.stringify(s));if(!s.publishedImage||(a[1].endsWith(':latest')&&!s.latestImage)){console.error('manifest unknown');process.exit(1);}}\nelse if(a[0]==='tag'){}\nelse if(a[0]==='push'){s.publishedImage=true;if(a[1].endsWith(':latest'))s.latestImage=true;s.imageWrites=[...(s.imageWrites??[]),a[1]];const interrupt=s.interruptImagePush;s.interruptImagePush=false;writeFileSync('.tooling/service.json',JSON.stringify(s));if(interrupt)process.exit(7);}
 else if(a.includes('{{.Id}}'))console.log('sha256:'+'b'.repeat(64));
 else if(a.includes('{{index .RepoDigests 0}}'))console.log('ghcr.io/example/core@sha256:'+(s.imageDigest??'c'.repeat(64)));
@@ -2273,7 +2273,17 @@ await test('registry absence requires the exact inspected reference and gives ac
       `ERROR: ${reference}: not found`,
       'manifest unknown',
       'no such manifest',
-      'manifest for image not found',
+      `manifest for ${reference} not found`,
+      'manifest not found',
+      'ERROR: manifest unknown',
+      'ERROR: no such manifest',
+      'ERROR: manifest not found',
+      `${reference}: manifest unknown`,
+      `${reference}: no such manifest`,
+      `ERROR: ${reference}: manifest unknown`,
+      `ERROR: ${reference}: no such manifest`,
+      `ERROR: manifest for ${reference} not found`,
+      `manifest unknown\nERROR: ${reference}: not found`,
     ]) {
       save(file, { ...readState(file), registryError: message });
       assert.equal(remoteImage(f.cwd, reference), null);
@@ -2535,6 +2545,53 @@ await test('the abandon CLI keeps state bytes on uncertain access', () => {
     assert.match(result.stderr, /uncertain/);
     assert.deepEqual(readFileSync(file), bytes);
     assert.deepEqual(readState(service).writes, []);
+  } finally {
+    f.cleanup();
+  }
+});
+
+for (const message of [
+  'manifest unknown; ERROR: ghcr.io/example/other: not found',
+  'manifest unknown; connection failed',
+])
+  await test(`mixed registry response refuses: ${message}`, () => {
+    const f = releaseFixture();
+    try {
+      save(join(f.cwd, '.tooling/service.json'), { registryError: message });
+      assert.throws(
+        () =>
+          remoteImage(f.cwd, 'ghcr.io/example/core:source-' + 'a'.repeat(40)),
+        /uncertain/,
+      );
+    } finally {
+      f.cleanup();
+    }
+  });
+
+await test('registry absence refuses empty, extra, other-reference and wrong-exit answers', () => {
+  const f = releaseFixture();
+  try {
+    const reference = 'ghcr.io/example/core:source-' + 'a'.repeat(40);
+    for (const answer of [
+      { registryError: '' },
+      { registryError: 'manifest unknown', registryExit: 2 },
+      { registryError: `ERROR: ${reference}: not found`, registryExit: 125 },
+      {
+        registryError: 'manifest unknown',
+        registryStdout: 'connection failed',
+      },
+      { registryError: 'manifest unknown\nconnection failed' },
+      {
+        registryError:
+          'manifest unknown\nERROR: ghcr.io/example/other: not found',
+      },
+      { registryError: 'manifest for ghcr.io/example/other not found' },
+      { registryError: 'ERROR: ghcr.io/example/other: manifest unknown' },
+      { registryError: 'manifest unknown: connection failed' },
+    ]) {
+      save(join(f.cwd, '.tooling/service.json'), answer);
+      assert.throws(() => remoteImage(f.cwd, reference), /uncertain/);
+    }
   } finally {
     f.cleanup();
   }

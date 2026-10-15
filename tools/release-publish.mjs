@@ -31,20 +31,26 @@ export function remoteImage(cwd, reference) {
   );
   if (result.status !== 0) {
     const message = (result.stderr ?? '').trim();
+    const manifestAbsence = [
+      'manifest unknown',
+      'no such manifest',
+      'manifest not found',
+      `${reference}: manifest unknown`,
+      `${reference}: no such manifest`,
+      `manifest for ${reference} not found`,
+    ];
+    const absentLines = new Set([
+      `ERROR: ${reference}: not found`,
+      ...manifestAbsence,
+      ...manifestAbsence.map((line) => `ERROR: ${line}`),
+    ]);
     if (
+      result.status === 1 &&
       !result.error &&
       result.signal === null &&
-      !/denied|unauthorized|timeout/i.test(message) &&
-      (message === `ERROR: ${reference}: not found` ||
-        message
-          .split(/\r?\n/)
-          .every(
-            (line) =>
-              !/^ERROR: \S+: not found/.test(line) &&
-              /manifest unknown|no such manifest|manifest.*not found/i.test(
-                line,
-              ),
-          ))
+      (result.stdout ?? '').trim() === '' &&
+      message !== '' &&
+      message.split(/\r?\n/).every((line) => absentLines.has(line))
     )
       return null;
     throw new Error(
