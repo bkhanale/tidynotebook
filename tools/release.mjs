@@ -165,16 +165,18 @@ function sourceBytes(cwd, commit, name) {
  * @param {string} cwd @param {string} file @param {Record<string, unknown>} state @param {boolean} execute
  */
 function abandonRelease(cwd, file, state, execute) {
+  if (typeof state.version !== 'string')
+    throw new Error('The saved release identity is invalid.');
+  const version = state.version;
   if (
-    parseVersion(typeof state.version === 'string' ? state.version : '') ===
-      null ||
+    parseVersion(version) === null ||
     typeof state.origin !== 'string' ||
     git(cwd, ['config', '--get', 'remote.origin.url']) !== state.origin ||
     typeof state.sourceCommit !== 'string' ||
     !/^[a-f0-9]{40}$/.test(state.sourceCommit)
   )
     throw new Error('The saved release identity is invalid.');
-  const remote = publishedRelease(cwd, `v${state.version}`);
+  const remote = publishedRelease(cwd, `v${version}`);
   if (
     remote.release &&
     (remote.release.draft !== true ||
@@ -194,7 +196,7 @@ function abandonRelease(cwd, file, state, execute) {
     if (remoteImage(cwd, `${image}:source-${commit}`) !== null)
       throw new Error('A remote source image exists. Resume preparation.');
   }
-  if (!execute) return { stage: 'abandonable', version: state.version };
+  if (!execute) return { stage: 'abandonable', version };
   const parent = join(stateDirectory(cwd), 'abandoned-releases');
   mkdirSync(parent, { recursive: true });
   const archiveFile = join(
@@ -202,7 +204,7 @@ function abandonRelease(cwd, file, state, execute) {
     'release.json',
   );
   renameSync(file, archiveFile);
-  return { stage: 'abandoned', version: state.version, archiveFile };
+  return { stage: 'abandoned', version, archiveFile };
 }
 
 /** @typedef {{cwd:string;version?:string;execute?:boolean;resume?:boolean;status?:boolean;autoReviewOnReady?:boolean;abandon?:boolean}} ReleaseOptions */
