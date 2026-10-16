@@ -89,17 +89,19 @@ export function parseRepository(env) {
   return { fullName, owner: match[1], name: match[2] };
 }
 
-/** True when the user is the CodeRabbit account. A partial match stops.
- * @param {unknown} value */
+/**
+ * True when the user is the CodeRabbit account. The login or the user ID
+ * with any other value stops, because each names one account. The type alone
+ * names no account, so another bot is simply not CodeRabbit.
+ *
+ * @param {unknown} value
+ */
 export function isCodeRabbit(value) {
   const user = record(value);
-  const matches = [
-    text(user.login) === codeRabbit.login,
-    text(user.type) === codeRabbit.type,
-    integer(user.id) === codeRabbit.id,
-  ];
-  if (matches.every(Boolean)) return true;
-  if (matches.some(Boolean))
+  const login = text(user.login) === codeRabbit.login;
+  const id = integer(user.id) === codeRabbit.id;
+  if (login && id && text(user.type) === codeRabbit.type) return true;
+  if (login || id)
     throw new GateError(
       `The account "${text(user.login)}" matches CodeRabbit only in part.`,
     );
@@ -248,7 +250,9 @@ function latestStatus(statuses, context) {
 
 /**
  * The newest CodeRabbit status on H is a success, and only CodeRabbit wrote
- * a status of that name. A green status is not an approval.
+ * a status of that name. The name proves nothing about the writer, so each
+ * status needs the CodeRabbit account as its creator, and a status with no
+ * creator stops. A green status is not an approval.
  *
  * @param {readonly unknown[]} statuses
  */

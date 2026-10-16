@@ -36,6 +36,11 @@ const review = (id, user, state, commit = H) => ({
 
 /** The state of a pull request that passes every gate. */
 function passing() {
+  /** @type {unknown[]} A status is raw API data, also one with no creator. */
+  const statuses = [
+    { id: 21, context: 'CodeRabbit', state: 'success', creator: rabbit },
+    { id: 20, context: 'CodeRabbit', state: 'pending', creator: rabbit },
+  ];
   return {
     repository: { id: 1, node_id: 'R_1', full_name: repo },
     pr: {
@@ -84,10 +89,7 @@ function passing() {
         app: actions,
       },
     ],
-    statuses: [
-      { id: 21, context: 'CodeRabbit', state: 'success', creator: rabbit },
-      { id: 20, context: 'CodeRabbit', state: 'pending', creator: rabbit },
-    ],
+    statuses,
     compare: {
       status: 'ahead',
       ahead_by: 2,
@@ -375,6 +377,19 @@ await test('only a CodeRabbit approval of exactly H counts', async () => {
   await expectStop((state) => {
     state.reviews = [review(1, { ...rabbit, id: 9 }, 'APPROVED')];
   }, /matches CodeRabbit only in part/);
+  await expectStop((state) => {
+    state.reviews = [review(1, { ...rabbit, type: 'User' }, 'APPROVED')];
+  }, /matches CodeRabbit only in part/);
+  const other = passing();
+  const dependabot = { login: 'dependabot[bot]', type: 'Bot', id: 49699333 };
+  other.reviews.push(review(3, dependabot, 'COMMENTED'));
+  other.statuses.push({
+    id: 5,
+    context: 'Other',
+    state: 'success',
+    creator: dependabot,
+  });
+  assert.equal((await run(env, fakeGitHub(other).fetch)).ok, true);
 });
 
 await test('a green CodeRabbit status without an approval is not enough', async () => {
@@ -401,6 +416,28 @@ await test('the CodeRabbit status on H is a success from CodeRabbit', async () =
       creator: person,
     });
   }, /Another account wrote a CodeRabbit status/);
+});
+
+await test('the context name alone does not prove who wrote a status', async () => {
+  await expectStop((state) => {
+    state.statuses = [
+      { id: 30, context: 'CodeRabbit', state: 'success', creator: null },
+      ...state.statuses,
+    ];
+  }, /Another account wrote a CodeRabbit status/);
+  await expectStop((state) => {
+    state.statuses = [{ id: 30, context: 'CodeRabbit', state: 'success' }];
+  }, /Another account wrote a CodeRabbit status/);
+  await expectStop((state) => {
+    state.statuses = [
+      {
+        id: 30,
+        context: 'CodeRabbit',
+        state: 'success',
+        creator: { login: codeRabbit.login, type: 'Bot' },
+      },
+    ];
+  }, /matches CodeRabbit only in part/);
 });
 
 await test('the latest review of each reviewer decides', () => {
