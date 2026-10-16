@@ -46,3 +46,57 @@ await test('Dependabot opens its pull requests monthly', async () => {
   for (const update of updates)
     assert.equal(record(record(update).schedule).interval, 'monthly');
 });
+
+await test('the fast forward workflow runs trusted code by hand with narrow access', async () => {
+  const path = '.github/workflows/ff-only-merge.yml';
+  const workflow = await loadYaml(path);
+  const on = record(workflow.on);
+  assert.deepEqual(Object.keys(on), ['workflow_dispatch']);
+  const inputs = record(record(on.workflow_dispatch).inputs);
+  assert.deepEqual(Object.keys(inputs), ['pr_number', 'expected_head_sha']);
+  for (const input of Object.values(inputs))
+    assert.equal(record(input).required, true);
+  assert.deepEqual(workflow.permissions, {
+    contents: 'write',
+    'pull-requests': 'read',
+    checks: 'read',
+    statuses: 'read',
+  });
+  assert.deepEqual(workflow.concurrency, {
+    group: 'ff-only-main',
+    'cancel-in-progress': false,
+  });
+  const jobs = Object.values(record(workflow.jobs)).map(record);
+  assert.equal(jobs.length, 1);
+  const job = record(jobs[0]);
+  assert.equal(job.if, "github.ref == 'refs/heads/main'");
+  assert.ok(typeof job['timeout-minutes'] === 'number');
+  assert.equal(job.permissions, undefined);
+  const steps = Array.isArray(job.steps) ? job.steps.map(record) : [];
+  const checkouts = steps.filter((step) =>
+    String(step.uses).startsWith('actions/checkout@'),
+  );
+  assert.equal(checkouts.length, 1);
+  const checkout = record(checkouts[0]?.with);
+  assert.equal(checkout.ref, '${{ github.workflow_sha }}');
+  assert.equal(checkout['persist-credentials'], false);
+  assert.equal(checkout.repository, undefined);
+  const runs = steps.filter((step) => step.run !== undefined);
+  assert.deepEqual(
+    runs.map((step) => step.run),
+    ['node tools/ff-only-merge.mjs'],
+  );
+  assert.deepEqual(record(runs[0]?.env), {
+    GITHUB_TOKEN: '${{ github.token }}',
+    PR_NUMBER: '${{ inputs.pr_number }}',
+    EXPECTED_HEAD_SHA: '${{ inputs.expected_head_sha }}',
+  });
+  const source = await readFile(join(root, path), 'utf8');
+  const uses = [...source.matchAll(/^\s*- uses: (.+)$/gm)].map(
+    (match) => match[1] ?? '',
+  );
+  assert.equal(uses.length, steps.filter((step) => step.uses).length);
+  for (const line of uses)
+    assert.match(line, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/);
+  assert.doesNotMatch(source, /secrets\./);
+});
