@@ -290,10 +290,12 @@
         The first scope gives one branded product card to every address of the
         application and to every published address, open or not. The card holds
         no note title, no note text, no account name, no host of the reader and
-        no token. The server writes the same tags for every address, so a
-        revoked or locked link shows the same card as before. The frames below
-        are local drawings of each service. They are not captures of a real
-        share.
+        no token. The server writes the same tags and the same HTML title for
+        every address, so a revoked or locked link shows the same card as
+        before. This promise covers the metadata only: a crawler that fetches an
+        open published note can still read and keep the text of the page. The
+        frames below are local drawings of each service. They are not captures
+        of a real share, and they do not show where a click goes.
       </p>
 
       <h2>The card</h2>
@@ -304,8 +306,8 @@
             alt="The light card: the tidy notebook icon, the name, and two lines of text."
           />
           <figcaption>
-            Recommended: light, 1200 by 630 pixels, PNG. Everything that a
-            square crop keeps sits in the centre.
+            Chosen: light, 1200 by 630 pixels, PNG. Everything that a square
+            crop keeps sits in the centre.
           </figcaption>
         </figure>
         <figure>
@@ -314,8 +316,8 @@
             alt="The dark card: the same layout on a dark background."
           />
           <figcaption>
-            Alternative: dark. The icon tile merges with the background, so the
-            light card is the recommendation.
+            Rejected: dark. The icon tile merges with the background. Kept for
+            the record.
           </figcaption>
         </figure>
       </div>
@@ -607,17 +609,20 @@
       <h2>Proposed tags</h2>
       <p>
         The application shell and every state of a published page carry the same
-        block. <code>ORIGIN</code> is the canonical application origin of the
-        configuration, never the Host header of the request.
-        <code>HASH</code> is the build digest of the card file.
+        block. Every published view also writes the product name as its HTML
+        title, also an open note, because a service can read the title with no
+        tag. A separate test holds the title. The reader still sees the note
+        name in the heading of the page. <code>ORIGIN</code> is the canonical
+        application origin of the configuration, never the Host header of the
+        request. <code>HASH</code> is the build digest of the card file.
       </p>
       <div class="tags">
-        &lt;meta property="og:type" content="website"&gt; &lt;meta
-        property="og:site_name" content="tidy notebook"&gt; &lt;meta
-        property="og:title" content="tidy notebook"&gt; &lt;meta
-        property="og:description" content="Markdown notes that work offline.
-        Every saved version stays in history."&gt; &lt;meta property="og:url"
-        content="ORIGIN/"&gt; &lt;meta property="og:image"
+        &lt;title&gt;tidy notebook&lt;/title&gt; &lt;meta property="og:type"
+        content="website"&gt; &lt;meta property="og:site_name" content="tidy
+        notebook"&gt; &lt;meta property="og:title" content="tidy notebook"&gt;
+        &lt;meta property="og:description" content="Markdown notes that work
+        offline. Every saved version stays in history."&gt; &lt;meta
+        property="og:url" content="ORIGIN/"&gt; &lt;meta property="og:image"
         content="ORIGIN/assets/social-card-HASH.png"&gt; &lt;meta
         property="og:image:type" content="image/png"&gt; &lt;meta
         property="og:image:width" content="1200"&gt; &lt;meta
@@ -628,6 +633,15 @@
         content="Markdown notes that work offline. Every saved version stays in
         history."&gt;
       </div>
+      <p>
+        <code>og:url</code> names the root of the application, so every share
+        stands for the product. A service can treat it as the canonical address
+        and send a click to the root. Before the runtime change is approved, a
+        person shares an approved public sample in Slack and in WhatsApp and
+        records where a click goes. If it does not reach the shared address, the
+        choice goes back to review, with the omission of <code>og:url</code> as
+        the first alternative.
+      </p>
 
       <h2>Deferred, not approved: a title on an open published note</h2>
       <div class="deferred">
@@ -652,10 +666,8 @@
             preview that was already shown.
           </li>
           <li>
-            The published page already writes the note name in its browser
-            title. Some services read that title when no
-            <code>og:title</code> is there. The generic <code>og:title</code> of
-            the first scope covers the services that read Open Graph first.
+            It undoes the generic HTML title of the first scope, and no service
+            document promises which of the title and the tags it reads.
           </li>
         </ul>
         <div class="slack" aria-label="Deferred illustration">

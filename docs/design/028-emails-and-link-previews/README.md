@@ -4,9 +4,12 @@ Status: active
 
 This design gives every message of the server an HTML part beside its plain
 text part, and gives every shared address one branded link preview. The plain
-text part keeps the full meaning. The HTML part loads no remote file. The link
-preview shows only the product, never a note, an account or a token. This
-page is a proposal for review. It changes no runtime code.
+text part keeps the full meaning. The HTML part loads no remote file. The
+metadata that a link preview reads, the tags, the HTML title and the image,
+shows only the product, never a note, an account or a token. That promise
+covers the metadata only. A crawler that fetches an open published note can
+still read and keep the text of the page. This page is a proposal for
+review. It changes no runtime code.
 
 ## Review files
 
@@ -18,8 +21,8 @@ page is a proposal for review. It changes no runtime code.
 - [social-cards.html](social-cards.html) shows the card in local drawings of
   Slack, WhatsApp and a large image card, the proposed tags, and the deferred
   title option.
-- `social-card-light.png` and `social-card-dark.png` are the two card
-  candidates, with their SVG sources.
+- `social-card-light.png` is the chosen card, with its SVG source.
+  `social-card-dark.png` stays as the rejected candidate, for the record.
 
 Serve the folder with any static file server on a free local port and open the
 two review pages. The pages load nothing from the network.
@@ -36,8 +39,9 @@ two review pages. The pages load nothing from the network.
 | The notice outbox, `packages/storage/src/stores/notices.ts`        | cloud | Concept only. No change.               |
 | Owner alarms, `packages/domain/src/alarms/`                        | cloud | Out of scope. They go to the operator. |
 
-The cloud paths are of the cloud repository at the commit that this design
-read. A cloud change needs its own cloud worktree, its own cloud decision and
+The cloud paths are of the cloud repository at commit
+`f3666579a3b88b66331fb3b47def880d653818f1`, the `origin/main` that this design
+read with `git show`, with no checkout. A cloud change needs its own cloud worktree, its own cloud decision and
 its own review.
 
 ## Inventory
@@ -68,8 +72,13 @@ text and stay out of this design.
 - `mail.ts` writes no address, subject, password or token to a log. The HTML
   part adds no log line.
 - A token of an invitation, an address check or a reset sits in the fragment
-  of the link. A browser never sends a fragment, so no server log, no
-  `Referer` header and no link preview service receives it.
+  of the link. A browser and a crawler never send a fragment in the request,
+  so the request target, a server log and a `Referer` header never hold it.
+  This does not protect a link that a person pastes into a chat. The chat
+  service and every member of the chat receive the whole address, with its
+  fragment. An invitation link and a reset link are credentials, and a person
+  must not share them. The words of each message already say who the link is
+  for.
 - Record 0046: the whole address of a published link is a credential.
   `redactUrl` of `apps/server/src/request-log.ts` drops it from every log.
 - The published page keeps `noindex, nofollow`.
@@ -199,7 +208,9 @@ worktree. Nothing in the cloud changes in this task.
 
 - Slack fetches the shared address, reads Open Graph and X card tags, and does
   not honour `robots.txt`. It keeps an answer across the service for a short
-  time, and it fetches the image with a second agent. Source:
+  time, and it fetches the image with a second agent. Its documents state no
+  order between those tags and the HTML title, so this design does not depend
+  on one. Source:
   [Slack robots](https://api.slack.com/robots) and
   [Slack unfurling](https://docs.slack.dev/messaging/unfurling-links-in-messages/).
 - WhatsApp fetches the address with a plain GET request. It needs a title, a
@@ -212,6 +223,9 @@ worktree. Nothing in the cloud changes in this task.
   Source: [Meta sharing](https://developers.facebook.com/docs/sharing/webmasters/).
 - A message keeps the preview that it showed when somebody sent it. A later
   change of the page does not reach it.
+- A service that finds no tag, or that prefers other markup, can read the HTML
+  title or the text of the page. No document of a service promises that it
+  reads Open Graph first.
 
 ### The risk
 
@@ -228,6 +242,18 @@ every published address, also an open note. The tags are the same bytes for
 every request. They name the product, a fixed description, the root of the
 application origin, and one fixed image. They name no path, no query, no
 fragment, no note, no folder, no account and no host of the request.
+
+The HTML title of every published view is the product name too, also for an
+open note. Today the title of an open note is its name, in `titleOf` of
+`apps/server/src/routes/published-document.ts`, and a service that reads the
+title would show it. The reader still sees the name of the note in the heading
+of the page. Only the metadata becomes generic.
+
+The promise has a limit. A crawler that fetches an open published note gets
+the page, and the page holds the text of the note, because that is what the
+link shares. A service can read that text and keep it. The first scope keeps
+the note out of the metadata, and it does not hide an open page from a
+crawler that holds its address.
 
 The proposed block, the card and the drawings are in
 [social-cards.html](social-cards.html).
@@ -258,24 +284,41 @@ The proposed block, the card and the drawings are in
   It reads nothing of the view. The image address is on the application
   origin, so `publishedOriginServesFile` does not change.
 - `og:url` is the root of the application origin, never the shared address, so
-  no token is written into the answer twice.
+  no token is written into the answer twice. See the trade-off below.
+- `<title>` of every published view is the product name. It comes from the
+  same fixed value as `og:title`, but a separate test holds it, because a
+  service can read the title with no tag.
 - The renderer fetches nothing and calls no service.
+
+### The trade-off of og:url
+
+`og:url` names the address of the thing that the preview stands for. The root
+of the application makes every share stand for the product, not for one note.
+That is the intent. The cost is that a service can treat `og:url` as the
+canonical address. It can then group shares by it, or send a click on the
+preview to the root and not to the shared note. Omitting `og:url` avoids this,
+and WhatsApp asks for it.
+
+No document that this design read says what each service does with a click.
+So this design makes no claim that a click keeps its destination. Before the
+runtime change is approved, a person shares an approved public sample address
+that holds no secret in Slack and in WhatsApp, and records where a click on
+the preview goes. If a click goes to the root and not to the shared address,
+the choice goes back to the parent for review, with the omission of `og:url`
+as the first alternative.
 
 ### What does not change
 
 The cache policy of the published page, its content policy, `noindex,
 nofollow`, the log redaction, the reader routes and the published origin. The
-browser title of an open published note stays the note name, because a reader
-uses it. A service that reads the browser title before the Open Graph title can
-show it. The main services read Open Graph first. Removing the note name from
-the browser title is a separate question.
+heading of an open published note keeps its name.
 
 ### Deferred: a title on an open published note
 
 An open published note could show its name in the preview, with the same
 generic image. This is not approved. It writes the name into a public answer
 that services keep after a revocation or a new password, and a message keeps
-it for good. The deferred drawing is at the end of
+it for good. It also undoes the generic HTML title of the first scope. The deferred drawing is at the end of
 [social-cards.html](social-cards.html). It needs its own review of revocation,
 of the cache of each service, and of the publication settings.
 
@@ -304,12 +347,19 @@ Link previews:
 - A test with a published note, a folder, a password link, a revoked link and
   a report page proves that no answer holds the token, the ticket, the note
   name or the folder name in a tag.
+- A separate test proves that the `<title>` of each of those views is the
+  product name, and that the heading of an open note still shows its name.
+- The design and the guide state the limit: the metadata is generic, and a
+  crawler that fetches an open page can still read its text.
 - A test proves that a forged Host header does not change the block.
 - The card answers with `image/png`, its stated size, and the immutable cache
   header.
 - `noindex, nofollow` stays on every published view.
 - An unfurl test in a real service uses only an approved public address that
   holds no secret.
+- Before the runtime change is approved, that test records where a click on
+  the preview goes in Slack and in WhatsApp. A click that does not reach the
+  shared address sends the `og:url` choice back to review.
 
 ## Risks
 
@@ -322,6 +372,10 @@ Link previews:
   wrong image address but leaks nothing.
 - A service can keep an old card after a new drawing. The hashed name limits
   this to the services that keep the shell answer.
+- A crawler that holds the address of an open published note can read and
+  keep its text. The first scope does not change this.
+- A service can treat the root `og:url` as the canonical address and send a
+  click to the root. The gate above checks this before approval.
 - Spam filters read HTML. A message with no image, no tracking and one link of
   its own origin keeps a small risk. The test message lets an administrator
   check it.
@@ -336,11 +390,12 @@ Each item is one pull request that merges and deploys alone.
 3. Cloud, later and separate: a cloud decision and the outbox change for the
    plan end notice.
 
-## Open questions
+## Settled in review
 
-- Light card or dark card. The recommendation is light.
-- Should the browser title of an open published note stay the note name.
-- Should the invitation name the person who invited, which it does not do now.
+- The card is light.
+- The HTML title of every published view is generic in the first scope.
+- The invitation keeps its current sender identity and adds no personal data.
+- The root `og:url` is preferred, subject to the click gate above.
 
 ## Decisions
 
