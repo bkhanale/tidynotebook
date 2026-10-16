@@ -268,6 +268,7 @@
         margin: 0 0 8px;
       }
       .tags {
+        margin: 0;
         background: var(--card);
         border: 1px solid var(--edge);
         border-radius: 10px;
@@ -616,23 +617,20 @@
         application origin of the configuration, never the Host header of the
         request. <code>HASH</code> is the build digest of the card file.
       </p>
-      <div class="tags">
-        &lt;title&gt;tidy notebook&lt;/title&gt; &lt;meta property="og:type"
-        content="website"&gt; &lt;meta property="og:site_name" content="tidy
-        notebook"&gt; &lt;meta property="og:title" content="tidy notebook"&gt;
-        &lt;meta property="og:description" content="Markdown notes that work
-        offline. Every saved version stays in history."&gt; &lt;meta
-        property="og:url" content="ORIGIN/"&gt; &lt;meta property="og:image"
-        content="ORIGIN/assets/social-card-HASH.png"&gt; &lt;meta
-        property="og:image:type" content="image/png"&gt; &lt;meta
-        property="og:image:width" content="1200"&gt; &lt;meta
-        property="og:image:height" content="630"&gt; &lt;meta
-        property="og:image:alt" content="tidy notebook: Markdown notes that work
-        offline"&gt; &lt;meta name="twitter:card"
-        content="summary_large_image"&gt; &lt;meta name="description"
-        content="Markdown notes that work offline. Every saved version stays in
-        history."&gt;
-      </div>
+      <pre class="tags">
+&lt;title&gt;tidy notebook&lt;/title&gt;
+&lt;meta property="og:type" content="website"&gt;
+&lt;meta property="og:site_name" content="tidy notebook"&gt;
+&lt;meta property="og:title" content="tidy notebook"&gt;
+&lt;meta property="og:description" content="Markdown notes that work offline. Every saved version stays in history."&gt;
+&lt;meta property="og:url" content="ORIGIN/"&gt;
+&lt;meta property="og:image" content="ORIGIN/assets/social-card-HASH.png"&gt;
+&lt;meta property="og:image:type" content="image/png"&gt;
+&lt;meta property="og:image:width" content="1200"&gt;
+&lt;meta property="og:image:height" content="630"&gt;
+&lt;meta property="og:image:alt" content="tidy notebook: Markdown notes that work offline"&gt;
+&lt;meta name="twitter:card" content="summary_large_image"&gt;
+&lt;meta name="description" content="Markdown notes that work offline. Every saved version stays in history."&gt;</pre>
       <p>
         <code>og:url</code> names the root of the application, so every share
         stands for the product. A service can treat it as the canonical address
