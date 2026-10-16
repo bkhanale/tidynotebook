@@ -14,8 +14,10 @@ import { fileURLToPath } from 'node:url';
 import {
   allowedFenceLanguages,
   decisionIndexFailures,
+  designFoldersWithoutIndex,
   fenceAllowFile,
   fenceLanguages,
+  isDesignSupport,
   isSuperseded,
   maximumDevelopmentLines,
   measuredAllowFile,
@@ -120,6 +122,78 @@ await test('the placement rule names every known directory', () => {
     String(placementFailure('audits/september/report.md')),
     /Name the directory YYYY-MM-DD/,
   );
+});
+
+await test('a design is one file or one task folder', () => {
+  assert.equal(placementFailure('design/001-a-design.md'), null);
+  assert.equal(placementFailure('design/028-a-task/README.md'), null);
+  assert.equal(placementFailure('design/028-a-task/copy.md'), null);
+  assert.match(
+    String(placementFailure('design/A Task/README.md')),
+    /not a design task name/,
+  );
+  assert.match(
+    String(placementFailure('design/028-a-task/nested/copy.md')),
+    /one directory deep/,
+  );
+  assert.equal(isDesignSupport('design/028-a-task/copy.md'), true);
+  assert.equal(isDesignSupport('design/028-a-task/README.md'), false);
+  assert.equal(isDesignSupport('design/001-a-design.md'), false);
+  assert.deepEqual(
+    designFoldersWithoutIndex([
+      'design/001-a-design.md',
+      'design/028-a-task/README.md',
+      'design/028-a-task/copy.md',
+      'design/029-no-index/copy.md',
+    ]),
+    ['design/029-no-index'],
+  );
+});
+
+await test('a design task folder passes with its index and its files', () => {
+  const result = check({
+    'docs/design/028-a-task/README.md':
+      '# A task\n\nStatus: active\n\n## Decisions\n\nNone yet. See [the copy](copy.md).\n',
+    'docs/design/028-a-task/copy.md': '# The copy\n\nProse.\n',
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('a design task folder holds the header in its index', () => {
+  const result = check({
+    'docs/design/028-a-task/README.md': '# A task\n\nProse.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /028-a-task\/README\.md: no "Status:" line/);
+  assert.match(result.output, /028-a-task\/README\.md: no "Decisions" heading/);
+});
+
+await test('a supporting file of a design task folder needs a title', () => {
+  const result = check({
+    'docs/design/028-a-task/README.md':
+      '# A task\n\nStatus: active\n\n## Decisions\n\nNone.\n',
+    'docs/design/028-a-task/copy.md': 'No title.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /copy\.md: the first line is not a "# " title/);
+  assert.doesNotMatch(result.output, /copy\.md: no "Status:" line/);
+});
+
+await test('a design task folder with no index fails', () => {
+  const result = check({ 'docs/design/028-a-task/copy.md': '# The copy\n' });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /docs\/design\/028-a-task\/: no README\.md/);
+});
+
+await test('a design task folder keeps the link and measure rules', () => {
+  const result = check({
+    'docs/design/028-a-task/README.md':
+      '# A task\n\nStatus: active\n\n## Decisions\n\nNone. See [gone](gone.md).\n',
+    'docs/design/028-a-task/copy.md': '# The copy\n\nIt waits 300 ms.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /the link "gone\.md" resolves to no file/);
+  assert.match(result.output, /copy\.md:3: "300 ms" is a measured result/);
 });
 
 await test('a document outside a known directory fails', () => {

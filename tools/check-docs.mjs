@@ -41,6 +41,11 @@
  *    or of share is one or the other, so it fails outside a code span, a link
  *    address and a fenced block. The words say what the number shows, and a
  *    link names the audit or the code that holds it.
+ * 10. A design is one file of `design/`, or one task folder
+ *    `design/<task>/` that holds every file of the task. The `README.md` of
+ *    the folder is the design and carries its header. Another Markdown file
+ *    of the folder supports it, so it carries only a title. A folder with no
+ *    `README.md` has no design, so it fails.
  *
  * A separate root permits a disposable negative check without real documents,
  * with disposable fixture files.
@@ -58,6 +63,12 @@ export const documentKinds = [
   'audits',
   'plans',
 ];
+
+/** The name of a design task folder: lowercase words and digits. */
+export const designTaskName = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** The file of a design task folder that is the design itself. */
+export const designTaskIndex = 'README.md';
 
 /** The kinds whose files carry a status line under the title. */
 export const statusKinds = ['plans', 'design'];
@@ -159,8 +170,48 @@ export function placementFailure(path) {
       return `"${rest[0]}" is not an audit date. Name the directory YYYY-MM-DD.`;
     return null;
   }
+  if (kind === 'design' && rest.length === 2) {
+    if (!designTaskName.test(rest[0] ?? ''))
+      return `"${rest[0]}" is not a design task name. Use lowercase letters, digits and hyphens.`;
+    return null;
+  }
+  if (kind === 'design' && rest.length > 2)
+    return 'a design task folder sits in design/<task>/, one directory deep.';
   if (rest.length !== 1) return `${kind}/ holds no subdirectory.`;
   return null;
+}
+
+/**
+ * Answers whether a path under `docs/` is a supporting file of a design task
+ * folder, which carries only a title.
+ *
+ * @param {string} path A path relative to `docs/`, with `/` separators.
+ * @returns {boolean}
+ */
+export function isDesignSupport(path) {
+  const parts = path.split('/');
+  return (
+    parts[0] === 'design' && parts.length === 3 && parts[2] !== designTaskIndex
+  );
+}
+
+/**
+ * The design task folders that hold no design, as paths under `docs/`.
+ *
+ * @param {readonly string[]} paths Paths relative to `docs/`.
+ * @returns {string[]}
+ */
+export function designFoldersWithoutIndex(paths) {
+  const folders = new Set();
+  const indexed = new Set();
+  for (const path of paths) {
+    const parts = path.split('/');
+    if (parts[0] !== 'design' || parts.length !== 3) continue;
+    const folder = `design/${parts[1] ?? ''}`;
+    folders.add(folder);
+    if (parts[2] === designTaskIndex) indexed.add(folder);
+  }
+  return [...folders].filter((folder) => !indexed.has(folder)).sort();
 }
 
 /**
@@ -590,7 +641,10 @@ export async function main(directory) {
     const name = parts.at(-1) ?? '';
     const text = await readFile(join(directory, path), 'utf8');
     linked.push({ path, text });
-    for (const failure of headerFailures(kind, name, text))
+    // A supporting file of a design task folder carries a title only. The
+    // `README.md` of the folder carries the header of the design.
+    const headerKind = isDesignSupport(inside) ? 'support' : kind;
+    for (const failure of headerFailures(headerKind, name, text))
       failures.push(`${path}: ${failure}`);
     if (livingKinds.includes(kind)) {
       for (const named of namedPaths(text)) {
@@ -641,6 +695,12 @@ export async function main(directory) {
       for (const fence of refused)
         failures.push(`${path}:${fence.line}: ${fenceFailure(fence.language)}`);
   }
+  for (const folder of designFoldersWithoutIndex(
+    documents.map((path) => path.slice('docs/'.length)),
+  ))
+    failures.push(
+      `docs/${folder}/: no ${designTaskIndex}. A design task folder holds the design in its ${designTaskIndex}.`,
+    );
   for (const file of fenceAllowed.keys())
     if (!fenceHistory.has(file))
       failures.push(
