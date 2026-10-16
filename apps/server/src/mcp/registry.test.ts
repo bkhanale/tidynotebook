@@ -7,7 +7,7 @@ import {
   type McpTool,
 } from './registry.ts';
 
-await test('the production registry has exactly the ten note tools of plan 022', () => {
+await test('the production registry has the note tools of plan 022 and design 027', () => {
   assert.deepEqual(
     mcpTools.map((tool) => [tool.definition.name, tool.scope, tool.operations]),
     [
@@ -21,6 +21,16 @@ await test('the production registry has exactly the ten note tools of plan 022',
       ['edit_note', 'notes:write', ['getFile', 'updateFile']],
       ['move_note', 'notes:write', ['getFile', 'updateFile']],
       ['move_note_to_trash', 'notes:write', ['getFile', 'deleteFile']],
+      [
+        'append_to_note',
+        'notes:write',
+        ['getMutationReceipt', 'getFile', 'commitChangeset'],
+      ],
+      [
+        'patch_note',
+        'notes:write',
+        ['getMutationReceipt', 'getFile', 'commitChangeset'],
+      ],
     ],
   );
   for (const tool of mcpTools) {
@@ -69,7 +79,7 @@ await test('a registered handler gets no notification, progress or logging conte
     scope: 'notes:read',
     operations: ['listWorkspaces'],
     run: async (_input, context) => {
-      assert.deepEqual(Object.keys(context), ['call']);
+      assert.deepEqual(Object.keys(context), ['call', 'grantId']);
       assert.equal(Object.isFrozen(context), true);
       for (const name of [
         'mcpReq',

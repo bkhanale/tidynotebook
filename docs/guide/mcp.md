@@ -49,9 +49,24 @@ note back. See [Trash](trash.md).
 Neither kind of access lets the assistant delete a note for good, publish a
 link, or change accounts, workspaces, members, API keys or connected apps.
 
-A change to an existing note needs the version that the assistant reads.
-If that note changes before the assistant writes, the server refuses the
-write. Ask the assistant to read the note again before it tries the change.
+The assistant can use `append_to_note` to add whole lines at the end of a
+note or a section. It can use `patch_note` to insert or replace exact text
+that occurs once. Each accepted call makes one version in History. These
+tools can merge while you type. They keep characters that you insert at the
+same time, but the result can need a text or Markdown correction. Two appends
+at the same point can arrive in either order, with no line break between them.
+
+Both tools need the version that the assistant read. The same input and
+version through the same connection make one change. After a lost answer, a
+retry says that an earlier attempt made the change. That answer has no
+version. The assistant must read the note for its current version. To make
+the same change again on purpose, it must use the new version.
+
+The existing `edit_note` tool, which can replace the whole text, still
+refuses a write if the note changed. Rename, move and Move to Trash also
+keep this version check. Ask the assistant to read the note again before
+it tries a refused change. An edit that starts before a concurrent move to
+Trash can bring the note back. Both versions stay in History.
 
 ## Revoke a connected app
 

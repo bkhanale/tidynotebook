@@ -170,8 +170,7 @@ transaction directly at their offsets, from the last offset to the first, so
 an earlier edit does not move a later one. It refuses ranges that overlap,
 ranges outside the text, ranges that split a Unicode pair, and a list or a
 result past its bounds. The document service of `packages/storage-server`
-exposes it. The new tools use only this edit. This pull request does not add
-it.
+exposes it. The new tools use only this edit.
 
 ## Retries and receipts
 
@@ -305,8 +304,7 @@ The draft and the queued saves of the person stay intact
 
 ## Verification
 
-No test below exists yet. The implementation adds each one as planned
-coverage.
+The implementation verifies the following cases.
 
 Unit tests in `packages/note-document` must prove the range edit: repeated
 characters, edits applied from the last offset to the first, overlapping
@@ -378,5 +376,5 @@ None for the initial scope.
 
 ## Decisions
 
-None yet. The owner accepts or changes this proposal first. The records then
-follow, and they refine record 0227.
+[Record 0229](../decisions/0229-incremental-mcp-edits-use-exact-document-ranges.md)
+records the accepted implementation and refines record 0227.

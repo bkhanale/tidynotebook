@@ -2,6 +2,7 @@
 import { findOperation, type OperationId } from '@notesapp/api-contract';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/server';
 import { readTools } from './read-tools.ts';
+import { incrementalTools } from './incremental-tools.ts';
 import { writeTools } from './write-tools.ts';
 
 export type ContractInput = {
@@ -20,7 +21,10 @@ export type ContractCall = (
   input?: ContractInput,
 ) => Promise<ContractAnswer>;
 /** A tool receives no SDK context, notification, logging or progress function. */
-export type ToolContext = { readonly call: ContractCall };
+export type ToolContext = {
+  readonly call: ContractCall;
+  readonly grantId?: string | undefined;
+};
 export type McpTool = {
   readonly definition: Tool;
   readonly scope: 'notes:read' | 'notes:write';
@@ -31,8 +35,12 @@ export type McpTool = {
   ) => Promise<CallToolResult>;
 };
 
-/** Exactly the ten note tools of plan 022. */
-export const mcpTools: readonly McpTool[] = [...readTools, ...writeTools];
+/** The note tools, including the incremental edits of design 027. */
+export const mcpTools: readonly McpTool[] = [
+  ...readTools,
+  ...writeTools,
+  ...incrementalTools,
+];
 
 export function checkToolRegistry(tools: readonly McpTool[]): void {
   const names = new Set<string>();
@@ -66,6 +74,7 @@ export function runTool(
   tool: McpTool,
   input: unknown,
   call: ContractCall,
+  grantId?: string,
 ): Promise<CallToolResult> {
-  return tool.run(input, Object.freeze({ call }));
+  return tool.run(input, Object.freeze({ call, grantId }));
 }

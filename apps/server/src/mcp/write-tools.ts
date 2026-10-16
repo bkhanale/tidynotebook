@@ -41,7 +41,7 @@ const readAgain =
   'The note changed. Read the note again and try the change again.';
 
 /** Map only safe status words. Never pass a contract or engine error to a client. */
-async function writeContract(
+export async function writeContract(
   call: ContractCall,
   id: OperationId,
   input: ContractInput,
@@ -80,7 +80,7 @@ function ids() {
     deviceId: 'mcp',
   };
 }
-function accepted(workspaceId: string, answer: Record<string, unknown>) {
+export function accepted(workspaceId: string, answer: Record<string, unknown>) {
   const revision = record(answer.revision);
   if (typeof revision.deleted !== 'boolean')
     throw new Error('The revision state is missing.');
@@ -124,22 +124,29 @@ function unchanged(
   };
 }
 
-function writeTool(
+export function writeTool(
   definition: Tool,
   operations: readonly OperationId[],
   run: (
     input: Record<string, unknown>,
     call: ContractCall,
+    grantId?: string,
   ) => Promise<Record<string, unknown>>,
 ): McpTool {
+  const outputSchema: NonNullable<Tool['outputSchema']> =
+    definition.outputSchema ?? writeOutput;
   const validateInput = compileSchema<Record<string, unknown>>(
     definition.inputSchema,
   );
-  const validateOutput = compileSchema<Record<string, unknown>>(writeOutput);
+  const { $schema, ...schema } = outputSchema;
+  const validateOutput = compileSchema<Record<string, unknown>>({
+    ...schema,
+    ...($schema === undefined ? {} : { $schema }),
+  });
   return {
     definition: {
       ...definition,
-      outputSchema: writeOutput,
+      outputSchema,
       annotations: {
         readOnlyHint: false,
         destructiveHint: definition.name === 'move_note_to_trash',
@@ -155,7 +162,7 @@ function writeTool(
           throw new ToolFailure(
             'The tool input is not valid. Check the input and try again.',
           );
-        const body = await run(input, context.call);
+        const body = await run(input, context.call, context.grantId);
         if (!validateOutput(body) || !fits(body))
           throw new Error('The tool answer is not valid.');
         return result(body);

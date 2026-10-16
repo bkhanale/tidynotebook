@@ -30,7 +30,9 @@ export type DocumentRefusal =
   /** The update names an insertion or deletion that the document lacks. */
   | 'missing-dependency'
   /** The text that the update would hold is not well formed. */
-  | 'not-well-formed';
+  | 'not-well-formed'
+  /** A range is outside the text, overlaps another, or splits a pair. */
+  | 'invalid-range';
 
 /** The outcome of one operation that can refuse. */
 export type DocumentResult<T> =
@@ -289,6 +291,84 @@ export function replaceDocumentText(
     if (next.byteLength > bounds.maxDocumentBytes)
       return { ok: false, refusal: 'too-large' };
     return { ok: true, value: { document: next, text: live.toJSON() } };
+  } finally {
+    doc.destroy();
+  }
+}
+
+/** One exact range in the original UTF-16 text. No text diff is used. */
+export type DocumentRangeEdit = {
+  readonly offset: number;
+  readonly length: number;
+  readonly text: string;
+};
+
+/** Whether an offset divides the two code units of one Unicode character. */
+function splitsPair(text: string, at: number): boolean {
+  const before = text.charCodeAt(at - 1);
+  const after = text.charCodeAt(at);
+  return (
+    before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff
+  );
+}
+
+/**
+ * Applies bounded ranges from last to first in one transaction. Every range
+ * names original characters. A concurrent insertion has other identities and
+ * cannot be removed by this edit. Equal insert points and inserts inside a
+ * removed range are refused. Adjacent ranges are allowed.
+ */
+export function editDocumentRanges(
+  document: Uint8Array,
+  edits: readonly DocumentRangeEdit[],
+  bounds: DocumentBounds = documentBounds,
+): DocumentResult<AppliedDocument> {
+  if (edits.length > bounds.maxRangeEdits)
+    return { ok: false, refusal: 'too-large' };
+  const doc = loadDocument(document);
+  try {
+    const live = doc.getText(noteTextRoot);
+    const source = live.toJSON();
+    const ordered = [...edits].sort((a, b) => a.offset - b.offset);
+    let previous: DocumentRangeEdit | undefined;
+    let resultUnits = source.length;
+    let insertedUnits = 0;
+    for (const edit of ordered) {
+      const end = edit.offset + edit.length;
+      if (
+        !Number.isSafeInteger(edit.offset) ||
+        !Number.isSafeInteger(edit.length) ||
+        edit.offset < 0 ||
+        edit.length < 0 ||
+        end > source.length ||
+        splitsPair(source, edit.offset) ||
+        splitsPair(source, end) ||
+        (previous !== undefined &&
+          (edit.offset === previous.offset ||
+            edit.offset < previous.offset + previous.length))
+      )
+        return { ok: false, refusal: 'invalid-range' };
+      if (!edit.text.isWellFormed())
+        return { ok: false, refusal: 'not-well-formed' };
+      resultUnits += edit.text.length - edit.length;
+      insertedUnits += edit.text.length;
+      previous = edit;
+    }
+    // UTF-8 and document bytes cannot fit if their UTF-16 units exceed this.
+    // Bound total inserted text too, before allocating a transaction.
+    if (
+      resultUnits > bounds.maxDocumentBytes ||
+      insertedUnits > bounds.maxDocumentBytes
+    )
+      return { ok: false, refusal: 'too-large' };
+    doc.transact(() => {
+      for (const edit of ordered.reverse()) {
+        if (edit.length > 0) live.delete(edit.offset, edit.length);
+        if (edit.text !== '') live.insert(edit.offset, edit.text);
+      }
+    });
+    const update = Y.encodeStateAsUpdate(doc, documentStateVector(document));
+    return applyDocumentUpdate(document, update, bounds);
   } finally {
     doc.destroy();
   }

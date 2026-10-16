@@ -20,6 +20,8 @@ export type DocumentBounds = {
   readonly maxUpdateStructs: number;
   /** Largest encoded document after an update, in bytes. */
   readonly maxDocumentBytes: number;
+  /** Most ranges that one edit may change. */
+  readonly maxRangeEdits: number;
   /** Most lines that one legacy recovery may compare. */
   readonly maxRecoveryLines: number;
   /** Most line edits that one legacy recovery diff may explore. */
@@ -37,6 +39,7 @@ export const documentBounds: DocumentBounds = {
   maxUpdateBytes: 2 * 1024 * 1024,
   maxUpdateStructs: 200_000,
   maxDocumentBytes: 8 * 1024 * 1024,
+  maxRangeEdits: 100,
   maxRecoveryLines: 20_000,
   maxRecoveryEdits: 5_000,
 };

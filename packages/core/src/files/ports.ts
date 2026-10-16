@@ -46,6 +46,13 @@ export type AppliedDocument = {
   readonly state: Uint8Array;
 };
 
+/** One range resolved against the original UTF-16 text of a document. */
+export type DocumentRangeEdit = {
+  readonly offset: number;
+  readonly length: number;
+  readonly text: string;
+};
+
 /**
  * The document service of the workspace (records 0081, 0082).
  *
@@ -72,6 +79,11 @@ export type DocumentService = {
    * rewrites that follow a move (record 0081).
    */
   replaceText(document: Uint8Array, text: string): Result<AppliedDocument>;
+  /** Edits exact character identities in bounded, disjoint original ranges. */
+  editRanges(
+    document: Uint8Array,
+    edits: readonly DocumentRangeEdit[],
+  ): Result<AppliedDocument>;
   /**
    * Leaves one character in each slot that two editors wrote into (record
    * 0134).

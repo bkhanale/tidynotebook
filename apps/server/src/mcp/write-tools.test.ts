@@ -316,3 +316,457 @@ await test('an attachment or a malformed contract result never starts a note wri
     );
   }
 });
+
+const grantId = 'unit-grant';
+function noteHead(sourceText: string, revisionId = version) {
+  const bytes = documents.start(sourceText);
+  return {
+    ...head,
+    head: {
+      ...head.head,
+      revisionId,
+      text: sourceText,
+      document: Buffer.from(bytes).toString('base64'),
+    },
+  };
+}
+async function incremental(
+  name: string,
+  input: Record<string, unknown>,
+  sourceText: string,
+) {
+  const current = noteHead(sourceText);
+  let saved = sourceText;
+  const calls: string[] = [];
+  const answer = await tool(name).run(
+    { ...existing, ...input },
+    {
+      grantId,
+      call: async (id, request) => {
+        calls.push(id);
+        if (id === 'getMutationReceipt')
+          return { status: 200, body: { status: 'absent' } };
+        if (id === 'getFile') return { status: 200, body: current };
+        assert.equal(id, 'commitChangeset');
+        assert.deepEqual(request?.params, { workspaceId });
+        assert.equal(request?.expectedVersion, undefined);
+        const body = record(request?.body);
+        assert.deepEqual(Object.keys(body).sort(), [
+          'deviceId',
+          'expectedHeads',
+          'mutationId',
+          'revisions',
+        ]);
+        assert.deepEqual(body.expectedHeads, { [fileId]: version });
+        assert.equal(body.deviceId, 'mcp');
+        assert.ok(Array.isArray(body.revisions));
+        assert.equal(body.revisions.length, 1);
+        const revision = record(body.revisions[0]);
+        assert.deepEqual(Object.keys(revision).sort(), [
+          'clientTime',
+          'content',
+          'deleted',
+          'fileId',
+          'parents',
+          'path',
+          'revisionId',
+        ]);
+        assert.deepEqual(revision.parents, [version]);
+        assert.equal(revision.fileId, fileId);
+        assert.equal(revision.path, 'Note.md');
+        assert.equal(revision.deleted, false);
+        const content = record(revision.content);
+        assert.equal(content.kind, 'markdown');
+        const save = record(content.document);
+        assert.equal(save.epoch, 1);
+        const original = Buffer.from(current.head.document, 'base64');
+        assert.deepEqual(
+          Buffer.from(textField(save, 'observed'), 'base64'),
+          Buffer.from(documents.observe(original)),
+        );
+        const applied = documents.apply(
+          original,
+          Buffer.from(textField(save, 'update'), 'base64'),
+        );
+        assert.ok(applied.ok);
+        saved = applied.value.text;
+        return {
+          status: 200,
+          body: { revisions: [{ ...revision, merged: false }], superseded: [] },
+        };
+      },
+    },
+  );
+  return { answer, saved, calls };
+}
+function textField(value: Record<string, unknown>, key: string): string {
+  const member = value[key];
+  assert.ok(typeof member === 'string');
+  return member;
+}
+await test('incremental schemas refuse invalid modes, anchors and bounds before calls', async () => {
+  const { maxPatchChanges } = await import('./incremental-tools.ts');
+  const { maxWriteTextUnits } = await import('./write-tools.ts');
+  for (const [name, input] of [
+    ['append_to_note', { text: 'x', version: undefined }],
+    ['append_to_note', { text: 'x', heading: '' }],
+    ['append_to_note', { text: 'x', extra: true }],
+    ['append_to_note', { text: 'x'.repeat(maxWriteTextUnits + 1) }],
+    ['patch_note', { changes: [] }],
+    [
+      'patch_note',
+      {
+        changes: Array.from({ length: maxPatchChanges + 1 }, () => ({
+          operation: 'insert_at_end',
+          text: 'x',
+        })),
+      },
+    ],
+    [
+      'patch_note',
+      { changes: [{ operation: 'replace', text: 'x', anchor: '' }] },
+    ],
+    ['patch_note', { changes: [{ operation: 'replace', text: 'x' }] }],
+    [
+      'patch_note',
+      { changes: [{ operation: 'insert_at_end', text: 'x', anchor: 'old' }] },
+    ],
+    [
+      'patch_note',
+      { changes: [{ operation: 'delete', text: 'x', anchor: 'old' }] },
+    ],
+  ] as const) {
+    let calls = 0;
+    const answer = await tool(name).run(
+      { ...existing, ...input },
+      {
+        grantId,
+        call: async () => {
+          calls += 1;
+          throw new Error('No call expected.');
+        },
+      },
+    );
+    assert.equal(answer.isError, true);
+    assert.equal(calls, 0);
+  }
+});
+await test('append uses both line break rules, empty notes and parser-resolved sections', async () => {
+  for (const [sourceText, input, expected] of [
+    ['', { text: 'new' }, 'new'],
+    ['old', { text: 'new' }, 'old\nnew'],
+    ['old\n', { text: 'new\n' }, 'old\nnew\n'],
+    [
+      '# A\nbody\n# B',
+      { heading: '# A', text: 'new item' },
+      '# A\nbody\nnew item\n# B',
+    ],
+    [
+      '# A\nbody\n## Child\nchild\n# B\n',
+      { heading: '# A', text: 'new\n' },
+      '# A\nbody\n## Child\nchild\nnew\n# B\n',
+    ],
+    [
+      '```md\n# A\n```\n# A\nbody',
+      { heading: '# A', text: 'new' },
+      '```md\n# A\n```\n# A\nbody\nnew',
+    ],
+    [
+      'A\n===\nbody\n\nB\n===\n',
+      { heading: 'A\n===', text: 'new' },
+      'A\n===\nbody\n\nnew\nB\n===\n',
+    ],
+    [
+      '# A\r\nbody\r\n# B',
+      { heading: '# A', text: 'new' },
+      '# A\r\nbody\r\nnew\n# B',
+    ],
+  ] as const) {
+    const { answer, saved, calls } = await incremental(
+      'append_to_note',
+      input,
+      sourceText,
+    );
+    assert.equal(answer.isError, undefined, JSON.stringify(answer));
+    assert.equal(saved, expected);
+    assert.deepEqual(calls, [
+      'getMutationReceipt',
+      'getFile',
+      'commitChangeset',
+    ]);
+    assert.equal(record(answer.structuredContent).headMoved, false);
+  }
+});
+await test('missing or repeated parser headings refuse after a second receipt check', async () => {
+  for (const sourceText of [
+    '```\n# A\n```',
+    '# A\none\n# A\ntwo',
+    '<div>\n# A\n</div>',
+  ]) {
+    const { answer, calls } = await incremental(
+      'append_to_note',
+      { heading: '# A', text: 'new' },
+      sourceText,
+    );
+    assert.equal(answer.isError, true);
+    assert.deepEqual(calls, [
+      'getMutationReceipt',
+      'getFile',
+      'getMutationReceipt',
+    ]);
+  }
+});
+await test('patch resolves original anchors once, preserves exact text and accepts disjoint ranges in input order', async () => {
+  const { answer, saved } = await incremental(
+    'patch_note',
+    {
+      changes: [
+        { operation: 'insert_after', anchor: 'last', text: '!' },
+        { operation: 'replace', anchor: 'middle', text: 'new' },
+        { operation: 'insert_before', anchor: 'first', text: '>' },
+      ],
+    },
+    'first middle last',
+  );
+  assert.equal(answer.isError, undefined, JSON.stringify(answer));
+  assert.equal(saved, '>first new last!');
+  const ends = await incremental(
+    'patch_note',
+    {
+      changes: [
+        { operation: 'insert_at_end', text: 'END' },
+        { operation: 'insert_at_start', text: 'START' },
+      ],
+    },
+    'body',
+  );
+  assert.equal(ends.saved, 'STARTbodyEND');
+  const noOp = await incremental(
+    'patch_note',
+    { changes: [{ operation: 'replace', anchor: 'body', text: 'body' }] },
+    'body',
+  );
+  assert.equal(noOp.answer.isError, undefined);
+  assert.ok(
+    noOp.calls.includes('commitChangeset'),
+    'Each accepted call makes a History version.',
+  );
+});
+await test('patch refuses missing, overlapping matches, intersecting ranges, pair splits and new anchors', async () => {
+  for (const [sourceText, changes] of [
+    ['aaa', [{ operation: 'replace', anchor: 'aa', text: 'x' }]],
+    ['body', [{ operation: 'replace', anchor: 'missing', text: 'x' }]],
+    [
+      'body',
+      [
+        { operation: 'replace', anchor: 'body', text: 'x' },
+        { operation: 'replace', anchor: 'od', text: 'y' },
+      ],
+    ],
+    [
+      'body',
+      [
+        { operation: 'insert_at_start', text: 'x' },
+        { operation: 'insert_before', anchor: 'body', text: 'y' },
+      ],
+    ],
+    [
+      'body',
+      [
+        { operation: 'replace', anchor: 'body', text: 'new' },
+        { operation: 'replace', anchor: 'new', text: 'y' },
+      ],
+    ],
+    ['😀', [{ operation: 'replace', anchor: '\ud83d', text: 'x' }]],
+  ] as const) {
+    const { answer, calls } = await incremental(
+      'patch_note',
+      { changes },
+      sourceText,
+    );
+    assert.equal(answer.isError, true);
+    assert.deepEqual(calls, [
+      'getMutationReceipt',
+      'getFile',
+      'getMutationReceipt',
+    ]);
+  }
+});
+await test('used receipt returns only earlier-attempt fields without reading any note', async () => {
+  const input = {
+    ...existing,
+    changes: [{ operation: 'replace', anchor: 'gone', text: 'new' }],
+  };
+  for (const status of ['other_request', 'accepted']) {
+    const calls: string[] = [];
+    const answer = await tool('patch_note').run(input, {
+      grantId,
+      call: async (id) => {
+        calls.push(id);
+        return { status: 200, body: { status } };
+      },
+    });
+    assert.equal(answer.isError, undefined, JSON.stringify(answer));
+    const body = record(answer.structuredContent);
+    assert.deepEqual(Object.keys(body).sort(), [
+      'changed',
+      'earlierAttempt',
+      'fileId',
+      'message',
+      'workspaceId',
+    ]);
+    assert.equal(body.earlierAttempt, true);
+    assert.equal(body.changed, false);
+    assert.deepEqual(calls, ['getMutationReceipt']);
+  }
+});
+await test('identity and probe depend only on canonical input and grant, never on note state', async () => {
+  const { incrementalMutationId, incrementalProbe } =
+    await import('./incremental-tools.ts');
+  const { requestDigest } = await import('@notesapp/core');
+  const input = { ...existing, text: 'new' };
+  assert.equal(
+    incrementalMutationId(grantId, 'append_to_note', input),
+    incrementalMutationId(grantId, 'append_to_note', {
+      text: 'new',
+      version,
+      fileId,
+      workspaceId,
+    }),
+  );
+  assert.notEqual(
+    incrementalMutationId(grantId, 'append_to_note', input),
+    incrementalMutationId('new-grant', 'append_to_note', input),
+  );
+  assert.notEqual(
+    incrementalMutationId(grantId, 'append_to_note', input),
+    incrementalMutationId(grantId, 'append_to_note', {
+      ...input,
+      version: randomUUID(),
+    }),
+  );
+  const probe = await incrementalProbe('append_to_note', input);
+  assert.equal(
+    probe,
+    await requestDigest('mcp:append_to_note:receipt-probe', {}, input),
+  );
+  assert.notEqual(probe, await requestDigest('commitChangeset', {}, input));
+  let query: unknown;
+  await tool('append_to_note').run(input, {
+    grantId,
+    call: async (id, request) => {
+      assert.equal(id, 'getMutationReceipt');
+      query = request?.query;
+      assert.deepEqual(request?.params, {
+        workspaceId,
+        mutationId: incrementalMutationId(grantId, 'append_to_note', input),
+      });
+      return { status: 200, body: { status: 'other_request' } };
+    },
+  });
+  assert.deepEqual(query, { digest: probe });
+});
+await test('concurrent receipt wins over note-state refusal but never authorization or lock refusal', async () => {
+  for (const status of [404, 410, 401, 403, 423]) {
+    const calls: string[] = [];
+    let probes = 0;
+    const answer = await tool('append_to_note').run(
+      { ...existing, text: 'new' },
+      {
+        grantId,
+        call: async (id) => {
+          calls.push(id);
+          if (id === 'getMutationReceipt') {
+            probes += 1;
+            return {
+              status: 200,
+              body: { status: probes === 1 ? 'absent' : 'other_request' },
+            };
+          }
+          assert.equal(id, 'getFile');
+          return { status, body: {} };
+        },
+      },
+    );
+    if ([404, 410].includes(status)) {
+      assert.equal(answer.isError, undefined);
+      assert.equal(record(answer.structuredContent).earlierAttempt, true);
+      assert.equal(probes, 2);
+    } else {
+      assert.equal(answer.isError, true);
+      assert.equal(probes, 1);
+    }
+  }
+  for (const at of [1, 2]) {
+    let probes = 0;
+    const answer = await tool('append_to_note').run(
+      { ...existing, text: 'new' },
+      {
+        grantId,
+        call: async (id) => {
+          if (id === 'getMutationReceipt') {
+            probes += 1;
+            return probes === at
+              ? { status: 423, body: {} }
+              : { status: 200, body: { status: 'absent' } };
+          }
+          return { status: 404, body: {} };
+        },
+      },
+    );
+    assert.equal(answer.isError, true);
+    assert.match(JSON.stringify(answer), /account is locked/);
+    assert.equal(probes, at);
+  }
+});
+await test('commit conflicts use their code, retry one epoch, and report stale input or merged work', async () => {
+  for (const code of [
+    'mutation_reused',
+    'epoch_mismatch',
+    'path_conflict',
+    'success',
+  ]) {
+    let commits = 0;
+    let reads = 0;
+    const answer = await tool('append_to_note').run(
+      { ...existing, version: randomUUID(), text: 'new' },
+      {
+        grantId,
+        call: async (id) => {
+          if (id === 'getMutationReceipt')
+            return { status: 200, body: { status: 'absent' } };
+          if (id === 'getFile') {
+            reads += 1;
+            return { status: 200, body: head };
+          }
+          commits += 1;
+          if (code !== 'success') return { status: 409, body: { code } };
+          return {
+            status: 200,
+            body: {
+              revisions: [
+                {
+                  fileId,
+                  path: 'Note.md',
+                  deleted: false,
+                  revisionId: randomUUID(),
+                  merged: true,
+                },
+              ],
+              superseded: [{ fileId }],
+            },
+          };
+        },
+      },
+    );
+    assert.equal(commits, code === 'epoch_mismatch' ? 2 : 1);
+    assert.equal(reads, commits);
+    if (code === 'mutation_reused') {
+      assert.equal(answer.isError, undefined);
+      assert.equal(record(answer.structuredContent).earlierAttempt, true);
+    } else if (code === 'success') {
+      assert.equal(answer.isError, undefined);
+      assert.equal(record(answer.structuredContent).headMoved, true);
+    } else assert.equal(answer.isError, true);
+  }
+});

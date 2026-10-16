@@ -424,6 +424,9 @@ const documentService: DocumentService = {
     };
     return ok(applied);
   },
+  editRanges: () => {
+    throw new Error('Range edits are not used here.');
+  },
   replaceText: (_document: Uint8Array, text: string) =>
     ok({ bytes: bytesOf(text), text, state: bytesOf(text) }),
   // No text of these tests holds a task box, so nothing is kept apart.

@@ -42,7 +42,7 @@ await test('the exact registered handler refuses a write before tool or contract
   assert.equal(contractCalls, 0);
 });
 
-await test('all ten registered note handlers send no notification before or with their result', async (t) => {
+await test('all registered note handlers send no notification before or with their result', async (t) => {
   const { InMemoryTransport } = await import('@modelcontextprotocol/server');
   const { createMcpServer } = await import('./protocol.ts');
   const { mcpTools } = await import('./registry.ts');
@@ -66,7 +66,7 @@ await test('all ten registered note handlers send no notification before or with
           {
             ...tool,
             run: (input, context) => {
-              assert.deepEqual(Object.keys(context), ['call']);
+              assert.deepEqual(Object.keys(context), ['call', 'grantId']);
               assert.equal(Object.isFrozen(context), true);
               return tool.run(input, context);
             },
@@ -79,6 +79,7 @@ await test('all ten registered note handlers send no notification before or with
           return {
             status: id === 'createFile' ? 201 : 200,
             body: {
+              status: 'other_request',
               workspaces: [],
               files: [],
               hits: [],
@@ -146,13 +147,24 @@ await test('all ten registered note handlers send no notification before or with
                 ? { query: 'find' }
                 : tool.definition.name === 'create_note'
                   ? { workspaceId, path: 'New.md', text: 'New' }
-                  : tool.definition.name === 'edit_note'
+                  : ['edit_note', 'append_to_note'].includes(
+                        tool.definition.name,
+                      )
                     ? { workspaceId, fileId, version, text: 'New' }
-                    : tool.definition.name === 'move_note'
-                      ? { workspaceId, fileId, version, path: 'Moved.md' }
-                      : tool.definition.name === 'move_note_to_trash'
-                        ? { workspaceId, fileId, version }
-                        : { workspaceId, fileId };
+                    : tool.definition.name === 'patch_note'
+                      ? {
+                          workspaceId,
+                          fileId,
+                          version,
+                          changes: [
+                            { operation: 'insert_at_end', text: 'New' },
+                          ],
+                        }
+                      : tool.definition.name === 'move_note'
+                        ? { workspaceId, fileId, version, path: 'Moved.md' }
+                        : tool.definition.name === 'move_note_to_trash'
+                          ? { workspaceId, fileId, version }
+                          : { workspaceId, fileId };
         await client.send({
           jsonrpc: '2.0',
           id: 2,

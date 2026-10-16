@@ -26,6 +26,9 @@ const service: DocumentService = {
   start: (text) => bytesOf(text),
   apply: (_document, update) =>
     ok({ bytes: update, text: textOf(update), state: update }),
+  editRanges: () => {
+    throw new Error('Range edits are not used here.');
+  },
   replaceText: (_document, text) =>
     ok({ bytes: bytesOf(text), text, state: bytesOf(text) }),
   keepWrittenCharacter: (_before, after, slots) => {

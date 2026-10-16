@@ -254,6 +254,7 @@ the development process. Old process records remain as history.
 | [0226](0226-the-application-origin-issues-mcp-grants.md)                              | The application origin issues MCP grants                                        |
 | [0227](0227-a-tool-calls-the-contract-as-the-actor-of-its-grant.md)                   | A tool calls the contract as the actor of its grant                             |
 | [0228](0228-hosted-proof-and-release.md)                                              | Hosted checks prove changes and one workflow releases them                      |
+| [0229](0229-incremental-mcp-edits-use-exact-document-ranges.md)                       | Incremental MCP edits use exact document ranges                                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -872,3 +873,7 @@ stdio adapter of record 0008. Record 0226 makes the application origin the
 authorization server of that endpoint, and it refines records 0201 and 0208.
 Record 0227 runs each tool as calls to the contract operations, as the actor
 of the grant.
+
+Record 0229 follows [design 027](../design/027-incremental-note-edits-through-mcp.md).
+It adds incremental MCP edits through exact document ranges and receipt-safe
+retries. It refines record 0227 for the two new tools.

@@ -40,6 +40,9 @@ const documentService: DocumentService = {
       text: new TextDecoder().decode(update),
       state: update,
     }),
+  editRanges: () => {
+    throw new Error('Range edits are not used here.');
+  },
   replaceText: (_document: Uint8Array, text: string) =>
     ok({
       bytes: new TextEncoder().encode(text),

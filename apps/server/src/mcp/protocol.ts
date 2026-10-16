@@ -282,7 +282,7 @@ export function createToolHandler(
         'This grant cannot call this tool. Ask for the required access and try again.',
       );
     return withToolDelegation(grant, tool.operations, () =>
-      runTool(tool, message.params.arguments ?? {}, call),
+      runTool(tool, message.params.arguments ?? {}, call, grant.grantId),
     );
   };
 }

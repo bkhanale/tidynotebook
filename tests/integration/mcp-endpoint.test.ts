@@ -27,6 +27,9 @@ import {
   listHistory,
   listDeletedFiles,
   restoreFile,
+  deleteFile,
+  purgeFiles,
+  commitChangeset as sendChangeset,
 } from '@notesapp/api-client';
 import {
   bootstrapOwner,
@@ -1180,6 +1183,611 @@ try {
     assert.equal(changed.response?.status, 200, JSON.stringify(changed.error));
     return noteState(id);
   }
+  // Hold the real tool's contract boundary without replacing a handler or a
+  // database result. Every request still uses the normal authorization path.
+  async function heldIncremental(stage: 'receipt' | 'commit', name: string) {
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let receipts = 0;
+    let commits = 0;
+    let reads = 0;
+    const target = await createApp(config, {
+      mcpTools: mcpTools.map((entry) =>
+        entry.definition.name !== name
+          ? entry
+          : {
+              ...entry,
+              run: (input, context) =>
+                entry.run(input, {
+                  ...context,
+                  call: async (id, request) => {
+                    if (id === 'getFile') reads += 1;
+                    if (id === 'commitChangeset') {
+                      commits += 1;
+                      if (stage === 'commit' && commits === 1) {
+                        entered.resolve();
+                        await release.promise;
+                      }
+                    }
+                    const answer = await context.call(id, request);
+                    if (id === 'getMutationReceipt') {
+                      receipts += 1;
+                      if (stage === 'receipt' && receipts === 1) {
+                        assert.equal(object(answer.body).status, 'absent');
+                        entered.resolve();
+                        await release.promise;
+                      }
+                    }
+                    return answer;
+                  },
+                }),
+            },
+      ),
+    });
+    return {
+      target,
+      entered,
+      release,
+      counts: () => ({ receipts, commits, reads }),
+    };
+  }
+  async function waitForHeld(
+    held: Awaited<ReturnType<typeof heldIncremental>>,
+    pending: Promise<unknown>,
+  ) {
+    await Promise.race([
+      held.entered.promise,
+      pending.then((answer) => {
+        throw new Error(
+          `The call ended before the barrier: ${JSON.stringify(answer)}`,
+        );
+      }),
+    ]);
+  }
+  async function trashIncremental(id: string) {
+    const before = await noteState(id);
+    assert.ok(before.head.document && before.head.epoch);
+    const documents = createDocumentService();
+    const removed = await deleteFile({
+      headers: { ...browserHeaders, 'if-match': `"${before.head.revisionId}"` },
+      path: { workspaceId: writeWorkspaceId, fileId: id },
+      body: {
+        revisionId: randomUUID(),
+        mutationId: randomUUID(),
+        deviceId: 'incremental-trash',
+        document: {
+          update: null,
+          epoch: before.head.epoch,
+          observed: Buffer.from(
+            documents.observe(Buffer.from(before.head.document, 'base64')),
+          ).toString('base64'),
+        },
+      },
+    });
+    assert.equal(removed.response?.status, 200, JSON.stringify(removed.error));
+    return removed.data;
+  }
+  async function purgeIncremental(id: string) {
+    await trashIncremental(id);
+    const purged = await purgeFiles({
+      headers: browserHeaders,
+      path: { workspaceId: writeWorkspaceId },
+      body: { mutationId: randomUUID(), fileIds: [id] },
+    });
+    assert.deepEqual(
+      purged.data?.purgedFileIds,
+      [id],
+      JSON.stringify(purged.error),
+    );
+  }
+  async function incrementalCounts(id: string) {
+    return admin.query(
+      'select (select count(*) from revisions where file_id=$1) as revisions, (select count(*) from mutation_receipts where workspace_id=$2) as receipts',
+      [id, workspaceId],
+    );
+  }
+  await test('incremental calls serve both eras, create separate History versions, and deduplicate a lost answer', async () => {
+    for (const era of ['modern', 'legacy']) {
+      const id = await seedNote(workspaceId, `incremental/${era}.md`, 'Start');
+      const initial = await noteState(id);
+      const input = {
+        workspaceId,
+        fileId: id,
+        version: initial.head.revisionId,
+        text: 'Next',
+      };
+      // Treat this answer as lost. The retry has no dependency on its fields.
+      success(await callWrite('append_to_note', input, era));
+      const after = await noteState(id);
+      assert.equal(after.head.text, 'Start\nNext');
+      assert.equal(
+        after.history.revisions.length,
+        initial.history.revisions.length + 1,
+      );
+      const counts = await incrementalCounts(id);
+      const retry = success(await callWrite('append_to_note', input, era));
+      assert.equal(retry.earlierAttempt, true);
+      assert.equal(retry.changed, false);
+      assert.equal(retry.version, undefined);
+      assert.equal(retry.text, undefined);
+      assert.deepEqual(await incrementalCounts(id), counts);
+      const next = success(
+        await callWrite(
+          'append_to_note',
+          { ...input, version: after.head.revisionId },
+          era,
+        ),
+      );
+      assert.equal(next.changed, true);
+      assert.equal(next.headMoved, false);
+      const twice = await noteState(id);
+      assert.equal(twice.head.text, 'Start\nNext\nNext');
+      assert.equal(
+        twice.history.revisions.length,
+        initial.history.revisions.length + 2,
+      );
+    }
+  });
+  await test('retry returns an earlier attempt after its anchor disappears, Trash or purge', async () => {
+    for (const state of ['anchor', 'trash', 'purge']) {
+      const id = await seedNote(
+        workspaceId,
+        `incremental/retry-${state}.md`,
+        'old anchor',
+      );
+      const before = await noteState(id);
+      const input = {
+        workspaceId,
+        fileId: id,
+        version: before.head.revisionId,
+        changes: [
+          { operation: 'replace', anchor: 'old anchor', text: 'new text' },
+        ],
+      };
+      success(await callWrite('patch_note', input));
+      if (state === 'trash') await trashIncremental(id);
+      if (state === 'purge') await purgeIncremental(id);
+      const counts = await incrementalCounts(id);
+      const earlier = success(await callWrite('patch_note', input));
+      assert.equal(earlier.earlierAttempt, true);
+      assert.equal(earlier.version, undefined);
+      assert.deepEqual(await incrementalCounts(id), counts);
+    }
+  });
+  await test('receipt race after absent handles a removed anchor, Trash and purge with no second write', async (t) => {
+    for (const state of ['append', 'anchor', 'trash', 'purge'])
+      await t.test(state, { timeout: 15000 }, async () => {
+        const id = await seedNote(
+          workspaceId,
+          `incremental/receipt-race-${state}.md`,
+          'old anchor',
+        );
+        const before = await noteState(id);
+        const patch = state === 'anchor';
+        const name = patch ? 'patch_note' : 'append_to_note';
+        const input = {
+          workspaceId,
+          fileId: id,
+          version: before.head.revisionId,
+          ...(patch
+            ? {
+                changes: [
+                  {
+                    operation: 'replace',
+                    anchor: 'old anchor',
+                    text: 'new text',
+                  },
+                ],
+              }
+            : { text: 'new text' }),
+        };
+        const held = await heldIncremental('receipt', name);
+        let pending: ReturnType<typeof callRead> | undefined;
+        try {
+          pending = callRead(name, input, 'modern', write, held.target);
+          await waitForHeld(held, pending);
+          success(await callWrite(name, input));
+          const accepted = await noteState(id);
+          assert.equal(
+            accepted.history.revisions.length,
+            before.history.revisions.length + 1,
+          );
+          if (state === 'trash') await trashIncremental(id);
+          if (state === 'purge') await purgeIncremental(id);
+          const counts = await incrementalCounts(id);
+          held.release.resolve();
+          const answer = success(await pending);
+          assert.equal(answer.earlierAttempt, true);
+          assert.equal(answer.changed, false);
+          assert.deepEqual(await incrementalCounts(id), counts);
+          assert.deepEqual(held.counts(), {
+            receipts: state === 'append' ? 1 : 2,
+            commits: state === 'append' ? 1 : 0,
+            reads: 1,
+          });
+        } finally {
+          held.release.resolve();
+          await pending;
+          await held.target.close();
+        }
+      });
+  });
+  await test(
+    'two concurrent copies that reach commit use one receipt and one History version',
+    { timeout: 15000 },
+    async () => {
+      const id = await seedNote(
+        workspaceId,
+        'incremental/commit-retry.md',
+        'old anchor',
+      );
+      const before = await noteState(id);
+      const input = {
+        workspaceId,
+        fileId: id,
+        version: before.head.revisionId,
+        changes: [{ operation: 'replace', anchor: 'old anchor', text: 'new' }],
+      };
+      const held = await heldIncremental('commit', 'patch_note');
+      let pending: ReturnType<typeof callRead> | undefined;
+      try {
+        pending = callRead('patch_note', input, 'modern', write, held.target);
+        await waitForHeld(held, pending);
+        success(await callWrite('patch_note', input));
+        const counts = await incrementalCounts(id);
+        held.release.resolve();
+        assert.equal(success(await pending).earlierAttempt, true);
+        const after = await noteState(id);
+        assert.equal(after.head.text, 'new');
+        assert.equal(
+          after.history.revisions.length,
+          before.history.revisions.length + 1,
+        );
+        assert.deepEqual(await incrementalCounts(id), counts);
+      } finally {
+        held.release.resolve();
+        await pending;
+        await held.target.close();
+      }
+    },
+  );
+  await test('note-state errors with no receipt keep their original refusal and write nothing', async () => {
+    const id = await seedNote(workspaceId, 'incremental/refusal.md', 'body');
+    const before = await noteState(id);
+    const counts = await incrementalCounts(id);
+    for (const [name, extra, expected] of [
+      [
+        'patch_note',
+        { changes: [{ operation: 'replace', anchor: 'missing', text: 'x' }] },
+        /anchor is not/,
+      ],
+      [
+        'append_to_note',
+        { heading: '# Missing', text: 'x' },
+        /heading must occur once/,
+      ],
+    ] as const)
+      failure(
+        await callWrite(name, {
+          workspaceId,
+          fileId: id,
+          version: before.head.revisionId,
+          ...extra,
+        }),
+        expected,
+      );
+    assert.deepEqual(await incrementalCounts(id), counts);
+    await trashIncremental(id);
+    const trashCounts = await incrementalCounts(id);
+    failure(
+      await callWrite('append_to_note', {
+        workspaceId,
+        fileId: id,
+        version: before.head.revisionId,
+        text: 'x',
+      }),
+      /not available/,
+    );
+    assert.deepEqual(await incrementalCounts(id), trashCounts);
+  });
+  await test('incremental document work merges concurrent device edits and preserves named character identities', async (t) => {
+    for (const scenario of ['append', 'inside', 'repeated'])
+      for (const order of ['device-first', 'tool-first'])
+        await t.test(`${scenario} ${order}`, { timeout: 15000 }, async () => {
+          const source = scenario === 'repeated' ? 'aba' : 'abcdef';
+          const id = await seedNote(
+            workspaceId,
+            `incremental/merge-${scenario}-${order}.md`,
+            source,
+          );
+          const before = await noteState(id);
+          assert.ok(before.head.document && before.head.epoch);
+          const documents = createDocumentService();
+          const bytes = Buffer.from(before.head.document, 'base64');
+          const device = documents.editRanges(bytes, [
+            scenario === 'repeated'
+              ? { offset: 2, length: 1, text: 'X' }
+              : { offset: 3, length: 0, text: 'X' },
+          ]);
+          assert.ok(device.ok);
+          const name = scenario === 'append' ? 'append_to_note' : 'patch_note';
+          const input = {
+            workspaceId,
+            fileId: id,
+            version: before.head.revisionId,
+            ...(scenario === 'append'
+              ? { text: 'TOOL' }
+              : {
+                  changes: [
+                    {
+                      operation: 'replace',
+                      anchor: scenario === 'repeated' ? 'ab' : 'bcde',
+                      text: scenario === 'repeated' ? '' : 'TOOL',
+                    },
+                  ],
+                }),
+          };
+          const held = await heldIncremental('commit', name);
+          const deviceSave = () =>
+            sendChangeset({
+              headers: browserHeaders,
+              path: { workspaceId },
+              body: {
+                mutationId: randomUUID(),
+                deviceId: 'incremental-device',
+                expectedHeads: { [id]: before.head.revisionId },
+                revisions: [
+                  {
+                    revisionId: randomUUID(),
+                    fileId: id,
+                    parents: [before.head.revisionId],
+                    path: `incremental/merge-${scenario}-${order}.md`,
+                    deleted: false,
+                    clientTime: new Date().toISOString(),
+                    content: {
+                      kind: 'markdown',
+                      document: {
+                        update: Buffer.from(
+                          documents.delta(
+                            device.value.bytes,
+                            documents.stateVector(bytes),
+                          ),
+                        ).toString('base64'),
+                        epoch: before.head.epoch ?? 1,
+                        observed: Buffer.from(
+                          documents.observe(bytes),
+                        ).toString('base64'),
+                      },
+                    },
+                  },
+                ],
+              },
+            });
+          let pending: ReturnType<typeof callRead> | undefined;
+          try {
+            pending = callRead(name, input, 'modern', write, held.target);
+            await waitForHeld(held, pending);
+            if (order === 'device-first') {
+              const saved = await deviceSave();
+              assert.equal(
+                saved.response?.status,
+                200,
+                JSON.stringify(saved.error),
+              );
+            }
+            held.release.resolve();
+            const answer = success(await pending);
+            assert.equal(answer.headMoved, order === 'device-first');
+            if (order === 'tool-first') {
+              const saved = await deviceSave();
+              assert.equal(
+                saved.response?.status,
+                200,
+                JSON.stringify(saved.error),
+              );
+            }
+            const after = await noteState(id);
+            if (scenario === 'append')
+              assert.equal(after.head.text, 'abcXdef\nTOOL');
+            if (scenario === 'inside') {
+              assert.ok(after.head.text?.includes('X'));
+              assert.ok(after.head.text?.includes('TOOL'));
+              assert.ok(
+                after.head.text?.startsWith('a') &&
+                  after.head.text.endsWith('f'),
+              );
+              assert.equal(after.head.text?.length, 7);
+            }
+            if (scenario === 'repeated') assert.equal(after.head.text, 'X');
+            assert.equal(
+              after.history.revisions.length,
+              before.history.revisions.length + 2,
+            );
+            assert.equal(after.head.merged, true);
+            const entries = after.history.revisions;
+            assert.equal(entries[0]?.parents.length, 1);
+            assert.equal(entries[0]?.parents[0], entries[1]?.revisionId);
+          } finally {
+            held.release.resolve();
+            await pending;
+            await held.target.close();
+          }
+        });
+  });
+  await test('incremental commit keeps a concurrent rename and restores concurrent Trash', async (t) => {
+    for (const action of ['rename', 'trash'])
+      await t.test(action, { timeout: 15000 }, async () => {
+        const id = await seedNote(
+          workspaceId,
+          `incremental/metadata-${action}.md`,
+          'body',
+        );
+        const before = await noteState(id);
+        const input = {
+          workspaceId,
+          fileId: id,
+          version: before.head.revisionId,
+          text: 'TOOL',
+        };
+        const held = await heldIncremental('commit', 'append_to_note');
+        let pending: ReturnType<typeof callRead> | undefined;
+        try {
+          pending = callRead(
+            'append_to_note',
+            input,
+            'modern',
+            write,
+            held.target,
+          );
+          await waitForHeld(held, pending);
+          if (action === 'trash') await trashIncremental(id);
+          else {
+            const renamed = await updateFile({
+              headers: {
+                ...browserHeaders,
+                'if-match': `"${before.head.revisionId}"`,
+              },
+              path: { workspaceId, fileId: id },
+              body: {
+                revisionId: randomUUID(),
+                mutationId: randomUUID(),
+                deviceId: 'incremental-rename',
+                path: 'incremental/renamed.md',
+              },
+            });
+            assert.equal(
+              renamed.response?.status,
+              200,
+              JSON.stringify(renamed.error),
+            );
+          }
+          held.release.resolve();
+          const answer = success(await pending);
+          assert.equal(answer.deleted, false);
+          assert.equal(answer.headMoved, true);
+          const after = await noteState(id);
+          assert.equal(after.head.text, 'body\nTOOL');
+          assert.equal(after.head.deleted, false);
+          assert.equal(
+            after.history.revisions.length,
+            before.history.revisions.length + 2,
+          );
+          if (action === 'rename')
+            assert.equal(answer.path, 'incremental/renamed.md');
+          else
+            assert.equal(
+              after.history.revisions.filter((entry) => entry.deleted).length,
+              1,
+            );
+        } finally {
+          held.release.resolve();
+          await pending;
+          await held.target.close();
+        }
+      });
+  });
+  await test(
+    'incremental commit rebuilds once after a new document generation',
+    { timeout: 15000 },
+    async () => {
+      const id = await seedNote(
+        workspaceId,
+        'incremental/generation.md',
+        'body',
+      );
+      const before = await noteState(id);
+      const held = await heldIncremental('commit', 'append_to_note');
+      let pending: ReturnType<typeof callRead> | undefined;
+      try {
+        pending = callRead(
+          'append_to_note',
+          {
+            workspaceId,
+            fileId: id,
+            version: before.head.revisionId,
+            text: 'TOOL',
+          },
+          'modern',
+          write,
+          held.target,
+        );
+        await waitForHeld(held, pending);
+        // The repair fixture starts a new generation only in this disposable DB.
+        const documents = createDocumentService();
+        const bytes = documents.start('body');
+        await admin.query(
+          `with repaired as (
+        update note_documents set epoch=epoch+1, bytes=$3, state=$4
+        where workspace_id=$1 and file_id=$2 returning epoch
+      ), repair_revision as (
+        insert into revisions (workspace_id,id,file_id,content_digest,path,deleted,changeset_id,actor_account_id,client_time,message,document_vector,document_epoch)
+        select workspace_id,$6,file_id,content_digest,path,false,changeset_id,actor_account_id,clock_timestamp(),'Repair document generation',$7,(select epoch from repaired)
+        from revisions where workspace_id=$1 and id=$5 returning id
+      ), repair_parent as (
+        insert into revision_parents (workspace_id,child_id,parent_id,ordinal)
+        select $1,id,$5,0 from repair_revision
+      ) update files set head_revision_id=$6 where workspace_id=$1 and id=$2`,
+          [
+            workspaceId,
+            id,
+            Buffer.from(bytes),
+            Buffer.from(documents.observe(bytes)),
+            before.head.revisionId,
+            randomUUID(),
+            Buffer.from(documents.stateVector(bytes)),
+          ],
+        );
+        held.release.resolve();
+        const answer = success(await pending);
+        assert.equal(answer.changed, true);
+        assert.deepEqual(held.counts(), { receipts: 1, reads: 2, commits: 2 });
+        const after = await noteState(id);
+        assert.equal(after.head.epoch, 2);
+        assert.equal(after.head.text, 'body\nTOOL');
+        assert.equal(
+          after.history.revisions.length,
+          before.history.revisions.length + 2,
+        );
+      } finally {
+        held.release.resolve();
+        await pending;
+        await held.target.close();
+      }
+    },
+  );
+  await test('incremental result past the Markdown text limit writes no version or receipt', async () => {
+    const id = await seedNote(
+      workspaceId,
+      'incremental/text-limit.md',
+      'a'.repeat(1024 * 1024),
+    );
+    const before = await noteState(id);
+    const counts = await incrementalCounts(id);
+    failure(
+      await callWrite('append_to_note', {
+        workspaceId,
+        fileId: id,
+        version: before.head.revisionId,
+        text: 'x',
+      }),
+      /not valid|too large/,
+    );
+    assert.deepEqual(await incrementalCounts(id), counts);
+    assert.deepEqual(await noteState(id), before);
+  });
+  await test('incremental tools challenge a read grant before any write', async () => {
+    for (const name of ['append_to_note', 'patch_note']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: modernHeaders('tools/call', read, name),
+        payload: modern('tools/call', { name, arguments: {} }),
+      });
+      assert.equal(response.statusCode, 403, response.body);
+      assert.match(String(response.headers['www-authenticate']), /notes:write/);
+    }
+  });
+
   await test('the four production writes preserve version and retry rules in both protocol eras', async () => {
     for (const era of ['modern', 'legacy']) {
       const path = `writes/${era}.md`;
@@ -1824,6 +2432,24 @@ try {
             workspaceId: lockedWorkspace,
             fileId: lockedFile,
             version: lockedVersion,
+          },
+        ],
+        [
+          'append_to_note',
+          {
+            workspaceId: lockedWorkspace,
+            fileId: lockedFile,
+            version: lockedVersion,
+            text: 'Refused',
+          },
+        ],
+        [
+          'patch_note',
+          {
+            workspaceId: lockedWorkspace,
+            fileId: lockedFile,
+            version: lockedVersion,
+            changes: [{ operation: 'insert_at_end', text: 'Refused' }],
           },
         ],
         ['list_notes', { workspaceId: lockedWorkspace }],

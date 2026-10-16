@@ -31,7 +31,7 @@ authentication routes on one origin, and it holds no domain rule.
   of open registration, `verification.ts` the token of its link (0114), and
   `proof-of-work.ts` the challenges of a sign-up (0115). `src/jobs/` holds background work, `src/cli/` the operator
   commands. `routes/administration.ts` serves the installation operations (0109).
-- `src/mcp/` holds the stateless adapter, metadata and ten note tools (0225, 0227).
+- `src/mcp/` holds the stateless adapter, metadata and note tools (0225, 0227).
   Only this directory imports the MCP SDK. `read-support.ts` owns read checks. `write-tools.ts` uses the storage-server document service. Tools receive only a contract call port.
   `src/auth/actor.ts` holds their delegation.
 - `src/auth/better-auth.ts` holds the OAuth profile and web page targets (0226).

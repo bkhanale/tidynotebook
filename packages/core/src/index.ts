@@ -224,6 +224,7 @@ export type {
   FileSort,
   AppliedDocument,
   DocumentService,
+  DocumentRangeEdit,
   HeadState,
   StoredDocument,
   HistoryPage,

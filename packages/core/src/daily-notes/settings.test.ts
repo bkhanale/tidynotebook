@@ -104,6 +104,9 @@ function fakeStore(files: readonly FileRecord[]): WorkspaceStore & {
       apply: () => {
         throw new Error('unused');
       },
+      editRanges: () => {
+        throw new Error('Range edits are not used here.');
+      },
       replaceText: () => {
         throw new Error('unused');
       },

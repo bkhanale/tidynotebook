@@ -42,7 +42,7 @@ through its existing runtime pool.
 ## Tools and delegation
 
 `apps/server/src/mcp/registry.ts` holds the tool definitions, required scopes
-and permitted contract operations. It exposes the ten note tools of plan 022.
+and permitted contract operations. It exposes the note tools of plan 022 and design 027.
 `apps/server/src/mcp/read-tools.ts` maps each read tool to only those operations.
 A tool list does not filter by scope. The adapter checks write scope before it calls
 a tool, so a read grant receives a challenge for more access.
@@ -60,7 +60,7 @@ best matches that the contract returns. A narrower query can find more.
 
 `apps/server/src/mcp/write-tools.ts` maps writes to their declared operations.
 It uses the existing document service of `packages/storage-server` to build
-updates through `packages/note-document`. Each write on a live note reads its
+updates through `packages/note-document`. Each existing write on a live note reads its
 head and checks the required version. Exact text must occur once. A whole
 replacement keeps document identities through the same service. An unchanged
 edit or move returns the current version without a write. The internal
@@ -69,7 +69,29 @@ head change during a call refuses the write. The contract checks that head
 again under the workspace lock before any rebase or write. Trash sends the
 observed state and no text update. Create relies on the contract refusal of an occupied path.
 
-A handler receives only its input and a contract call function. It receives
+`apps/server/src/mcp/incremental-tools.ts` adds `append_to_note` and
+`patch_note`. They use `getMutationReceipt`, `getFile` and `commitChangeset`.
+Each accepted call creates one revision of one note. The required version
+identifies the call and reports a moved head. It is not a write condition.
+Anchors resolve against the read head, with overlapping exact matches counted.
+Headings come from the Markdown parser. An append adds the line breaks that
+keep its text and the next heading on separate lines.
+
+`editRanges` in the storage document service applies bounded original ranges
+through `packages/note-document`. It keeps the exact character identities of
+each range. It never uses a whole-text diff. Concurrent inserted characters
+survive a replacement, but Yjs does not promise insert order or valid Markdown
+structure. Record 0083 still applies to concurrent Trash and rename.
+
+The mutation identity covers the grant, tool name and canonical input. An
+input-only digest for a reserved probe operation checks the receipt before
+any note read. A used identity returns an earlier-attempt answer with no
+version or text. A note-state refusal checks the receipt again, because a
+concurrent copy can commit after the first check. Authorization and locked
+account refusals end the call directly. An epoch mismatch rebuilds once.
+
+A handler receives only its input, a contract call function and the internal
+grant identifier. It receives
 no protocol context, progress function or logging function. A unit test holds
 this rule so later tools cannot turn a JSON answer into a stream.
 
@@ -91,7 +113,7 @@ validation, locked account rule, usage limits and logs of the pipeline.
 
 ## Proof
 
-`apps/server/src/mcp/registry.test.ts` pins the ten production note tools and
+`apps/server/src/mcp/registry.test.ts` pins the production note tools and
 checks their operations and scopes. `apps/server/src/mcp/protocol.test.ts`
 holds each real registered note tool while its contract call waits. It proves
 that no notification can precede its result.

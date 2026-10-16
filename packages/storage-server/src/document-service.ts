@@ -11,6 +11,7 @@ import {
   applyDocumentUpdate,
   documentStateVector,
   encodeDocumentDelta,
+  editDocumentRanges,
   keepWrittenCharacter,
   observeDocument,
   observedCoverage,
@@ -36,7 +37,8 @@ function domainCode(refusal: DocumentRefusal): DomainErrorCode {
   if (refusal === 'unsupported-structure') return 'document_unsupported';
   // Text that is not well formed is content that the workspace cannot store,
   // so it answers with the content code that every other bad body answers.
-  if (refusal === 'not-well-formed') return 'invalid_content';
+  if (refusal === 'not-well-formed' || refusal === 'invalid-range')
+    return 'invalid_content';
   return 'document_too_large';
 }
 
@@ -61,6 +63,15 @@ export function createDocumentService(): DocumentService {
       text: string,
     ): Result<AppliedDocument> => {
       const written = replaceDocumentText(document, text);
+      if (!written.ok) return fail(domainCode(written.refusal));
+      return ok({
+        bytes: written.value.document,
+        text: written.value.text,
+        state: observeDocument(written.value.document),
+      });
+    },
+    editRanges: (document, edits): Result<AppliedDocument> => {
+      const written = editDocumentRanges(document, edits);
       if (!written.ok) return fail(domainCode(written.refusal));
       return ok({
         bytes: written.value.document,

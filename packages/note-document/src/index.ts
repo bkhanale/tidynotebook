@@ -10,11 +10,13 @@ export { documentBounds } from './bounds.ts';
 export type {
   AppliedDocument,
   DocumentRefusal,
+  DocumentRangeEdit,
   DocumentResult,
 } from './document.ts';
 export {
   applyDocumentUpdate,
   compactDocument,
+  editDocumentRanges,
   documentStateVector,
   encodeDocumentDelta,
   mergeDocumentUpdates,

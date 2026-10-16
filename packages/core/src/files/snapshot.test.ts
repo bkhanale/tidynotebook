@@ -35,6 +35,9 @@ const documentService: DocumentService = {
   start: () => new Uint8Array(),
   apply: () =>
     ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
+  editRanges: () => {
+    throw new Error('Range edits are not used here.');
+  },
   replaceText: () =>
     ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
   keepWrittenCharacter: () =>
