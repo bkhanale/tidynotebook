@@ -12,13 +12,14 @@
  *
  * The field is as wide as the name and no wider. A field that took the free
  * width of the header drew its hover fill across a thousand pixels of empty
- * row, which reads as a control and not as a name. The native `size`
- * attribute states the width in characters, so the browser measures the face
- * and no script measures anything, and `max-w-full` holds the field inside
- * the room the breadcrumb leaves it.
+ * row, which reads as a control and not as a name. A hidden text span sets
+ * the width from the same font and text as the input, plus 1 px for the caret.
+ * This works without native content sizing in older browsers. `max-w-full`
+ * holds the field inside the room that the breadcrumb leaves it. An empty
+ * field follows its placeholder.
  *
- * The field has no inline padding, so the name starts on the same pixel as
- * the folder part before it and the whole path reads as one line.
+ * The field has 4 px of padding on each side, so the hover fill has space
+ * around the name. The text stays on the breadcrumb baseline.
  *
  * Under touch the name takes the touch step of every field, so Safari on iOS
  * does not zoom the page into the header on a tap.
@@ -27,26 +28,19 @@
  */
 import { focusOutline, touchFieldText, transitionSurface } from '@notesapp/ui';
 
-/** The fewest characters the field is wide, which is its placeholder. */
-export const noteNameFieldMinimum = 9;
+/** The text shown when the note has no name. */
+export const noteNameFieldPlaceholder = 'Note name';
 
-/** The most characters the field is wide before the header holds it. */
-export const noteNameFieldMaximum = 80;
+/** Both the input and its width span must use the same text metrics. */
+export const noteNameFieldText = `px-1 py-1 text-ui ${touchFieldText} font-medium`;
 
-/**
- * How many characters wide the field is for one name.
- *
- * The browser turns this into a width from the face it renders, which is
- * why the field follows the name with no measurement of its own.
- */
-export function noteNameFieldSize(name: string): number {
-  return Math.min(
-    Math.max(name.length, noteNameFieldMinimum),
-    noteNameFieldMaximum,
-  );
-}
+/** The span sets the width without a character minimum or script measurement. */
+export const noteNameFieldContainer = 'relative inline-grid min-w-0 max-w-full';
+
+/** Keep the width span out of sight and leave 1 px for the input caret. */
+export const noteNameFieldMeasure = `invisible overflow-hidden whitespace-pre border-r border-transparent ${noteNameFieldText}`;
 
 /** The classes of the inline editable note name in the frame header. */
 export function noteNameFieldClassName(): string {
-  return `w-auto min-w-0 max-w-full truncate rounded-md border-0 bg-transparent py-1 text-ui ${touchFieldText} font-medium text-strong outline-none ${transitionSurface} hover:bg-hover ${focusOutline}`;
+  return `absolute inset-0 w-full min-w-0 max-w-full truncate rounded-md border-0 bg-transparent ${noteNameFieldText} text-strong outline-none ${transitionSurface} hover:bg-hover ${focusOutline}`;
 }

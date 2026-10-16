@@ -3,30 +3,32 @@ import test from 'node:test';
 import { touchFieldText } from '@notesapp/ui';
 import {
   noteNameFieldClassName,
-  noteNameFieldMaximum,
-  noteNameFieldMinimum,
-  noteNameFieldSize,
+  noteNameFieldContainer,
+  noteNameFieldMeasure,
+  noteNameFieldText,
 } from './note-name-field.ts';
 
-await test('the field is as wide as the name and no wider', () => {
-  assert.equal(noteNameFieldSize('Meeting notes'), 'Meeting notes'.length);
-  const classes = noteNameFieldClassName().split(' ');
-  // A field that took the free width of the header drew its hover fill over
-  // a thousand pixels of empty row. The width comes from the name.
-  assert.ok(classes.includes('w-auto'));
-  assert.ok(!classes.includes('w-full'));
-});
-
-await test('a short name keeps the width of the placeholder', () => {
-  assert.equal(noteNameFieldSize(''), noteNameFieldMinimum);
-  assert.equal(noteNameFieldSize('Ab'), noteNameFieldMinimum);
+await test('the rendered text sets the width and leaves room for the caret', () => {
+  // A character count gives narrow glyphs the same width as wide glyphs.
+  // The hidden span uses the input font and padding instead.
+  const input = noteNameFieldClassName();
+  assert.ok(input.includes(noteNameFieldText));
+  assert.ok(noteNameFieldMeasure.includes(noteNameFieldText));
+  const measure = noteNameFieldMeasure.split(' ');
+  assert.ok(measure.includes('whitespace-pre'));
+  assert.ok(measure.includes('border-r'));
+  assert.ok(measure.includes('invisible'));
+  // The input fills the span without contributing its native preferred width.
+  assert.ok(input.split(' ').includes('absolute'));
+  assert.ok(input.split(' ').includes('w-full'));
 });
 
 await test('a long name stops at the width the header can hold', () => {
-  assert.equal(noteNameFieldSize('x'.repeat(500)), noteNameFieldMaximum);
   const classes = noteNameFieldClassName().split(' ');
   // The header holds it too, and the name ends in an ellipsis rather than
   // pushing Search off the row.
+  assert.ok(noteNameFieldContainer.split(' ').includes('max-w-full'));
+  assert.ok(noteNameFieldContainer.split(' ').includes('min-w-0'));
   assert.ok(classes.includes('max-w-full'));
   assert.ok(classes.includes('min-w-0'));
   assert.ok(classes.includes('truncate'));
@@ -60,11 +62,11 @@ await test('the name field carries no box and no line in any state', () => {
   assert.ok(classes.includes('focus-visible:outline-focus'));
 });
 
-await test('the name field starts where the folder before it starts', () => {
+await test('the name field has equal padding on both sides', () => {
   const classes = noteNameFieldClassName().split(' ');
-  // No inline padding, so the whole path reads as one line.
-  assert.ok(!classes.some((name) => name.startsWith('px-')));
+  assert.ok(classes.includes('px-1'));
   assert.ok(!classes.some((name) => name.startsWith('pl-')));
+  assert.ok(!classes.some((name) => name.startsWith('pr-')));
 });
 
 await test('the name field sets its text at 16 px under touch', () => {
