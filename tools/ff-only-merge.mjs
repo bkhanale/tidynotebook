@@ -252,7 +252,10 @@ function latestStatus(statuses, context) {
  * The newest CodeRabbit status on H is a success, and only CodeRabbit wrote
  * a status of that name. The name proves nothing about the writer, so each
  * status needs the CodeRabbit account as its creator, and a status with no
- * creator stops. A green status is not an approval.
+ * creator stops. A green status is not an approval. The statuses come from
+ * the list endpoint, which carries the creator. The combined status endpoint
+ * leaves the creator out, and GraphQL gives the bot login without its
+ * `[bot]` suffix, so neither one can prove the writer here.
  *
  * @param {readonly unknown[]} statuses
  */

@@ -306,6 +306,12 @@ await test('a passing pull request moves main from B to H with one compare and s
     ),
   );
   assert.ok(!github.calls.some((call) => /\/merge\b|\/git\/refs\//.test(call)));
+  assert.ok(
+    github.calls.some((call) => call.includes(`/commits/${H}/statuses?`)),
+  );
+  assert.ok(
+    !github.calls.some((call) => call.includes(`/commits/${H}/status?`)),
+  );
 });
 
 await test('every list is read past its first page', async () => {

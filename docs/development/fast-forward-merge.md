@@ -38,7 +38,10 @@ the current `main` B. Each gate holds on exactly H:
   the login, the account type and the user ID. A CodeRabbit comment and a
   green CodeRabbit status are not an approval.
 - The newest CodeRabbit status on H is a success, and no other account wrote a
-  status of that name.
+  status of that name. The name proves nothing about the writer, so the
+  creator of each status must be the CodeRabbit account. The script reads the
+  status list, because the combined status leaves the creator out. A status
+  with no creator stops the script.
 - Every required status check of the effective rules for `main` succeeded on
   H. A check that names an app counts only a check run from that app.
 - No reviewer requests changes in their latest review.
@@ -85,4 +88,8 @@ References:
   review that changes inside the window is not seen.
 - A push with `GITHUB_TOKEN` starts no `push` workflow and no Pages build.
   CI runs on pull requests only, so nothing runs after the update.
+- A status creator comes from the REST status list. The REST and GraphQL
+  status reads were checked with an owner token. A real run must show that
+  the workflow token sees the same creator. If it sees none, the job stops
+  and shows why. Nobody accepts the status name in place of the creator.
 - The workflow does not close the pull request and does not delete a branch.
