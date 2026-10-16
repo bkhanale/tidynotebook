@@ -155,17 +155,29 @@ type MarkdownNode = {
 };
 function sectionEnd(source: string, heading: string): number {
   const headings: { start: number; depth: number; line: string }[] = [];
+  // Markdown offsets exclude one leading BOM. Document ranges include it.
+  const bomUnits = source.charCodeAt(0) === 0xfeff ? 1 : 0;
   function visit(node: MarkdownNode) {
     if (node.type === 'heading' && node.depth !== undefined) {
       const start = node.position?.start.offset;
       const end = node.position?.end.offset;
       if (start === undefined || end === undefined)
         throw new Error('The heading position is missing.');
-      const lineStart = source.lastIndexOf('\n', start - 1) + 1;
+      const sourceStart = start + bomUnits;
+      const sourceEnd = end + bomUnits;
+      // A Markdown line can end with LF, CRLF or CR. Keep its original
+      // prefix, but exclude the initial BOM from the exact heading match.
+      let lineStart = sourceStart;
+      while (
+        lineStart > bomUnits &&
+        source[lineStart - 1] !== '\n' &&
+        source[lineStart - 1] !== '\r'
+      )
+        lineStart -= 1;
       headings.push({
         start: lineStart,
         depth: node.depth,
-        line: source.slice(lineStart, end),
+        line: source.slice(lineStart, sourceEnd),
       });
     }
     for (const child of node.children ?? []) visit(child);

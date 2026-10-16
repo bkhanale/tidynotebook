@@ -1328,6 +1328,73 @@ try {
       );
     }
   });
+  await test('section appends preserve original BOM and line endings through the served contract', async (t) => {
+    for (const [style, ending] of [
+      ['LF', '\n'],
+      ['CRLF', '\r\n'],
+      ['CR', '\r'],
+    ] as const) {
+      for (const bom of ['', '\uFEFF']) {
+        await t.test(
+          `${style} ${bom === '' ? 'without BOM' : 'with BOM'}`,
+          async () => {
+            const source = `${bom}# A${ending}body${ending}## Child${ending}child${ending}# B${ending}last${ending}# C`;
+            const id = await seedNote(
+              workspaceId,
+              `incremental/heading-${style}-${bom.length}.md`,
+              source,
+            );
+            const before = await noteState(id);
+            assert.equal(before.head.text, source);
+            const firstInput = {
+              workspaceId,
+              fileId: id,
+              version: before.head.revisionId,
+              heading: '# A',
+              text: 'first',
+            };
+            const first = success(
+              await callWrite('append_to_note', firstInput),
+            );
+            const afterFirst = await noteState(id);
+            assert.equal(
+              afterFirst.head.text,
+              `${bom}# A${ending}body${ending}## Child${ending}child${ending}first\n# B${ending}last${ending}# C`,
+            );
+            assert.equal(
+              afterFirst.history.revisions.length,
+              before.history.revisions.length + 1,
+            );
+            const second = success(
+              await callWrite('append_to_note', {
+                workspaceId,
+                fileId: id,
+                version: stringField(first, 'version'),
+                heading: '# B',
+                text: 'later\r\n',
+              }),
+            );
+            assert.equal(second.changed, true);
+            const afterSecond = await noteState(id);
+            assert.equal(
+              afterSecond.head.text,
+              `${bom}# A${ending}body${ending}## Child${ending}child${ending}first\n# B${ending}last${ending}later\r\n# C`,
+            );
+            assert.equal(
+              afterSecond.history.revisions.length,
+              before.history.revisions.length + 2,
+            );
+            const counts = await incrementalCounts(id);
+            const retry = success(
+              await callWrite('append_to_note', firstInput),
+            );
+            assert.equal(retry.earlierAttempt, true);
+            assert.deepEqual(await incrementalCounts(id), counts);
+          },
+        );
+      }
+    }
+  });
   await test('retry returns an earlier attempt after its anchor disappears, Trash or purge', async () => {
     for (const state of ['anchor', 'trash', 'purge']) {
       const id = await seedNote(

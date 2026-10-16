@@ -770,3 +770,76 @@ await test('commit conflicts use their code, retry one epoch, and report stale i
     } else assert.equal(answer.isError, true);
   }
 });
+
+await test('a section append recognizes CR-only heading boundaries', async () => {
+  const { answer, saved } = await incremental(
+    'append_to_note',
+    { heading: '# A', text: 'new' },
+    '# A\rbody\r# B',
+  );
+  assert.equal(answer.isError, undefined, JSON.stringify(answer));
+  assert.equal(saved, '# A\rbody\rnew\n# B');
+});
+
+await test('a section append maps parser offsets past a leading BOM', async () => {
+  const { answer, saved } = await incremental(
+    'append_to_note',
+    { heading: '# A', text: 'new' },
+    '\uFEFF# A\nbody\n# B',
+  );
+  assert.equal(answer.isError, undefined, JSON.stringify(answer));
+  assert.equal(saved, '\uFEFF# A\nbody\nnew\n# B');
+});
+
+await test('section boundaries preserve BOM, original line endings and heading levels', async (t) => {
+  for (const [style, ending] of [
+    ['LF', '\n'],
+    ['CRLF', '\r\n'],
+    ['CR', '\r'],
+  ] as const) {
+    for (const bom of ['', '\uFEFF']) {
+      await t.test(
+        `${style} ${bom === '' ? 'without BOM' : 'with BOM'}`,
+        async () => {
+          const source = `${bom}# A${ending}body${ending}## Child${ending}child${ending}# B${ending}last${ending}# C`;
+          for (const [heading, expected] of [
+            [
+              '# A',
+              `${bom}# A${ending}body${ending}## Child${ending}child${ending}new\n# B${ending}last${ending}# C`,
+            ],
+            [
+              '## Child',
+              `${bom}# A${ending}body${ending}## Child${ending}child${ending}new\n# B${ending}last${ending}# C`,
+            ],
+            [
+              '# B',
+              `${bom}# A${ending}body${ending}## Child${ending}child${ending}# B${ending}last${ending}new\n# C`,
+            ],
+            ['# C', `${source}\nnew`],
+          ]) {
+            const { answer, saved, calls } = await incremental(
+              'append_to_note',
+              { heading, text: 'new' },
+              source,
+            );
+            assert.equal(answer.isError, undefined, JSON.stringify(answer));
+            assert.equal(saved, expected);
+            assert.deepEqual(calls, [
+              'getMutationReceipt',
+              'getFile',
+              'commitChangeset',
+            ]);
+          }
+          const adjacent = `${bom}# A${ending}# B`;
+          const { answer, saved } = await incremental(
+            'append_to_note',
+            { heading: '# A', text: 'new\r\n' },
+            adjacent,
+          );
+          assert.equal(answer.isError, undefined, JSON.stringify(answer));
+          assert.equal(saved, `${bom}# A${ending}new\r\n# B`);
+        },
+      );
+    }
+  }
+});
