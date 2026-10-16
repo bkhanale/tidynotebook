@@ -44,8 +44,12 @@
  * 10. A design is one file of `design/`, or one task folder
  *    `design/<task>/` that holds every file of the task. The `README.md` of
  *    the folder is the design and carries its header. Another Markdown file
- *    of the folder supports it, so it carries only a title. A folder with no
- *    `README.md` has no design, so it fails.
+ *    of the folder supports it, so it carries only a title. The check reads
+ *    the folders from the tree, not from the Markdown files, so a folder that
+ *    holds only a prototype or an image is held too: its name must be a task
+ *    name, and a folder with no `README.md` has no design, so it fails. A
+ *    prototype, a sample or an image may sit in a subfolder of the task, but
+ *    a Markdown file may not, so no task nests inside another.
  *
  * A separate root permits a disposable negative check without real documents,
  * with disposable fixture files.
@@ -196,22 +200,56 @@ export function isDesignSupport(path) {
 }
 
 /**
- * The design task folders that hold no design, as paths under `docs/`.
+ * One folder of `design/`, as the tree holds it.
  *
- * @param {readonly string[]} paths Paths relative to `docs/`.
+ * @typedef {{ name: string; hasIndex: boolean }} DesignFolder
+ */
+
+/**
+ * Reads every folder of `docs/design/`, whatever files it holds.
+ *
+ * @param {string} directory The root of the checked tree.
+ * @returns {Promise<DesignFolder[]>}
+ */
+export async function readDesignFolders(directory) {
+  const design = join(directory, 'docs', 'design');
+  const entries = await readdir(design, { withFileTypes: true }).catch(
+    () => [],
+  );
+  /** @type {DesignFolder[]} */
+  const folders = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const index = await stat(join(design, entry.name, designTaskIndex)).then(
+      (found) => found.isFile(),
+      () => false,
+    );
+    folders.push({ name: entry.name, hasIndex: index });
+  }
+  return folders.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * States what is wrong with each folder of `design/`.
+ *
+ * @param {readonly DesignFolder[]} folders
  * @returns {string[]}
  */
-export function designFoldersWithoutIndex(paths) {
-  const folders = new Set();
-  const indexed = new Set();
-  for (const path of paths) {
-    const parts = path.split('/');
-    if (parts[0] !== 'design' || parts.length !== 3) continue;
-    const folder = `design/${parts[1] ?? ''}`;
-    folders.add(folder);
-    if (parts[2] === designTaskIndex) indexed.add(folder);
+export function designFolderFailures(folders) {
+  /** @type {string[]} */
+  const failures = [];
+  for (const folder of folders) {
+    const path = `docs/design/${folder.name}/`;
+    if (!designTaskName.test(folder.name))
+      failures.push(
+        `${path}: "${folder.name}" is not a design task name. Use lowercase letters, digits and hyphens.`,
+      );
+    if (!folder.hasIndex)
+      failures.push(
+        `${path}: no ${designTaskIndex}. A design task folder holds the design in its ${designTaskIndex}.`,
+      );
   }
-  return [...folders].filter((folder) => !indexed.has(folder)).sort();
+  return failures;
 }
 
 /**
@@ -695,12 +733,7 @@ export async function main(directory) {
       for (const fence of refused)
         failures.push(`${path}:${fence.line}: ${fenceFailure(fence.language)}`);
   }
-  for (const folder of designFoldersWithoutIndex(
-    documents.map((path) => path.slice('docs/'.length)),
-  ))
-    failures.push(
-      `docs/${folder}/: no ${designTaskIndex}. A design task folder holds the design in its ${designTaskIndex}.`,
-    );
+  failures.push(...designFolderFailures(await readDesignFolders(directory)));
   for (const file of fenceAllowed.keys())
     if (!fenceHistory.has(file))
       failures.push(

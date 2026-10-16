@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import {
   allowedFenceLanguages,
   decisionIndexFailures,
-  designFoldersWithoutIndex,
+  designFolderFailures,
   fenceAllowFile,
   fenceLanguages,
   isDesignSupport,
@@ -140,13 +140,15 @@ await test('a design is one file or one task folder', () => {
   assert.equal(isDesignSupport('design/028-a-task/README.md'), false);
   assert.equal(isDesignSupport('design/001-a-design.md'), false);
   assert.deepEqual(
-    designFoldersWithoutIndex([
-      'design/001-a-design.md',
-      'design/028-a-task/README.md',
-      'design/028-a-task/copy.md',
-      'design/029-no-index/copy.md',
+    designFolderFailures([
+      { name: '028-a-task', hasIndex: true },
+      { name: '029-no-index', hasIndex: false },
+      { name: 'Bad Task', hasIndex: true },
     ]),
-    ['design/029-no-index'],
+    [
+      'docs/design/029-no-index/: no README.md. A design task folder holds the design in its README.md.',
+      'docs/design/Bad Task/: "Bad Task" is not a design task name. Use lowercase letters, digits and hyphens.',
+    ],
   );
 });
 
@@ -194,6 +196,57 @@ await test('a design task folder keeps the link and measure rules', () => {
   assert.equal(result.status, 1);
   assert.match(result.output, /the link "gone\.md" resolves to no file/);
   assert.match(result.output, /copy\.md:3: "300 ms" is a measured result/);
+});
+
+await test('a design task folder with only assets and no index fails', () => {
+  const result = check({
+    'docs/design/028-a-task/prototype.html': '<!doctype html>\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /docs\/design\/028-a-task\/: no README\.md/);
+});
+
+await test('a design folder with a wrong name fails, also with only assets', () => {
+  const result = check({
+    'docs/design/Bad Task/prototype.html': '<!doctype html>\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /"Bad Task" is not a design task name/);
+  assert.match(result.output, /docs\/design\/Bad Task\/: no README\.md/);
+});
+
+await test('a design task keeps its assets in a subfolder', () => {
+  const result = check({
+    'docs/design/028-a-task/README.md':
+      '# A task\n\nStatus: active\n\n## Decisions\n\nNone. See [a sample](email/a.html).\n',
+    'docs/design/028-a-task/email/a.html': '<!doctype html>\n',
+    'docs/design/028-a-task/email/a.txt': 'Plain text.\n',
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('a task cannot nest inside a task', () => {
+  const result = check({
+    'docs/design/028-a-task/README.md':
+      '# A task\n\nStatus: active\n\n## Decisions\n\nNone.\n',
+    'docs/design/028-a-task/inner/README.md':
+      '# Inner\n\nStatus: active\n\n## Decisions\n\nNone.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /inner\/README\.md: a design task folder sits in design\/<task>\/, one directory deep/,
+  );
+});
+
+await test('a flat numbered design still passes beside a task folder', () => {
+  const result = check({
+    'docs/design/002-another-design.md':
+      '# Another design\n\nStatus: complete\n\n## Decisions\n\nNone.\n',
+    'docs/design/028-a-task/README.md':
+      '# A task\n\nStatus: active\n\n## Decisions\n\nNone.\n',
+  });
+  assert.equal(result.status, 0, result.output);
 });
 
 await test('a document outside a known directory fails', () => {

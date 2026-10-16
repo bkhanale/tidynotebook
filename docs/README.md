@@ -125,8 +125,11 @@ to end, and argues with it.
 **Layout:** a new design keeps every file of its task in one folder,
 `design/<task>/`, named with lowercase letters, digits and hyphens, for
 example `design/028-a-task/`. The `README.md` of the folder is the design.
-Other Markdown files, static prototypes, plain text samples and images of the
-same task sit beside it, one directory deep. An older design stays as one
+Other Markdown files of the task sit beside it, one directory deep. Static
+prototypes, plain text samples and images can also sit in a subfolder of the
+task, but a Markdown file cannot, so no task nests inside another. Every
+folder of `design/` is a task folder, also one that holds only a prototype,
+so it needs a task name and a `README.md`. An older design stays as one
 numbered file in `design/`.
 
 **Header:** the title line, then the status line. A `## Decisions` heading
