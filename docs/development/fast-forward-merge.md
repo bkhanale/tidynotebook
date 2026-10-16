@@ -9,7 +9,8 @@ A person starts `.github/workflows/ff-only-merge.yml` by hand with a pull
 request number and the full head SHA that they reviewed. The workflow uses the
 checks that already ran on the pull request. It runs no test again.
 A dry run is the default. It checks every gate twice and writes nothing, so
-a person can see if a pull request is eligible before a real run.
+a person can see if a pull request is eligible before a real run. A dry run
+does not prove that the token may write or that the rules accept the write.
 `tools/ff-only-merge.mjs` holds every gate, and
 `tools/ff-only-merge.test.mjs` proves each gate with a fake GitHub API.
 `tools/ci-workflow.test.mjs` holds the shape of the workflow file.
@@ -84,6 +85,9 @@ References:
 - The pull request rule can refuse a direct ref update. Then the job fails and
   shows the refusal. Nobody relaxes a rule to make it pass. The direct update
   is not proven until the owner allows a real run.
+- The rebase merge button stays the current way to merge. It is not a fast
+  forward: it writes new commits, so `main` does not get the reviewed head.
+  It does not give the behavior of this workflow.
 - The API cannot bind the reviews, the checks and the head to the ref update in
   one atomic step. The second read and the compare and swap on B make the
   window small, and the frozen H blocks new code that nobody reviewed. A
