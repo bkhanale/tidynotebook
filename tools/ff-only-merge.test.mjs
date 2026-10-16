@@ -222,6 +222,7 @@ const list = (value) => (Array.isArray(value) ? value : []);
 const env = {
   PR_NUMBER: '5',
   EXPECTED_HEAD_SHA: H,
+  DRY_RUN: 'false',
   GITHUB_TOKEN: 'token',
   GITHUB_REPOSITORY: repo,
   GITHUB_REF: mainRef,
@@ -249,10 +250,16 @@ async function expectStop(change, message) {
 }
 
 await test('the inputs are a positive integer and a full lowercase SHA', () => {
-  assert.deepEqual(parseInputs({ PR_NUMBER: '397', EXPECTED_HEAD_SHA: H }), {
-    prNumber: 397,
-    expectedHead: H,
-  });
+  assert.deepEqual(
+    parseInputs({ PR_NUMBER: '397', EXPECTED_HEAD_SHA: H, DRY_RUN: 'true' }),
+    { prNumber: 397, expectedHead: H, dryRun: true },
+  );
+  for (const dryRun of [undefined, '', 'yes', 'TRUE', '1', 'true '])
+    assert.throws(
+      () =>
+        parseInputs({ PR_NUMBER: '5', EXPECTED_HEAD_SHA: H, DRY_RUN: dryRun }),
+      /dry run input must be true or false/,
+    );
   for (const number of [
     '',
     '0',
@@ -266,7 +273,12 @@ await test('the inputs are a positive integer and a full lowercase SHA', () => {
     '9999999999',
   ])
     assert.throws(
-      () => parseInputs({ PR_NUMBER: number, EXPECTED_HEAD_SHA: H }),
+      () =>
+        parseInputs({
+          PR_NUMBER: number,
+          EXPECTED_HEAD_SHA: H,
+          DRY_RUN: 'false',
+        }),
       /positive integer/,
     );
   for (const sha of [
@@ -279,7 +291,12 @@ await test('the inputs are a positive integer and a full lowercase SHA', () => {
     `$(id)${H.slice(5)}`,
   ])
     assert.throws(
-      () => parseInputs({ PR_NUMBER: '5', EXPECTED_HEAD_SHA: sha }),
+      () =>
+        parseInputs({
+          PR_NUMBER: '5',
+          EXPECTED_HEAD_SHA: sha,
+          DRY_RUN: 'false',
+        }),
       /40 character lowercase/,
     );
 });
@@ -312,6 +329,37 @@ await test('a passing pull request moves main from B to H with one compare and s
   assert.ok(
     !github.calls.some((call) => call.includes(`/commits/${H}/status?`)),
   );
+});
+
+await test('a dry run checks every gate twice and never writes', async () => {
+  const state = passing();
+  const github = fakeGitHub(state);
+  const outcome = await run({ ...env, DRY_RUN: 'true' }, github.fetch);
+  assert.equal(outcome.ok, true, outcome.result);
+  assert.match(
+    outcome.result,
+    /Every gate holds on a{40}\. This was a dry run/,
+  );
+  assert.equal(github.mutations.length, 0);
+  assert.equal(state.main, B);
+  assert.ok(
+    github.calls.every(
+      (call) => call.startsWith('GET ') || call === `POST ${graphqlUrl}`,
+    ),
+  );
+  assert.equal(
+    github.calls.filter((call) => call.includes('/compare/')).length,
+    2,
+  );
+
+  const blocked = passing();
+  blocked.threads = [{ id: 'T1', isResolved: false, isOutdated: false }];
+  const stopped = await run(
+    { ...env, DRY_RUN: 'true' },
+    fakeGitHub(blocked).fetch,
+  );
+  assert.equal(stopped.ok, false);
+  assert.match(stopped.result, /not resolved/);
 });
 
 await test('every list is read past its first page', async () => {

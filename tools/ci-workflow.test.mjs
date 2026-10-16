@@ -53,9 +53,15 @@ await test('the fast forward workflow runs trusted code by hand with narrow acce
   const on = record(workflow.on);
   assert.deepEqual(Object.keys(on), ['workflow_dispatch']);
   const inputs = record(record(on.workflow_dispatch).inputs);
-  assert.deepEqual(Object.keys(inputs), ['pr_number', 'expected_head_sha']);
+  assert.deepEqual(Object.keys(inputs), [
+    'pr_number',
+    'expected_head_sha',
+    'dry_run',
+  ]);
   for (const input of Object.values(inputs))
     assert.equal(record(input).required, true);
+  assert.equal(record(inputs.dry_run).type, 'boolean');
+  assert.equal(record(inputs.dry_run).default, true);
   assert.deepEqual(workflow.permissions, {
     contents: 'write',
     'pull-requests': 'read',
@@ -90,6 +96,7 @@ await test('the fast forward workflow runs trusted code by hand with narrow acce
     GITHUB_TOKEN: '${{ github.token }}',
     PR_NUMBER: '${{ inputs.pr_number }}',
     EXPECTED_HEAD_SHA: '${{ inputs.expected_head_sha }}',
+    DRY_RUN: '${{ inputs.dry_run }}',
   });
   const source = await readFile(join(root, path), 'utf8');
   const uses = [...source.matchAll(/^\s*- uses: (.+)$/gm)].map(

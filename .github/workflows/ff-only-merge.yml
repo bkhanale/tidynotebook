@@ -15,6 +15,11 @@ on:
         description: Full 40 character head commit SHA that was reviewed
         required: true
         type: string
+      dry_run:
+        description: Check every gate and write nothing
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -52,4 +57,5 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: node tools/ff-only-merge.mjs

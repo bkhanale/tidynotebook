@@ -8,6 +8,8 @@ of one pull request, and the limits of that workflow.
 A person starts `.github/workflows/ff-only-merge.yml` by hand with a pull
 request number and the full head SHA that they reviewed. The workflow uses the
 checks that already ran on the pull request. It runs no test again.
+A dry run is the default. It checks every gate twice and writes nothing, so
+a person can see if a pull request is eligible before a real run.
 `tools/ff-only-merge.mjs` holds every gate, and
 `tools/ff-only-merge.test.mjs` proves each gate with a fake GitHub API.
 `tools/ci-workflow.test.mjs` holds the shape of the workflow file.

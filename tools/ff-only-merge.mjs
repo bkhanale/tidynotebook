@@ -12,6 +12,7 @@
  * finds. See `docs/development/fast-forward-merge.md`.
  *
  * The inputs come from the environment: `PR_NUMBER`, `EXPECTED_HEAD_SHA`,
+ * `DRY_RUN`,
  * `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `GITHUB_REF`, `GITHUB_API_URL`,
  * `GITHUB_GRAPHQL_URL` and `GITHUB_STEP_SUMMARY`.
  */
@@ -60,7 +61,8 @@ const isSha = (value) => /^[0-9a-f]{40}$/.test(value);
 const short = (sha) => sha.slice(0, 12);
 
 /**
- * Reads the two inputs as data and refuses anything else.
+ * Reads the inputs as data and refuses anything else. A dry run checks every
+ * gate and never writes.
  *
  * @param {Record<string, string | undefined>} env
  */
@@ -73,7 +75,14 @@ export function parseInputs(env) {
     throw new GateError(
       'The expected head must be a full 40 character lowercase commit SHA.',
     );
-  return { prNumber: Number(number), expectedHead: sha };
+  const dryRun = env.DRY_RUN;
+  if (dryRun !== 'true' && dryRun !== 'false')
+    throw new GateError('The dry run input must be true or false.');
+  return {
+    prNumber: Number(number),
+    expectedHead: sha,
+    dryRun: dryRun === 'true',
+  };
 }
 
 /**
@@ -784,6 +793,14 @@ export async function run(env, fetch) {
       throw new GateError(
         'The pull request, its reviews, its threads, its checks or main changed between the two reads.',
       );
+    if (inputs.dryRun) {
+      rows.push('| Write | none, dry run |');
+      return report(
+        true,
+        `Every gate holds on ${second.head}. This was a dry run, so main did not move.`,
+        rows,
+      );
+    }
     const repositoryId = text(snapshot.repository.node_id);
     if (repositoryId === '')
       throw new GateError('The repository ID is not readable.');
