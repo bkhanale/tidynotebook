@@ -20,6 +20,7 @@ import {
   routeErrorScreen,
   type RouteErrorScope,
 } from '../lib/route-error.ts';
+import { AuthFrame } from '../features/accounts/accounts.tsx';
 import { webLogger } from '../logging.ts';
 import { useDocumentTitle } from './document-title.ts';
 
@@ -46,31 +47,38 @@ export function RouteError({
     webLogger.emit('web.render_failed', routeErrorLog(scope, error));
   }, [scope, error]);
 
-  return (
-    <Page>
-      <PageHeader
-        title={screen.title}
-        description={screen.description}
-        actions={
-          <>
-            <Button
-              onClick={(): void => {
-                window.location.reload();
-              }}
-            >
-              {reloadLabel}
-            </Button>
-            {screen.notesPath === null ? null : (
-              <Link
-                className={buttonClassName({ variant: 'secondary' })}
-                to={screen.notesPath}
-              >
-                {openNotesLabel}
-              </Link>
-            )}
-          </>
-        }
-      />
-    </Page>
+  const actions = (
+    <>
+      <Button
+        onClick={(): void => {
+          window.location.reload();
+        }}
+      >
+        {reloadLabel}
+      </Button>
+      {screen.notesPath === null ? null : (
+        <Link
+          className={buttonClassName({ variant: 'secondary' })}
+          to={screen.notesPath}
+        >
+          {openNotesLabel}
+        </Link>
+      )}
+    </>
+  );
+  const content = (
+    <PageHeader
+      title={screen.title}
+      description={screen.description}
+      actions={actions}
+    />
+  );
+  return scope === 'application' ? (
+    <AuthFrame title={screen.title}>
+      <p className="mb-5 mt-0 text-control text-muted">{screen.description}</p>
+      {actions}
+    </AuthFrame>
+  ) : (
+    <Page>{content}</Page>
   );
 }

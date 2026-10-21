@@ -12,6 +12,7 @@
  * module, so the two pages cannot drift apart and the build already emits
  * each utility (`apps/web/src/tailwind.css` registers that module).
  */
+import { publicLayout } from '@notesapp/ui/public-layout';
 import type { LegalDocumentName } from '../config.ts';
 import {
   bodyClasses,
@@ -74,10 +75,14 @@ export function legalDocument(input: LegalDocumentInput): string {
     <title>${escapeText(legalDocumentTitles[input.name])}</title>
     ${styles}</head>
   <body class="${bodyClasses}">
+    <div class="${publicLayout.gutter}">
+    <div class="${publicLayout.container}">
     <main class="${pageClasses}">
 <article class="${noteBodyClasses}">${input.body}</article>
 <footer class="${footClasses}">${foot}</footer>
     </main>
+    </div>
+    </div>
   </body>
 </html>
 `;

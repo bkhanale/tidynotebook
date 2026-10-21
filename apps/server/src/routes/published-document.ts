@@ -38,6 +38,7 @@
  * preference of the device of the reader (record 0151).
  */
 
+import { publicLayout } from '@notesapp/ui/public-layout';
 import type { ReportReason } from '@notesapp/core';
 import { productName } from '@notesapp/core';
 
@@ -188,8 +189,7 @@ const listHeading = 'Notes';
 const listLinkWords = 'All notes';
 
 /** The layout of the one column of a page that shows content. */
-export const pageClasses =
-  'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
+export const pageClasses = `${publicLayout.reading} py-8`;
 
 /**
  * The layout of a page that shows no content: a link that opens nothing and
@@ -561,9 +561,13 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     ${preview}<title>${escapeText(publishedTitle)}</title>
     ${styles}${script}</head>
   <body class="${bodyClasses}">
+    <div${input.view.kind === 'locked' || input.view.kind === 'unavailable' ? '' : ` class="${publicLayout.gutter}"`}>
+    <div class="${publicLayout.container}">
     <main class="${mainClassesOf(input.view)}">
 ${mainOf(input)}${footOf(input)}
     </main>
+    </div>
+    </div>
   </body>
 </html>
 `;

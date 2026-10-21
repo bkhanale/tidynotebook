@@ -130,7 +130,7 @@ await test('the contents mark the open page with the recipe of a row', () => {
   assert.equal(html.match(/aria-current="page"/g)?.length, 1);
 });
 
-await test('the side region lists each heading by its identifier', () => {
+await test('the in-page contents list links each heading by its identifier', () => {
   const html = pageDocument(view);
   for (const id of [
     'user-content-mail',

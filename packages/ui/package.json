@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./public-layout": {
+      "types": "./dist/public-layout.d.ts",
+      "default": "./dist/public-layout.js"
     }
   },
   "scripts": {

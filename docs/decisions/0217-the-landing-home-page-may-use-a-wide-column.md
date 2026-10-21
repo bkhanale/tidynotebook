@@ -1,7 +1,10 @@
 # 0217. The home page of the landing site may use a wide column
 
-- Status: Accepted
+- Status: Refined
 - Date: 2026-10-10
+
+The current [page family rules](../development/design.md#note-app-pages) refine
+the layout scope. The rationale below remains as history.
 
 ## Context
 

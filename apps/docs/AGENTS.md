@@ -23,8 +23,8 @@ client contract (record 0209).
   renderer, no front matter, no copy of the text. Generated pages join the same
   navigation, search and agent files, and link the contract as their source.
 - The page loads the one built stylesheet of `apps/web` and its fonts.
-  `apps/web/src/tailwind.css` registers `src/page.ts` as a source, so a class
-  of a page lives in that file and nowhere else here.
+  `apps/web/src/tailwind.css` registers `src/page.ts` and the shared UI recipes
+  as sources. The public frame reads `packages/ui/src/public-layout.ts`.
 - `src/client/` is the one browser script: the search dialog, the contents on
   a phone and the two copy controls. It imports only its own folder, and
   `src/client/search-index.ts` alone computes an import, the address of the

@@ -1,7 +1,10 @@
 # 0137. Every page shares the note column and its side region
 
-- Status: Accepted
+- Status: Refined
 - Date: 2026-09-30
+
+The current [page family rules](../development/design.md#note-app-pages) refine
+the layout scope. The rationale below remains as history.
 
 ## Context
 

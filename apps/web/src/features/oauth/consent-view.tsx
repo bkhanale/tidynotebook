@@ -1,6 +1,7 @@
 /** The consent screen uses client facts as text, never as markup or a link. */
 import type { ReactNode } from 'react';
-import { Button, Notice, Page, PageHeader, SelectField } from '@notesapp/ui';
+import { Button, Notice, SelectField } from '@notesapp/ui';
+import { AuthFrame } from '../accounts/accounts.tsx';
 import {
   oauthAccessChoices,
   type OAuthAccess,
@@ -23,8 +24,7 @@ export function OAuthConsentView({
   readonly onAnswer: (accept: boolean) => void;
 }): ReactNode {
   return (
-    <Page>
-      <PageHeader title="Allow access to your notes" />
+    <AuthFrame title="Allow access to your notes">
       <dl className="mb-6 mt-0 space-y-4 text-ui">
         <div>
           <dt className="font-medium text-muted">The client calls itself</dt>
@@ -93,6 +93,6 @@ export function OAuthConsentView({
           Deny
         </Button>
       </div>
-    </Page>
+    </AuthFrame>
   );
 }

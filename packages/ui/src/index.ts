@@ -250,3 +250,5 @@ export {
   ZoomInIcon,
   ZoomOutIcon,
 } from './icons.tsx';
+
+export { publicLayout } from './public-layout.ts';

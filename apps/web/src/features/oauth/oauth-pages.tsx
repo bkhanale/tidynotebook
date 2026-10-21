@@ -2,13 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { getOAuthClient, giveOAuthConsent } from '@notesapp/api-client';
-import {
-  buttonClassName,
-  LoadingState,
-  Notice,
-  Page,
-  PageHeader,
-} from '@notesapp/ui';
+import { buttonClassName, LoadingState, Notice } from '@notesapp/ui';
 import { useSession } from '../../app.tsx';
 import {
   oauthAcceptedScope,
@@ -25,25 +19,24 @@ import {
 } from '../../lib/oauth-consent.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { OAuthConsentView } from './consent-view.tsx';
-import { LoginPage } from '../accounts/accounts.tsx';
+import { AuthFrame, LoginPage } from '../accounts/accounts.tsx';
 
 function OAuthMessage({ message }: { readonly message: string }): ReactNode {
   return (
-    <Page>
-      <PageHeader title="Access to your notes" />
+    <AuthFrame title="Access to your notes">
       <Notice className="mb-4" tone="problem" message={message} />
       <Link to="/" className={buttonClassName({ variant: 'secondary' })}>
         Open your account
       </Link>
-    </Page>
+    </AuthFrame>
   );
 }
 
 function OAuthLoading(): ReactNode {
   return (
-    <Page>
+    <AuthFrame title="Access to your notes">
       <LoadingState label="The access request is loading." />
-    </Page>
+    </AuthFrame>
   );
 }
 
