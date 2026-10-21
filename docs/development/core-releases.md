@@ -19,9 +19,11 @@ publication. Builds read `ghcr.io/tidynotebook/tidynotebook/ci-cache:amd64` and
 `:arm64`; they do not write caches. Tested image archives expire after one day.
 Publication checks each immutable artifact ID and the SHA-256 of its ZIP
 against the native build outputs before extraction. It uses Skopeo to copy the
-tested images by digest without a rebuild or public architecture tags, then
-publishes one multi-architecture index. The runner must have Skopeo `1.13.3`;
-a missing or different version stops publication. Version `v1.2.3` publishes
+tested images by digest without a rebuild or public architecture tags. Conversion
+rewrites the config and recompresses layers. Publication checks that labels and
+uncompressed layer digests match the tested image, then checks that the final
+index contains exactly the pushed image digests. Publish jobs use Ubuntu 24.04
+and require Skopeo `1.13.3`; a missing or different version stops publication. Version `v1.2.3` publishes
 `:1.2.3`. Existing version tags cannot be replaced. There is no `latest` alias.
 The index has GitHub OIDC provenance, with no stored signing key.
 

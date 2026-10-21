@@ -87,7 +87,7 @@ jobs:
     name: Publish main image
     needs: [prepare, build_amd64, build_arm64]
     if: needs.prepare.outputs.version == 'main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -116,7 +116,7 @@ jobs:
     needs: [prepare, build_amd64, build_arm64]
     if: needs.prepare.outputs.version != 'main'
     environment: release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read

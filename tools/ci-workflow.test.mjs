@@ -394,6 +394,7 @@ await test('release proves both native images before the only publication jobs',
     const job = record(raw);
     assert.ok(typeof job['timeout-minutes'] === 'number');
     const publish = name.startsWith('publish_');
+    if (publish) assert.equal(job['runs-on'], 'ubuntu-24.04');
     for (const permission of ['packages', 'id-token', 'attestations'])
       assert.equal(
         record(job.permissions)[permission],

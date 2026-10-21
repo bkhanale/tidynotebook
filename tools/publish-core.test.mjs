@@ -14,20 +14,39 @@ async function publication(context, overrides = {}) {
   context.after(() => rm(directory, { recursive: true, force: true }));
   const log = join(directory, 'calls');
   const executable = `#!${process.execPath}
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 appendFileSync(process.env.CALLS, JSON.stringify(args) + '\\n');
 const sha = 'a'.repeat(40);
-if (process.argv[1].endsWith('/gh')) console.log(process.env.STALE ? 'b'.repeat(40) : sha);
-else if (process.argv[1].endsWith('/skopeo')) { if (args[0] === 'inspect') console.log(JSON.stringify({ schemaVersion: 2, source: args.at(-1) })); }
-else if (args[0] === 'image') {
- const arch = args.at(-1).split(':')[1];
- console.log(JSON.stringify([{ Os: 'linux', Architecture: arch, Config: { Labels: {
+const labels = (arch) => ({
   'org.opencontainers.image.revision': process.env.BAD_ARM && arch === 'arm64' ? 'b'.repeat(40) : sha,
   'org.opencontainers.image.source': 'https://github.com/tidynotebook/tidynotebook',
   'org.opencontainers.image.version': process.env.VERSION
- } } }]));
-} else if (args.includes('inspect')) console.log('sha256:' + '2'.repeat(64));
+});
+const layers = (arch) => ['sha256:' + (arch === 'amd64' ? '1' : '3').repeat(64)];
+if (process.argv[1].endsWith('/gh')) console.log(process.env.STALE ? 'b'.repeat(40) : sha);
+else if (process.argv[1].endsWith('/skopeo')) {
+ if (args[0] === 'inspect') {
+  if (args.includes('--config')) {
+   const arch = args.at(-1).includes('oci-arm64') ? 'arm64' : 'amd64';
+   const converted = labels(arch);
+   if (process.env.BAD_CONVERTED_LABELS) converted.extra = 'unexpected';
+   console.log(JSON.stringify({ config: { Labels: converted }, rootfs: { diff_ids: process.env.BAD_CONVERTED_LAYERS ? [] : layers(arch) } }));
+  } else console.log(JSON.stringify({ schemaVersion: 2, source: args.at(-1) }));
+ }
+} else if (args[0] === 'image') {
+ const arch = args.at(-1).split(':')[1];
+ console.log(JSON.stringify([{ Os: 'linux', Architecture: arch, RootFS: { Layers: layers(arch) }, Config: { Labels: labels(arch) } }]));
+} else if (args.includes('inspect')) {
+ if (args.includes('--raw')) {
+  const pushed = readFileSync(process.env.CALLS, 'utf8').trim().split('\\n').map(JSON.parse).map((call) => call.at(-1)).filter((value) => value?.startsWith('docker://')).map((value) => value.split('@')[1]);
+  if (process.env.BAD_INDEX === 'missing') pushed.pop();
+  if (process.env.BAD_INDEX === 'extra') pushed.push('sha256:' + '4'.repeat(64));
+  if (process.env.BAD_INDEX === 'duplicate') pushed[1] = pushed[0];
+  if (process.env.BAD_INDEX === 'wrong') pushed[1] = 'sha256:' + '5'.repeat(64);
+  console.log(JSON.stringify({ manifests: pushed.reverse().map((digest) => ({ digest })) }));
+ } else console.log('sha256:' + '2'.repeat(64));
+}
 `;
   for (const command of ['docker', 'gh', 'skopeo'])
     await writeFile(join(directory, command), executable, { mode: 0o700 });
@@ -114,4 +133,22 @@ await test('an existing fixed version stops before any image write', async (cont
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Fixed versions cannot be replaced/);
   assert.equal(result.calls, '');
+});
+
+await test('conversion changes to labels or filesystem layers stop before registry writes', async (context) => {
+  for (const fault of ['BAD_CONVERTED_LABELS', 'BAD_CONVERTED_LAYERS']) {
+    const result = await publication(context, { [fault]: '1' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Conversion changed the tested/);
+    assert.doesNotMatch(result.calls, /docker:\/\/|"create"/);
+  }
+});
+
+await test('the final index must contain exactly the two pushed child digests', async (context) => {
+  for (const fault of ['missing', 'extra', 'duplicate', 'wrong']) {
+    const result = await publication(context, { BAD_INDEX: fault });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /exactly the pushed image digests/);
+    assert.equal(result.output, '');
+  }
 });

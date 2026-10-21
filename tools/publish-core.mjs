@@ -65,6 +65,8 @@ if (version !== 'main') {
 
 /** @type {string[]} */
 const sources = [];
+/** @type {Map<string, {labels: Record<string, unknown>, diffIds: string[]}>} */
+const tested = new Map();
 for (const arch of ['amd64', 'arm64']) {
   docker([
     'load',
@@ -84,9 +86,17 @@ for (const arch of ['amd64', 'arm64']) {
     `https://github.com/${repository}`,
   );
   assert.equal(labels['org.opencontainers.image.version'], version);
+  const layers = record(local.RootFS).Layers;
+  assert.ok(Array.isArray(layers));
+  const diffIds = layers.map((layer) => {
+    assert.ok(typeof layer === 'string');
+    return layer;
+  });
+  tested.set(arch, { labels, diffIds });
 }
-// Convert the transport format locally. The tested config and filesystem stay
-// the same. Preserve the resulting OCI manifest digest during the registry copy.
+// Conversion serializes a new OCI config and recompresses layers. Check the
+// tested labels and uncompressed layer digests before any registry copy.
+// Preserve the resulting OCI manifest digest during the registry copy.
 for (const arch of ['amd64', 'arm64']) {
   const layout = `oci:${join(process.env.RUNNER_TEMP, `oci-${arch}`)}:proved`;
   execFileSync(
@@ -99,6 +109,25 @@ for (const arch of ['amd64', 'arm64']) {
       layout,
     ],
     { stdio: 'inherit' },
+  );
+  const converted = record(
+    JSON.parse(
+      execFileSync('skopeo', ['inspect', '--config', layout], {
+        encoding: 'utf8',
+      }),
+    ),
+  );
+  const expected = tested.get(arch);
+  assert.ok(expected);
+  assert.deepEqual(
+    record(converted.rootfs).diff_ids,
+    expected.diffIds,
+    'Conversion changed the tested filesystem layer digests.',
+  );
+  assert.deepEqual(
+    record(converted.config).Labels,
+    expected.labels,
+    'Conversion changed the tested image labels.',
   );
   const manifest = execFileSync('skopeo', ['inspect', '--raw', layout]);
   const digest = `sha256:${createHash('sha256').update(manifest).digest('hex')}`;
@@ -149,6 +178,25 @@ const digest = docker([
   '{{.Manifest.Digest}}',
 ]).trim();
 assert.match(digest, /^sha256:[a-f0-9]{64}$/);
+const index = record(
+  JSON.parse(
+    docker(['buildx', 'imagetools', 'inspect', `${image}@${digest}`, '--raw']),
+  ),
+);
+assert.ok(Array.isArray(index.manifests));
+assert.deepEqual(
+  index.manifests
+    .map((child) => {
+      const childDigest = record(child).digest;
+      assert.ok(typeof childDigest === 'string');
+      return childDigest;
+    })
+    .sort((a, b) => a.localeCompare(b)),
+  sources
+    .map((source) => source.slice(image.length + 1))
+    .sort((a, b) => a.localeCompare(b)),
+  'The published index must contain exactly the pushed image digests.',
+);
 assert.ok(process.env.GITHUB_OUTPUT);
 appendFileSync(process.env.GITHUB_OUTPUT, `digest=${digest}\n`);
 assert.ok(process.env.GITHUB_STEP_SUMMARY);
