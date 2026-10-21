@@ -463,7 +463,9 @@ await test('a reader with no session reads the list of a folder link', async () 
   assert.ok(page.html.includes('day-one'));
   assert.ok(page.html.includes('day-two'));
   // The list names the notes of the scope and nothing outside it.
-  assert.ok(!page.html.includes('2026'));
+  // The footer year is public. No other occurrence may expose the hidden path.
+  assert.equal(page.html.split('© 2026 tidy notebook').length - 1, 1);
+  assert.ok(!page.html.replace('© 2026 tidy notebook', '').includes('2026'));
   // A stored path suffix never reaches a person.
   assert.ok(!page.html.includes('.md'));
 });
