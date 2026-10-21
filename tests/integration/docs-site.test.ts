@@ -87,6 +87,19 @@ await test('the built documentation site', async (t) => {
     await rm(output, { recursive: true, force: true });
   });
 
+  await t.test('docs copies and links the official icon set', async () => {
+    for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png']) {
+      const source = await readFile(join(root, 'apps/web/dist/web', name));
+      assert.ok(source.equals(await readFile(join(output, name))), name);
+    }
+    for (const { html } of pages) {
+      assert.ok(html.includes(`href="${base}favicon.ico"`));
+      assert.ok(html.includes(`href="${base}apple-touch-icon.png"`));
+      assert.match(html, /rel="icon" type="image\/svg\+xml"/);
+      assert.ok(!html.includes('rel="manifest"'));
+    }
+  });
+
   await t.test(
     'every page of the guide is a page and a Markdown copy',
     async () => {

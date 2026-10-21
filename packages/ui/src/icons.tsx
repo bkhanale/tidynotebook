@@ -811,9 +811,8 @@ export function CheckIcon(props: IconProps): ReactNode {
 }
 
 /**
- * The product mark: the ring bound page of the install icon. The install icon
- * writes tn on the page. At 16 pixels the two letters run together, so the
- * mark draws lines of text in their place.
+ * The official notebook mark. tools/generate-icons.mjs checks its paths
+ * against packages/ui/assets/notebook.svg.
  */
 export function AppMarkIcon(props: IconProps): ReactNode {
   return (

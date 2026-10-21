@@ -5,6 +5,7 @@ import { rebaseFonts, shellAssets } from './assets.ts';
 await test('the shell names its stylesheet and its icon', () => {
   const html = [
     '<link rel="manifest" href="/manifest.webmanifest" />',
+    '<link rel="icon" type="image/x-icon" href="/assets/favicon-58a1.ico" />',
     '<link rel="icon" type="image/svg+xml" href="/assets/icon-58a1.svg" />',
     '<link rel="modulepreload" crossorigin href="/assets/app.js">',
     '<link rel="stylesheet" crossorigin href="/assets/main-D-Ax.css">',

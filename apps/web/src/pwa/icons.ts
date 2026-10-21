@@ -45,6 +45,13 @@ export type AppIcon = {
 /** Every icon that the build emits. */
 export const appIcons: readonly AppIcon[] = [
   {
+    file: 'favicon.ico',
+    type: 'image/x-icon',
+    sizes: '16x16 32x32 48x48',
+    purpose: null,
+    relation: 'icon',
+  },
+  {
     file: 'icon.svg',
     type: 'image/svg+xml',
     sizes: null,
@@ -150,4 +157,16 @@ export function iconLinkElements(addresses: IconAddresses): string {
       return `<link rel="${String(icon.relation)}" type="${icon.type}"${sizes} href="${href}" />`;
     })
     .join('\n    ');
+}
+
+/** Root copies for browsers and document pages. */
+export const rootIcons = [
+  { file: 'icon.svg', path: 'favicon.svg' },
+  { file: 'favicon.ico', path: 'favicon.ico' },
+  { file: 'apple-touch-icon.png', path: 'apple-touch-icon.png' },
+] as const;
+
+/** Root fallbacks always use browser revalidation. */
+export function isRootIcon(path: string): boolean {
+  return rootIcons.some((icon) => path === `/${icon.path}`);
 }

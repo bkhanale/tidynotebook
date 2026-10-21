@@ -44,6 +44,8 @@ const pageFile = /^\/assets\/[A-Za-z0-9._-]+\.(?:css|woff2)$/;
  */
 export function publishedOriginServesFile(path: string): boolean {
   if (path.includes('..')) return false;
+  if (['/favicon.ico', '/favicon.svg', '/apple-touch-icon.png'].includes(path))
+    return true;
   if (pageFile.test(path)) return true;
   if (path === publishedDiagramFrameHref) return true;
   const name = path.startsWith('/assets/') ? path.slice('/assets/'.length) : '';

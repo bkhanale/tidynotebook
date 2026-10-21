@@ -34,6 +34,7 @@ import { publishedPageScriptName } from '../../apps/web/vite.config.ts';
 import {
   appIcons,
   iconHashLength,
+  rootIcons,
   socialCard,
 } from '../../apps/web/src/pwa/icons.ts';
 import {
@@ -159,9 +160,15 @@ await test('the built shell fits the content viewport when a keyboard opens', as
   assert.doesNotMatch(shell, /<div id="root" class="min-h-dvh"/);
 });
 
-await test('no icon keeps a fixed address of its own', async () => {
-  const root = await readdir(distribution);
-  for (const icon of appIcons) assert.ok(!root.includes(icon.file), icon.file);
+await test('root icon fallbacks match the generated sources and revalidate', async () => {
+  for (const icon of rootIcons) {
+    const built = await readFile(join(distribution, icon.path));
+    const source = await readFile(
+      join(import.meta.dirname, '../../apps/web/icons', icon.file),
+    );
+    assert.ok(built.equals(source), icon.path);
+    assert.equal(cacheControlFor(icon.path), 'no-cache');
+  }
 });
 
 await test('the first screen loads no library that only a note needs', async () => {

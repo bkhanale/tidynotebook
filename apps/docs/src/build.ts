@@ -105,6 +105,8 @@ async function copyAssets(
     recursive: true,
     filter: (source) => !/\.(?:br|gz)$/.test(source),
   });
+  for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png'])
+    await cp(join(input.web, name), join(input.output, name));
   let icon: string | null = null;
   if (shell.icon !== null) {
     await cp(join(input.web, shell.icon), join(input.output, shell.icon));

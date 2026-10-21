@@ -54,6 +54,16 @@ await test('the published origin serves a stylesheet and a font, and no shell or
   assert.equal(decide('/assets/app-9mBXVEmD.css'), 'serve');
   assert.equal(decide('/assets/geist-latin.woff2?v=1'), 'serve');
   assert.equal(decide('/assets/main-DZoQRQzA.js'), 'refuse');
+  for (const icon of [
+    '/favicon.ico',
+    '/favicon.svg',
+    '/apple-touch-icon.png',
+  ]) {
+    assert.equal(decide(icon), 'serve');
+    assert.equal(decide(icon, 'HEAD'), 'serve');
+    assert.equal(decide(icon, 'POST'), 'refuse');
+  }
+  assert.equal(decide('/other.ico'), 'refuse');
   assert.equal(decide('/'), 'refuse');
   assert.equal(decide('/index.html'), 'refuse');
   assert.equal(decide('/sw.js'), 'refuse');

@@ -255,6 +255,7 @@ the development process. Old process records remain as history.
 | [0227](0227-a-tool-calls-the-contract-as-the-actor-of-its-grant.md)                   | A tool calls the contract as the actor of its grant                             |
 | [0228](0228-hosted-proof-and-release.md)                                              | Hosted checks prove changes and one workflow releases them                      |
 | [0229](0229-incremental-mcp-edits-use-exact-document-ranges.md)                       | Incremental MCP edits use exact document ranges                                 |
+| [0230](0230-the-notebook-is-the-official-mark.md)                                     | The notebook is the official mark                                               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

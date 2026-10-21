@@ -23,6 +23,8 @@ export const mediaTypes: Readonly<Record<string, string>> = {
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml',
   '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.png': 'image/png',
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
   '.pf_meta': 'application/octet-stream',

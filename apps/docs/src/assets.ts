@@ -45,7 +45,12 @@ export function shellAssets(html: string): ShellAssets {
     const relations = relation.split(/\s+/);
     if (relations.includes('stylesheet') && !stylesheets.includes(href))
       stylesheets.push(href);
-    else if (relations.includes('icon') && icon === null) icon = href;
+    else if (
+      relations.includes('icon') &&
+      href.endsWith('.svg') &&
+      icon === null
+    )
+      icon = href;
   }
   if (stylesheets.length === 0)
     throw new Error(

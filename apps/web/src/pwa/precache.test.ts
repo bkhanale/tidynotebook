@@ -28,7 +28,7 @@ const mixedBuild: readonly BuiltFile[] = [
   file('/index.html'),
   file('/manifest.webmanifest'),
   file('/icon.svg'),
-  file('/apple-touch-icon.png'),
+  file('/assets/apple-touch-icon-AbCdEfGh.png'),
   file('/assets/main-AbCdEfGh.js'),
   file('/assets/main-AbCdEfGh.css'),
   file('/assets/font-AbCdEfGh.woff2'),
@@ -42,7 +42,7 @@ const mixedBuild: readonly BuiltFile[] = [
 await test('the precache keeps the shell and drops the rest', () => {
   const precache = derivePrecache(mixedBuild);
   assert.deepEqual(precache.urls, [
-    '/apple-touch-icon.png',
+    '/assets/apple-touch-icon-AbCdEfGh.png',
     '/assets/font-AbCdEfGh.woff2',
     '/assets/main-AbCdEfGh.css',
     '/assets/main-AbCdEfGh.js',
@@ -135,4 +135,14 @@ await test('the built worker is one classic script that holds its precache', asy
   assert.ok(worker.code.includes('/index.html'));
   assert.ok(!worker.code.includes('__NOTESAPP_PRECACHE__'));
   assert.ok(!worker.code.includes('__NOTESAPP_APP_CACHE__'));
+});
+
+await test('root icon fallbacks are never precached', () => {
+  const result = derivePrecache([
+    file('/favicon.ico'),
+    file('/favicon.svg'),
+    file('/apple-touch-icon.png'),
+    file('/assets/icon-AbCdEfGh.svg'),
+  ]);
+  assert.deepEqual(result.urls, ['/assets/icon-AbCdEfGh.svg']);
 });

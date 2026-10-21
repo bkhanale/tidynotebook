@@ -557,6 +557,9 @@ export function publishedDocument(input: PublishedDocumentInput): string {
   return `<!doctype html>
 <html lang="en">
   <head>
+    <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">

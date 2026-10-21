@@ -5,6 +5,7 @@ import { build, defineConfig, type Plugin } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import {
   appIcons,
+  rootIcons,
   emittedImages,
   iconBuiltAddress,
   iconDirectory,
@@ -255,7 +256,11 @@ function themeAssets(directory: string): Plugin {
           return;
         }
         const icon = emittedImages.find(
-          (one) => iconSourceAddress(one.file) === url,
+          (one) =>
+            iconSourceAddress(one.file) === url ||
+            rootIcons.some(
+              (root) => root.file === one.file && `/${root.path}` === url,
+            ),
         );
         if (icon === undefined) {
           next();
@@ -283,6 +288,11 @@ function themeAssets(directory: string): Plugin {
           fileName: fileName.slice(1),
           source,
         });
+      }
+      for (const icon of rootIcons) {
+        const source = bytes.get(icon.file);
+        if (source === undefined) throw new Error(`Missing icon: ${icon.file}`);
+        this.emitFile({ type: 'asset', fileName: icon.path, source });
       }
       this.emitFile({
         type: 'asset',

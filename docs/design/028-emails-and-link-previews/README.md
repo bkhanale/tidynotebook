@@ -99,7 +99,7 @@ text and stay out of this design.
 
 ### The layout
 
-One column on the surface colour of the Default theme. A small `tn` tile and
+One column on the surface colour of the Default theme. A small notebook tile and
 the name sit above one card. The card holds a short label, one heading, the
 paragraphs, one button, the time that the link works, the full address of the
 link as text, and one quiet panel that says what to do if the person did not
@@ -267,9 +267,9 @@ The proposed block, the card and the drawings are in
 ### The card
 
 - PNG, 1200 by 630 pixels, light palette, well under the WhatsApp size limit.
-- The icon of `apps/web/icons/icon.svg`, the name and two lines of text. Every
+- The official notebook mark of record 0230, the name and two lines of text. Every
   part that a square crop keeps sits in the centre.
-- The text is drawn as outlines in the shipped file, as the install icon is, so
+- The text is drawn as outlines in the source SVG, so
   no font loads and the render is the same on every machine. The prototype
   uses a system face.
 - The build emits it under a hashed name, as decision 0074 does for each icon,

@@ -222,3 +222,18 @@ await test('a request with no preload answer falls back to the network', () => {
   assert.equal(preloadedResponse('<!doctype html>'), null);
   assert.equal(preloadedResponse({ status: 200 }), null);
 });
+
+await test('root icon fallbacks pass through the worker for revalidation', () => {
+  for (const path of [
+    '/favicon.ico',
+    '/favicon.svg',
+    '/apple-touch-icon.png',
+  ]) {
+    const request = asked(`${origin}${path}`);
+    assert.equal(isCacheableAsset(request, origin), false);
+    assert.equal(
+      servedByWorker(request, origin, new Set([request.url])),
+      false,
+    );
+  }
+});

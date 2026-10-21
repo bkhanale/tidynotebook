@@ -311,6 +311,8 @@ function head(
     `<meta property="og:title" content="${escapeAttribute(title)}">`,
     `<meta property="og:description" content="${escapeAttribute(description)}">`,
     `<meta property="og:site_name" content="${escapeAttribute(siteName)}">`,
+    `<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="${escapeAttribute(settings.base)}favicon.ico">`,
+    `<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttribute(settings.base)}apple-touch-icon.png">`,
     ...(assets.icon === null
       ? []
       : [

@@ -9,6 +9,7 @@
 import { isLegalPath } from '../lib/legal-path.ts';
 import { isReaderPath } from '../lib/reader-path.ts';
 import { isAssetPath } from './asset-kinds.ts';
+import { isRootIcon } from './icons.ts';
 
 /** What a routing decision reads from one request. */
 export type RoutedRequest = {
@@ -25,7 +26,7 @@ export function isCacheableAsset(
   if (request.method !== 'GET') return false;
   const url = new URL(request.url);
   if (url.origin !== origin) return false;
-  return isAssetPath(url.pathname);
+  return !isRootIcon(url.pathname) && isAssetPath(url.pathname);
 }
 
 /**
@@ -57,7 +58,12 @@ export function servedByWorker(
 ): boolean {
   const url = new URL(request.url);
   if (url.origin !== origin) return false;
-  if (isReaderPath(url.pathname) || isLegalPath(url.pathname)) return false;
+  if (
+    isReaderPath(url.pathname) ||
+    isLegalPath(url.pathname) ||
+    isRootIcon(url.pathname)
+  )
+    return false;
   if (request.mode === 'navigate') return true;
   if (request.method !== 'GET') return false;
   if (isCacheableAsset(request, origin)) return true;

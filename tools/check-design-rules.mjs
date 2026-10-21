@@ -713,6 +713,10 @@ export async function readAllowlist(directory) {
  * @returns {Promise<number>} The process status.
  */
 export async function main(directory) {
+  if (directory === root) {
+    const { generateIcons } = await import('./generate-icons.mjs');
+    await generateIcons(true);
+  }
   const allowed = await readAllowlist(directory);
   // The palette names come from the one stylesheet, so the colour rule reads
   // the same list that the build compiles. A missing stylesheet is a broken

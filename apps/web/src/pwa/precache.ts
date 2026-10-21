@@ -26,7 +26,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 import { build, type Plugin } from 'vite';
 import { isAssetPath } from './asset-kinds.ts';
-import { socialCard } from './icons.ts';
+import { socialCard, isRootIcon } from './icons.ts';
 
 /** The served name of the worker. The server and the page both know it. */
 export const workerFileName = 'service-worker.js';
@@ -93,7 +93,7 @@ export type Precache = {
  * store the body of the worker that is already running.
  */
 function isPrecached(file: BuiltFile): boolean {
-  if (file.url === `/${workerFileName}`) return false;
+  if (file.url === `/${workerFileName}` || isRootIcon(file.url)) return false;
   if (file.url.startsWith(excludedPrefix)) return false;
   // Only a crawler reads the card of a link preview (design 028).
   if (file.url.startsWith(socialCardPrefix)) return false;

@@ -1,6 +1,6 @@
 # 0203. The product name is written in lowercase
 
-- Status: Accepted
+- Status: Logo choice superseded by 0230; product name remains accepted
 - Date: 2026-10-04
 
 ## Context

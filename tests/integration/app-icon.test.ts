@@ -1,21 +1,4 @@
-/**
- * The install icon of tidy notebook.
- *
- * `apps/web/icons/icon.svg` is the install icon that the browser tab, the home
- * screen and the docs site show: a ring bound page with the tn monogram on the
- * ink tile. The design system takes every colour from the theme registry, and
- * an install icon cannot read CSS, so the SVG copies Default theme tokens.
- * This test holds each colour that it paints to a token of the Default family,
- * so a colour from outside the registry cannot enter through the icon.
- *
- * The rasters are the drawing of the install icon. The maskable and the Apple
- * touch icons fill the whole square: the launcher of the device cuts its own
- * shape, and a clear corner shows through that shape. The other two keep the
- * round tile of the SVG. Each raster has the size that its entry states. An
- * earlier drawing of the mark sat small in a wide margin, so the page must
- * fill most of the tile, and the maskable page must stay in the circle that
- * every launcher keeps.
- */
+/** The official notebook icons use Default colours and launcher padding. */
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -145,4 +128,36 @@ await test('the maskable mark stays inside the safe circle', async () => {
       Math.hypot(x + 0.5 - centre, y + 0.5 - centre) <= safeRadius * side,
       `the pixel at ${String(x)}, ${String(y)} leaves the safe circle`,
     );
+});
+
+await test('the ICO directory names three complete PNG frames', async () => {
+  const ico = await readFile(resolve(iconDirectory, 'favicon.ico'));
+  assert.equal(ico.readUInt16LE(0), 0);
+  assert.equal(ico.readUInt16LE(2), 1);
+  assert.equal(ico.readUInt16LE(4), 3);
+  let offset = 54;
+  for (const [index, side] of [16, 32, 48].entries()) {
+    const at = 6 + index * 16;
+    assert.equal(ico[at], side);
+    assert.equal(ico[at + 1], side);
+    assert.equal(ico.readUInt16LE(at + 4), 1);
+    assert.equal(ico.readUInt16LE(at + 6), 32);
+    assert.equal(ico.readUInt32LE(at + 12), offset);
+    const length = ico.readUInt32LE(at + 8);
+    const frame = await sharp(ico.subarray(offset, offset + length)).metadata();
+    assert.equal(frame.width, side);
+    assert.equal(frame.height, side);
+    offset += length;
+  }
+  assert.equal(offset, ico.length);
+});
+
+await test('the SVG favicon has a stroke for each device preference', async () => {
+  const svg = await readFile(resolve(iconDirectory, 'icon.svg'), 'utf8');
+  const light = defaultThemeFor('light').tokens.textStrong;
+  const dark = defaultThemeFor('dark').tokens.textStrong;
+  assert.ok(svg.includes(`g{stroke:${light}}`));
+  assert.ok(
+    svg.includes(`@media(prefers-color-scheme:dark){g{stroke:${dark}}}`),
+  );
 });

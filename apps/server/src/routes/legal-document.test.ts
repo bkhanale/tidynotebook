@@ -13,6 +13,10 @@ await test('the page of a document holds its body and no script', () => {
   assert.match(page, /<span>Version 2026-10-01<\/span>/);
   assert.match(page, /^<!doctype html>/);
   assert.match(page, /<title>Terms<\/title>/);
+  assert.ok(page.includes('href="/favicon.ico"'));
+  assert.ok(page.includes('href="/favicon.svg"'));
+  assert.ok(page.includes('href="/apple-touch-icon.png"'));
+  assert.ok(!page.includes('rel="manifest"'));
   assert.match(page, /<link rel="stylesheet" href="\/assets\/index-abc\.css">/);
   assert.match(page, /<p>Run by Example Ltd\.<\/p>/);
   assert.match(page, /href="\/legal\/privacy">Privacy notice<\/a>/);
