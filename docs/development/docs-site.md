@@ -77,4 +77,4 @@ screenshots of a changed page from it, in light and in dark.
 A Cloudflare Worker serves the guide at `https://docs.tidynotebook.com`.
 Any static host can serve the built folder. Serve `index.html` for folder
 addresses and `404.html` for missing pages. The maintainer's private deployment
-repository owns publication. Publication is a manual step.
+repository owns publication. Publication requires owner approval.
