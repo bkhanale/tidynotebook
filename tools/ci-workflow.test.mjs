@@ -46,7 +46,9 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     if (name !== 'scope')
       assert.equal(record(record(job).permissions).checks, undefined);
   for (const job of Object.values(jobs).map(record)) {
-    assert.equal(job['runs-on'], 'ubuntu-latest');
+    assert.ok(
+      ['ubuntu-latest', 'ubuntu-24.04-arm'].includes(String(job['runs-on'])),
+    );
     assert.ok(typeof job['timeout-minutes'] === 'number');
   }
   assert.deepEqual(
@@ -94,8 +96,15 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     'integration',
     'image',
     'image_main',
+    'image_arm64',
     'workflows',
   ]);
+  assert.equal(record(jobs.image_arm64).needs, 'scope');
+  assert.equal(
+    record(jobs.image_arm64).if,
+    "needs.scope.outputs.image == 'true'",
+  );
+  assert.equal(record(jobs.image_arm64)['runs-on'], 'ubuntu-24.04-arm');
   assert.match(String(record(jobs.check).if), /always\(\)/);
   assert.match(
     String(record(jobs.scope).if),

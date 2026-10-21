@@ -14,6 +14,7 @@ export function checkResults(jobs, main = false) {
     integration: scope?.source === 'true',
     image: scope?.image === 'true' && !main,
     image_main: scope?.image === 'true' && main,
+    image_arm64: scope?.image === 'true',
     workflows: scope?.workflows === 'true',
   };
   for (const [name, required] of Object.entries(selected)) {

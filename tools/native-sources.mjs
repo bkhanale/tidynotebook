@@ -5,7 +5,9 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as wait } from 'node:timers/promises';
-import { readJson, record, root } from './workspace.mjs';
+import { record, root } from './workspace.mjs';
+
+import { distributionManifest } from './distribution-target.mjs';
 
 export const nativeSourceDownloadDefaults = Object.freeze({
   connectTimeoutMs: 30_000,
@@ -207,7 +209,7 @@ export async function prepareNativeSources(
   manifestFile = join(root, 'tools/native-sources.json'),
   options = {},
 ) {
-  const manifest = await readJson(manifestFile);
+  const manifest = await distributionManifest(manifestFile);
   const rows = sourceRows(manifest.sources);
   await mkdir(output, { recursive: true });
   /** @param {{file:string, url:string, sha256:string}} row */

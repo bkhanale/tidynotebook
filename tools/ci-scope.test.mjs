@@ -89,6 +89,7 @@ function results(source) {
     integration: { result: source ? 'success' : 'skipped' },
     image: { result: 'skipped' },
     image_main: { result: 'skipped' },
+    image_arm64: { result: 'skipped' },
     workflows: { result: 'skipped' },
   };
 }
@@ -113,6 +114,7 @@ await test('Check accepts correct skips and rejects missing, failed or cancelled
 await test('only main selects the image job with write access', () => {
   const jobs = results(true);
   jobs.scope.outputs.image = 'true';
+  jobs.image_arm64.result = 'success';
   jobs.image_main.result = 'success';
   checkResults(jobs, true);
   assert.throws(() => checkResults(jobs, false), /image/);

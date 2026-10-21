@@ -164,9 +164,29 @@ jobs:
       # The action is part of the checked out event commit.
       - uses: ./.github/actions/image # zizmor: ignore[self-repository]
 
+  image_arm64:
+    name: Image compliance arm64
+    needs: scope
+    if: needs.scope.outputs.image == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build native arm64 image
+        run: docker build --tag notesapp:latest .
+      - name: Check arm64 sources and notices
+        run: node --test tests/image/distribution-notices.test.ts
+
   workflows:
     name: Workflow lint
-    # Static finishes before this job starts, leaving at most nine active jobs.
+    # Static finishes before this job starts, leaving at most ten active jobs.
     needs: [scope, static]
     if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.workflows == 'true' }}
     runs-on: ubuntu-latest
@@ -197,7 +217,17 @@ jobs:
     # Its raw expression name is deliberately not the required Check context.
     name: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'Use push checks' || 'Check' }}
     if: always() && needs.scope.result != 'skipped'
-    needs: [scope, static, unit, integration, image, image_main, workflows]
+    needs:
+      [
+        scope,
+        static,
+        unit,
+        integration,
+        image,
+        image_main,
+        image_arm64,
+        workflows,
+      ]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:

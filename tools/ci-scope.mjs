@@ -20,6 +20,7 @@ const imageFiles = new Set([
   'tools/ci-image.mjs',
   'tools/runtime-dependencies.mjs',
   'tools/native-sources.mjs',
+  'tools/distribution-target.mjs',
   'tools/distribution-notices.mjs',
   'tools/workspace.mjs',
   'tools/base-packages.json',
