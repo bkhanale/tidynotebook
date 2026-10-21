@@ -32,6 +32,17 @@ await test('only named documents take the short path', () => {
 await test('only image infrastructure selects image smoke', () => {
   for (const path of [
     'Dockerfile',
+    'tools/base-packages.json',
+    'tools/third-party/fallbacks.json',
+    'tools/third-party/debian-source-keys.gpg',
+    'tools/workspace.mjs',
+    'apps/server/package.json',
+    'packages/core/package.json',
+    'tools/sdk-codegen/package.json',
+    'packages/ui/THIRD_PARTY_LICENSES.md',
+    'tools/precompress-assets.mjs',
+    'apps/web/vite.config.ts',
+    'apps/server/tsconfig.build.json',
     'tests/image/commands.test.ts',
     '.github/actions/image/action.yml',
     'tools/ci-image.mjs',
@@ -181,6 +192,16 @@ await test('root build inputs copied by the Dockerfile select image smoke', () =
     .flatMap((match) => (match[1] ?? '').split(' '))
     .filter((path) => !path.includes('/'));
   assert.ok(rootInputs.length > 0);
-  for (const path of rootInputs)
+  const manifests = [
+    ...dockerfile.matchAll(/^COPY ([^ ]+\/package\.json) /gm),
+  ].map((match) => match[1] ?? '');
+  for (const path of [
+    ...rootInputs,
+    ...manifests,
+    'tools/base-packages.json',
+    'tools/third-party/fallbacks.json',
+    'tools/workspace.mjs',
+    'packages/ui/THIRD_PARTY_LICENSES.md',
+  ])
     assert.equal(classifyImpact([path]).image, true, path);
 });

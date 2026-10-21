@@ -67,7 +67,7 @@ jobs:
       - name: Check documents
         if: needs.scope.outputs.source == 'false'
         env:
-          DOCS_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
+          DOCS_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: node tools/ci-docs.mjs check
       - name: Check source and bundle budget
         if: needs.scope.outputs.source == 'true'

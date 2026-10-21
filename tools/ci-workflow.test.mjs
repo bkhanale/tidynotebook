@@ -57,6 +57,15 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     record(record(record(jobs.integration).strategy).matrix).shard,
     [1, 2, 3, 4],
   );
+  const staticSteps = record(jobs.static).steps;
+  assert.ok(Array.isArray(staticSteps));
+  const documents = staticSteps
+    .map(record)
+    .find((step) => step.name === 'Check documents');
+  assert.equal(
+    record(documents?.env).DOCS_BASE,
+    '${{ github.event.pull_request.base.sha || github.event.before }}',
+  );
   assert.deepEqual(record(jobs.workflows).needs, ['scope', 'static']);
   assert.match(String(record(jobs.workflows).if), /!cancelled\(\)/);
   assert.equal(record(jobs.nightly).needs, 'check');

@@ -2,6 +2,32 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { record } from './workspace.mjs';
 
+// Build metadata, image tooling and notice inputs. Application source changes
+// still use source proof; these paths also need the Compose smoke test.
+const imageFiles = new Set([
+  'Dockerfile',
+  '.dockerignore',
+  'LICENSE',
+  'README.md',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  '.node-version',
+  '.npmrc',
+  '.pnpmfile.cjs',
+  'tsconfig.json',
+  'tsconfig.base.json',
+  'tools/ci-image.mjs',
+  'tools/runtime-dependencies.mjs',
+  'tools/native-sources.mjs',
+  'tools/distribution-notices.mjs',
+  'tools/workspace.mjs',
+  'tools/base-packages.json',
+  'tools/precompress-assets.mjs',
+  'apps/web/vite.config.ts',
+  'packages/ui/THIRD_PARTY_LICENSES.md',
+]);
+
 /** Select checks from the complete push diff. Unknown paths require source checks.
  * @param {string[]} paths */
 export function classifyImpact(paths) {
@@ -11,10 +37,12 @@ export function classifyImpact(paths) {
       paths.every((path) =>
         /^docs\/(?:decisions|design|plans|audits)\/.*\.md$/.test(path),
       ),
-    image: paths.some((path) =>
-      /^(?:(?:Dockerfile|LICENSE|README\.md|package\.json|pnpm-workspace\.yaml|\.node-version|\.npmrc|\.pnpmfile\.cjs|tsconfig(?:\.base)?\.json)$|\.dockerignore$|docker\/|tests\/image\/|\.github\/actions\/image\/|tools\/(?:ci-image|runtime-dependencies|native-sources|distribution-notices)\.mjs$|tools\/[^/]*sources[^/]*\.json$|pnpm-lock\.yaml$|patches\/|(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$)/.test(
-        path,
-      ),
+    image: paths.some(
+      (path) =>
+        imageFiles.has(path) ||
+        /^(?:docker\/|tests\/image\/|\.github\/actions\/image\/|tools\/third-party\/|tools\/[^/]*sources[^/]*\.json$|patches\/|(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$|(?:apps|packages)\/[^/]+\/(?:package\.json|tsconfig(?:\.[^/]+)?\.json)$|tools\/sdk-codegen\/(?:package|tsconfig)\.json$)/.test(
+          path,
+        ),
     ),
     workflows: paths.some((path) => path.startsWith('.github/')),
   };
