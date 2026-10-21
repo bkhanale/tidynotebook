@@ -16,7 +16,7 @@
   },
   {
     "file": "drizzle-orm.txt",
-    "url": "https://raw.githubusercontent.com/drizzle-team/drizzle-orm/0.45.3/LICENSE",
+    "url": "https://raw.githubusercontent.com/drizzle-team/drizzle-orm/0.45.4/LICENSE",
     "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
   },
   {
@@ -106,8 +106,8 @@
   },
   {
     "file": "aws-sdk.txt",
-    "url": "https://github.com/aws/aws-sdk-js-v3/blob/86b3dcd6619aa3a5972f2e189b0e0b83d9a07ffe/LICENSE",
-    "sha256": "e345c2ee7df4446e739de7b91535f0c10ddcd909b9753889e943ee637b05db8c"
+    "url": "https://github.com/aws/aws-sdk-js-v3/blob/3ce8aa778c22193dad5f7fcefe239e3a74a3cd4f/LICENSE",
+    "sha256": "edea91454b811f127fbdea3d86f378f6719bd372ed440abf82b232f6fca06c3d"
   },
   {
     "file": "snowball.txt",

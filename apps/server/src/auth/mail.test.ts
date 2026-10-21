@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createTransport } from 'nodemailer';
 import { loadServerConfig } from '../config.ts';
 import {
   budgetedTransport,
@@ -32,6 +33,20 @@ await test('every message states that a program wrote it', () => {
       },
     },
   );
+});
+
+await test('a display-name sender keeps its name and mailbox through the mail library', async () => {
+  const transport = createTransport({ jsonTransport: true });
+  const sent = await transport.sendMail({
+    ...envelopeOf('"Name" <a@b>', message),
+  });
+  assert.deepEqual(sent.envelope, { from: 'a@b', to: ['a@example.com'] });
+  const delivered: unknown = JSON.parse(String(sent.message));
+  assert.ok(delivered !== null && typeof delivered === 'object');
+  assert.deepEqual(Object.getOwnPropertyDescriptor(delivered, 'from')?.value, {
+    address: 'a@b',
+    name: 'Name',
+  });
 });
 
 await test('a budgeted transport sends while the address has budget', async () => {

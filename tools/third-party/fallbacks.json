@@ -18,7 +18,7 @@
     "license": "MIT"
   },
   "drizzle-orm": {
-    "versions": ["0.45.3"],
+    "versions": ["0.45.4"],
     "file": "drizzle-orm.txt",
     "repository": "https://github.com/drizzle-team/drizzle-orm",
     "license": "Apache-2.0"
@@ -54,19 +54,19 @@
     "license": "LGPL-3.0-or-later"
   },
   "@aws-sdk/credential-provider-http": {
-    "versions": ["3.972.74"],
+    "versions": ["3.972.77"],
     "file": "aws-sdk.txt",
     "repository": "https://github.com/aws/aws-sdk-js-v3",
     "license": "Apache-2.0"
   },
   "@aws-sdk/credential-provider-login": {
-    "versions": ["3.972.79"],
+    "versions": ["3.972.82"],
     "file": "aws-sdk.txt",
     "repository": "https://github.com/aws/aws-sdk-js-v3",
     "license": "Apache-2.0"
   },
   "@aws-sdk/nested-clients": {
-    "versions": ["3.997.46"],
+    "versions": ["3.997.49"],
     "file": "aws-sdk.txt",
     "repository": "https://github.com/aws/aws-sdk-js-v3",
     "license": "Apache-2.0"
