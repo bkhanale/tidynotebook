@@ -59,7 +59,7 @@ export const hostedFooterColumns: readonly FooterColumn[] = [
 ];
 /** An installation supplies its legal and contact destinations. No cloud terms are inserted. */
 export function installationFooterColumns(
-  legal: readonly FooterLink[],
+  legal: readonly FooterLink[] = [],
   {
     contact,
     signIn = '/login',
@@ -75,9 +75,7 @@ export function installationFooterColumns(
         : column.title === 'Product'
           ? {
               ...column,
-              links: column.links.map((link) =>
-                link.label === 'Sign in' ? { ...link, href: signIn } : link,
-              ),
+              links: [{ label: 'Sign in', href: signIn }],
             }
           : column.title === 'Resources'
             ? {
@@ -96,29 +94,67 @@ const node = (
   attributes: Readonly<Record<string, string>>,
   children: readonly FooterNode[] = [],
 ): FooterNode => ({ tag, attributes, children });
+/** Validate before either renderer receives a URL. Network-relative URLs are not paths. */
+function footerAddress(value: string): string {
+  const address = value.trim();
+  if (
+    address
+      .split('')
+      .some(
+        (character) =>
+          character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+      ) ||
+    address.includes('\\') ||
+    address.startsWith('//')
+  )
+    throw new Error(
+      'A footer URL must use http, https, mailto, or a relative path.',
+    );
+  let parsed: URL;
+  try {
+    parsed = new URL(address, 'https://footer.invalid/');
+  } catch {
+    throw new Error(
+      'A footer URL must use http, https, mailto, or a relative path.',
+    );
+  }
+  if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol))
+    throw new Error(
+      'A footer URL must use http, https, mailto, or a relative path.',
+    );
+  return address;
+}
+
 /** One tree is used by the React and static renderers. */
 export function publicFooterTree({
-  home = 'https://tidynotebook.com',
+  home = '/',
   icon = '/favicon.svg',
-  columns = hostedFooterColumns,
+  columns = installationFooterColumns(),
 }: PublicFooterOptions = {}): FooterNode {
   return node('footer', { className: 'public-footer' }, [
     node('div', { className: 'public-footer-grid' }, [
       node('div', { className: 'public-footer-brand' }, [
-        node('a', { href: home, className: 'public-footer-wordmark' }, [
-          node('img', { src: icon, width: '16', height: '16', alt: '' }),
-          'tidy notebook',
-        ]),
+        node(
+          'a',
+          { href: footerAddress(home), className: 'public-footer-wordmark' },
+          [
+            node('img', {
+              src: footerAddress(icon),
+              width: '16',
+              height: '16',
+              alt: '',
+            }),
+            'tidy notebook',
+          ],
+        ),
         node('p', {}, ['Open source. Plain Markdown files.']),
-        node('p', { className: 'public-footer-copyright' }, [
-          '© 2026 tidy notebook',
-        ]),
+        node('p', {}, ['© 2026 tidy notebook']),
       ]),
-      ...columns.map((column) =>
-        node('nav', { 'aria-label': column.title }, [
-          node('h2', {}, [column.title]),
+      ...columns.map((column, index) =>
+        node('nav', { 'aria-labelledby': `public-footer-column-${index}` }, [
+          node('h2', { id: `public-footer-column-${index}` }, [column.title]),
           ...column.links.map((link) =>
-            node('a', { href: link.href }, [link.label]),
+            node('a', { href: footerAddress(link.href) }, [link.label]),
           ),
         ]),
       ),

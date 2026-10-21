@@ -280,7 +280,7 @@ await test('a published diagram loads its script and its frame from the publishe
   assert.ok(plain.body.includes(`href="${application}/login"`));
   assert.doesNotMatch(
     plain.body,
-    /href="\/login"|tidynotebook.com\/(terms|privacy)/,
+    /href="\/login"|href="https:\/\/(?:app\.|billing\.)?tidynotebook\.com|mailto:support@/,
   );
   assert.ok(
     String(plain.headers['content-security-policy']).includes(

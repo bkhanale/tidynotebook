@@ -367,3 +367,22 @@ await test('published notes and lists use one footer outside the reading column'
   ] satisfies PublishedPageView[])
     assert.doesNotMatch(documentOf(view), /<footer/);
 });
+
+await test('the published fallback uses only installation links and the reading width', () => {
+  const html = documentOf({
+    kind: 'note',
+    body: '<h1>Lisbon</h1>',
+    listHref: null,
+  });
+  assert.ok(
+    html.includes(
+      '<div class="mx-auto w-full min-w-0 max-w-note"><footer class="public-footer">',
+    ),
+  );
+  assert.ok(html.includes('href="/"'));
+  assert.ok(html.includes('href="/login"'));
+  assert.doesNotMatch(
+    html,
+    /href="https:\/\/(?:app\.|billing\.)?tidynotebook\.com|mailto:support@|>Features<|>Pricing</,
+  );
+});

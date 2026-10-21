@@ -360,16 +360,16 @@
 }
 .public-footer h2 {
   margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   font-weight: 600;
   color: var(--notes-text-strong);
 }
 .public-footer nav a {
   display: block;
   padding: 4px 0;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   color: var(--notes-text-muted);
   text-decoration: none;
 }
@@ -389,16 +389,14 @@
   display: inline-flex;
   padding: 0;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
 }
 .public-footer-brand p {
   margin: 12px 0 0;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   color: var(--notes-text-muted);
-}
-.public-footer-brand .public-footer-copyright {
-  font-size: 12px;
 }
 @media (max-width: 700px) {
   .public-footer {

@@ -351,15 +351,24 @@ export function createPublishedHandlers(
     host: string | undefined,
   ): Promise<HandlerResult> => {
     const scripted = pageScriptOf(view, host, parts.pageScript);
+    let footer: PublicFooterOptions | undefined;
+    if (
+      (view.kind === 'note' || view.kind === 'list') &&
+      parts.footer !== undefined
+    ) {
+      try {
+        footer = await parts.footer();
+      } catch {
+        // Optional footer settings must not hide a readable publication.
+        footer = undefined;
+      }
+    }
     return {
       status: 200,
       mediaType: 'text/html',
       body: publishedDocument({
         view,
-        ...((view.kind === 'note' || view.kind === 'list') &&
-        parts.footer !== undefined
-          ? { footer: await parts.footer() }
-          : {}),
+        ...(footer === undefined ? {} : { footer }),
         stylesheets: parts.stylesheets(),
         linkPreview: parts.linkPreview ?? null,
         // The form returns to the address that the reader is on, so an unlock

@@ -5,13 +5,18 @@ import { createElement } from 'react';
 import { PublicFooter } from '../dist/public-footer-react.js';
 import {
   installationFooterColumns,
+  hostedFooterColumns,
   renderPublicFooter,
 } from './public-footer.ts';
 
 await test('static and React footers use one structure and the approved links', () => {
-  const html = renderPublicFooter();
+  const options = {
+    home: 'https://tidynotebook.com',
+    columns: hostedFooterColumns,
+  };
+  const html = renderPublicFooter(options);
   // React adds an image preload. The footer itself is identical.
-  const react = renderToStaticMarkup(createElement(PublicFooter, {}));
+  const react = renderToStaticMarkup(createElement(PublicFooter, options));
   assert.equal(react.slice(react.indexOf('<footer')), html);
   for (const label of [
     'Features',
@@ -55,7 +60,7 @@ await test('installation footers use operator legal URLs and local sign in', () 
   );
   assert.doesNotMatch(
     renderPublicFooter({ columns: installationFooterColumns([]) }),
-    /aria-label="Legal"/,
+    />Legal<\/h2>/,
   );
 });
 
@@ -92,4 +97,88 @@ await test('a separate published origin links sign in to the application origin'
   assert.ok(html.includes('href="https://notes.example/login"'));
   assert.ok(html.includes('href="mailto:operator@example.test"'));
   assert.doesNotMatch(html, /href="\/login"/);
+});
+
+await test('the default and operator footers have no cloud product or support destinations', () => {
+  for (const html of [
+    renderPublicFooter(),
+    renderPublicFooter({
+      columns: installationFooterColumns([
+        { label: 'Terms', href: '/legal/terms' },
+        { label: 'Privacy', href: '/legal/privacy' },
+      ]),
+    }),
+  ]) {
+    assert.ok(html.includes('href="/"'));
+    assert.ok(html.includes('href="/login"'));
+    assert.doesNotMatch(
+      html,
+      />Features<|>Pricing<|>Contact<|support@|billing\.tidynotebook\.com|app\.tidynotebook\.com/,
+    );
+    const links = [...html.matchAll(/href="([^"]+)"/g)].map(
+      (match) => new URL(match[1] ?? '', 'https://notes.example'),
+    );
+    assert.ok(links.length > 0);
+    for (const url of links) {
+      assert.ok(
+        ['notes.example', 'docs.tidynotebook.com', 'github.com'].includes(
+          url.hostname,
+        ),
+        url.href,
+      );
+      assert.notEqual(url.hostname, 'tidynotebook.com');
+    }
+    assert.ok(html.includes('href="https://docs.tidynotebook.com"'));
+    assert.ok(html.includes('href="https://docs.tidynotebook.com/mcp/"'));
+  }
+});
+
+await test('every column takes its accessible name from its heading', () => {
+  const html = renderPublicFooter();
+  assert.doesNotMatch(html, /aria-label=/);
+  const labels = [...html.matchAll(/<nav aria-labelledby="([^"]+)">/g)];
+  assert.equal(labels.length, 3);
+  for (const label of labels) assert.ok(html.includes(`<h2 id="${label[1]}">`));
+});
+
+await test('both renderers reject unsafe URL schemes in links, the brand, and the icon', () => {
+  for (const href of [
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'java\tscript:alert(1)',
+    'data:text/html,bad',
+    'file:///tmp/private',
+    'ftp://example.test',
+    'blob:https://example.test/id',
+    '//example.test/path',
+    '/\\example.test/path',
+    'http://[invalid',
+  ]) {
+    for (const options of [
+      { home: href },
+      { icon: href },
+      { columns: [{ title: 'Legal', links: [{ label: 'Terms', href }] }] },
+    ]) {
+      assert.throws(() => renderPublicFooter(options), /A footer URL must use/);
+      assert.throws(
+        () => renderToStaticMarkup(createElement(PublicFooter, options)),
+        /A footer URL must use/,
+      );
+    }
+  }
+  for (const href of [
+    'https://operator.example/terms',
+    'http://localhost:3000/login',
+    'mailto:operator@example.test',
+    '/legal/terms',
+    '../terms',
+    'terms',
+    '#legal',
+    '?page=terms',
+  ])
+    assert.ok(
+      renderPublicFooter({
+        columns: [{ title: 'Legal', links: [{ label: 'Terms', href }] }],
+      }).includes(`href="${href}"`),
+    );
 });

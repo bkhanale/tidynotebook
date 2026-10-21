@@ -315,7 +315,7 @@ await test('the server serves a document from its file, and only that one', asyn
     assert.ok(page.body.includes('href="http://127.0.0.1/legal/terms"'));
     assert.doesNotMatch(
       page.body,
-      /tidynotebook.com\/(terms|privacy|refunds|fair-use)/,
+      /href="https:\/\/(?:app\.|billing\.)?tidynotebook\.com|mailto:support@/,
     );
     // The privacy notice lives at an external address, so this server holds
     // no page for it.

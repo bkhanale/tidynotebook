@@ -1,6 +1,5 @@
 import {
   renderPublicFooter,
-  installationFooterColumns,
   type PublicFooterOptions,
 } from '@notesapp/ui/public-footer';
 /**
@@ -576,7 +575,7 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     <main class="${mainClassesOf(input.view)}">
 ${mainOf(input)}${footOf(input)}
     </main>
-    ${input.view.kind === 'note' || input.view.kind === 'list' ? renderPublicFooter(input.footer ?? { columns: installationFooterColumns([]) }) : ''}
+    ${input.view.kind === 'note' || input.view.kind === 'list' ? `<div class="${publicLayout.reading}">${renderPublicFooter(input.footer)}</div>` : ''}
     ${input.view.kind === 'locked' || input.view.kind === 'unavailable' ? '' : '</div></div>'}
   </body>
 </html>

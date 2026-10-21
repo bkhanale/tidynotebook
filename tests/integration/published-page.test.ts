@@ -173,6 +173,7 @@ const linkPreview = linkPreviewBlock(
   '/assets/social-card-TestTest.png',
 );
 
+let footerUnavailable = false;
 const server = await startTestServer({
   environment: environment(),
   handlers: (value) =>
@@ -185,6 +186,10 @@ const server = await startTestServer({
         attachments,
         hasher,
         stylesheets: () => [stylesheet],
+        footer: () =>
+          footerUnavailable
+            ? Promise.reject(new Error('Footer settings are unavailable.'))
+            : Promise.resolve({}),
         pageScript: () => diagramAssets,
         linkPreview,
         render: (source, options) => {
@@ -468,6 +473,28 @@ await test('a reader with no session reads the list of a folder link', async () 
   assert.ok(!page.html.replace('© 2026 tidy notebook', '').includes('2026'));
   // A stored path suffix never reaches a person.
   assert.ok(!page.html.includes('.md'));
+});
+
+await test('readable notes and folder lists survive a failed footer settings read', async () => {
+  footerUnavailable = true;
+  try {
+    for (const options of [{}, { note: dayTwoId }]) {
+      const page = await readPage(folder.token, options);
+      assert.equal(page.response.status, 200);
+      assert.ok(page.html.includes('class="public-footer"'));
+      assert.ok(page.html.includes('href="/login"'));
+      assert.doesNotMatch(
+        page.html,
+        /Footer settings are unavailable|href="https:\/\/tidynotebook\.com/,
+      );
+      assert.equal(
+        page.response.headers.get('cache-control'),
+        'private, no-store',
+      );
+    }
+  } finally {
+    footerUnavailable = false;
+  }
 });
 
 await test('the page carries a private cache directive and its own policy', async () => {

@@ -209,9 +209,7 @@ await test('docs uses the shared footer below its page resources and frame', () 
       html.indexOf('aria-label="Page resources"'),
   );
   assert.ok(html.includes('Open source. Plain Markdown files.'));
-  assert.ok(
-    html.includes('href="/notesapp/assets/icon.svg"') ||
-      html.includes('src="/notesapp/assets/icon.svg"'),
-  );
+  const footer = html.slice(html.indexOf('<footer'));
+  assert.ok(footer.includes('src="/notesapp/assets/icon.svg"'));
   assert.ok(html.includes('href="https://tidynotebook.com/privacy"'));
 });

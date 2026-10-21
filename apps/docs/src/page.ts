@@ -29,6 +29,7 @@ import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   renderPublicFooter,
+  hostedFooterColumns,
   AppMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -441,6 +442,9 @@ function searchDialog(): string {
 }
 
 /** The whole document of one page. */
+// Docs is the project's own hosted site. It explicitly uses hosted navigation,
+// including builds for another origin or base path through site.ts. Installation
+// pages use the installation-safe footer defaults instead.
 export function pageDocument(view: PageView): string {
   const { settings, page } = view;
   const title = page.slug === '' ? siteName : `${page.title} | ${siteName}`;
@@ -487,7 +491,7 @@ ${view.html}
           </div>
           ${outline(page, view.outlineDepth)}
         </div>
-        <div class="${pageRowClassName()} ${pageGutter}"><div class="mx-auto min-w-0 max-w-5xl flex-1">${renderPublicFooter({ icon: view.assets.icon ?? `${settings.base}favicon.svg` })}</div></div>
+        <div class="${pageRowClassName()} ${pageGutter}"><div class="mx-auto min-w-0 max-w-5xl flex-1">${renderPublicFooter({ home: 'https://tidynotebook.com', columns: hostedFooterColumns, icon: view.assets.icon ?? `${settings.base}favicon.svg` })}</div></div>
       </main>
     </div>
     <template data-docs-markdown>${escapeText(view.markdown)}</template>
