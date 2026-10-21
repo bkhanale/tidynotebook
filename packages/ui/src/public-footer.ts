@@ -60,7 +60,13 @@ export const hostedFooterColumns: readonly FooterColumn[] = [
 /** An installation supplies its legal and contact destinations. No cloud terms are inserted. */
 export function installationFooterColumns(
   legal: readonly FooterLink[],
-  contact?: FooterLink,
+  {
+    contact,
+    signIn = '/login',
+  }: {
+    readonly contact?: FooterLink;
+    readonly signIn?: string;
+  } = {},
 ): readonly FooterColumn[] {
   return hostedFooterColumns
     .map((column) =>
@@ -70,7 +76,7 @@ export function installationFooterColumns(
           ? {
               ...column,
               links: column.links.map((link) =>
-                link.label === 'Sign in' ? { ...link, href: '/login' } : link,
+                link.label === 'Sign in' ? { ...link, href: signIn } : link,
               ),
             }
           : column.title === 'Resources'

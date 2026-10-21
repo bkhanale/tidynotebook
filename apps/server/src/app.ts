@@ -1014,6 +1014,7 @@ async function composeApp(
                       { label: 'Terms', href: documents.terms.url },
                       { label: 'Privacy', href: documents.privacy.url },
                     ],
+                { signIn: `${config.origin}/login` },
               ),
             };
           },

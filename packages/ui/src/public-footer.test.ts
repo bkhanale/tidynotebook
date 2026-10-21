@@ -81,3 +81,15 @@ await test('both renderers escape operator labels and destinations', () => {
     html,
   );
 });
+
+await test('a separate published origin links sign in to the application origin', () => {
+  const html = renderPublicFooter({
+    columns: installationFooterColumns([], {
+      signIn: 'https://notes.example/login',
+      contact: { label: 'Contact', href: 'mailto:operator@example.test' },
+    }),
+  });
+  assert.ok(html.includes('href="https://notes.example/login"'));
+  assert.ok(html.includes('href="mailto:operator@example.test"'));
+  assert.doesNotMatch(html, /href="\/login"/);
+});
