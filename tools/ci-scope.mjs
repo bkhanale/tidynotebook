@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
+import { record } from './workspace.mjs';
 
 /** Select checks from the complete push diff. Unknown paths require source checks.
  * @param {string[]} paths */
@@ -43,8 +44,9 @@ if (import.meta.main) {
   const outputPath = process.env.GITHUB_OUTPUT;
   if (!eventPath || !outputPath)
     throw new Error('GitHub event and output paths are required.');
-  const event = JSON.parse(readFileSync(eventPath, 'utf8'));
-  const paths = changedPaths(event.pull_request?.base?.sha ?? event.before);
+  const event = record(JSON.parse(readFileSync(eventPath, 'utf8')));
+  const base = record(record(event.pull_request).base).sha ?? event.before;
+  const paths = changedPaths(typeof base === 'string' ? base : undefined);
   const impact =
     paths === null
       ? { documentsOnly: false, image: true, workflows: true }
