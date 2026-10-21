@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyImpact } from './ci-scope.mjs';
+import { checkedImpact, classifyImpact, hasPassingCheck } from './ci-scope.mjs';
 import { checkResults } from './ci-check.mjs';
 
 await test('only named documents take the short path', () => {
@@ -91,4 +91,48 @@ await test('only main selects the image job with write access', () => {
   jobs.image_main.result = 'skipped';
   checkResults(jobs, false);
   assert.throws(() => checkResults(jobs, true), /image/);
+});
+
+await test('a missing or failed previous Check requires full scope', () => {
+  const base = 'a'.repeat(40);
+  for (const conclusion of ['failure', 'cancelled', 'skipped', null]) {
+    const passed = hasPassingCheck(
+      {
+        check_runs: [
+          {
+            name: 'Check',
+            head_sha: base,
+            status: 'completed',
+            conclusion,
+            app: { id: 15368 },
+          },
+        ],
+      },
+      base,
+    );
+    assert.equal(passed, false);
+    assert.deepEqual(checkedImpact(['docs/README.md'], passed), {
+      documentsOnly: false,
+      image: true,
+      workflows: true,
+    });
+  }
+  assert.equal(hasPassingCheck({}, base), false);
+  const passed = hasPassingCheck(
+    {
+      check_runs: [
+        {
+          name: 'Check',
+          head_sha: base,
+          status: 'completed',
+          conclusion: 'success',
+          app: { id: 15368 },
+        },
+      ],
+    },
+    base,
+  );
+  assert.equal(passed, true);
+  assert.equal(checkedImpact(['docs/README.md'], passed).documentsOnly, true);
+  assert.equal(checkedImpact(null, passed).documentsOnly, false);
 });

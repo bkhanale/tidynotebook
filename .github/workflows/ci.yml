@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
@@ -20,6 +20,9 @@ env:
 jobs:
   scope:
     name: Change scope
+    permissions:
+      contents: read
+      checks: read
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -33,6 +36,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - id: scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node tools/ci-scope.mjs
 
   static:
@@ -171,7 +176,8 @@ jobs:
       - run: zizmor --no-online-audits --strict-collection .github/workflows .github/actions
 
   check:
-    name: Check
+    # A skipped duplicate PR event must not satisfy the required push check.
+    name: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'Use push checks' || 'Check' }}
     if: always() && needs.scope.result != 'skipped'
     needs: [scope, static, unit, integration, image, image_main, workflows]
     runs-on: ubuntu-latest
