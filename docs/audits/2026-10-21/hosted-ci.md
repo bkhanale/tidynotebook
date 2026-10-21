@@ -56,3 +56,11 @@ icons change from main and the independent review fixes. Job times were:
 
 The tuned document-only benchmark follows this passed source push. Its result
 and the final review state are in [PR 419](https://github.com/tidynotebook/tidynotebook/pull/419).
+
+The [review follow-up source push](https://github.com/tidynotebook/tidynotebook/actions/runs/39596452406)
+passed on commit `bf458cdef5c9b05407d94c3284076e3ba7d0a923`. It adds the indirect
+notice and workspace build inputs to image scope and uses the PR base first
+for document diffs. The earlier [tuned document push](https://github.com/tidynotebook/tidynotebook/actions/runs/39596184816)
+passed in 40 seconds: scope took 7 seconds, Static took 16 seconds and Check
+took 5 seconds. A final audit-only push repeats that measurement after the
+review follow-up passed. PR 419 holds that final result.
