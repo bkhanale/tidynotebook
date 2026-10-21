@@ -26,6 +26,26 @@ export function testArguments(args) {
   };
 }
 
+/** Start the slow integration files first and put them on separate shards.
+ * The first hosted runs put all three on shard 2. See the CI timing audit.
+ * @param {string[]} files
+ * @param {string} kind */
+export function orderedTests(files, kind) {
+  const slow =
+    kind === 'integration'
+      ? ['sync.test.ts', 'oauth-startup.test.ts', 'revisions.test.ts']
+      : [];
+  /** @param {string} file */
+  const rank = (file) => {
+    const index = slow.indexOf(basename(file));
+    return index < 0 ? slow.length : index;
+  };
+  return [...files].sort(
+    (left, right) =>
+      rank(left) - rank(right) || (left < right ? -1 : left > right ? 1 : 0),
+  );
+}
+
 async function main() {
   const [kind, ...args] = process.argv.slice(2);
   if (kind !== 'unit' && kind !== 'integration') {
@@ -98,7 +118,7 @@ async function main() {
   } else {
     const result = spawnSync(
       process.execPath,
-      ['--test', ...flags, ...coverageArgs, ...selected.sort()],
+      ['--test', ...flags, ...coverageArgs, ...orderedTests(selected, kind)],
       {
         cwd: root,
         stdio: 'inherit',

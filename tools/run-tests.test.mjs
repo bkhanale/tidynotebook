@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { testArguments } from './run-tests.mjs';
+import { orderedTests, testArguments } from './run-tests.mjs';
 
 await test('named tests and a shard remain separate', () => {
   assert.deepEqual(testArguments(['--', 'sync', '--shard=2/4']), {
@@ -63,4 +63,23 @@ await test('the real Node runner covers each file once across shards', () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+await test('slow integration files start on different shards without losing a file', () => {
+  const files = [
+    'a.test.ts',
+    'sync.test.ts',
+    'b.test.ts',
+    'oauth-startup.test.ts',
+    'revisions.test.ts',
+    'c.test.ts',
+  ];
+  const ordered = orderedTests(files, 'integration');
+  assert.deepEqual(ordered.slice(0, 3), [
+    'sync.test.ts',
+    'oauth-startup.test.ts',
+    'revisions.test.ts',
+  ]);
+  assert.deepEqual([...ordered].sort(), [...files].sort());
+  assert.deepEqual(orderedTests(files, 'unit'), [...files].sort());
 });

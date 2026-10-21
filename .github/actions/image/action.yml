@@ -13,7 +13,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ github.token }}
     - name: Prepare disposable Compose inputs and registry cache
       shell: bash
       env:
