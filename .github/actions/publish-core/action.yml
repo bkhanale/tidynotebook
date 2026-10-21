@@ -7,6 +7,18 @@ inputs:
   sha:
     description: Proved source commit
     required: true
+  amd64-artifact-id:
+    description: Proved amd64 artifact id
+    required: true
+  amd64-artifact-digest:
+    description: Proved amd64 artifact digest
+    required: true
+  arm64-artifact-id:
+    description: Proved arm64 artifact id
+    required: true
+  arm64-artifact-digest:
+    description: Proved arm64 artifact digest
+    required: true
 runs:
   using: composite
   steps:
@@ -20,11 +32,23 @@ runs:
         GITHUB_TOKEN: ${{ github.token }}
         SOURCE_SHA: ${{ inputs.sha }}
       run: node tools/release-workflow.mjs
-    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-      with:
-        pattern: image-*
-        merge-multiple: true
-        path: ${{ runner.temp }}/core-images
+    - name: Require the pinned runner image copy tooling
+      shell: bash
+      run: |
+        command -v skopeo
+        skopeo --version
+        test "$(skopeo --version)" = "skopeo version 1.13.3"
+        command -v unzip
+    - name: Verify and extract the exact build artifacts
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        SOURCE_SHA: ${{ inputs.sha }}
+        AMD64_ARTIFACT_ID: ${{ inputs.amd64-artifact-id }}
+        AMD64_ARTIFACT_DIGEST: ${{ inputs.amd64-artifact-digest }}
+        ARM64_ARTIFACT_ID: ${{ inputs.arm64-artifact-id }}
+        ARM64_ARTIFACT_DIGEST: ${{ inputs.arm64-artifact-digest }}
+      run: node tools/download-core-artifacts.mjs
     - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
     - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:

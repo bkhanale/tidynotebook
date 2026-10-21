@@ -350,17 +350,31 @@ await test('release proves both native images before the only publication jobs',
   });
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.deepEqual(workflow.concurrency, {
-    group: 'release-core',
+    group: 'release-core-${{ github.ref }}',
     'cancel-in-progress': false,
   });
   const jobs = record(workflow.jobs);
-  const build = record(jobs.build);
-  assert.equal(build.needs, 'prepare');
-  assert.deepEqual(record(record(build.strategy).matrix).include, [
-    { arch: 'amd64', runner: 'ubuntu-latest' },
-    { arch: 'arm64', runner: 'ubuntu-24.04-arm' },
-  ]);
-  const steps = Array.isArray(build.steps) ? build.steps.map(record) : [];
+  for (const [arch, runner] of [
+    ['amd64', 'ubuntu-latest'],
+    ['arm64', 'ubuntu-24.04-arm'],
+  ]) {
+    const build = record(jobs[`build_${arch}`]);
+    assert.equal(build.needs, 'prepare');
+    assert.equal(build['runs-on'], runner);
+    assert.deepEqual(build.outputs, {
+      'artifact-id': '${{ steps.image.outputs.artifact-id }}',
+      'artifact-digest': '${{ steps.image.outputs.artifact-digest }}',
+    });
+    const buildSteps = Array.isArray(build.steps)
+      ? build.steps.map(record)
+      : [];
+    assert.equal(buildSteps[1]?.uses, './.github/actions/build-core');
+    assert.equal(record(buildSteps[1]?.with).arch, arch);
+  }
+  const builder = await loadYaml('.github/actions/build-core/action.yml');
+  const buildSteps = record(builder.runs).steps;
+  assert.ok(Array.isArray(buildSteps));
+  const steps = buildSteps.map(record);
   const proof = steps.findIndex(
     (step) =>
       step.run === 'node --test tests/image/distribution-notices.test.ts',
@@ -385,7 +399,19 @@ await test('release proves both native images before the only publication jobs',
         record(job.permissions)[permission],
         publish ? 'write' : undefined,
       );
-    if (publish) assert.deepEqual(job.needs, ['prepare', 'build']);
+    if (publish) {
+      assert.deepEqual(job.needs, ['prepare', 'build_amd64', 'build_arm64']);
+      const publishSteps = Array.isArray(job.steps)
+        ? job.steps.map(record)
+        : [];
+      const inputs = record(publishSteps[1]?.with);
+      for (const arch of ['amd64', 'arm64'])
+        for (const field of ['id', 'digest'])
+          assert.equal(
+            inputs[`${arch}-artifact-${field}`],
+            `\${{ needs.build_${arch}.outputs.artifact-${field} }}`,
+          );
+    }
   }
   assert.equal(record(jobs.publish_main).environment, undefined);
   assert.equal(
@@ -406,9 +432,39 @@ await test('release proves both native images before the only publication jobs',
       String(step.uses).startsWith('actions/attest-build-provenance@'),
     );
   assert.equal(record(attest?.with)['push-to-registry'], true);
+  const download = publication
+    .map(record)
+    .find((step) => step.run === 'node tools/download-core-artifacts.mjs');
+  assert.ok(download);
+  const tooling = publication
+    .map(record)
+    .find(
+      (step) => step.name === 'Require the pinned runner image copy tooling',
+    );
+  assert.match(String(tooling?.run), /command -v skopeo/);
+  assert.match(
+    String(tooling?.run),
+    /test "\$\(skopeo --version\)" = "skopeo version 1\.13\.3"/,
+  );
+  assert.doesNotMatch(String(tooling?.run), /apt-get|install/);
+  for (const arch of ['amd64', 'arm64'])
+    for (const field of ['ID', 'DIGEST'])
+      assert.equal(
+        record(download.env)[`${arch.toUpperCase()}_ARTIFACT_${field}`],
+        `\${{ inputs.${arch}-artifact-${field.toLowerCase()} }}`,
+      );
+  assert.ok(
+    !publication
+      .map(record)
+      .some((step) =>
+        String(step.uses).startsWith('actions/download-artifact@'),
+      ),
+  );
+
   for (const path of [
     '.github/workflows/release.yml',
     '.github/actions/publish-core/action.yml',
+    '.github/actions/build-core/action.yml',
   ]) {
     const source = await readFile(join(root, path), 'utf8');
     assert.doesNotMatch(source, /secrets\./);

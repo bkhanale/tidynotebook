@@ -1,0 +1,57 @@
+name: Build and prove a native core image
+description: Export the exact image after its native compliance tests pass.
+inputs:
+  arch:
+    description: Native architecture
+    required: true
+  sha:
+    description: Proved source commit
+    required: true
+  version:
+    description: Validated stable version or main
+    required: true
+outputs:
+  artifact-id:
+    description: Immutable uploaded image artifact ID
+    value: ${{ steps.upload.outputs.artifact-id }}
+  artifact-digest:
+    description: SHA-256 of the uploaded ZIP archive
+    value: ${{ steps.upload.outputs.artifact-digest }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: .node-version
+        package-manager-cache: false
+    - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+    - name: Build the native image with the shared cache
+      env:
+        ARCH: ${{ inputs.arch }}
+        SOURCE_SHA: ${{ inputs.sha }}
+        VERSION: ${{ inputs.version }}
+      shell: bash
+      run: |
+        docker buildx build --load --provenance=false --platform "linux/$ARCH" \
+          --cache-from "type=registry,ref=ghcr.io/tidynotebook/tidynotebook/ci-cache:$ARCH" \
+          --label "org.opencontainers.image.source=https://github.com/tidynotebook/tidynotebook" \
+          --label "org.opencontainers.image.revision=$SOURCE_SHA" \
+          --label "org.opencontainers.image.version=$VERSION" --tag "notesapp:$ARCH" .
+    - name: Prove target sources and notices
+      env:
+        NOTESAPP_IMAGE: notesapp:${{ inputs.arch }}
+      shell: bash
+      run: node --test tests/image/distribution-notices.test.ts
+    - name: Save the proved image
+      env:
+        ARCH: ${{ inputs.arch }}
+      shell: bash
+      run: docker save "notesapp:$ARCH" --output "$RUNNER_TEMP/image-$ARCH.tar"
+    - id: upload
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: image-${{ inputs.arch }}
+        path: ${{ runner.temp }}/image-${{ inputs.arch }}.tar
+        retention-days: 1
+        compression-level: 0
+        if-no-files-found: error

@@ -9,9 +9,9 @@ on:
 permissions:
   contents: read
 
-# Serialize all image aliases. A late main run also checks the current main SHA.
+# Serialize each ref. Version approval does not block main or other versions.
 concurrency:
-  group: release-core
+  group: release-core-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -43,59 +43,49 @@ jobs:
           SOURCE_SHA: ${{ steps.checkout.outputs.commit }}
         run: node tools/release-workflow.mjs
 
-  build:
-    name: Build and prove ${{ matrix.arch }}
+  build_amd64:
+    name: Build and prove amd64
     needs: prepare
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
+    outputs:
+      artifact-id: ${{ steps.image.outputs.artifact-id }}
+      artifact-digest: ${{ steps.image.outputs.artifact-digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - id: image
+        uses: ./.github/actions/build-core # zizmor: ignore[self-repository]
         with:
-          node-version-file: .node-version
-          package-manager-cache: false
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - name: Build the native image with the shared cache
-        env:
-          ARCH: ${{ matrix.arch }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          docker buildx build --load --provenance=false --platform "linux/$ARCH" \
-            --cache-from "type=registry,ref=ghcr.io/tidynotebook/tidynotebook/ci-cache:$ARCH" \
-            --label "org.opencontainers.image.source=https://github.com/tidynotebook/tidynotebook" \
-            --label "org.opencontainers.image.revision=$SOURCE_SHA" \
-            --label "org.opencontainers.image.version=$VERSION" --tag "notesapp:$ARCH" .
-      - name: Prove target sources and notices
-        env:
-          NOTESAPP_IMAGE: notesapp:${{ matrix.arch }}
-        run: node --test tests/image/distribution-notices.test.ts
-      - name: Save the proved image
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: docker save "notesapp:$ARCH" --output "$RUNNER_TEMP/image-$ARCH.tar"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+          arch: amd64
+          sha: ${{ needs.prepare.outputs.sha }}
+          version: ${{ needs.prepare.outputs.version }}
+
+  build_arm64:
+    name: Build and prove arm64
+    needs: prepare
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    outputs:
+      artifact-id: ${{ steps.image.outputs.artifact-id }}
+      artifact-digest: ${{ steps.image.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: image-${{ matrix.arch }}
-          path: ${{ runner.temp }}/image-${{ matrix.arch }}.tar
-          retention-days: 1
-          compression-level: 0
-          if-no-files-found: error
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - id: image
+        uses: ./.github/actions/build-core # zizmor: ignore[self-repository]
+        with:
+          arch: arm64
+          sha: ${{ needs.prepare.outputs.sha }}
+          version: ${{ needs.prepare.outputs.version }}
 
   publish_main:
     name: Publish main image
-    needs: [prepare, build]
+    needs: [prepare, build_amd64, build_arm64]
     if: needs.prepare.outputs.version == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -116,10 +106,14 @@ jobs:
         with:
           version: ${{ needs.prepare.outputs.version }}
           sha: ${{ needs.prepare.outputs.sha }}
+          amd64-artifact-id: ${{ needs.build_amd64.outputs.artifact-id }}
+          amd64-artifact-digest: ${{ needs.build_amd64.outputs.artifact-digest }}
+          arm64-artifact-id: ${{ needs.build_arm64.outputs.artifact-id }}
+          arm64-artifact-digest: ${{ needs.build_arm64.outputs.artifact-digest }}
 
   publish_release:
     name: Publish version image
-    needs: [prepare, build]
+    needs: [prepare, build_amd64, build_arm64]
     if: needs.prepare.outputs.version != 'main'
     environment: release
     runs-on: ubuntu-latest
@@ -141,3 +135,7 @@ jobs:
         with:
           version: ${{ needs.prepare.outputs.version }}
           sha: ${{ needs.prepare.outputs.sha }}
+          amd64-artifact-id: ${{ needs.build_amd64.outputs.artifact-id }}
+          amd64-artifact-digest: ${{ needs.build_amd64.outputs.artifact-digest }}
+          arm64-artifact-id: ${{ needs.build_arm64.outputs.artifact-id }}
+          arm64-artifact-digest: ${{ needs.build_arm64.outputs.artifact-digest }}

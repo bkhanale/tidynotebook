@@ -1,6 +1,8 @@
 /** Publish only the image archives that passed native compliance. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { image, repository, versionFromRef } from './release-workflow.mjs';
@@ -17,10 +19,6 @@ assert.equal(version, process.env.VERSION);
 assert.equal(process.env.GITHUB_REPOSITORY, repository);
 const sha = process.env.SOURCE_SHA ?? '';
 assert.match(sha, /^[a-f0-9]{40}$/);
-const run = process.env.GITHUB_RUN_ID ?? '';
-const attempt = process.env.GITHUB_RUN_ATTEMPT ?? '';
-assert.match(run, /^\d+$/);
-assert.match(attempt, /^\d+$/);
 assert.ok(process.env.RUNNER_TEMP);
 
 // A failed registry read is not proof that a fixed tag is free.
@@ -87,19 +85,43 @@ for (const arch of ['amd64', 'arm64']) {
   );
   assert.equal(labels['org.opencontainers.image.version'], version);
 }
+// Convert the transport format locally. The tested config and filesystem stay
+// the same. Preserve the resulting OCI manifest digest during the registry copy.
 for (const arch of ['amd64', 'arm64']) {
-  const tag = `${image}:build-${run}-${attempt}-${arch}`;
-  docker(['tag', `notesapp:${arch}`, tag]);
-  docker(['push', tag]);
-  const digest = docker([
-    'image',
-    'inspect',
-    '--format',
-    '{{index .RepoDigests 0}}',
-    tag,
-  ]).trim();
-  assert.match(digest, /^ghcr\.io\/tidynotebook\/core@sha256:[a-f0-9]{64}$/);
-  sources.push(digest);
+  const layout = `oci:${join(process.env.RUNNER_TEMP, `oci-${arch}`)}:proved`;
+  execFileSync(
+    'skopeo',
+    [
+      'copy',
+      '--format',
+      'oci',
+      `docker-archive:${join(process.env.RUNNER_TEMP, 'core-images', `image-${arch}.tar`)}`,
+      layout,
+    ],
+    { stdio: 'inherit' },
+  );
+  const manifest = execFileSync('skopeo', ['inspect', '--raw', layout]);
+  const digest = `sha256:${createHash('sha256').update(manifest).digest('hex')}`;
+  sources.push(`${image}@${digest}`);
+}
+for (const [index, arch] of ['amd64', 'arm64'].entries()) {
+  const source = sources[index];
+  assert.ok(source);
+  execFileSync(
+    'skopeo',
+    [
+      'copy',
+      '--preserve-digests',
+      '--authfile',
+      join(
+        process.env.DOCKER_CONFIG ?? join(homedir(), '.docker'),
+        'config.json',
+      ),
+      `oci:${join(process.env.RUNNER_TEMP, `oci-${arch}`)}:proved`,
+      `docker://${source}`,
+    ],
+    { stdio: 'inherit' },
+  );
 }
 // A queued run must not move main back after a later merge.
 if (version === 'main') {

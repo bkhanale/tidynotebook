@@ -5,7 +5,8 @@ and proves native amd64 and arm64 images, then publishes
 `ghcr.io/tidynotebook/core:main`. Fast forward merges use `GITHUB_TOKEN`, which
 does not trigger push workflows. Both merge workflows therefore dispatch this
 workflow on main after a successful merge. A manual run on main can recover a
-failed dispatch. Late runs stop if main has moved.
+failed dispatch. Late runs stop if main has moved. Each ref has its own
+concurrency group, so version approval cannot block main or another version.
 
 An existing stable tag `vMAJOR.MINOR.PATCH` selects a version. Push the tag or
 run the workflow manually on that tag. The source must be on main. The latest
@@ -16,8 +17,11 @@ forward merge. Fork runs and checks from other apps cannot supply it.
 Both native images pass the distribution source and notice proofs before
 publication. Builds read `ghcr.io/tidynotebook/tidynotebook/ci-cache:amd64` and
 `:arm64`; they do not write caches. Tested image archives expire after one day.
-Publication loads these archives without a rebuild. It publishes two run-specific
-architecture tags and one multi-architecture index. Version `v1.2.3` publishes
+Publication checks each immutable artifact ID and the SHA-256 of its ZIP
+against the native build outputs before extraction. It uses Skopeo to copy the
+tested images by digest without a rebuild or public architecture tags, then
+publishes one multi-architecture index. The runner must have Skopeo `1.13.3`;
+a missing or different version stops publication. Version `v1.2.3` publishes
 `:1.2.3`. Existing version tags cannot be replaced. There is no `latest` alias.
 The index has GitHub OIDC provenance, with no stored signing key.
 

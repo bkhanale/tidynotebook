@@ -19,7 +19,7 @@ const args = process.argv.slice(2);
 appendFileSync(process.env.CALLS, JSON.stringify(args) + '\\n');
 const sha = 'a'.repeat(40);
 if (process.argv[1].endsWith('/gh')) console.log(process.env.STALE ? 'b'.repeat(40) : sha);
-else if (args[0] === 'image' && args.includes('--format')) console.log('ghcr.io/tidynotebook/core@sha256:' + '1'.repeat(64));
+else if (process.argv[1].endsWith('/skopeo')) { if (args[0] === 'inspect') console.log(JSON.stringify({ schemaVersion: 2, source: args.at(-1) })); }
 else if (args[0] === 'image') {
  const arch = args.at(-1).split(':')[1];
  console.log(JSON.stringify([{ Os: 'linux', Architecture: arch, Config: { Labels: {
@@ -29,7 +29,7 @@ else if (args[0] === 'image') {
  } } }]));
 } else if (args.includes('inspect')) console.log('sha256:' + '2'.repeat(64));
 `;
-  for (const command of ['docker', 'gh'])
+  for (const command of ['docker', 'gh', 'skopeo'])
     await writeFile(join(directory, command), executable, { mode: 0o700 });
   const shim = join(directory, 'registry.mjs');
   await writeFile(
@@ -74,9 +74,15 @@ await test('publication loads and checks both proved archives without rebuilding
   const result = await publication(context);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.calls.match(/"load"/g)?.length, 2);
-  assert.equal(result.calls.match(/"push"/g)?.length, 2);
+  assert.equal(
+    result.calls.match(/docker:\/\/ghcr.io\/tidynotebook\/core@sha256:/g)
+      ?.length,
+    2,
+  );
+  assert.equal(result.calls.match(/"--preserve-digests"/g)?.length, 2);
+  assert.doesNotMatch(result.calls, /"push"|"tag"|:build-/);
   assert.ok(
-    result.calls.lastIndexOf('"load"') < result.calls.indexOf('"push"'),
+    result.calls.lastIndexOf('"load"') < result.calls.indexOf('docker://'),
   );
   assert.match(
     result.calls,
@@ -89,7 +95,7 @@ await test('publication loads and checks both proved archives without rebuilding
 await test('a wrong archive stops before any registry write', async (context) => {
   const result = await publication(context, { BAD_ARM: '1' });
   assert.notEqual(result.status, 0);
-  assert.doesNotMatch(result.calls, /"push"|"create"/);
+  assert.doesNotMatch(result.calls, /docker:\/\/|"create"/);
 });
 
 await test('a late main run cannot move the main alias', async (context) => {
