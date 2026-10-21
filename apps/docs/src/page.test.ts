@@ -65,25 +65,17 @@ await test('a generated page names the contract as its source', () => {
 
 await test('a long reference can list its main sections alone', () => {
   const html = pageDocument({ ...view, outlineDepth: 2 });
-  const outline =
-    html.split('aria-label="On this page"')[1]?.split('</nav>')[0] ?? '';
+  const outline = html.split('<aside')[1]?.split('</aside>')[0] ?? '';
   assert.ok(outline.includes('#user-content-mail'));
   assert.ok(outline.includes('#user-content-logs'));
   assert.ok(!outline.includes('#user-content-port-587'));
 });
 
-await test('the outline follows the title and has a collapsed phone disclosure', () => {
+await test('a long outline has its own bounded scroller', () => {
   const html = pageDocument(view);
-  const outline =
-    html.split('aria-label="On this page"')[1]?.split('</nav>')[0] ?? '';
-  assert.ok(html.indexOf('</h1>') < html.indexOf('aria-label="On this page"'));
-  assert.match(outline, /<details class="md:hidden">/);
-  assert.match(outline, /<summary[^>]*>On this page<\/summary>/);
-  assert.match(outline, /<p[^>]*>On this page<\/p>/);
-  assert.doesNotMatch(
-    outline,
-    /<details[^>]*\bopen\b|max-h-|overflow-y-auto|bg-active|aria-current/,
-  );
+  const outline = html.split('<aside')[1]?.split('</aside>')[0] ?? '';
+  assert.match(outline, /max-h-96/);
+  assert.match(outline, /overflow-y-auto/);
 });
 
 await test('text and attributes lose every markup character', () => {
@@ -138,7 +130,7 @@ await test('the contents mark the open page with the recipe of a row', () => {
   assert.equal(html.match(/aria-current="page"/g)?.length, 1);
 });
 
-await test('the in-page contents list links each heading by its identifier', () => {
+await test('the side region lists each heading by its identifier', () => {
   const html = pageDocument(view);
   for (const id of [
     'user-content-mail',
@@ -187,7 +179,7 @@ await test('the search is one labelled dialog with the templates of its rows', (
 await test('the article is the one region that the search index reads', () => {
   const html = pageDocument(view);
   assert.equal(html.match(/data-pagefind-body/g)?.length, 1);
-  assert.match(html, /<article class="[^"]*" data-pagefind-body>[\s\S]*?<h1/);
+  assert.match(html, /<article class="[^"]*" data-pagefind-body>\n<h1/);
 });
 
 await test('a page with no origin names no canonical address', () => {

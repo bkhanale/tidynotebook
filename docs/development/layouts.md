@@ -11,17 +11,19 @@ lint or enforcement test. Keep the current type steps and theme tokens.
 
 ## Public pages
 
-- The guide, installation Terms and Privacy, and published notes use
+- Installation Terms and Privacy and published notes use
   `publicLayout` from `packages/ui/src/public-layout.ts`. Its `container` is
   centred `max-w-5xl` (`64 rem`). Put its `gutter` outside the cap: `16 px`,
   or `24 px` from `sm`. Long text uses `reading`, `max-w-note` (`40 rem`).
-- Keep public headers, footers and type steps. The guide keeps its `17 rem`
-  contents navigation and phone menu. Put its outline in the reading column,
-  with no right reserve.
+- Keep public headers, footers and type steps.
 - Published notes have no app frame. Password and unavailable pages keep
   their narrow centred form. Legal pages use the same server width helper.
 - The landing home keeps its feature icons and real product screenshots
   from [record 0217](../decisions/0217-the-landing-home-page-may-use-a-wide-column.md).
+
+## Guide pages
+
+The guide uses the standard docs layout: contents nav at the left edge, a 40 rem article, and the page outline on the right.
 
 ## Account pages
 

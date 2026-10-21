@@ -9,8 +9,8 @@
  * so a unit test drives every part of it.
  *
  * **Presentation comes from the product.** Every control reads its classes
- * from `packages/ui/src/control-classes.ts`, the public frame from
- * `packages/ui/src/public-layout.ts`, and every icon from the one set of
+ * from `packages/ui/src/control-classes.ts`, every page column from
+ * `packages/ui/src/layout-classes.ts`, and every icon from the one set of
  * `packages/ui/src/icons.tsx`, drawn here to static markup. The page loads the
  * one built stylesheet of the application, which `apps/web/src/tailwind.css`
  * writes with the classes of this folder registered as a source. The root
@@ -40,11 +40,12 @@ import {
   buttonClassName,
   codeFigureClassName,
   kbdClassName,
-  focusOutline,
+  pageColumnClassName,
   pageGroupLabelClassName,
   pageGutter,
   pageListClassName,
-  publicLayout,
+  pageRowClassName,
+  pageSideClassName,
   rowClassName,
   type IconProps,
 } from '@notesapp/ui';
@@ -130,7 +131,7 @@ export const homeLinkClasses =
   'flex min-w-0 items-center gap-2 rounded-md px-1 text-ui font-semibold text-strong no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 /** The row under the header that holds the contents and the page. */
-export const frameClasses = `flex min-h-0 flex-1 ${publicLayout.container}`;
+export const frameClasses = 'relative flex min-h-0 flex-1';
 
 /**
  * The contents of the site: the chrome plane beside the page.
@@ -140,9 +141,9 @@ export const frameClasses = `flex min-h-0 flex-1 ${publicLayout.container}`;
  * with `data-open`.
  */
 export const contentsClasses =
-  'docs-contents w-68 shrink-0 overflow-y-auto md:sticky md:top-0 md:self-start border-r border-edge-subtle bg-surface px-3 py-4 max-md:absolute max-md:inset-0 max-md:z-20 max-md:hidden max-md:w-full max-md:border-r-0 max-md:data-open:block';
+  'w-68 shrink-0 overflow-y-auto border-r border-edge-subtle bg-surface px-3 py-4 max-md:absolute max-md:inset-0 max-md:z-20 max-md:hidden max-md:w-full max-md:border-r-0 max-md:data-open:block';
 
-/** The main content area inside the full-width page scroller. */
+/** The scroller of the page, which holds the column and the side region. */
 export const mainClasses = 'min-w-0 flex-1 overflow-y-auto';
 
 /** The line above the title: the group of the page and its two actions. */
@@ -212,8 +213,8 @@ export const footClasses =
 export const footLinkClasses =
   'rounded-sm text-muted underline underline-offset-2 hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
-/** The contents list inside the reading column. */
-const outlineClasses = 'mb-6 text-control';
+/** The side region that lists the headings of the page. */
+const sideClasses = `${pageSideClassName()} sticky top-0 max-h-96 self-start overflow-y-auto pb-6 pt-6`;
 
 /** The full screen layer of the search dialog, with the scrim behind it. */
 export const searchDialogClasses =
@@ -377,25 +378,20 @@ function contents(
       </nav>`;
 }
 
-/** The list of the headings of a page, in the reading column. */
+/** The list of the headings of a page, in the side region. */
 function outline(page: GuidePage, depth: 2 | 3 = 3): string {
   const headings = page.headings.filter((heading) => heading.depth <= depth);
-  if (headings.length < 2) return '';
+  if (headings.length < 2) return `<div class="${pageSideClassName()}"></div>`;
   const rows = headings.map(
     (heading) =>
-      `<li${heading.depth === 3 ? ' class="pl-5"' : ''}><a class="${footLinkClasses} block py-1" href="#${escapeAttribute(heading.id)}">${escapeText(heading.text)}</a></li>`,
+      `<li><a class="${rowClassName({ className: `w-full ${heading.depth === 3 ? 'pl-5' : ''}` })}" href="#${escapeAttribute(heading.id)}"><span class="min-w-0 flex-1 truncate">${escapeText(heading.text)}</span></a></li>`,
   );
-  const list = `<ol class="m-0 list-none p-0">${rows.join('')}</ol>`;
-  return `<nav class="${outlineClasses}" aria-label="${words.onThisPage}" data-pagefind-ignore>
-          <details class="md:hidden">
-            <summary class="cursor-pointer rounded-sm py-2 font-medium text-muted ${focusOutline}">${words.onThisPage}</summary>
-            ${list}
-          </details>
-          <div class="hidden md:block">
-            <p class="mb-1 mt-0 font-medium text-muted">${words.onThisPage}</p>
-            ${list}
-          </div>
-        </nav>`;
+  return `<aside class="${sideClasses}" aria-label="${words.onThisPage}">
+          <h2 class="${pageGroupLabelClassName()} px-2">${words.onThisPage}</h2>
+          <ol class="${pageListClassName()} mx-0">
+            ${rows.join('\n            ')}
+          </ol>
+        </aside>`;
 }
 
 /** The previous and the next page. */
@@ -452,9 +448,6 @@ export function pageDocument(view: PageView): string {
       : [
           `<link rel="canonical" href="${escapeAttribute(absoluteAddress(settings, pageHref(settings, page.slug)))}">`,
         ];
-  const titleEnd = view.html.indexOf('</h1>');
-  const titleHtml = titleEnd < 0 ? '' : view.html.slice(0, titleEnd + 5);
-  const bodyHtml = titleEnd < 0 ? view.html : view.html.slice(titleEnd + 5);
   const secondary = buttonClassName({ variant: 'secondary', size: 'sm' });
   const ghost = buttonClassName({ variant: 'ghost', size: 'sm' });
   return `<!doctype html>
@@ -468,13 +461,11 @@ ${head(settings, view.assets, title, page.description, [
   <body class="${bodyClasses}" data-docs-base="${escapeAttribute(settings.base)}">
     <a class="sr-only rounded-md bg-card px-3 py-2 text-control text-strong focus-visible:not-sr-only focus-visible:absolute focus-visible:left-2 focus-visible:top-2 focus-visible:z-40 focus-visible:outline-2 focus-visible:outline-focus" href="#docs-text">${words.skip}</a>
     ${header(settings)}
-    <div class="relative min-h-0 flex-1">
-    <div class="h-full overflow-y-auto ${publicLayout.gutter}">
-      <div class="${frameClasses}">
+    <div class="${frameClasses}">
       ${contents(settings, view.groups, page.file)}
       <main id="docs-text" class="${mainClasses}" tabindex="-1">
-        <div class="min-w-0 md:pl-6">
-          <div class="${publicLayout.reading} py-6">
+        <div class="${pageRowClassName()} ${pageGutter}">
+          <div class="${pageColumnClassName()} py-6">
             <div class="${toolbarClasses}">
               <p class="${groupClasses}">${escapeText(view.group ?? productName)}</p>
               <div class="flex items-center gap-cluster">
@@ -482,10 +473,8 @@ ${head(settings, view.assets, title, page.description, [
                 <a class="${ghost}" href="${escapeAttribute(markdown)}">${icon(FileTextIcon)}${words.viewMarkdown}</a>
               </div>
             </div>
-            <article class="min-w-0" data-pagefind-body>
-              <div class="${articleClasses}">${titleHtml}</div>
-              ${outline(page, view.outlineDepth)}
-              <div class="${articleClasses}">${bodyHtml}</div>
+            <article class="${articleClasses}" data-pagefind-body>
+${view.html}
             </article>
             ${pager(view)}
             <footer class="${footClasses}">
@@ -493,10 +482,9 @@ ${head(settings, view.assets, title, page.description, [
               <a class="${footLinkClasses}" href="${escapeAttribute(`${settings.base}llms.txt`)}">${words.forAgents}</a>
             </footer>
           </div>
+          ${outline(page, view.outlineDepth)}
         </div>
       </main>
-    </div>
-    </div>
     </div>
     <template data-docs-markdown>${escapeText(view.markdown)}</template>
     ${searchDialog()}
@@ -519,9 +507,7 @@ ${head(settings, assets, `${words.missingTitle} | ${siteName}`, words.missingTex
   </head>
   <body class="${bodyClasses}" data-docs-base="${escapeAttribute(settings.base)}">
     ${header(settings)}
-    <div class="relative min-h-0 flex-1">
-    <div class="h-full overflow-y-auto ${publicLayout.gutter}">
-      <div class="${frameClasses}">
+    <div class="${frameClasses}">
       ${contents(settings, groups, null)}
       <main id="docs-text" class="${mainClasses}" tabindex="-1">
         <div class="${emptyStateClasses}">
@@ -531,8 +517,6 @@ ${head(settings, assets, `${words.missingTitle} | ${siteName}`, words.missingTex
           <a class="${action} mt-2" href="${escapeAttribute(settings.base)}">${words.missingAction}</a>
         </div>
       </main>
-    </div>
-    </div>
     </div>
     ${searchDialog()}
   </body>

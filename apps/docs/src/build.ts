@@ -101,11 +101,6 @@ async function copyAssets(
     await write(join(input.output, href), rebaseFonts(css));
     stylesheets.push(`${base}${href.slice(1)}`);
   }
-  await cp(
-    join(packageDirectory, 'src/layout.css'),
-    join(input.output, 'assets/layout.css'),
-  );
-  stylesheets.push(`${base}assets/layout.css`);
   await cp(join(input.web, 'fonts'), join(input.output, 'fonts'), {
     recursive: true,
     filter: (source) => !/\.(?:br|gz)$/.test(source),
