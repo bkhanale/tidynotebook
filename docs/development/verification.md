@@ -18,6 +18,8 @@ TypeScript module beside the component. Integration tests can check built
 styles and served results. Browser checks cover actual interaction and layout.
 
 CI runs scoped checks on each push. `Check` requires every selected job to pass.
+A push uses its short diff only after the previous head passed `Check`. Missing
+proof or an API error selects full checks. Manual branch runs select full checks.
 Source changes run static checks, the bundle budget, three unit shards and four
 integration shards. Document changes run format and document checks. Image
 inputs also run image smoke tests. Workflow changes run actionlint and zizmor. Local Docker testing uses the production image and entry
@@ -25,6 +27,7 @@ point. There is no local proof receipt or test-file gate.
 A manual workflow can move `main` to a reviewed head without a new test run.
 See [Fast forward merge](fast-forward-merge.md).
 
-The service performance budget and coverage report run nightly. The bundle
+The service performance budget and coverage report run nightly or on a manual
+main run. They do not block the push aggregate. The bundle
 budget runs with source checks. Browser measurements use a local Playwright install in
 `.local-app/` when needed.
