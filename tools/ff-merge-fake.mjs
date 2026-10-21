@@ -70,7 +70,7 @@ export function passing() {
       {
         type: 'required_status_checks',
         parameters: {
-          required_status_checks: [{ context: 'Lint', integration_id: 15368 }],
+          required_status_checks: [{ context: 'Check', integration_id: 15368 }],
         },
       },
       {
@@ -93,7 +93,7 @@ export function passing() {
     checkRuns: [
       {
         id: 10,
-        name: 'Lint',
+        name: 'Check',
         head_sha: H,
         status: 'completed',
         conclusion: 'success',

@@ -120,7 +120,7 @@ A custom button needs a GitHub App and its own key, see
 
 - The ruleset "Public main" (ruleset 25134765) holds the rules for `main`:
   no deletion, no non fast forward update, linear history, the required check
-  `Lint` from the GitHub Actions app, a pull request with resolved threads and
+  `Check` from the GitHub Actions app, a pull request with resolved threads and
   rebase merges only, no required approval, and no bypass actor. Classic branch
   protection answers "not found", which does not mean that `main` is open.
 - A real run of the manual workflow showed that the ruleset accepts the

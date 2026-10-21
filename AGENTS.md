@@ -16,7 +16,7 @@ Skills are optional Markdown instructions for repeated tasks. They contain no sc
 - Run `pnpm verify` once at the end. It includes lint, builds, unit tests, and integration tests.
 - Fix a failed check and run that check again. Do not skip failures or weaken assertions.
 - Push, open a PR, and review your own diff. Include test results and relevant screenshots.
-- CI runs only `pnpm lint`. Ask the owner to merge when lint and self-review pass.
+- CI runs scoped checks on each push. `Check` is the required aggregate. Ask the owner to merge when Check and self-review pass.
 - After merge, remove the task worktree and branch, and all local core Docker containers, volumes, images, networks, and build cache. Leave no deployment running.
 - Keep the main checkout, other active work, and the `pr-screenshots` branch.
 - A source change does not permit a release or remote deployment. Release is currently unavailable.
