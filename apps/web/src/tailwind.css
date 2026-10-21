@@ -381,7 +381,7 @@
   outline-offset: 4px;
   border-radius: 4px;
 }
-.public-footer-brand > a {
+.public-footer-wordmark {
   align-items: center;
   text-decoration: none;
   color: var(--notes-text-strong);
