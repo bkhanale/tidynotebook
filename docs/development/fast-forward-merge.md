@@ -135,8 +135,9 @@ A custom button needs a GitHub App and its own key, see
   one atomic step. The second read and the compare and swap on B make the
   window small, and the frozen H blocks new code that nobody reviewed. A
   review that changes inside the window is not seen.
-- A push with `GITHUB_TOKEN` starts no `push` workflow and no Pages build.
-  CI runs on pull requests only, so nothing runs after the update.
+- Ordinary pushes run CI. A push with `GITHUB_TOKEN` starts no `push`
+  workflow and no Pages build. The fast forward merge update therefore starts
+  no new CI run.
 - A status creator comes from the REST status list, which the workflow token
   can read. If a creator is missing, the job stops. Nobody accepts the status
   name in place of the creator.
