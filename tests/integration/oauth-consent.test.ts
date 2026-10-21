@@ -150,6 +150,16 @@ async function markup(facts: OAuthConsentFacts): Promise<string> {
   return html;
 }
 
+/** The footer adds one trusted local image. Client identity still permits no image. */
+function withoutFooterMark(html: string): string {
+  const mark = '<img src="/favicon.svg" width="16" height="16" alt=""/>';
+  assert.deepEqual(
+    [...html.matchAll(/<img\b[^>]*>/g)].map((match) => match[0]),
+    [mark],
+  );
+  return html.replace(mark, '');
+}
+
 try {
   await test('an absent session signs in with the signed request and reaches consent and the client', async () => {
     const id = await register();
@@ -202,7 +212,10 @@ try {
     assert.match(html, /The client calls itself/);
     assert.match(html, /Not verified/);
     assert.match(html, /&lt;img/);
-    assert.doesNotMatch(html, /<img|openai\.com|oauth-state/);
+    assert.doesNotMatch(
+      withoutFooterMark(html),
+      /<img|openai\.com|oauth-state/,
+    );
     assert.match(html, /Your answer goes to an app on this computer\./);
     assert.match(html, /<option value="read" selected="">Read only/);
     assert.match(html, />Allow</);
@@ -251,7 +264,10 @@ try {
     const html = await markup(facts);
     assert.match(html, /metadata\.example/);
     assert.match(html, /&lt;img/);
-    assert.doesNotMatch(html, /Not verified|<img|openai\.com/);
+    assert.doesNotMatch(
+      withoutFooterMark(html),
+      /Not verified|<img|openai\.com/,
+    );
     const denied = await giveOAuthConsent({
       body: { accept: false, oauth_query: request.query },
       headers: { cookie, origin: config.origin },
