@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  ownerId,
+  repository,
+  requireEnvironment,
+  requireProof,
+  versionFromRef,
+} from './release-workflow.mjs';
+
+const sha = 'a'.repeat(40);
+const run = {
+  id: 100,
+  event: 'push',
+  head_sha: sha,
+  head_repository: { full_name: repository },
+  path: '.github/workflows/ci.yml',
+  check_suite_id: 20,
+  head_branch: 'ci/example',
+};
+const check = {
+  id: 200,
+  name: 'Check',
+  head_sha: sha,
+  app: { id: 15368 },
+  check_suite: { id: 20 },
+  status: 'completed',
+  conclusion: 'success',
+};
+
+await test('release accepts stable tags and main only', () => {
+  assert.equal(versionFromRef('refs/heads/main'), 'main');
+  assert.equal(versionFromRef('refs/tags/v1.2.3'), '1.2.3');
+  for (const ref of [
+    'refs/heads/feature',
+    'refs/tags/v01.2.3',
+    'refs/tags/v1.2.3-rc.1',
+    'refs/tags/v1.2.3+build',
+    'refs/tags/v1.2',
+    'refs/tags/v1.2.3/inject',
+  ])
+    assert.throws(() => versionFromRef(ref));
+});
+
+await test('the exact source accepts its PR branch push Check from GitHub Actions', () => {
+  requireProof([run], [check], sha);
+  for (const bad of [
+    { event: 'pull_request' },
+    { head_sha: 'b'.repeat(40) },
+    { head_repository: { full_name: 'fork/core' } },
+    { path: '.github/workflows/other.yml' },
+  ])
+    assert.throws(() => requireProof([{ ...run, ...bad }], [check], sha));
+  for (const bad of [
+    { app: { id: 1 } },
+    { head_sha: 'b'.repeat(40) },
+    { check_suite: { id: 21 } },
+    { status: 'in_progress' },
+    { conclusion: 'failure' },
+    { name: 'other' },
+  ])
+    assert.throws(() => requireProof([run], [{ ...check, ...bad }], sha));
+  assert.throws(() =>
+    requireProof([run, { ...run, id: 101, check_suite_id: 21 }], [check], sha),
+  );
+  assert.throws(() =>
+    requireProof(
+      [run],
+      [check, { ...check, id: 201, conclusion: 'failure' }],
+      sha,
+    ),
+  );
+});
+
+await test('version protection requires the sole owner and no bypass', () => {
+  const environment = {
+    name: 'release',
+    can_admins_bypass: false,
+    deployment_branch_policy: {
+      protected_branches: false,
+      custom_branch_policies: true,
+    },
+    protection_rules: [
+      {
+        type: 'required_reviewers',
+        prevent_self_review: false,
+        reviewers: [{ type: 'User', reviewer: { id: ownerId } }],
+      },
+    ],
+  };
+  requireEnvironment(environment);
+  assert.throws(() =>
+    requireEnvironment({ ...environment, can_admins_bypass: true }),
+  );
+  assert.throws(() =>
+    requireEnvironment({ ...environment, protection_rules: [] }),
+  );
+  assert.throws(() =>
+    requireEnvironment({
+      ...environment,
+      protection_rules: [
+        {
+          type: 'required_reviewers',
+          prevent_self_review: false,
+          reviewers: [{ type: 'User', reviewer: { id: 1 } }],
+        },
+      ],
+    }),
+  );
+});

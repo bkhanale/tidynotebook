@@ -22,10 +22,7 @@ on:
         default: true
 
 permissions:
-  contents: write
-  pull-requests: read
-  checks: read
-  statuses: read
+  contents: read
 
 concurrency:
   group: ff-only-main
@@ -35,6 +32,11 @@ concurrency:
 jobs:
   fast-forward:
     name: Fast forward main
+    permissions:
+      contents: write
+      pull-requests: read
+      checks: read
+      statuses: read
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -60,3 +62,17 @@ jobs:
           EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: node tools/ff-only-merge.mjs
+
+  dispatch-release:
+    name: Start main image publication
+    needs: fast-forward
+    if: inputs.dry_run == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch main publication after the successful merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST repos/tidynotebook/tidynotebook/actions/workflows/release.yml/dispatches -f ref=main

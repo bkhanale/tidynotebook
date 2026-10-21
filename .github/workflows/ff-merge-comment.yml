@@ -11,14 +11,16 @@ on:
     types: [created]
 
 permissions:
-  contents: write
-  pull-requests: write
-  checks: read
-  statuses: read
+  contents: read
 
 jobs:
   fast-forward:
     name: Fast forward main by comment
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
     # A cheap filter only. The script checks the author with the API.
     if: >-
       github.ref == 'refs/heads/main' &&
@@ -57,3 +59,16 @@ jobs:
           COMMENT_USER_LOGIN: ${{ github.event.comment.user.login }}
           COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
         run: node tools/ff-merge-comment.mjs
+
+  dispatch-release:
+    name: Start main image publication
+    needs: fast-forward
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch main publication after the successful merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST repos/tidynotebook/tidynotebook/actions/workflows/release.yml/dispatches -f ref=main

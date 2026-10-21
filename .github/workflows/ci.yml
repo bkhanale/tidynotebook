@@ -208,7 +208,7 @@ jobs:
         # limited to the two merge workflows and this exact schema error.
         # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
         run: |
-          "$RUNNER_TEMP/actionlint" .github/workflows/ci.yml
+          "$RUNNER_TEMP/actionlint" .github/workflows/ci.yml .github/workflows/release.yml
           "$RUNNER_TEMP/actionlint" -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$' .github/workflows/ff-only-merge.yml .github/workflows/ff-merge-comment.yml
       - run: '"$RUNNER_TEMP/zizmor" --no-online-audits --strict-collection .github/workflows .github/actions'
 

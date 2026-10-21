@@ -159,7 +159,8 @@ await test('the fast forward workflow runs trusted code by hand with narrow acce
     assert.equal(record(input).required, true);
   assert.equal(record(inputs.dry_run).type, 'boolean');
   assert.equal(record(inputs.dry_run).default, true);
-  assert.deepEqual(workflow.permissions, {
+  assert.deepEqual(workflow.permissions, { contents: 'read' });
+  assert.deepEqual(record(record(workflow.jobs)['fast-forward']).permissions, {
     contents: 'write',
     'pull-requests': 'read',
     checks: 'read',
@@ -170,12 +171,14 @@ await test('the fast forward workflow runs trusted code by hand with narrow acce
     'cancel-in-progress': false,
     queue: 'max',
   });
-  const jobs = Object.values(record(workflow.jobs)).map(record);
+  const jobs = Object.entries(record(workflow.jobs))
+    .filter(([name]) => name !== 'dispatch-release')
+    .map(([, job]) => record(job));
   assert.equal(jobs.length, 1);
   const job = record(jobs[0]);
   assert.equal(job.if, "github.ref == 'refs/heads/main'");
   assert.ok(typeof job['timeout-minutes'] === 'number');
-  assert.equal(job.permissions, undefined);
+  assert.equal(record(job.permissions).actions, undefined);
   const steps = Array.isArray(job.steps) ? job.steps.map(record) : [];
   const checkouts = steps.filter((step) =>
     String(step.uses).startsWith('actions/checkout@'),
@@ -210,14 +213,17 @@ await test('the comment workflow runs trusted code on new comments with narrow a
   const path = '.github/workflows/ff-merge-comment.yml';
   const workflow = await loadYaml(path);
   assert.deepEqual(workflow.on, { issue_comment: { types: ['created'] } });
-  assert.deepEqual(workflow.permissions, {
+  assert.deepEqual(workflow.permissions, { contents: 'read' });
+  assert.deepEqual(record(record(workflow.jobs)['fast-forward']).permissions, {
     contents: 'write',
     'pull-requests': 'write',
     checks: 'read',
     statuses: 'read',
   });
   assert.equal(workflow.concurrency, undefined);
-  const jobs = Object.values(record(workflow.jobs)).map(record);
+  const jobs = Object.entries(record(workflow.jobs))
+    .filter(([name]) => name !== 'dispatch-release')
+    .map(([, job]) => record(job));
   assert.equal(jobs.length, 1);
   const job = record(jobs[0]);
   for (const part of [
@@ -234,7 +240,7 @@ await test('the comment workflow runs trusted code on new comments with narrow a
     queue: 'max',
   });
   assert.ok(typeof job['timeout-minutes'] === 'number');
-  assert.equal(job.permissions, undefined);
+  assert.equal(record(job.permissions).actions, undefined);
   const steps = Array.isArray(job.steps) ? job.steps.map(record) : [];
   const checkout = record(
     steps.find((step) => String(step.uses).startsWith('actions/checkout@'))
@@ -306,4 +312,112 @@ await test('checkResults rejects every failed, cancelled or skipped selected job
       job.result = 'success';
     }
   }
+});
+
+await test('both merge paths dispatch main publication with isolated Actions write access', async () => {
+  for (const name of ['ff-only-merge', 'ff-merge-comment']) {
+    const workflow = await loadYaml(`.github/workflows/${name}.yml`);
+    const jobs = record(workflow.jobs);
+    const dispatch = record(jobs['dispatch-release']);
+    assert.equal(dispatch.needs, 'fast-forward');
+    assert.deepEqual(dispatch.permissions, { actions: 'write' });
+    assert.equal(record(workflow.permissions).actions, undefined);
+    assert.equal(
+      record(record(jobs['fast-forward']).permissions).actions,
+      undefined,
+    );
+    assert.equal(
+      dispatch.if,
+      name === 'ff-only-merge' ? 'inputs.dry_run == false' : undefined,
+    );
+    const steps = Array.isArray(dispatch.steps)
+      ? dispatch.steps.map(record)
+      : [];
+    assert.equal(steps.length, 1);
+    assert.equal(
+      steps[0]?.run,
+      'gh api --method POST repos/tidynotebook/tidynotebook/actions/workflows/release.yml/dispatches -f ref=main',
+    );
+    assert.deepEqual(steps[0]?.env, { GH_TOKEN: '${{ github.token }}' });
+  }
+});
+
+await test('release proves both native images before the only publication jobs', async () => {
+  const workflow = await loadYaml('.github/workflows/release.yml');
+  assert.deepEqual(workflow.on, {
+    push: { branches: ['main'], tags: ['v[0-9]*.[0-9]*.[0-9]*'] },
+    workflow_dispatch: null,
+  });
+  assert.deepEqual(workflow.permissions, { contents: 'read' });
+  assert.deepEqual(workflow.concurrency, {
+    group: 'release-core',
+    'cancel-in-progress': false,
+  });
+  const jobs = record(workflow.jobs);
+  const build = record(jobs.build);
+  assert.equal(build.needs, 'prepare');
+  assert.deepEqual(record(record(build.strategy).matrix).include, [
+    { arch: 'amd64', runner: 'ubuntu-latest' },
+    { arch: 'arm64', runner: 'ubuntu-24.04-arm' },
+  ]);
+  const steps = Array.isArray(build.steps) ? build.steps.map(record) : [];
+  const proof = steps.findIndex(
+    (step) =>
+      step.run === 'node --test tests/image/distribution-notices.test.ts',
+  );
+  const upload = steps.findIndex((step) =>
+    String(step.uses).startsWith('actions/upload-artifact@'),
+  );
+  assert.ok(proof >= 0 && upload > proof);
+  assert.equal(record(steps[upload]?.with)['retention-days'], 1);
+  const commands = steps.map((step) => String(step.run)).join('\n');
+  assert.match(
+    commands,
+    /--cache-from "type=registry,ref=ghcr.io\/tidynotebook\/tidynotebook\/ci-cache:\$ARCH"/,
+  );
+  assert.doesNotMatch(commands, /--push|--cache-to/);
+  for (const [name, raw] of Object.entries(jobs)) {
+    const job = record(raw);
+    assert.ok(typeof job['timeout-minutes'] === 'number');
+    const publish = name.startsWith('publish_');
+    for (const permission of ['packages', 'id-token', 'attestations'])
+      assert.equal(
+        record(job.permissions)[permission],
+        publish ? 'write' : undefined,
+      );
+    if (publish) assert.deepEqual(job.needs, ['prepare', 'build']);
+  }
+  assert.equal(record(jobs.publish_main).environment, undefined);
+  assert.equal(
+    record(jobs.publish_main).if,
+    "needs.prepare.outputs.version == 'main'",
+  );
+  assert.equal(record(jobs.publish_release).environment, 'release');
+  assert.equal(
+    record(jobs.publish_release).if,
+    "needs.prepare.outputs.version != 'main'",
+  );
+  const action = await loadYaml('.github/actions/publish-core/action.yml');
+  const publication = record(action.runs).steps;
+  assert.ok(Array.isArray(publication));
+  const attest = publication
+    .map(record)
+    .find((step) =>
+      String(step.uses).startsWith('actions/attest-build-provenance@'),
+    );
+  assert.equal(record(attest?.with)['push-to-registry'], true);
+  for (const path of [
+    '.github/workflows/release.yml',
+    '.github/actions/publish-core/action.yml',
+  ]) {
+    const source = await readFile(join(root, path), 'utf8');
+    assert.doesNotMatch(source, /secrets\./);
+    for (const match of source.matchAll(/^\s*- uses: (?!\.\/)(.+)$/gm))
+      assert.match(match[1] ?? '', /^[\w.-]+\/[\w.-]+@[0-9a-f]{40} # v/);
+  }
+  const ci = await readFile(join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(
+    ci,
+    /actionlint" \.github\/workflows\/ci.yml \.github\/workflows\/release.yml/,
+  );
 });

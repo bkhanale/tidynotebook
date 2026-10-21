@@ -1,0 +1,46 @@
+name: Publish proved core images
+description: Publish the two tested image archives and attest their index.
+inputs:
+  version:
+    description: Validated stable version or main
+    required: true
+  sha:
+    description: Proved source commit
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version-file: .node-version
+        package-manager-cache: false
+    - name: Recheck source proof after approval
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        SOURCE_SHA: ${{ inputs.sha }}
+      run: node tools/release-workflow.mjs
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        pattern: image-*
+        merge-multiple: true
+        path: ${{ runner.temp }}/core-images
+    - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+    - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+    - name: Publish the tested images without a rebuild
+      id: publish
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        SOURCE_SHA: ${{ inputs.sha }}
+        GH_TOKEN: ${{ github.token }}
+      run: node tools/publish-core.mjs
+    - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+      with:
+        subject-name: ghcr.io/tidynotebook/core
+        subject-digest: ${{ steps.publish.outputs.digest }}
+        push-to-registry: true
