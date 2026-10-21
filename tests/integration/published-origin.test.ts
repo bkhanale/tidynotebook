@@ -276,6 +276,12 @@ await test('a published diagram loads its script and its frame from the publishe
   // A note with no diagram names no script, and its policy refuses every one.
   const plain = await onPages('GET', `/published/${first.token}`);
   assert.ok(!plain.body.includes('<script'));
+  assert.equal((plain.body.match(/<footer/g) ?? []).length, 1);
+  assert.ok(plain.body.includes(`href="${application}/login"`));
+  assert.doesNotMatch(
+    plain.body,
+    /href="\/login"|tidynotebook.com\/(terms|privacy)/,
+  );
   assert.ok(
     String(plain.headers['content-security-policy']).includes(
       "script-src 'none'",
