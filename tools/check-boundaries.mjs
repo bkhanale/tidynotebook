@@ -225,11 +225,8 @@ const yjsPackages = new Set(['yjs', 'lib0']);
 const editorBinding = 'y-codemirror.next';
 const editorBridgeEntry = '@notesapp/note-document/editor-bridge';
 const bridgeReaders = new Set(['editor']);
-// The packages with a second entry point, and the entry each may add.
-const secondEntries = new Map([
-  [yjsOwner, './editor-bridge'],
-  ['ui', './public-layout'],
-]);
+// The one package with a second entry point, and the one entry it may add.
+const secondEntries = new Map([[yjsOwner, './editor-bridge']]);
 /** The test data that a test file of any package may import (record 0155). */
 const sharedTestDataPrefix = 'packages/markdown/test-data/';
 const generated = [
@@ -327,10 +324,7 @@ for (const item of packages) {
     for (const dependency of Object.keys(record(item.manifest[group]))) {
       if (dependency.startsWith('@notesapp/')) {
         edges.add(dependency);
-        if (
-          !allowed[key]?.includes(short(dependency)) &&
-          !(key === 'server' && dependency === '@notesapp/ui')
-        )
+        if (!allowed[key]?.includes(short(dependency)))
           fail(item.path, `Forbidden dependency ${dependency}.`);
       }
       if (key === 'core' && coreForbidden.has(dependency))
@@ -448,16 +442,9 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     fail(file, `Only packages/editor imports ${editorBinding} (record 0082).`);
   if (dependency.startsWith('@notesapp/')) {
     graph.get(name)?.add(dependency);
-    // Public server documents share a pure class recipe without UI components.
-    const publicLayout =
-      key === 'server' && specifier === '@notesapp/ui/public-layout';
-    if (
-      specifier !== dependency &&
-      specifier !== editorBridgeEntry &&
-      !publicLayout
-    )
+    if (specifier !== dependency && specifier !== editorBridgeEntry)
       fail(file, `Deep import ${specifier} is forbidden.`);
-    if (!allowed[key]?.includes(short(dependency)) && !publicLayout)
+    if (!allowed[key]?.includes(short(dependency)))
       fail(file, `Forbidden import ${dependency}.`);
   }
   if (

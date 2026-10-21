@@ -12,7 +12,7 @@
  * module, so the two pages cannot drift apart and the build already emits
  * each utility (`apps/web/src/tailwind.css` registers that module).
  */
-import { publicLayout } from '@notesapp/ui/public-layout';
+import { publicLayout } from './public-layout.ts';
 import type { LegalDocumentName } from '../config.ts';
 import {
   bodyClasses,

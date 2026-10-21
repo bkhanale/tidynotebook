@@ -30,7 +30,6 @@
     "@notesapp/logging": "workspace:*",
     "@notesapp/markdown": "workspace:*",
     "@notesapp/storage-server": "workspace:*",
-    "@notesapp/ui": "workspace:*",
     "better-auth": "1.7.7",
     "better-call": "1.4.0",
     "drizzle-orm": "catalog:",

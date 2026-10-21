@@ -38,7 +38,7 @@
  * preference of the device of the reader (record 0151).
  */
 
-import { publicLayout } from '@notesapp/ui/public-layout';
+import { publicLayout } from './public-layout.ts';
 import type { ReportReason } from '@notesapp/core';
 import { productName } from '@notesapp/core';
 
