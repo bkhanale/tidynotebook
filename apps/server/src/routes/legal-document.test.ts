@@ -43,3 +43,27 @@ await test('each document links the other one', () => {
   assert.match(page, /<title>Privacy notice<\/title>/);
   assert.match(page, /href="\/legal\/terms">Terms<\/a>/);
 });
+
+await test('legal content keeps its utility row and uses operator footer links', () => {
+  const page = legalDocument({
+    name: 'terms',
+    body: '<h1>Terms</h1>',
+    stylesheets: [],
+    otherHref: '/legal/privacy',
+    version: 'v1',
+    footer: {
+      columns: [
+        {
+          title: 'Legal',
+          links: [
+            { label: 'Operator terms', href: 'https://operator.example/terms' },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal((page.match(/<footer/g) ?? []).length, 1);
+  assert.ok(page.indexOf('class="public-footer"') > page.indexOf('</main>'));
+  assert.ok(page.includes('href="https://operator.example/terms"'));
+  assert.doesNotMatch(page, /tidynotebook.com\/terms/);
+});

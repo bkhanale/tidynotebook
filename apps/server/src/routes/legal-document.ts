@@ -1,3 +1,8 @@
+import {
+  renderPublicFooter,
+  installationFooterColumns,
+  type PublicFooterOptions,
+} from '@notesapp/ui/public-footer';
 /**
  * The page of one legal document of the installation (record 0140).
  *
@@ -33,6 +38,7 @@ export const legalDocumentTitles: Readonly<Record<LegalDocumentName, string>> =
 
 /** What the page needs. */
 export type LegalDocumentInput = {
+  readonly footer?: PublicFooterOptions;
   readonly name: LegalDocumentName;
   /** The sanitized HTML of the document. */
   readonly body: string;
@@ -82,8 +88,20 @@ export function legalDocument(input: LegalDocumentInput): string {
     <div class="${publicLayout.container}">
     <main class="${pageClasses}">
 <article class="${noteBodyClasses}">${input.body}</article>
-<footer class="${footClasses}">${foot}</footer>
+<div class="${footClasses}">${foot}</div>
     </main>
+    ${renderPublicFooter(
+      input.footer ?? {
+        home: '/',
+        columns: installationFooterColumns([
+          {
+            label: legalDocumentTitles[input.name],
+            href: `/legal/${input.name}`,
+          },
+          { label: legalDocumentTitles[other], href: input.otherHref },
+        ]),
+      },
+    )}
     </div>
     </div>
   </body>

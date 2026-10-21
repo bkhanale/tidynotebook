@@ -252,3 +252,15 @@ export {
 } from './icons.tsx';
 
 export { publicLayout } from './public-layout.ts';
+
+export { PublicFooter } from './public-footer-react.tsx';
+export {
+  hostedFooterColumns,
+  installationFooterColumns,
+  renderPublicFooter,
+} from './public-footer.ts';
+export type {
+  FooterColumn,
+  FooterLink,
+  PublicFooterOptions,
+} from './public-footer.ts';

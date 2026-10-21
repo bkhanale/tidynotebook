@@ -26,7 +26,14 @@ const allowed = {
     'ui',
     'logging',
   ],
-  server: ['api-contract', 'core', 'storage-server', 'markdown', 'logging'],
+  server: [
+    'api-contract',
+    'core',
+    'storage-server',
+    'markdown',
+    'logging',
+    'ui',
+  ],
   'api-contract': [],
   'api-client': [],
   core: [],
@@ -226,7 +233,10 @@ const editorBinding = 'y-codemirror.next';
 const editorBridgeEntry = '@notesapp/note-document/editor-bridge';
 const bridgeReaders = new Set(['editor']);
 // The one package with a second entry point, and the one entry it may add.
-const secondEntries = new Map([[yjsOwner, './editor-bridge']]);
+const secondEntries = new Map([
+  [yjsOwner, './editor-bridge'],
+  ['ui', './public-footer'],
+]);
 /** The test data that a test file of any package may import (record 0155). */
 const sharedTestDataPrefix = 'packages/markdown/test-data/';
 const generated = [
@@ -365,6 +375,15 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
   const name = String(item.manifest.name);
   const key = short(name);
   const dependency = packageName(specifier);
+  if (
+    key === 'server' &&
+    dependency === '@notesapp/ui' &&
+    specifier !== '@notesapp/ui/public-footer'
+  )
+    fail(
+      file,
+      'The server imports only the React-free public footer entry of ui.',
+    );
   const filePath = relative(directory, file).split(sep).join('/');
   // Decision 0018 keeps apps/web/src/lib/ pure. React never enters it.
   if (filePath.startsWith(webLibPrefix) && webReactPackages.has(dependency))
@@ -442,7 +461,11 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     fail(file, `Only packages/editor imports ${editorBinding} (record 0082).`);
   if (dependency.startsWith('@notesapp/')) {
     graph.get(name)?.add(dependency);
-    if (specifier !== dependency && specifier !== editorBridgeEntry)
+    if (
+      specifier !== dependency &&
+      specifier !== editorBridgeEntry &&
+      specifier !== '@notesapp/ui/public-footer'
+    )
       fail(file, `Deep import ${specifier} is forbidden.`);
     if (!allowed[key]?.includes(short(dependency)))
       fail(file, `Forbidden import ${dependency}.`);

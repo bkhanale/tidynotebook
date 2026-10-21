@@ -78,7 +78,7 @@ holds the built page, the editor and the stylesheet fallbacks to one registry.
 
 | File                      | Purpose                                                 |
 | ------------------------- | ------------------------------------------------------- |
-| `src/index.ts`            | The one public entry point                              |
+| `src/index.ts`            | The React public entry point                            |
 | `src/themes/index.ts`     | The theme registry                                      |
 | `src/theme.ts`            | Tokens, the colour scheme, contrast checks              |
 | `src/control-classes.ts`  | The one recipe of every control, and `menuSurfaceStyle` |
@@ -93,3 +93,6 @@ holds the built page, the editor and the stylesheet fallbacks to one registry.
 | `src/copy-action.ts`      | The words of a copy control (0174)                      |
 | `src/code-figure.ts`      | The one recipe of a rendered code figure                |
 | `THIRD_PARTY_LICENSES.md` | The source and licence of every palette                 |
+
+`src/public-footer.ts` is the React-free public footer entry for static HTML.
+The server imports only this entry from UI. The React adapter uses the same tree.

@@ -330,3 +330,40 @@ await test('a note with a diagram names the one diagram script and no inline one
   });
   assert.ok(!locked.includes('<script'));
 });
+
+await test('published notes and lists use one footer outside the reading column', () => {
+  for (const view of [
+    { kind: 'note', body: '<h1>Trip to Lisbon</h1>', listHref: null },
+    { kind: 'list', notes: [] },
+  ] satisfies PublishedPageView[]) {
+    const html = publishedDocument({
+      view,
+      stylesheets: [],
+      formAction: '/published/demo',
+      reportHref: '/published/demo/report',
+      footer: {
+        columns: [
+          {
+            title: 'Legal',
+            links: [
+              {
+                label: 'Operator terms',
+                href: 'https://operator.example/terms',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    assert.equal((html.match(/<footer/g) ?? []).length, 1);
+    assert.ok(html.indexOf('class="public-footer"') > html.indexOf('</main>'));
+    assert.ok(html.includes('href="/published/demo/report"'));
+    assert.ok(html.includes('href="https://operator.example/terms"'));
+    assert.doesNotMatch(html, /tidynotebook.com\/terms/);
+  }
+  for (const view of [
+    { kind: 'locked' },
+    { kind: 'unavailable' },
+  ] satisfies PublishedPageView[])
+    assert.doesNotMatch(documentOf(view), /<footer/);
+});

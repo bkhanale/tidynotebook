@@ -30,6 +30,8 @@ import {
 import { RemoveOwnAccountDialog } from './remove-account-dialog.tsx';
 import {
   AppMarkIcon,
+  PublicFooter,
+  installationFooterColumns,
   Button,
   buttonClassName,
   Card,
@@ -62,7 +64,7 @@ import {
 } from '../../lib/oauth-consent.ts';
 import { useOpenPortal } from './open-portal.ts';
 import { useNow } from '../../shell/now.ts';
-import { LegalLinks } from './legal-links.tsx';
+import { LegalLinks, useLegalDocuments } from './legal-links.tsx';
 
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 
@@ -574,11 +576,7 @@ export function LoginPage({
   return (
     <AuthFrame
       title={status.kind === 'loading' ? productName : title}
-      footer={
-        documents === null ? null : (
-          <LegalLinks className="justify-center" documents={documents} />
-        )
-      }
+      documents={documents}
     >
       {status.kind === 'loading' ? (
         <LoadingState label="The sign-in screen is loading." />
@@ -694,9 +692,10 @@ export function LoginPage({
  * The frame of a screen before a session: the wordmark over one raised panel
  * on the chrome plane (decisions 0062 and 0064). Sign in, first-run setup,
  * the acceptance of an invitation and the reset of a password use it. The
- * footer sits under the panel, where sign in shows the legal documents.
+ * public footer sits outside the panel and uses the installation legal URLs.
  */
 export function AuthFrame({
+  documents: suppliedDocuments,
   title,
   children,
   footer,
@@ -704,7 +703,17 @@ export function AuthFrame({
   readonly title: string;
   readonly children: ReactNode;
   readonly footer?: ReactNode;
+  readonly documents?: LegalDocuments | null;
 }): ReactNode {
+  const documents = useLegalDocuments(suppliedDocuments);
+  const columns = installationFooterColumns(
+    documents === null
+      ? []
+      : [
+          { label: 'Terms', href: documents.terms.url },
+          { label: 'Privacy', href: documents.privacy.url },
+        ],
+  );
   return (
     <div
       className={`flex min-h-dvh flex-col items-center justify-center bg-surface ${pageGutter} py-10`}
@@ -725,8 +734,11 @@ export function AuthFrame({
         {children}
       </Card>
       {footer === undefined || footer === null ? null : (
-        <footer className="mt-5 w-full max-w-sm">{footer}</footer>
+        <div className="mt-5 w-full max-w-sm">{footer}</div>
       )}
+      <div className="w-full max-w-5xl">
+        <PublicFooter home="/" columns={columns} />
+      </div>
     </div>
   );
 }

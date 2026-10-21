@@ -345,3 +345,70 @@
   --color-syntax-attribute: var(--notes-syntax-attribute, #e7c07b);
   --color-syntax-punctuation: var(--notes-syntax-punctuation, #b8b6b1);
 }
+
+/* Public navigation shared by app, docs, and static documents. */
+
+.public-footer {
+  margin-top: 64px;
+  border-top: 1px solid var(--notes-border-subtle);
+  padding: 32px 0 16px;
+}
+.public-footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr));
+  gap: 24px;
+}
+.public-footer h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--notes-text-strong);
+}
+.public-footer nav a {
+  display: block;
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--notes-text-muted);
+  text-decoration: none;
+}
+.public-footer a:hover {
+  text-decoration: underline;
+}
+.public-footer a:focus-visible {
+  outline: 2px solid var(--notes-focus);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.public-footer-brand > a {
+  align-items: center;
+  text-decoration: none;
+  color: var(--notes-text-strong);
+  font-weight: 600;
+  display: inline-flex;
+  padding: 0;
+  gap: 8px;
+  font-size: 14px;
+}
+.public-footer-brand p {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--notes-text-muted);
+}
+.public-footer-brand .public-footer-copyright {
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .public-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+  }
+  .public-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .public-footer-brand {
+    grid-column: 1/-1;
+  }
+}

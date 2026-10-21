@@ -36,7 +36,8 @@
     "fastify": "catalog:",
     "nodemailer": "10.0.11",
     "pg": "catalog:",
-    "sharp": "catalog:"
+    "sharp": "catalog:",
+    "@notesapp/ui": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

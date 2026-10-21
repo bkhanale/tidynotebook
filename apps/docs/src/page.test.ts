@@ -200,3 +200,18 @@ await test('the missing page names what is missing and offers one action', () =>
   assert.match(html, /href="\/notesapp\/">Open the overview<\/a>/);
   assert.doesNotMatch(html, /aria-current="page"/);
 });
+
+await test('docs uses the shared footer below its page resources and frame', () => {
+  const html = pageDocument(view);
+  assert.equal((html.match(/<footer/g) ?? []).length, 1);
+  assert.ok(
+    html.indexOf('class="public-footer"') >
+      html.indexOf('aria-label="Page resources"'),
+  );
+  assert.ok(html.includes('Open source. Plain Markdown files.'));
+  assert.ok(
+    html.includes('href="/notesapp/assets/icon.svg"') ||
+      html.includes('src="/notesapp/assets/icon.svg"'),
+  );
+  assert.ok(html.includes('href="https://tidynotebook.com/privacy"'));
+});

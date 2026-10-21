@@ -1,3 +1,8 @@
+import {
+  renderPublicFooter,
+  installationFooterColumns,
+  type PublicFooterOptions,
+} from '@notesapp/ui/public-footer';
 /**
  * The document that a reader of a published link receives.
  *
@@ -101,6 +106,7 @@ export type PublishedPageView =
 
 /** What the document needs besides the view. */
 export type PublishedDocumentInput = {
+  readonly footer?: PublicFooterOptions;
   readonly view: PublishedPageView;
   /** The stylesheets of the built application document, in order. */
   readonly stylesheets: readonly string[];
@@ -532,7 +538,7 @@ function footOf(input: PublishedDocumentInput): string {
   const shows = input.view.kind === 'note' || input.view.kind === 'list';
   if (!shows || input.reportHref === undefined || input.reportHref === null)
     return '';
-  return `\n<footer class="${footClasses}"><a class="${linkClasses}" href="${escapeAttribute(input.reportHref)}">${escapeText(reportLinkWords)}</a></footer>`;
+  return `\n<div class="${footClasses}"><a class="${linkClasses}" href="${escapeAttribute(input.reportHref)}">${escapeText(reportLinkWords)}</a></div>`;
 }
 
 /** Builds the whole document of one state of a published link. */
@@ -570,6 +576,7 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     <main class="${mainClassesOf(input.view)}">
 ${mainOf(input)}${footOf(input)}
     </main>
+    ${input.view.kind === 'note' || input.view.kind === 'list' ? renderPublicFooter(input.footer ?? { columns: installationFooterColumns([]) }) : ''}
     ${input.view.kind === 'locked' || input.view.kind === 'unavailable' ? '' : '</div></div>'}
   </body>
 </html>

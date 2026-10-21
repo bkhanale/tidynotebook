@@ -310,6 +310,13 @@ await test('the server serves a document from its file, and only that one', asyn
     // The one sanitized renderer drops raw HTML, so no script reaches it.
     assert.equal(page.body.includes('<script'), false);
     assert.match(page.body, /href="\/legal\/privacy">Privacy notice<\/a>/);
+    assert.equal((page.body.match(/<footer/g) ?? []).length, 1);
+    assert.ok(page.body.includes('href="https://example.test/privacy"'));
+    assert.ok(page.body.includes('href="http://127.0.0.1/legal/terms"'));
+    assert.doesNotMatch(
+      page.body,
+      /tidynotebook.com\/(terms|privacy|refunds|fair-use)/,
+    );
     // The privacy notice lives at an external address, so this server holds
     // no page for it.
     const other = await served.inject({

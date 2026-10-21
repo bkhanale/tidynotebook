@@ -28,6 +28,7 @@
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  renderPublicFooter,
   AppMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -479,13 +480,14 @@ ${head(settings, view.assets, title, page.description, [
 ${view.html}
             </article>
             ${pager(view)}
-            <footer class="${footClasses}">
+            <nav aria-label="Page resources" class="${footClasses}">
               <a class="${footLinkClasses}" href="${escapeAttribute(view.sourceHref ?? editHref(page.file))}" rel="noopener noreferrer">${view.sourceHref === undefined ? words.editPage : words.source}</a>
               <a class="${footLinkClasses}" href="${escapeAttribute(`${settings.base}llms.txt`)}">${words.forAgents}</a>
-            </footer>
+            </nav>
           </div>
           ${outline(page, view.outlineDepth)}
         </div>
+        <div class="${pageRowClassName()} ${pageGutter}"><div class="mx-auto min-w-0 max-w-5xl flex-1">${renderPublicFooter({ icon: view.assets.icon ?? `${settings.base}favicon.svg` })}</div></div>
       </main>
     </div>
     <template data-docs-markdown>${escapeText(view.markdown)}</template>

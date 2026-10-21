@@ -1,3 +1,4 @@
+import type { PublicFooterOptions } from '@notesapp/ui/public-footer';
 /**
  * Handlers of the operations that the contract declares today.
  *
@@ -135,6 +136,7 @@ export type PublicationDependencies = {
   readonly hasher: PasswordHasher;
   /** The stylesheets of the built application document. */
   readonly stylesheets: () => readonly string[];
+  readonly footer?: () => Promise<PublicFooterOptions>;
   /**
    * The script of a published page and the diagram frame document of the
    * build (records 0158 and 0174). A composition that leaves it out serves
@@ -329,6 +331,9 @@ export function createHandlers(
             secrets: secretDigest,
             hasher: published.hasher,
             stylesheets: published.stylesheets,
+            ...(published.footer === undefined
+              ? {}
+              : { footer: published.footer }),
             pageScript: published.pageScript ?? (() => null),
             linkPreview: published.linkPreview ?? null,
             ...(published.render === undefined

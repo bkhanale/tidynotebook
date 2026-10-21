@@ -1,3 +1,5 @@
+import { installationFooterColumns } from '@notesapp/ui/public-footer';
+import type { LegalDocuments } from '@notesapp/core';
 /**
  * The pages of the legal documents of the installation (record 0140).
  *
@@ -30,6 +32,7 @@ export type LegalDependencies = {
    */
   readonly read: () => Promise<{
     readonly texts: LegalTexts;
+    readonly documents?: LegalDocuments | null;
     readonly versions: Readonly<Record<LegalDocumentName, string | null>>;
   }>;
   /** The stylesheets of the built application document. */
@@ -76,6 +79,24 @@ export function createLegalHandlers(
         mediaType: 'text/html',
         body: legalDocument({
           name,
+          ...(legal.documents === undefined
+            ? {}
+            : {
+                footer: {
+                  home: '/',
+                  columns: installationFooterColumns(
+                    legal.documents === null
+                      ? []
+                      : [
+                          { label: 'Terms', href: legal.documents.terms.url },
+                          {
+                            label: 'Privacy',
+                            href: legal.documents.privacy.url,
+                          },
+                        ],
+                  ),
+                },
+              }),
           body: await bodyOf(name, text),
           stylesheets: dependencies.stylesheets(),
           otherHref: legalDocumentPath(otherDocument(name)),

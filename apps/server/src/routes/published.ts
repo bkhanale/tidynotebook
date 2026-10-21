@@ -1,3 +1,4 @@
+import type { PublicFooterOptions } from '@notesapp/ui/public-footer';
 /**
  * The reader path of a published link.
  *
@@ -115,6 +116,7 @@ export type PublishedDependencies = {
   readonly hasher: PasswordHasher;
   /** The stylesheets of the built application document. */
   readonly stylesheets: () => readonly string[];
+  readonly footer?: () => Promise<PublicFooterOptions>;
   /**
    * The script of a published page and the diagram frame document of the
    * build, or `null` when the build holds none (records 0158 and 0174). It is
@@ -354,6 +356,10 @@ export function createPublishedHandlers(
       mediaType: 'text/html',
       body: publishedDocument({
         view,
+        ...((view.kind === 'note' || view.kind === 'list') &&
+        parts.footer !== undefined
+          ? { footer: await parts.footer() }
+          : {}),
         stylesheets: parts.stylesheets(),
         linkPreview: parts.linkPreview ?? null,
         // The form returns to the address that the reader is on, so an unlock

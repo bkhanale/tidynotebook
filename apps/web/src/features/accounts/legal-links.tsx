@@ -15,9 +15,12 @@ import { consentParts, legalLinks } from '../../lib/legal.ts';
  * The terms and the privacy notice of the installation, or `null` while they
  * load and when the installation names none (record 0120).
  */
-export function useLegalDocuments(): LegalDocuments | null {
+export function useLegalDocuments(
+  supplied?: LegalDocuments | null,
+): LegalDocuments | null {
   const [documents, setDocuments] = useState<LegalDocuments | null>(null);
   useEffect(() => {
+    if (supplied !== undefined) return;
     let cancelled = false;
     void getSetupStatus().then((result) => {
       if (!cancelled) setDocuments(result.data?.legalDocuments ?? null);
@@ -25,8 +28,8 @@ export function useLegalDocuments(): LegalDocuments | null {
     return () => {
       cancelled = true;
     };
-  }, []);
-  return documents;
+  }, [supplied]);
+  return supplied === undefined ? documents : supplied;
 }
 
 /** The class of a link to a document. */

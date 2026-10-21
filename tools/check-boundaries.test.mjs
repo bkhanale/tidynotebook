@@ -895,3 +895,25 @@ await test('only the named MCP protocol file can use the library transport', () 
     'Handwritten fetch',
   );
 });
+
+await test('the server imports only the React-free UI footer entry', () => {
+  const files = workspace({
+    'packages/ui/package.json': manifest('ui'),
+    'packages/ui/src/index.ts': 'export const control = 1;\n',
+    'packages/ui/src/public-footer.ts': 'export const footer = 1;\n',
+    'apps/server/package.json': manifest('server', {
+      '@notesapp/ui': 'workspace:*',
+    }),
+    'apps/server/src/index.ts':
+      "import { footer } from '@notesapp/ui/public-footer';\nexport { footer };\n",
+  });
+  accepted(check(files));
+  rejected(
+    check({
+      ...files,
+      'apps/server/src/index.ts':
+        "import { control } from '@notesapp/ui';\nexport { control };\n",
+    }),
+    'The server imports only the React-free public footer entry',
+  );
+});

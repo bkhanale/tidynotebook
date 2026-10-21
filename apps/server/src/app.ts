@@ -1,3 +1,4 @@
+import { installationFooterColumns } from '@notesapp/ui/public-footer';
 /**
  * Server composition.
  *
@@ -1002,6 +1003,20 @@ async function composeApp(
           attachments,
           hasher: createPublicationHasher(auth.auth),
           stylesheets: publishedStylesheets,
+          footer: async () => {
+            const { documents } = await settings.legal();
+            return {
+              home: config.origin,
+              columns: installationFooterColumns(
+                documents === null
+                  ? []
+                  : [
+                      { label: 'Terms', href: documents.terms.url },
+                      { label: 'Privacy', href: documents.privacy.url },
+                    ],
+              ),
+            };
+          },
           pageScript: publishedPage,
           linkPreview: publishedLinkPreview,
           recordRefusal: (cause) => refusals.record?.(cause),
@@ -1013,9 +1028,10 @@ async function composeApp(
         legal: {
           // One read of the settings gives the text and the version of a page.
           read: async () => {
-            const { texts, summaries } = await settings.legal();
+            const { texts, summaries, documents } = await settings.legal();
             return {
               texts,
+              documents,
               versions: {
                 terms: summaries.terms?.version ?? null,
                 privacy: summaries.privacy?.version ?? null,
