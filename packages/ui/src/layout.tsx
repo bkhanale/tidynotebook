@@ -33,7 +33,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { pageGutter } from './page-gutter.ts';
 import { rowClassName } from './control-classes.ts';
 import { CollapsibleSection } from './controls.tsx';
 import {
@@ -56,7 +55,7 @@ import {
  * or a column that owns its own scrolling, still lines its content up with
  * every page of the application.
  */
-export { pageGutter } from './page-gutter.ts';
+export const pageGutter = 'px-gutter sm:px-gutter-wide';
 
 /**
  * The frame of one route.

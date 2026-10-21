@@ -1,0 +1,4 @@
+/* Keep the contents panel inside the viewport below the public header. */
+.docs-contents {
+  max-height: calc(100dvh - var(--spacing-header));
+}

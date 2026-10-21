@@ -22,7 +22,8 @@ client contract (record 0209).
   `joinSoftBreaks` reads the wrapped guide the way GitHub does. No second
   renderer, no front matter, no copy of the text. Generated pages join the same
   navigation, search and agent files, and link the contract as their source.
-- The page loads the one built stylesheet of `apps/web` and its fonts.
+- The page loads the built stylesheet of `apps/web` and its fonts.
+  `src/layout.css` only bounds the contents panel below the public header.
   `apps/web/src/tailwind.css` registers `src/page.ts` and the shared UI recipes
   as sources. The public frame reads `packages/ui/src/public-layout.ts`.
 - `src/client/` is the one browser script: the search dialog, the contents on

@@ -72,8 +72,13 @@ function contents(): void {
   if (button === null || panel === null) return;
   const current = panel.querySelector('[aria-current="page"]');
   const revealCurrent = (): void => {
-    if (current instanceof HTMLElement)
-      current.scrollIntoView({ block: 'nearest' });
+    if (!(current instanceof HTMLElement)) return;
+    const panelBox = panel.getBoundingClientRect();
+    const currentBox = current.getBoundingClientRect();
+    if (currentBox.top < panelBox.top)
+      panel.scrollTop -= panelBox.top - currentBox.top;
+    else if (currentBox.bottom > panelBox.bottom)
+      panel.scrollTop += currentBox.bottom - panelBox.bottom;
   };
   revealCurrent();
   const openWords = button.getAttribute('aria-label') ?? '';

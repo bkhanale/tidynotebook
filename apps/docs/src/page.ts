@@ -139,9 +139,9 @@ export const frameClasses = `flex min-h-0 flex-1 ${publicLayout.container}`;
  * with `data-open`.
  */
 export const contentsClasses =
-  'w-68 shrink-0 overflow-y-auto border-r border-edge-subtle bg-surface px-3 py-4 max-md:absolute max-md:inset-0 max-md:z-20 max-md:hidden max-md:w-full max-md:border-r-0 max-md:data-open:block';
+  'docs-contents w-68 shrink-0 overflow-y-auto md:sticky md:top-0 md:self-start border-r border-edge-subtle bg-surface px-3 py-4 max-md:absolute max-md:inset-0 max-md:z-20 max-md:hidden max-md:w-full max-md:border-r-0 max-md:data-open:block';
 
-/** The scroller of the page, which holds the column and the side region. */
+/** The main content area inside the full-width page scroller. */
 export const mainClasses = 'min-w-0 flex-1 overflow-y-auto';
 
 /** The line above the title: the group of the page and its two actions. */

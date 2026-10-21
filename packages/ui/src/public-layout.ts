@@ -1,5 +1,5 @@
 /** The public content frame. Put the gutter outside the capped container. */
-import { pageGutter } from './page-gutter.ts';
+import { pageGutter } from './layout.tsx';
 
 export const publicLayout = {
   gutter: pageGutter,
