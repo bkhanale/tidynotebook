@@ -33,6 +33,11 @@ await test('reviewed targets preserve amd64 bytes and change only arm64 identiti
     );
     assert.deepEqual(arm64, expected);
   }
+  const pagefind = join(root, 'tools/pagefind-sources.json');
+  assert.deepEqual(
+    await distributionManifest(pagefind, 's390x'),
+    await readJson(pagefind),
+  );
   for (const architecture of ['amd64', 's390x', 'arm', 'unknown', ''])
     assert.throws(() => distributionArchitecture(architecture), /Unsupported/);
   await validateNativeConsumer(join(root, 'apps/server'), 'x64');

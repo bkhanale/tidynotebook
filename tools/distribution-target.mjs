@@ -16,8 +16,17 @@ export function distributionArchitecture(architecture = process.arch) {
 
 /** @param {string} file @param {string} [architecture] */
 export async function distributionManifest(file, architecture) {
-  const arch = distributionArchitecture(architecture);
   const manifest = await readJson(file);
+  if (
+    ![
+      'native-sources.json',
+      'base-packages.json',
+      'base-sources.json',
+      'runner-sources.json',
+    ].includes(basename(file))
+  )
+    return manifest;
+  const arch = distributionArchitecture(architecture);
   if (basename(file) === 'native-sources.json') {
     if (
       manifest.package !== '@img/sharp-libvips-linux-x64' ||
