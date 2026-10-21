@@ -1,6 +1,7 @@
 /** Require success for selected jobs and skipped for all other jobs.
- * @param {Record<string, { result: string, outputs?: Record<string, string> }>} jobs */
-export function checkResults(jobs) {
+ * @param {Record<string, { result: string, outputs?: Record<string, string> }>} jobs
+ * @param {boolean} main */
+export function checkResults(jobs, main = false) {
   const scope = jobs.scope?.outputs;
   for (const key of ['source', 'image', 'workflows']) {
     if (!['true', 'false'].includes(scope?.[key] ?? ''))
@@ -11,7 +12,8 @@ export function checkResults(jobs) {
     static: true,
     unit: scope?.source === 'true',
     integration: scope?.source === 'true',
-    image: scope?.image === 'true',
+    image: scope?.image === 'true' && !main,
+    image_main: scope?.image === 'true' && main,
     workflows: scope?.workflows === 'true',
   };
   for (const [name, required] of Object.entries(selected)) {
@@ -20,4 +22,8 @@ export function checkResults(jobs) {
   }
 }
 
-if (import.meta.main) checkResults(JSON.parse(process.env.RESULTS ?? '{}'));
+if (import.meta.main)
+  checkResults(
+    JSON.parse(process.env.RESULTS ?? '{}'),
+    process.env.MAIN === 'true',
+  );
