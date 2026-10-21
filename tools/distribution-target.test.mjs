@@ -25,6 +25,7 @@ await test('reviewed targets preserve amd64 bytes and change only arm64 identiti
       JSON.stringify(baseline, null, 2) + '\n',
     );
     const arm64 = await distributionManifest(path, 'arm64');
+    /** @type {unknown} */
     const expected = JSON.parse(
       JSON.stringify(baseline)
         .replaceAll(':amd64', ':arm64')
@@ -113,7 +114,7 @@ await test('arm64 notice fallbacks require the reviewed version, source and term
       assert.ok(Array.isArray(versions));
       const pkg = {
         name,
-        version: versions[0],
+        version: String(versions[0]),
         repository: fallback.repository,
         license: fallback.license,
       };

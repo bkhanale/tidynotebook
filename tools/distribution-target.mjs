@@ -56,6 +56,7 @@ export async function validateNativeConsumer(entry, architecture) {
   const require = createRequire(join(entry, 'package.json'));
   const sharpRequire = createRequire(require.resolve('sharp'));
   const pkg = record(sharpRequire(`${manifest.package}/package`));
+  /** @type {unknown} */
   const versions = sharpRequire(`${manifest.package}/versions`);
   if (
     pkg.name !== manifest.package ||
