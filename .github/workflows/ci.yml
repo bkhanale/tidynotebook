@@ -107,12 +107,12 @@ jobs:
   image:
     name: Image smoke
     needs: scope
-    if: needs.scope.outputs.image == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    if: needs.scope.outputs.image == 'true' && github.ref != 'refs/heads/main'
     permissions:
       contents: read
-      packages: write
+      packages: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       NOTESAPP_ORIGIN: https://notes.example.com
       NOTESAPP_BIND_HOST: 127.0.0.1
@@ -121,24 +121,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      # The action is part of the checked out event commit.
+      - uses: ./.github/actions/image # zizmor: ignore[self-repository]
+
+  image_main:
+    name: Image smoke and cache export
+    needs: scope
+    if: needs.scope.outputs.image == 'true' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NOTESAPP_ORIGIN: https://notes.example.com
+      NOTESAPP_BIND_HOST: 127.0.0.1
+      NOTESAPP_PORT: '3000'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version-file: .node-version
-          package-manager-cache: false
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Prepare disposable Compose inputs and registry cache
-        env:
-          CACHE_WRITE: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
-        run: node tools/ci-image.mjs
-      - name: Build amd64 with registry cache
-        run: docker compose -f docker-compose.yml -f "$RUNNER_TEMP/ci-image.yaml" build
-      - run: node --test tests/image/
+          persist-credentials: false
+      # The action is part of the checked out event commit.
+      - uses: ./.github/actions/image # zizmor: ignore[self-repository]
 
   workflows:
     name: Workflow lint
@@ -169,7 +173,7 @@ jobs:
   check:
     name: Check
     if: always() && needs.scope.result != 'skipped'
-    needs: [scope, static, unit, integration, image, workflows]
+    needs: [scope, static, unit, integration, image, image_main, workflows]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -179,6 +183,7 @@ jobs:
       - name: Require every selected job
         env:
           RESULTS: ${{ toJSON(needs) }}
+          MAIN: ${{ github.ref == 'refs/heads/main' }}
         run: node tools/ci-check.mjs
 
   nightly:

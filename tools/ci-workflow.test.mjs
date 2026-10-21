@@ -51,6 +51,16 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
   );
   assert.deepEqual(record(jobs.workflows).needs, ['scope', 'static']);
   assert.equal(record(jobs.nightly).needs, 'check');
+  assert.equal(record(record(jobs.image).permissions).packages, 'read');
+  assert.equal(record(record(jobs.image_main).permissions).packages, 'write');
+  assert.match(
+    String(record(jobs.image_main).if),
+    /github.ref == 'refs\/heads\/main'/,
+  );
+  assert.match(
+    String(record(jobs.image).if),
+    /github.ref != 'refs\/heads\/main'/,
+  );
   assert.equal(record(jobs.check).name, 'Check');
   assert.deepEqual(record(jobs.check).needs, [
     'scope',
@@ -58,6 +68,7 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     'unit',
     'integration',
     'image',
+    'image_main',
     'workflows',
   ]);
   assert.match(String(record(jobs.check).if), /always\(\)/);
