@@ -40,6 +40,7 @@ import {
   buttonClassName,
   codeFigureClassName,
   kbdClassName,
+  focusOutline,
   pageGroupLabelClassName,
   pageGutter,
   pageListClassName,
@@ -212,7 +213,7 @@ export const footLinkClasses =
   'rounded-sm text-muted underline underline-offset-2 hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 /** The contents list inside the reading column. */
-const outlineClasses = 'mb-6 max-h-48 overflow-y-auto sm:max-h-96';
+const outlineClasses = 'mb-6 text-control';
 
 /** The full screen layer of the search dialog, with the scrim behind it. */
 export const searchDialogClasses =
@@ -382,12 +383,18 @@ function outline(page: GuidePage, depth: 2 | 3 = 3): string {
   if (headings.length < 2) return '';
   const rows = headings.map(
     (heading) =>
-      `<li><a class="${rowClassName({ className: `w-full ${heading.depth === 3 ? 'pl-5' : ''}` })}" href="#${escapeAttribute(heading.id)}"><span class="min-w-0 flex-1 truncate">${escapeText(heading.text)}</span></a></li>`,
+      `<li${heading.depth === 3 ? ' class="pl-5"' : ''}><a class="${footLinkClasses} block py-1" href="#${escapeAttribute(heading.id)}">${escapeText(heading.text)}</a></li>`,
   );
-  return `<nav class="${outlineClasses}" aria-label="${words.onThisPage}">
-          <ol class="${pageListClassName()} mx-0">
-            ${rows.join('\n            ')}
-          </ol>
+  const list = `<ol class="m-0 list-none p-0">${rows.join('')}</ol>`;
+  return `<nav class="${outlineClasses}" aria-label="${words.onThisPage}" data-pagefind-ignore>
+          <details class="md:hidden">
+            <summary class="cursor-pointer rounded-sm py-2 font-medium text-muted ${focusOutline}">${words.onThisPage}</summary>
+            ${list}
+          </details>
+          <div class="hidden md:block">
+            <p class="mb-1 mt-0 font-medium text-muted">${words.onThisPage}</p>
+            ${list}
+          </div>
         </nav>`;
 }
 
@@ -445,6 +452,9 @@ export function pageDocument(view: PageView): string {
       : [
           `<link rel="canonical" href="${escapeAttribute(absoluteAddress(settings, pageHref(settings, page.slug)))}">`,
         ];
+  const titleEnd = view.html.indexOf('</h1>');
+  const titleHtml = titleEnd < 0 ? '' : view.html.slice(0, titleEnd + 5);
+  const bodyHtml = titleEnd < 0 ? view.html : view.html.slice(titleEnd + 5);
   const secondary = buttonClassName({ variant: 'secondary', size: 'sm' });
   const ghost = buttonClassName({ variant: 'ghost', size: 'sm' });
   return `<!doctype html>
@@ -472,9 +482,10 @@ ${head(settings, view.assets, title, page.description, [
                 <a class="${ghost}" href="${escapeAttribute(markdown)}">${icon(FileTextIcon)}${words.viewMarkdown}</a>
               </div>
             </div>
-            ${outline(page, view.outlineDepth)}
-            <article class="${articleClasses}" data-pagefind-body>
-${view.html}
+            <article class="min-w-0" data-pagefind-body>
+              <div class="${articleClasses}">${titleHtml}</div>
+              ${outline(page, view.outlineDepth)}
+              <div class="${articleClasses}">${bodyHtml}</div>
             </article>
             ${pager(view)}
             <footer class="${footClasses}">

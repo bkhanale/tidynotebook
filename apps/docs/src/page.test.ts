@@ -72,12 +72,17 @@ await test('a long reference can list its main sections alone', () => {
   assert.ok(!outline.includes('#user-content-port-587'));
 });
 
-await test('a long outline has its own bounded scroller', () => {
+await test('the outline follows the title and has a collapsed phone disclosure', () => {
   const html = pageDocument(view);
-  assert.match(html, /max-h-48[^"]*sm:max-h-96/);
-  assert.match(
-    html,
-    /<nav class="[^"]*overflow-y-auto[^"]*" aria-label="On this page"/,
+  const outline =
+    html.split('aria-label="On this page"')[1]?.split('</nav>')[0] ?? '';
+  assert.ok(html.indexOf('</h1>') < html.indexOf('aria-label="On this page"'));
+  assert.match(outline, /<details class="md:hidden">/);
+  assert.match(outline, /<summary[^>]*>On this page<\/summary>/);
+  assert.match(outline, /<p[^>]*>On this page<\/p>/);
+  assert.doesNotMatch(
+    outline,
+    /<details[^>]*\bopen\b|max-h-|overflow-y-auto|bg-active|aria-current/,
   );
 });
 
@@ -182,7 +187,7 @@ await test('the search is one labelled dialog with the templates of its rows', (
 await test('the article is the one region that the search index reads', () => {
   const html = pageDocument(view);
   assert.equal(html.match(/data-pagefind-body/g)?.length, 1);
-  assert.match(html, /<article class="[^"]*" data-pagefind-body>\n<h1/);
+  assert.match(html, /<article class="[^"]*" data-pagefind-body>[\s\S]*?<h1/);
 });
 
 await test('a page with no origin names no canonical address', () => {
