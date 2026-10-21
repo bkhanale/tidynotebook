@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { checkedImpact, classifyImpact, hasPassingCheck } from './ci-scope.mjs';
+import {
+  checkedImpact,
+  classifyImpact,
+  hasPassingCheck,
+  firstParentAncestors,
+  provenPushBase,
+  changedPaths,
+} from './ci-scope.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { checkResults } from './ci-check.mjs';
 
 await test('only named documents take the short path', () => {
@@ -214,4 +225,94 @@ await test('root build inputs copied by the Dockerfile select image smoke', () =
     'packages/ui/THIRD_PARTY_LICENSES.md',
   ])
     assert.equal(classifyImpact([path]).image, true, path);
+});
+
+await test('push proof skips cancelled ancestors and selects the nearest success', async () => {
+  const ancestors = ['a', 'b', 'c'].map((value) => value.repeat(40));
+  /** @type {string[]} */
+  const visited = [];
+  const base = await provenPushBase(ancestors, async (sha) => {
+    visited.push(sha);
+    return sha !== ancestors[0];
+  });
+  assert.equal(base, ancestors[1]);
+  assert.deepEqual(visited, ancestors.slice(0, 2));
+});
+
+await test('push proof is bounded and fails closed on missing or failed access', async () => {
+  const ancestors = Array.from({ length: 21 }, (_, index) =>
+    index.toString(16).padStart(40, '0'),
+  );
+  /** @type {string[]} */
+  const visited = [];
+  assert.equal(
+    await provenPushBase(ancestors, async (sha) => {
+      visited.push(sha);
+      return sha === ancestors[20];
+    }),
+    undefined,
+  );
+  assert.equal(visited.length, 20);
+  assert.equal(await provenPushBase([], async () => true), undefined);
+  assert.equal(await provenPushBase(['invalid'], async () => true), undefined);
+  assert.equal(
+    await provenPushBase(ancestors, async () => {
+      throw new Error('API unavailable');
+    }),
+    undefined,
+  );
+  assert.deepEqual(checkedImpact(null, false), {
+    documentsOnly: false,
+    image: true,
+    workflows: true,
+  });
+});
+
+await test('first-parent history excludes merged side commits and carries source changes', async (t) => {
+  const cwd = mkdtempSync(join(tmpdir(), 'scope-history-'));
+  t.after(() => rmSync(cwd, { recursive: true, force: true }));
+  /** @param {string[]} args */
+  const git = (...args) =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+  git('init', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('commit', '--allow-empty', '-m', 'test: base');
+  const proven = git('rev-parse', 'HEAD');
+  git('checkout', '-b', 'side');
+  git('commit', '--allow-empty', '-m', 'test: side');
+  const side = git('rev-parse', 'HEAD');
+  git('checkout', 'main');
+  writeFileSync(join(cwd, 'source.ts'), 'changed');
+  git('add', '.');
+  git('commit', '-m', 'test: source');
+  git('merge', '--no-ff', 'side', '-m', 'test: merge');
+  writeFileSync(join(cwd, 'note.md'), 'document');
+  git('add', '.');
+  git('commit', '-m', 'docs: note');
+  const ancestors = firstParentAncestors(cwd);
+  assert.equal(ancestors.includes(side), false);
+  const base = await provenPushBase(ancestors, async (sha) => sha === proven);
+  assert.equal(base, proven);
+  const paths = git('diff', '--name-only', base ?? '', 'HEAD').split('\n');
+  assert.ok(paths.includes('source.ts'));
+  assert.equal(checkedImpact(paths, true).documentsOnly, false);
+  for (let index = 0; index < 22; index++)
+    git('commit', '--allow-empty', '-m', 'docs: extra');
+  assert.equal(firstParentAncestors(cwd).length, 20);
+  assert.equal(firstParentAncestors(cwd).includes(proven), false);
+  assert.equal(changedPaths('f'.repeat(40)), null);
+});
+
+await test('document checks use the complete proven diff and the fork guard stays in place', () => {
+  const workflow = readFileSync(
+    new URL('../.github/workflows/ci.yml', import.meta.url),
+    'utf8',
+  );
+  assert.ok(workflow.includes('DOCS_BASE: ${{ needs.scope.outputs.base }}'));
+  assert.ok(
+    workflow.includes(
+      "if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository",
+    ),
+  );
 });

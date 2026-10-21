@@ -106,7 +106,7 @@ export function hasPassingCheck(payload, base, workflows) {
   );
 }
 
-/** Refuse a short diff when the preceding push did not finish proof.
+/** Refuse a short diff without successful proof for its base.
  * @param {string[] | null} paths
  * @param {boolean} basePassed */
 export function checkedImpact(paths, basePassed) {
@@ -158,21 +158,56 @@ async function previousCheckPassed(base) {
   }
 }
 
+/** Read at most 20 first-parent ancestors, nearest first.
+ * @param {string} [cwd] */
+export function firstParentAncestors(cwd = process.cwd()) {
+  try {
+    return execFileSync(
+      'git',
+      ['rev-list', '--first-parent', '--max-count=20', '--skip=1', 'HEAD'],
+      { cwd, encoding: 'utf8' },
+    )
+      .trim()
+      .split('\n')
+      .filter((sha) => /^[a-f0-9]{40}$/.test(sha));
+  } catch {
+    return [];
+  }
+}
+
+/** Only a proven ancestor permits a short push diff.
+ * @param {string[]} ancestors
+ * @param {(sha:string) => Promise<boolean>} [check] */
+export async function provenPushBase(ancestors, check = previousCheckPassed) {
+  try {
+    for (const sha of ancestors.slice(0, 20)) {
+      if (!/^[a-f0-9]{40}$/.test(sha)) return undefined;
+      if (await check(sha)) return sha;
+    }
+  } catch {
+    // Missing proof always requires all checks.
+  }
+  return undefined;
+}
+
 if (import.meta.main) {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   const outputPath = process.env.GITHUB_OUTPUT;
   if (!eventPath || !outputPath)
     throw new Error('GitHub event and output paths are required.');
   const event = record(JSON.parse(readFileSync(eventPath, 'utf8')));
-  const base = record(record(event.pull_request).base).sha ?? event.before;
+  const pullRequest = process.env.GITHUB_EVENT_NAME === 'pull_request';
+  const base = pullRequest
+    ? record(record(event.pull_request).base).sha
+    : process.env.GITHUB_EVENT_NAME === 'push'
+      ? await provenPushBase(firstParentAncestors())
+      : undefined;
   const baseSha = typeof base === 'string' ? base : undefined;
   const paths = changedPaths(baseSha);
-  const basePassed =
-    process.env.GITHUB_EVENT_NAME === 'pull_request' ||
-    (await previousCheckPassed(baseSha));
+  const basePassed = pullRequest || baseSha !== undefined;
   const impact = checkedImpact(paths, basePassed);
   appendFileSync(
     outputPath,
-    `source=${!impact.documentsOnly}\nimage=${impact.image}\nworkflows=${impact.workflows}\n`,
+    `base=${baseSha ?? ''}\nsource=${!impact.documentsOnly}\nimage=${impact.image}\nworkflows=${impact.workflows}\n`,
   );
 }

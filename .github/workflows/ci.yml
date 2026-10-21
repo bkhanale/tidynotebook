@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
+      base: ${{ steps.scope.outputs.base }}
       source: ${{ steps.scope.outputs.source }}
       image: ${{ steps.scope.outputs.image }}
       workflows: ${{ steps.scope.outputs.workflows }}
@@ -67,7 +68,7 @@ jobs:
       - name: Check documents
         if: needs.scope.outputs.source == 'false'
         env:
-          DOCS_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DOCS_BASE: ${{ needs.scope.outputs.base }}
         run: node tools/ci-docs.mjs check
       - name: Check source and bundle budget
         if: needs.scope.outputs.source == 'true'

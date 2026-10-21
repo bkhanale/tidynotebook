@@ -15,6 +15,8 @@ import { join } from 'node:path';
 import test, { after } from 'node:test';
 import {
   nativeSourceDownloadDefaults,
+  debianSourceMirrors,
+  downloadNativeSource,
   prepareNativeSources,
 } from './native-sources.mjs';
 import { root } from './workspace.mjs';
@@ -370,5 +372,93 @@ await test(
     assert.deepEqual(await f.files(), []);
   },
 );
+
+await test('only snapshot original archives use the exact Debian pool path', () => {
+  const row = {
+    file: 'libffi_3.4.4.orig.tar.gz',
+    url: `https://snapshot.debian.org/file/${'a'.repeat(40)}`,
+  };
+  const packages = [{ name: 'libffi', files: [row.file] }];
+  assert.deepEqual(debianSourceMirrors(row, packages), [
+    'https://deb.debian.org/debian/pool/main/libf/libffi/libffi_3.4.4.orig.tar.gz',
+  ]);
+  const acl = { ...row, file: 'acl_2.3.1.orig.tar.xz' };
+  assert.deepEqual(
+    debianSourceMirrors(acl, [{ name: 'acl', files: [acl.file] }]),
+    ['https://deb.debian.org/debian/pool/main/a/acl/acl_2.3.1.orig.tar.xz'],
+  );
+  for (const file of [
+    'libffi_3.4.4-1.dsc',
+    'libffi_3.4.4-1.debian.tar.xz',
+    'libffi_3.4.4.orig.tar.gz.asc',
+    '../libffi_3.4.4.orig.tar.gz',
+  ])
+    assert.deepEqual(debianSourceMirrors({ ...row, file }, packages), []);
+  for (const url of [
+    'https://example.com/file/' + 'a'.repeat(40),
+    'http://snapshot.debian.org/file/' + 'a'.repeat(40),
+  ])
+    assert.deepEqual(debianSourceMirrors({ ...row, url }, packages), []);
+  assert.deepEqual(debianSourceMirrors(row, []), []);
+  assert.deepEqual(
+    debianSourceMirrors(row, [{ name: '../bad', files: [row.file] }]),
+    [],
+  );
+});
+
+await test('exhausted snapshot retries use a mirror and verify its bytes', async (t) => {
+  const primary = await fixture(t, (_request, response) =>
+    response.writeHead(503).end(),
+  );
+  const mirror = await fixture(t, (_request, response) => response.end(bytes));
+  const result = await downloadNativeSource(
+    { file: 'source.tar.gz', url: primary.url, sha256 },
+    [mirror.url],
+    primary.options,
+  );
+  assert.deepEqual(result, bytes);
+  assert.equal(primary.requests(), 4);
+  assert.equal(mirror.requests(), 1);
+});
+
+await test('a mirror hash mismatch stops without trying another source', async (t) => {
+  const primary = await fixture(t, (_request, response) =>
+    response.writeHead(503).end(),
+  );
+  const mirror = await fixture(t, (_request, response) =>
+    response.end('changed'),
+  );
+  const unused = await fixture(t, (_request, response) => response.end(bytes));
+  await assert.rejects(
+    downloadNativeSource(
+      { file: 'source.tar.gz', url: primary.url, sha256 },
+      [mirror.url, unused.url],
+      primary.options,
+    ),
+    /hash differs/,
+  );
+  assert.equal(primary.requests(), 4);
+  assert.equal(mirror.requests(), 1);
+  assert.equal(unused.requests(), 0);
+});
+
+await test('a primary hash mismatch or certificate failure never uses the mirror', async (t) => {
+  const primary = await fixture(t, (_request, response) =>
+    response.end('changed'),
+  );
+  const mirror = await fixture(t, (_request, response) => response.end(bytes));
+  const row = { file: 'source.tar.gz', url: primary.url, sha256 };
+  await assert.rejects(
+    downloadNativeSource(row, [mirror.url], primary.options),
+    /hash differs/,
+  );
+  const agent = new Agent({ keepAlive: false });
+  t.after(() => agent.destroy());
+  await assert.rejects(
+    downloadNativeSource(row, [mirror.url], { ...primary.options, agent }),
+    /certificate/i,
+  );
+  assert.equal(mirror.requests(), 0);
+});
 
 after(() => rm(directory, { recursive: true, force: true }));

@@ -205,6 +205,59 @@ async function downloadBytes(row, options) {
   }
 }
 
+/** Only Debian snapshot original archives have a predictable main pool path.
+ * @param {{file:string,url:string}} row
+ * @param {unknown} packages */
+export function debianSourceMirrors(row, packages) {
+  const url = new URL(row.url);
+  if (
+    url.origin !== 'https://snapshot.debian.org' ||
+    !/^\/file\/[a-f0-9]{40}$/.test(url.pathname) ||
+    !/^[a-z0-9][a-z0-9+.-]*_[\w.+~:-]+\.orig\.tar\.(?:gz|xz|bz2|lzma|zst)$/.test(
+      row.file,
+    ) ||
+    !Array.isArray(packages)
+  )
+    return [];
+  const source = packages
+    .map(record)
+    .find((pkg) => Array.isArray(pkg.files) && pkg.files.includes(row.file));
+  const name = source?.name;
+  if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9+.-]+$/.test(name))
+    return [];
+  const prefix = name.startsWith('lib') ? name.slice(0, 4) : name[0];
+  return [
+    `https://deb.debian.org/debian/pool/main/${prefix}/${name}/${row.file}`,
+  ];
+}
+
+/** Each source uses bounded retries. A hash error always stops the download.
+ * @param {{file:string,url:string,sha256:string}} row
+ * @param {string[]} mirrors
+ * @param {DownloadOptions} [options] */
+export async function downloadNativeSource(row, mirrors, options = {}) {
+  const urls = [row.url, ...mirrors];
+  for (const [index, url] of urls.entries()) {
+    let bytes;
+    try {
+      bytes = await downloadBytes({ ...row, url }, options);
+    } catch (error) {
+      const cause = error instanceof Error ? error.cause : undefined;
+      const code = record(cause).code;
+      const retryable =
+        cause instanceof DownloadFailure
+          ? cause.retryable
+          : typeof code === 'string' && networkCodes.has(code);
+      if (!retryable || index === urls.length - 1) throw error;
+      continue;
+    }
+    if (!sourceMatches(bytes, row.sha256))
+      throw new Error(`The native source hash differs: ${row.file}.`);
+    return bytes;
+  }
+  throw new Error('The native source list is empty.');
+}
+
 /** @param {string} output @param {string} [cache] @param {string} [manifestFile] @param {DownloadOptions} [options] */
 export async function prepareNativeSources(
   output,
@@ -231,7 +284,12 @@ export async function prepareNativeSources(
         bytes = undefined;
       }
     }
-    if (bytes === undefined) bytes = await downloadBytes(row, options);
+    if (bytes === undefined)
+      bytes = await downloadNativeSource(
+        row,
+        debianSourceMirrors(row, manifest.packages),
+        options,
+      );
     if (!sourceMatches(bytes, row.sha256))
       throw new Error(`The native source hash differs: ${row.file}.`);
     const temporary = join(output, `${row.file}.partial`);
