@@ -253,7 +253,7 @@ export {
 
 export { publicLayout } from './public-layout.ts';
 
-export { PublicFooter } from './public-footer-react.tsx';
+export { PublicFooter } from './public-footer-react.ts';
 export {
   hostedFooterColumns,
   installationFooterColumns,

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
-import { PublicFooter } from '../dist/public-footer-react.js';
+import { PublicFooter } from './public-footer-react.ts';
 import {
   installationFooterColumns,
   hostedFooterColumns,
