@@ -34,5 +34,25 @@ the missing scope output. Event-specific concurrency now keeps manual and
 push runs separate. A short push diff also needs a passing Check on its
 previous head. Errors or missing proof select full checks.
 
-The document-only benchmark follows this passed source push. Its result and
-the final review state are in [PR 418](https://github.com/tidynotebook/tidynotebook/pull/418).
+The first document benchmark passed in 64 seconds. Full dependency setup and
+whole-tree formatting took most of that time. The short path now installs
+only lock-verified Prettier and formats changed inert documents. The full
+document check still runs. Guide and development documents require source
+checks because tests read them.
+
+The [replacement source push](https://github.com/tidynotebook/tidynotebook/actions/runs/39595695682)
+passed on commit `e3a685407c84eebe8b7da45b0200e5d3c2e5bb43`, which includes the
+icons change from main and the independent review fixes. Job times were:
+
+| Job                     | Seconds            |
+| ----------------------- | ------------------ |
+| Change scope            | 7                  |
+| Static                  | 62                 |
+| Unit 1, 2, 3            | 93, 63, 90         |
+| Integration 1, 2, 3, 4  | 148, 106, 137, 113 |
+| Image smoke, cold cache | 137                |
+| Workflow lint           | 5                  |
+| Check                   | 5                  |
+
+The tuned document-only benchmark follows this passed source push. Its result
+and the final review state are in [PR 419](https://github.com/tidynotebook/tidynotebook/pull/419).
