@@ -66,19 +66,18 @@ export function RouteError({
       )}
     </>
   );
-  const content = (
-    <PageHeader
-      title={screen.title}
-      description={screen.description}
-      actions={actions}
-    />
-  );
   return scope === 'application' ? (
     <AuthFrame title={screen.title}>
       <p className="mb-5 mt-0 text-control text-muted">{screen.description}</p>
-      {actions}
+      <div className="flex flex-wrap gap-cluster">{actions}</div>
     </AuthFrame>
   ) : (
-    <Page>{content}</Page>
+    <Page>
+      <PageHeader
+        title={screen.title}
+        description={screen.description}
+        actions={actions}
+      />
+    </Page>
   );
 }

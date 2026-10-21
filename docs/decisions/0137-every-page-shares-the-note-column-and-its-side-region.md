@@ -3,7 +3,7 @@
 - Status: Refined
 - Date: 2026-09-30
 
-The current [page family rules](../development/design.md#note-app-pages) refine
+The current [page family rules](../development/layouts.md#note-app-pages) refine
 the layout scope. The rationale below remains as history.
 
 ## Context

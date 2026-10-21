@@ -129,7 +129,7 @@ export const homeLinkClasses =
   'flex min-w-0 items-center gap-2 rounded-md px-1 text-ui font-semibold text-strong no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 /** The row under the header that holds the contents and the page. */
-export const frameClasses = `relative flex min-h-0 flex-1 ${publicLayout.container}`;
+export const frameClasses = `flex min-h-0 flex-1 ${publicLayout.container}`;
 
 /**
  * The contents of the site: the chrome plane beside the page.
@@ -212,7 +212,7 @@ export const footLinkClasses =
   'rounded-sm text-muted underline underline-offset-2 hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
 /** The contents list inside the reading column. */
-const outlineClasses = 'mb-6 max-h-96 overflow-y-auto';
+const outlineClasses = 'mb-6 max-h-48 overflow-y-auto sm:max-h-96';
 
 /** The full screen layer of the search dialog, with the scrim behind it. */
 export const searchDialogClasses =
@@ -384,12 +384,11 @@ function outline(page: GuidePage, depth: 2 | 3 = 3): string {
     (heading) =>
       `<li><a class="${rowClassName({ className: `w-full ${heading.depth === 3 ? 'pl-5' : ''}` })}" href="#${escapeAttribute(heading.id)}"><span class="min-w-0 flex-1 truncate">${escapeText(heading.text)}</span></a></li>`,
   );
-  return `<aside class="${outlineClasses}" aria-label="${words.onThisPage}">
-          <h2 class="${pageGroupLabelClassName()} px-2">${words.onThisPage}</h2>
+  return `<nav class="${outlineClasses}" aria-label="${words.onThisPage}">
           <ol class="${pageListClassName()} mx-0">
             ${rows.join('\n            ')}
           </ol>
-        </aside>`;
+        </nav>`;
 }
 
 /** The previous and the next page. */
@@ -459,7 +458,8 @@ ${head(settings, view.assets, title, page.description, [
   <body class="${bodyClasses}" data-docs-base="${escapeAttribute(settings.base)}">
     <a class="sr-only rounded-md bg-card px-3 py-2 text-control text-strong focus-visible:not-sr-only focus-visible:absolute focus-visible:left-2 focus-visible:top-2 focus-visible:z-40 focus-visible:outline-2 focus-visible:outline-focus" href="#docs-text">${words.skip}</a>
     ${header(settings)}
-    <div class="flex min-h-0 flex-1 ${publicLayout.gutter}">
+    <div class="relative min-h-0 flex-1">
+    <div class="h-full overflow-y-auto ${publicLayout.gutter}">
       <div class="${frameClasses}">
       ${contents(settings, view.groups, page.file)}
       <main id="docs-text" class="${mainClasses}" tabindex="-1">
@@ -486,6 +486,7 @@ ${view.html}
       </main>
     </div>
     </div>
+    </div>
     <template data-docs-markdown>${escapeText(view.markdown)}</template>
     ${searchDialog()}
   </body>
@@ -507,7 +508,8 @@ ${head(settings, assets, `${words.missingTitle} | ${siteName}`, words.missingTex
   </head>
   <body class="${bodyClasses}" data-docs-base="${escapeAttribute(settings.base)}">
     ${header(settings)}
-    <div class="flex min-h-0 flex-1 ${publicLayout.gutter}">
+    <div class="relative min-h-0 flex-1">
+    <div class="h-full overflow-y-auto ${publicLayout.gutter}">
       <div class="${frameClasses}">
       ${contents(settings, groups, null)}
       <main id="docs-text" class="${mainClasses}" tabindex="-1">
@@ -518,6 +520,7 @@ ${head(settings, assets, `${words.missingTitle} | ${siteName}`, words.missingTex
           <a class="${action} mt-2" href="${escapeAttribute(settings.base)}">${words.missingAction}</a>
         </div>
       </main>
+    </div>
     </div>
     </div>
     ${searchDialog()}

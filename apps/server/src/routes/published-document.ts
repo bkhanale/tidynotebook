@@ -398,6 +398,8 @@ export const bodyClasses =
 /** Every class name that this document writes, for the stylesheet test. */
 export const publishedDocumentClasses: readonly string[] = [
   bodyClasses,
+  publicLayout.gutter,
+  publicLayout.container,
   pageClasses,
   gateClasses,
   gateHeadingClasses,
@@ -561,13 +563,11 @@ export function publishedDocument(input: PublishedDocumentInput): string {
     ${preview}<title>${escapeText(publishedTitle)}</title>
     ${styles}${script}</head>
   <body class="${bodyClasses}">
-    <div${input.view.kind === 'locked' || input.view.kind === 'unavailable' ? '' : ` class="${publicLayout.gutter}"`}>
-    <div class="${publicLayout.container}">
+    ${input.view.kind === 'locked' || input.view.kind === 'unavailable' ? '' : `<div class="${publicLayout.gutter}"><div class="${publicLayout.container}">`}
     <main class="${mainClassesOf(input.view)}">
 ${mainOf(input)}${footOf(input)}
     </main>
-    </div>
-    </div>
+    ${input.view.kind === 'locked' || input.view.kind === 'unavailable' ? '' : '</div></div>'}
   </body>
 </html>
 `;

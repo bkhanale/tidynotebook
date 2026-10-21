@@ -65,7 +65,8 @@ await test('a generated page names the contract as its source', () => {
 
 await test('a long reference can list its main sections alone', () => {
   const html = pageDocument({ ...view, outlineDepth: 2 });
-  const outline = html.split('<aside')[1]?.split('</aside>')[0] ?? '';
+  const outline =
+    html.split('aria-label="On this page"')[1]?.split('</nav>')[0] ?? '';
   assert.ok(outline.includes('#user-content-mail'));
   assert.ok(outline.includes('#user-content-logs'));
   assert.ok(!outline.includes('#user-content-port-587'));
@@ -73,9 +74,11 @@ await test('a long reference can list its main sections alone', () => {
 
 await test('a long outline has its own bounded scroller', () => {
   const html = pageDocument(view);
-  const outline = html.split('<aside')[1]?.split('</aside>')[0] ?? '';
-  assert.match(outline, /max-h-96/);
-  assert.match(outline, /overflow-y-auto/);
+  assert.match(html, /max-h-48[^"]*sm:max-h-96/);
+  assert.match(
+    html,
+    /<nav class="[^"]*overflow-y-auto[^"]*" aria-label="On this page"/,
+  );
 });
 
 await test('text and attributes lose every markup character', () => {
