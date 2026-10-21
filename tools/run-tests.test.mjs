@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { orderedTests, testArguments } from './run-tests.mjs';
+import { orderedTests, selectedTests, testArguments } from './run-tests.mjs';
 
 await test('named tests and a shard remain separate', () => {
   assert.deepEqual(testArguments(['--', 'sync', '--shard=2/4']), {
@@ -82,4 +82,34 @@ await test('slow integration files start on different shards without losing a fi
   ]);
   assert.deepEqual([...ordered].sort(), [...files].sort());
   assert.deepEqual(orderedTests(files, 'unit'), [...files].sort());
+});
+
+await test('integration selection covers each file once and separates slow files', () => {
+  const files = [
+    'a.test.ts',
+    'sync.test.ts',
+    'b.test.ts',
+    'oauth-startup.test.ts',
+    'revisions.test.ts',
+    'c.test.ts',
+  ];
+  const seen = [];
+  for (let index = 1; index <= 4; index++) {
+    const result = selectedTests(files, 'integration', [
+      `--test-shard=${index}/4`,
+    ]);
+    assert.deepEqual(result.flags, []);
+    assert.ok(
+      result.files.filter((file) =>
+        ['sync.test.ts', 'oauth-startup.test.ts', 'revisions.test.ts'].includes(
+          file,
+        ),
+      ).length <= 1,
+    );
+    seen.push(...result.files);
+  }
+  assert.deepEqual(seen.sort(), [...files].sort());
+  assert.deepEqual(selectedTests(files, 'unit', ['--test-shard=1/3']).flags, [
+    '--test-shard=1/3',
+  ]);
 });

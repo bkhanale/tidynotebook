@@ -33,10 +33,17 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
   ]);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.deepEqual(workflow.concurrency, {
-    group: 'ci-${{ github.ref }}',
+    group: 'ci-${{ github.event_name }}-${{ github.ref }}',
     'cancel-in-progress': "${{ github.ref != 'refs/heads/main' }}",
   });
   const jobs = record(workflow.jobs);
+  assert.deepEqual(record(jobs.scope).permissions, {
+    contents: 'read',
+    checks: 'read',
+  });
+  for (const [name, job] of Object.entries(jobs))
+    if (name !== 'scope')
+      assert.equal(record(record(job).permissions).checks, undefined);
   for (const job of Object.values(jobs).map(record)) {
     assert.equal(job['runs-on'], 'ubuntu-latest');
     assert.ok(typeof job['timeout-minutes'] === 'number');
@@ -51,6 +58,10 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
   );
   assert.deepEqual(record(jobs.workflows).needs, ['scope', 'static']);
   assert.equal(record(jobs.nightly).needs, 'check');
+  assert.equal(
+    record(jobs.nightly).if,
+    "github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')",
+  );
   assert.equal(record(record(jobs.image).permissions).packages, 'read');
   assert.equal(record(record(jobs.image_main).permissions).packages, 'write');
   assert.match(
@@ -61,7 +72,10 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     String(record(jobs.image).if),
     /github.ref != 'refs\/heads\/main'/,
   );
-  assert.equal(record(jobs.check).name, 'Check');
+  assert.match(
+    String(record(jobs.check).name),
+    /'Use push checks' \|\| 'Check'/,
+  );
   assert.deepEqual(record(jobs.check).needs, [
     'scope',
     'static',

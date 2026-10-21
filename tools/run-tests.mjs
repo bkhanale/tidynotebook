@@ -26,7 +26,7 @@ export function testArguments(args) {
   };
 }
 
-/** Start the slow integration files first and put them on separate shards.
+/** Put the slow integration files on separate shards.
  * The first hosted runs put all three on shard 2. See the CI timing audit.
  * @param {string[]} files
  * @param {string} kind */
@@ -44,6 +44,23 @@ export function orderedTests(files, kind) {
     (left, right) =>
       rank(left) - rank(right) || (left < right ? -1 : left > right ? 1 : 0),
   );
+}
+
+/** Node sorts CLI file inputs before sharding. Select integration files here
+ * so the measured slow files stay on separate shards.
+ * @param {string[]} files
+ * @param {string} kind
+ * @param {string[]} flags */
+export function selectedTests(files, kind, flags) {
+  const ordered = orderedTests(files, kind);
+  const shard = flags[0]?.replace('--test-shard=', '');
+  if (kind !== 'integration' || shard === undefined)
+    return { files: ordered, flags };
+  const [index = 1, count = 1] = shard.split('/').map(Number);
+  return {
+    files: ordered.filter((_, offset) => offset % count === index - 1),
+    flags: [],
+  };
 }
 
 async function main() {
@@ -116,9 +133,14 @@ async function main() {
   if (selected.length === 0) {
     process.stdout.write(`No ${kind} tests exist yet.\n`);
   } else {
+    const shard = selectedTests(selected, kind, flags);
+    if (shard.files.length === 0) {
+      process.stdout.write(`No ${kind} tests are selected for this shard.\n`);
+      return;
+    }
     const result = spawnSync(
       process.execPath,
-      ['--test', ...flags, ...coverageArgs, ...orderedTests(selected, kind)],
+      ['--test', ...shard.flags, ...coverageArgs, ...shard.files],
       {
         cwd: root,
         stdio: 'inherit',
