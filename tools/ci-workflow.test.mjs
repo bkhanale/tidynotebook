@@ -40,6 +40,7 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
   assert.deepEqual(record(jobs.scope).permissions, {
     contents: 'read',
     checks: 'read',
+    actions: 'read',
   });
   for (const [name, job] of Object.entries(jobs))
     if (name !== 'scope')
@@ -57,6 +58,7 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     [1, 2, 3, 4],
   );
   assert.deepEqual(record(jobs.workflows).needs, ['scope', 'static']);
+  assert.match(String(record(jobs.workflows).if), /!cancelled\(\)/);
   assert.equal(record(jobs.nightly).needs, 'check');
   assert.equal(
     record(jobs.nightly).if,

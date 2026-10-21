@@ -9,12 +9,10 @@ export function classifyImpact(paths) {
     documentsOnly:
       paths.length > 0 &&
       paths.every((path) =>
-        /^(?:docs\/.*\.md|(?:AGENTS|README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT)\.md)$/.test(
-          path,
-        ),
+        /^docs\/(?:decisions|design|plans|audits)\/.*\.md$/.test(path),
       ),
     image: paths.some((path) =>
-      /^(?:Dockerfile$|\.dockerignore$|docker\/|tools\/[^/]*sources[^/]*\.json$|pnpm-lock\.yaml$|patches\/|(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$)/.test(
+      /^(?:(?:Dockerfile|LICENSE|README\.md|package\.json|pnpm-workspace\.yaml|\.node-version|\.npmrc|\.pnpmfile\.cjs|tsconfig(?:\.base)?\.json)$|\.dockerignore$|docker\/|tests\/image\/|\.github\/actions\/image\/|tools\/(?:ci-image|runtime-dependencies|native-sources|distribution-notices)\.mjs$|tools\/[^/]*sources[^/]*\.json$|pnpm-lock\.yaml$|patches\/|(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$)/.test(
         path,
       ),
     ),
@@ -41,9 +39,20 @@ export function changedPaths(base) {
 
 /** A successful aggregate from GitHub Actions proves this exact base.
  * @param {unknown} payload
- * @param {string} base */
-export function hasPassingCheck(payload, base) {
+ * @param {string} base
+ * @param {unknown} workflows */
+export function hasPassingCheck(payload, base, workflows) {
   const runs = record(payload).check_runs;
+  const candidates = record(workflows).workflow_runs;
+  if (!Array.isArray(candidates)) return false;
+  const trusted = candidates
+    .map(record)
+    .filter(
+      (run) =>
+        run.head_sha === base &&
+        run.path === '.github/workflows/ci.yml' &&
+        ['push', 'workflow_dispatch'].includes(String(run.event)),
+    );
   return (
     Array.isArray(runs) &&
     runs
@@ -54,7 +63,12 @@ export function hasPassingCheck(payload, base) {
           run.head_sha === base &&
           run.status === 'completed' &&
           run.conclusion === 'success' &&
-          record(run.app).id === 15368,
+          record(run.app).id === 15368 &&
+          trusted.some(
+            (workflow) =>
+              workflow.check_suite_id === record(run.check_suite).id &&
+              typeof workflow.check_suite_id === 'number',
+          ),
       )
   );
 }
@@ -74,17 +88,38 @@ async function previousCheckPassed(base) {
   if (!base || !/^[a-f0-9]{40}$/.test(base) || !process.env.GITHUB_TOKEN)
     return false;
   try {
-    const reply = await fetch(
-      `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/commits/${base}/check-runs?check_name=Check&per_page=100`,
-      {
-        headers: {
-          authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-          accept: 'application/vnd.github+json',
-        },
-        signal: AbortSignal.timeout(3000),
+    const repository = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}`;
+    const options = {
+      headers: {
+        authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        accept: 'application/vnd.github+json',
       },
+      signal: AbortSignal.timeout(3000),
+    };
+    const replies = await Promise.all([
+      fetch(
+        `${repository}/commits/${base}/check-runs?check_name=Check&per_page=100`,
+        options,
+      ),
+      fetch(
+        `${repository}/actions/workflows/ci.yml/runs?head_sha=${base}&event=push&per_page=100`,
+        options,
+      ),
+      fetch(
+        `${repository}/actions/workflows/ci.yml/runs?head_sha=${base}&event=workflow_dispatch&per_page=100`,
+        options,
+      ),
+    ]);
+    if (!replies.every((reply) => reply.ok)) return false;
+    const [checks, push, manual] = await Promise.all(
+      replies.map(async (reply) => record(await reply.json())),
     );
-    return reply.ok && hasPassingCheck(await reply.json(), base);
+    const pushed = push?.workflow_runs;
+    const dispatched = manual?.workflow_runs;
+    if (!Array.isArray(pushed) || !Array.isArray(dispatched)) return false;
+    return hasPassingCheck(checks, base, {
+      workflow_runs: [...pushed.map(record), ...dispatched.map(record)],
+    });
   } catch {
     return false;
   }

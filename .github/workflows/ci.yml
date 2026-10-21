@@ -23,6 +23,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      actions: read
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -49,11 +50,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       # The action is part of the checked out event commit.
-      - uses: ./.github/actions/setup # zizmor: ignore[self-repository]
+      - if: needs.scope.outputs.source == 'true'
+        uses: ./.github/actions/setup # zizmor: ignore[self-repository]
+      - if: needs.scope.outputs.source == 'false'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Install only the locked document formatter
+        if: needs.scope.outputs.source == 'false'
+        run: |
+          node tools/ci-docs.mjs prepare
+          npm ci --prefix "$RUNNER_TEMP/ci-format" --ignore-scripts --no-audit --no-fund
       - name: Check documents
         if: needs.scope.outputs.source == 'false'
-        run: pnpm format:check && node tools/check-docs.mjs
+        env:
+          DOCS_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
+        run: node tools/ci-docs.mjs check
       - name: Check source and bundle budget
         if: needs.scope.outputs.source == 'true'
         run: pnpm contract:lint && pnpm generated:check && pnpm typecheck && pnpm lint && pnpm format:check && pnpm perf:bundle
@@ -153,7 +168,7 @@ jobs:
     name: Workflow lint
     # Static finishes before this job starts, leaving at most nine active jobs.
     needs: [scope, static]
-    if: always() && needs.scope.result == 'success' && needs.scope.outputs.workflows == 'true'
+    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.scope.outputs.workflows == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -165,7 +180,9 @@ jobs:
           curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
           echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  '"$RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
-          pipx install zizmor==1.31.1
+          curl --fail --silent --show-error --location https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz -o "$RUNNER_TEMP/zizmor.tar.gz"
+          echo 'd185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99  '"$RUNNER_TEMP/zizmor.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/zizmor.tar.gz" -C "$RUNNER_TEMP" zizmor
       - name: Check workflow syntax
         # actionlint 1.7.12 does not know GitHub's queue key. Keep the exception
         # limited to the two merge workflows and this exact schema error.
@@ -173,10 +190,11 @@ jobs:
         run: |
           "$RUNNER_TEMP/actionlint" .github/workflows/ci.yml
           "$RUNNER_TEMP/actionlint" -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$' .github/workflows/ff-only-merge.yml .github/workflows/ff-merge-comment.yml
-      - run: zizmor --no-online-audits --strict-collection .github/workflows .github/actions
+      - run: '"$RUNNER_TEMP/zizmor" --no-online-audits --strict-collection .github/workflows .github/actions'
 
   check:
-    # A skipped duplicate PR event must not satisfy the required push check.
+    # GitHub does not evaluate this name when the duplicate PR job is skipped.
+    # Its raw expression name is deliberately not the required Check context.
     name: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && 'Use push checks' || 'Check' }}
     if: always() && needs.scope.result != 'skipped'
     needs: [scope, static, unit, integration, image, image_main, workflows]
