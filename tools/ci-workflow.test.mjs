@@ -224,3 +224,19 @@ await test('the comment workflow runs trusted code on new comments with narrow a
     );
   assert.doesNotMatch(source, /secrets\.|comment\.body \}\}/);
 });
+
+await test('the image composite uses the job token and exports only on main', async () => {
+  const source = await readFile(
+    join(root, '.github/actions/image/action.yml'),
+    'utf8',
+  );
+  assert.doesNotMatch(source, /secrets\./);
+  const action = await loadYaml('.github/actions/image/action.yml');
+  const steps = record(action.runs).steps;
+  assert.ok(Array.isArray(steps));
+  const login = steps
+    .map(record)
+    .find((step) => String(step.uses).startsWith('docker/login-action@'));
+  assert.match(String(login?.if), /github.ref == 'refs\/heads\/main'/);
+  assert.equal(record(login?.with).password, '${{ github.token }}');
+});
