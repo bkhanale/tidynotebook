@@ -23,19 +23,66 @@ async function loadYaml(path) {
   return record(yaml.load(await readFile(join(root, path), 'utf8')));
 }
 
-await test('CI runs only lint on pull requests with read-only access', async () => {
+await test('CI selects hosted checks and has one fail-closed aggregate', async () => {
   const workflow = await loadYaml('.github/workflows/ci.yml');
-  assert.deepEqual(Object.keys(record(workflow.on)), ['pull_request']);
+  assert.deepEqual(Object.keys(record(workflow.on)), [
+    'push',
+    'pull_request',
+    'workflow_dispatch',
+    'schedule',
+  ]);
   assert.deepEqual(workflow.permissions, { contents: 'read' });
-  assert.equal(record(workflow.concurrency)['cancel-in-progress'], true);
+  assert.deepEqual(workflow.concurrency, {
+    group: 'ci-${{ github.ref }}',
+    'cancel-in-progress': "${{ github.ref != 'refs/heads/main' }}",
+  });
   const jobs = record(workflow.jobs);
-  assert.deepEqual(Object.keys(jobs), ['lint']);
-  const job = record(jobs.lint);
-  assert.equal(job.name, 'Lint');
-  const steps = Array.isArray(job.steps) ? job.steps.map(record) : [];
+  for (const job of Object.values(jobs).map(record)) {
+    assert.equal(job['runs-on'], 'ubuntu-latest');
+    assert.ok(typeof job['timeout-minutes'] === 'number');
+  }
   assert.deepEqual(
-    steps.filter((step) => step.run).map((step) => step.run),
-    ['pnpm install --frozen-lockfile', 'pnpm lint'],
+    record(record(record(jobs.unit).strategy).matrix).shard,
+    [1, 2, 3],
+  );
+  assert.deepEqual(
+    record(record(record(jobs.integration).strategy).matrix).shard,
+    [1, 2, 3, 4],
+  );
+  assert.deepEqual(record(jobs.workflows).needs, ['scope', 'static']);
+  assert.equal(record(jobs.nightly).needs, 'check');
+  assert.equal(record(jobs.check).name, 'Check');
+  assert.deepEqual(record(jobs.check).needs, [
+    'scope',
+    'static',
+    'unit',
+    'integration',
+    'image',
+    'workflows',
+  ]);
+  assert.match(String(record(jobs.check).if), /always\(\)/);
+  assert.match(
+    String(record(jobs.scope).if),
+    /head.repo.full_name != github.repository/,
+  );
+});
+
+await test('only main saves the dependency cache', async () => {
+  const setup = await loadYaml('.github/actions/setup/action.yml');
+  const steps = record(setup.runs).steps;
+  assert.ok(Array.isArray(steps));
+  const actions = steps.map(record);
+  const save = actions.find((step) =>
+    String(step.uses).startsWith('actions/cache/save@'),
+  );
+  assert.match(String(save?.if), /github.ref == 'refs\/heads\/main'/);
+  assert.ok(
+    actions.some((step) =>
+      String(step.uses).startsWith('actions/cache/restore@'),
+    ),
+  );
+  assert.ok(
+    !actions.some((step) => String(step.uses).startsWith('actions/cache@')),
   );
 });
 

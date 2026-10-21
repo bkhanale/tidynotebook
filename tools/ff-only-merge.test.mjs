@@ -363,29 +363,29 @@ await test('every review thread is resolved, also an outdated one', async () => 
 });
 
 await test('every required check succeeds on H from its named app', async () => {
-  const required = [{ context: 'Lint', integrationId: 15368 }];
+  const required = [{ context: 'Check', integrationId: 15368 }];
   const lint = passing().checkRuns[0];
   assert.throws(
     () => checkRequiredChecks(required, [], [], H),
-    /"Lint" has no result/,
+    /"Check" has no result/,
   );
   assert.throws(
     () => checkRequiredChecks(required, [{ ...lint, app: { id: 1 } }], [], H),
-    /"Lint" has no result/,
+    /"Check" has no result/,
   );
   assert.throws(
     () =>
       checkRequiredChecks(
         required,
         [],
-        [{ id: 1, context: 'Lint', state: 'success' }],
+        [{ id: 1, context: 'Check', state: 'success' }],
         H,
       ),
-    /"Lint" has no result/,
+    /"Check" has no result/,
   );
   assert.throws(
     () => checkRequiredChecks(required, [{ ...lint, head_sha: old }], [], H),
-    /"Lint" has no result/,
+    /"Check" has no result/,
   );
   assert.throws(
     () =>
@@ -434,13 +434,13 @@ await test('every required check succeeds on H from its named app', async () => 
   );
   await expectStop((state) => {
     state.checkRuns = [];
-  }, /"Lint" has no result/);
+  }, /"Check" has no result/);
 });
 
 await test('a rule that the gate does not evaluate stops it', () => {
   const rules = passing().rules;
   assert.deepEqual(requiredChecks(rules), [
-    { context: 'Lint', integrationId: 15368 },
+    { context: 'Check', integrationId: 15368 },
   ]);
   assert.throws(
     () => requiredChecks([...rules, { type: 'update' }]),

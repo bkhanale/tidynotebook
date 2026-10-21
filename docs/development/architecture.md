@@ -145,6 +145,6 @@ validated against the contract at the HTTP boundary. See
 ## Verification
 
 Local unit and integration tests check behavior. Docker and browser checks
-exercise the deployed application. CI runs lint only.
+exercise the deployed application. CI runs scoped checks on each push and requires the `Check` aggregate.
 See [Verification](verification.md) for coverage and
 [AGENTS.md](../../AGENTS.md) for the process.

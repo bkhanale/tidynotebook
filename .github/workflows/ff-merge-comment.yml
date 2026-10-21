@@ -5,7 +5,9 @@ name: Fast forward main by comment
 # head, and replies with the result. See docs/development/fast-forward-merge.md.
 
 on:
-  issue_comment:
+  # Only the trusted workflow commit is checked out. The script checks the
+  # author and reads the command as data. It never executes PR code.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
 
 permissions:

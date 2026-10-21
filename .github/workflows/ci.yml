@@ -1,26 +1,205 @@
 name: CI
 
 on:
+  push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: lint-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  NOTESAPP_COVERAGE: 'off'
 
 jobs:
-  lint:
-    name: Lint
+  scope:
+    name: Change scope
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      source: ${{ steps.scope.outputs.source }}
+      image: ${{ steps.scope.outputs.image }}
+      workflows: ${{ steps.scope.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: scope
+        run: node tools/ci-scope.mjs
+
+  static:
+    name: Static
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The action is part of the checked out event commit.
+      - uses: ./.github/actions/setup # zizmor: ignore[self-repository]
+      - name: Check documents
+        if: needs.scope.outputs.source == 'false'
+        run: pnpm format:check && node tools/check-docs.mjs
+      - name: Check source and bundle budget
+        if: needs.scope.outputs.source == 'true'
+        run: pnpm contract:lint && pnpm generated:check && pnpm typecheck && pnpm lint && pnpm format:check && pnpm perf:bundle
+
+  unit:
+    name: Unit ${{ matrix.shard }}/3
+    needs: scope
+    if: needs.scope.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The action is part of the checked out event commit.
+      - uses: ./.github/actions/setup # zizmor: ignore[self-repository]
+      - run: pnpm build
+      - if: matrix.shard == 1
+        run: pnpm lint:types
+      - name: Run unit shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node tools/run-tests.mjs unit --shard="$SHARD/3"
+
+  integration:
+    name: Integration ${{ matrix.shard }}/4
+    needs: scope
+    if: needs.scope.outputs.source == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The action is part of the checked out event commit.
+      - uses: ./.github/actions/setup # zizmor: ignore[self-repository]
+      - name: Start this runner's services
+        run: docker compose -p notesapp-test -f compose.test.yaml up -d --wait
+      - run: pnpm build
+      - run: tools/test-database/ensure-postgres.sh && tools/test-database/ensure-minio.sh
+      - name: Run integration shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node tools/run-tests.mjs integration --shard="$SHARD/4"
+      - if: always()
+        run: docker compose -p notesapp-test -f compose.test.yaml down --volumes
+
+  image:
+    name: Image smoke
+    needs: scope
+    if: needs.scope.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      NOTESAPP_ORIGIN: https://notes.example.com
+      NOTESAPP_BIND_HOST: 127.0.0.1
+      NOTESAPP_PORT: '3000'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare disposable Compose inputs and registry cache
+        env:
+          CACHE_WRITE: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        run: node tools/ci-image.mjs
+      - name: Build amd64 with registry cache
+        run: docker compose -f docker-compose.yml -f "$RUNNER_TEMP/ci-image.yaml" build
+      - run: node --test tests/image/
+
+  workflows:
+    name: Workflow lint
+    # Static finishes before this job starts, leaving at most nine active jobs.
+    needs: [scope, static]
+    if: always() && needs.scope.result == 'success' && needs.scope.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
+          persist-credentials: false
+      - name: Install pinned workflow tools
+        run: |
+          curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$RUNNER_TEMP/actionlint.tar.gz"
+          echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  '"$RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          pipx install zizmor==1.31.1
+      - name: Check workflow syntax
+        # actionlint 1.7.12 does not know GitHub's queue key. Keep the exception
+        # limited to the two merge workflows and this exact schema error.
+        # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
+        run: |
+          "$RUNNER_TEMP/actionlint" .github/workflows/ci.yml
+          "$RUNNER_TEMP/actionlint" -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$' .github/workflows/ff-only-merge.yml .github/workflows/ff-merge-comment.yml
+      - run: zizmor --no-online-audits --strict-collection .github/workflows .github/actions
+
+  check:
+    name: Check
+    if: always() && needs.scope.result != 'skipped'
+    needs: [scope, static, unit, integration, image, workflows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every selected job
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: node tools/ci-check.mjs
+
+  nightly:
+    name: Nightly performance and coverage
+    needs: check
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The action is part of the checked out event commit.
+      - uses: ./.github/actions/setup # zizmor: ignore[self-repository]
+      - run: pnpm perf:service
+      - name: Measure unit and integration coverage
+        env:
+          NOTESAPP_COVERAGE: 'on'
+        run: |
+          node tools/run-tests.mjs unit
+          tools/test-database/ensure-minio.sh
+          node tools/run-tests.mjs integration
+      - if: always()
+        run: docker compose -p notesapp-test -f compose.test.yaml down --volumes
