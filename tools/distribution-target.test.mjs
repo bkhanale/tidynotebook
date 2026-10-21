@@ -74,30 +74,77 @@ await test('both native targets bind the complete library version map and refuse
         JSON.stringify(manifest.versions),
       );
       await validateNativeConsumer(directory, arch);
-      // Use a fresh require path for each mismatch, so Node cannot reuse JSON.
-      const wrong = join(directory, `wrong-${arch}`);
-      await mkdir(join(wrong, 'node_modules', name), { recursive: true });
-      await mkdir(join(wrong, 'node_modules/sharp'), { recursive: true });
-      await writeFile(
-        join(wrong, 'node_modules/sharp/package.json'),
-        JSON.stringify({ main: 'index.cjs' }),
-      );
-      await writeFile(
-        join(wrong, 'node_modules/sharp/index.cjs'),
-        'module.exports = {};',
-      );
-      await writeFile(
-        join(wrong, 'node_modules', name, 'package.json'),
-        JSON.stringify({ name, version: '0.0.0', exports }),
-      );
-      await writeFile(
-        join(wrong, 'node_modules', name, 'versions.json'),
-        JSON.stringify(manifest.versions),
-      );
-      await assert.rejects(
-        validateNativeConsumer(wrong, arch),
-        /does not match/,
-      );
+      // Each fixture has its own path, so Node cannot reuse required JSON.
+      for (const mismatch of [
+        {
+          label: 'version',
+          name,
+          version: '0.0.0',
+          versions: manifest.versions,
+        },
+        {
+          label: 'name',
+          name: '@img/unreviewed',
+          version: manifest.packageVersion,
+          versions: manifest.versions,
+        },
+        {
+          label: 'versions',
+          name,
+          version: manifest.packageVersion,
+          versions: { ...record(manifest.versions), vips: '0.0.0' },
+        },
+      ]) {
+        const wrong = join(directory, `wrong-${arch}-${mismatch.label}`);
+        await mkdir(join(wrong, 'node_modules', name), { recursive: true });
+        await mkdir(join(wrong, 'node_modules/sharp'), { recursive: true });
+        await writeFile(
+          join(wrong, 'node_modules/sharp/package.json'),
+          JSON.stringify({ main: 'index.cjs' }),
+        );
+        await writeFile(
+          join(wrong, 'node_modules/sharp/index.cjs'),
+          'module.exports = {};',
+        );
+        await writeFile(
+          join(wrong, 'node_modules', name, 'package.json'),
+          JSON.stringify({
+            name: mismatch.name,
+            version: mismatch.version,
+            exports,
+          }),
+        );
+        await writeFile(
+          join(wrong, 'node_modules', name, 'versions.json'),
+          JSON.stringify(mismatch.versions),
+        );
+        await assert.rejects(
+          validateNativeConsumer(wrong, arch),
+          /does not match/,
+          `${arch}: ${mismatch.label}`,
+        );
+      }
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+await test('native source manifests refuse an unreviewed package or platform', async () => {
+  const directory = await mkdtemp(join(root, '.tooling/native-target-'));
+  try {
+    const path = join(directory, 'native-sources.json');
+    const baseline = await readJson(join(root, 'tools/native-sources.json'));
+    for (const changed of [
+      { package: '@img/unreviewed' },
+      { platform: 'linux-arm64-glibc' },
+    ]) {
+      await writeFile(path, JSON.stringify({ ...baseline, ...changed }));
+      for (const architecture of ['x64', 'arm64'])
+        await assert.rejects(
+          distributionManifest(path, architecture),
+          /reviewed native source target differs/,
+        );
     }
   } finally {
     await rm(directory, { recursive: true, force: true });

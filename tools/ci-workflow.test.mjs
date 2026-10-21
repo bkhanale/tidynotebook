@@ -45,9 +45,11 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
   for (const [name, job] of Object.entries(jobs))
     if (name !== 'scope')
       assert.equal(record(record(job).permissions).checks, undefined);
-  for (const job of Object.values(jobs).map(record)) {
-    assert.ok(
-      ['ubuntu-latest', 'ubuntu-24.04-arm'].includes(String(job['runs-on'])),
+  for (const [name, value] of Object.entries(jobs)) {
+    const job = record(value);
+    assert.equal(
+      job['runs-on'],
+      name === 'image_arm64' ? 'ubuntu-24.04-arm' : 'ubuntu-latest',
     );
     assert.ok(typeof job['timeout-minutes'] === 'number');
   }

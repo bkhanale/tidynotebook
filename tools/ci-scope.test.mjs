@@ -33,6 +33,7 @@ await test('only image infrastructure selects image smoke', () => {
   for (const path of [
     'Dockerfile',
     'tools/base-packages.json',
+    'tools/distribution-target.mjs',
     'tools/third-party/fallbacks.json',
     'tools/third-party/debian-source-keys.gpg',
     'tools/workspace.mjs',

@@ -8,6 +8,10 @@ passed on `269b1cb695743e6a6b4755880a4438fcba1eea0c`. Native arm64 proof took
 seconds before amd64 and added no delay to Check. Scope start to Check finish
 took 183 seconds. A prior cancelled run added 127 seconds of initial queue time.
 
+The [reviewed-head run](https://github.com/tidynotebook/tidynotebook/actions/runs/39602080250)
+passed Check on `d74084f5903e11c4c48ff1a8276bb8e77d4806b5`. Arm64 proof took
+72 seconds and amd64 smoke took 142 seconds. Both image jobs passed.
+
 Both targets use the same checked native and Debian source archives. The pinned
 arm64 sharp package has the same full library version map as amd64. The original
 Debian package and source versions also match. Only target package names differ.

@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as wait } from 'node:timers/promises';
 import { record, root } from './workspace.mjs';
 
-import { distributionManifest } from './distribution-target.mjs';
+import {
+  distributionManifest,
+  validateNativeConsumer,
+} from './distribution-target.mjs';
 
 export const nativeSourceDownloadDefaults = Object.freeze({
   connectTimeoutMs: 30_000,
@@ -210,6 +213,8 @@ export async function prepareNativeSources(
   options = {},
 ) {
   const manifest = await distributionManifest(manifestFile);
+  if (manifest.platform === 'linux-arm64-glibc')
+    await validateNativeConsumer(join(root, 'apps/server'));
   const rows = sourceRows(manifest.sources);
   await mkdir(output, { recursive: true });
   /** @param {{file:string, url:string, sha256:string}} row */
