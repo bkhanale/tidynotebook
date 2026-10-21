@@ -713,7 +713,7 @@ export async function readAllowlist(directory) {
  * @returns {Promise<number>} The process status.
  */
 export async function main(directory) {
-  if (directory === root) {
+  if (resolve(directory) === resolve(root)) {
     const { generateIcons } = await import('./generate-icons.mjs');
     await generateIcons(true);
   }

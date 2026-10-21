@@ -99,6 +99,8 @@ text and stay out of this design.
 
 ### The layout
 
+The email mockups predate the official notebook logo change in record 0230.
+
 One column on the surface colour of the Default theme. A small notebook tile and
 the name sit above one card. The card holds a short label, one heading, the
 paragraphs, one button, the time that the link works, the full address of the

@@ -861,3 +861,42 @@ await test('every document of the application follows the rules', async () => {
     );
   }
 });
+
+await test('the normalised repository root runs the icon generation check', async () => {
+  const { cp, mkdir, mkdtemp, rm, symlink, writeFile } =
+    await import('node:fs/promises');
+  const directory = await mkdtemp(join(tmpdir(), 'notesapp-icon-check-'));
+  try {
+    for (const path of [
+      'tools/check-design-rules.mjs',
+      'tools/generate-icons.mjs',
+      'tools/workspace.mjs',
+      'packages/ui/assets/notebook.svg',
+      'packages/ui/src/icons.tsx',
+      'packages/ui/src/themes/default.ts',
+      'apps/web/icons',
+      'docs/design/028-emails-and-link-previews/social-card-light.svg',
+    ]) {
+      await mkdir(dirname(join(directory, path)), { recursive: true });
+      await cp(resolve(root, path), join(directory, path), { recursive: true });
+    }
+    await symlink(
+      resolve(root, 'node_modules'),
+      join(directory, 'node_modules'),
+      'dir',
+    );
+    const icon = join(directory, 'apps/web/icons/favicon.ico');
+    const changed = await readFile(icon);
+    changed[0] = 1;
+    await writeFile(icon, changed);
+    const result = spawnSync(
+      process.execPath,
+      [join(directory, 'tools/check-design-rules.mjs')],
+      { encoding: 'utf8' },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /ICO header differs/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

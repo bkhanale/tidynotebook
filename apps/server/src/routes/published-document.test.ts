@@ -143,6 +143,9 @@ await test('every state of the page has the product name as its title', () => {
     const html = documentOf(view);
     assert.equal(html.split('<title>').length - 1, 1, view.kind);
     assert.ok(html.includes(`<title>${productName}</title>`), view.kind);
+    assert.ok(
+      html.indexOf('<meta charset="utf-8">') < html.indexOf('rel="icon"'),
+    );
     assert.ok(html.includes('href="/favicon.ico"'));
     assert.ok(html.includes('href="/favicon.svg"'));
     assert.ok(html.includes('href="/apple-touch-icon.png"'));

@@ -34,6 +34,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StartRefusal } from '../config.ts';
 import {
   appShellContentPolicy,
+  iconContentPolicy,
   framedDocumentContentPolicy,
   inlineScriptHashes,
   serviceWorkerContentPolicy,
@@ -167,6 +168,11 @@ export function acceptedEncodings(
  * gate instead of quietly serving every asset as revalidated.
  */
 export const assetHashLength = 8;
+
+/** The one hashed SVG that uses an inline colour preference style. */
+const adaptiveIconPath = new RegExp(
+  `^assets/icon-[A-Za-z0-9_-]{${String(assetHashLength)}}\\.svg$`,
+);
 
 /** The characters that the bundler draws a hash from. */
 const assetHashCharacters = /^[A-Za-z0-9_-]+$/;
@@ -484,6 +490,11 @@ export function sendStaticFile(
       'content-security-policy',
       documentContentPolicy(target.filePath, target.relativePath, identity),
     );
+  if (
+    target.relativePath === 'favicon.svg' ||
+    adaptiveIconPath.test(target.relativePath)
+  )
+    reply.header('content-security-policy', iconContentPolicy);
   if (basename(target.filePath) === 'service-worker.js')
     reply.header('content-security-policy', serviceWorkerContentPolicy);
   if (

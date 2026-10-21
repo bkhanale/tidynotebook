@@ -28,6 +28,9 @@ export const dataContentPolicy = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+/** The adaptive icon needs its colour preference style, with no script or network. */
+export const iconContentPolicy = `${dataContentPolicy}; style-src 'unsafe-inline'`;
+
 /**
  * Content policy of the application shell.
  *

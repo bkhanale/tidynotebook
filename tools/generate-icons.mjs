@@ -5,7 +5,76 @@ import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { root } from './workspace.mjs';
 
-/** Rebuild each asset in memory, then write or compare its exact bytes. */
+/** Compare decoded channels, allowing one level of raster rounding. */
+/** @param {Buffer} expected @param {Buffer} actual @param {string} path */
+async function comparePixels(expected, actual, path) {
+  const decode = (/** @type {Buffer} */ bytes) =>
+    sharp(bytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const [wanted, found] = await Promise.all([decode(expected), decode(actual)]);
+  assert.deepEqual(found.info, wanted.info, `${path}: image shape differs`);
+  assert.ok(
+    found.data.every(
+      (value, index) => Math.abs(value - (wanted.data[index] ?? Infinity)) <= 1,
+    ),
+    `${path}: pixels differ. Run node tools/generate-icons.mjs.`,
+  );
+}
+
+/** Exact text and ICO structure; raster channels permit rounding by one. */
+/** @param {string} path @param {Buffer} expected @param {Buffer} actual */
+export async function compareIconAsset(path, expected, actual) {
+  if (path.endsWith('.png')) return comparePixels(expected, actual, path);
+  if (path.endsWith('.ico')) {
+    assert.ok(actual.length >= 6, `${path}: truncated ICO header`);
+    assert.ok(
+      actual.subarray(0, 6).equals(expected.subarray(0, 6)),
+      `${path}: ICO header differs`,
+    );
+    const count = expected.readUInt16LE(4);
+    let offset = 6 + count * 16;
+    assert.ok(actual.length >= offset, `${path}: truncated ICO directory`);
+    for (let index = 0; index < count; index++) {
+      const at = 6 + index * 16;
+      assert.ok(
+        actual.subarray(at, at + 8).equals(expected.subarray(at, at + 8)),
+        `${path}: ICO frame fields differ`,
+      );
+      const length = actual.readUInt32LE(at + 8);
+      assert.equal(
+        actual.readUInt32LE(at + 12),
+        offset,
+        `${path}: ICO frame offset differs`,
+      );
+      assert.ok(
+        length > 0 && offset + length <= actual.length,
+        `${path}: invalid ICO frame length`,
+      );
+      const expectedOffset = expected.readUInt32LE(at + 12);
+      const expectedLength = expected.readUInt32LE(at + 8);
+      const frame = actual.subarray(offset, offset + length);
+      assert.ok(
+        frame
+          .subarray(0, 8)
+          .equals(expected.subarray(expectedOffset, expectedOffset + 8)),
+        `${path}: ICO frame is not PNG`,
+      );
+      await comparePixels(
+        expected.subarray(expectedOffset, expectedOffset + expectedLength),
+        frame,
+        path,
+      );
+      offset += length;
+    }
+    assert.equal(actual.length, offset, `${path}: extra ICO bytes`);
+    return;
+  }
+  assert.ok(
+    actual.equals(expected),
+    `${path} is stale. Run node tools/generate-icons.mjs.`,
+  );
+}
+
+/** Rebuild each asset in memory, then write or compare it. */
 export async function generateIcons(check = false) {
   /** @param {string} path */
   const read = (path) => readFile(resolve(root, path), 'utf8');
@@ -105,10 +174,7 @@ export async function generateIcons(check = false) {
   );
   for (const [path, bytes] of outputs) {
     if (check)
-      assert.ok(
-        bytes.equals(await readFile(resolve(root, path))),
-        `${path} is stale. Run node tools/generate-icons.mjs.`,
-      );
+      await compareIconAsset(path, bytes, await readFile(resolve(root, path)));
     else await writeFile(resolve(root, path), bytes);
   }
 }

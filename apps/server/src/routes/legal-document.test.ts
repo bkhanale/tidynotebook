@@ -13,6 +13,9 @@ await test('the page of a document holds its body and no script', () => {
   assert.match(page, /<span>Version 2026-10-01<\/span>/);
   assert.match(page, /^<!doctype html>/);
   assert.match(page, /<title>Terms<\/title>/);
+  assert.ok(
+    page.indexOf('<meta charset="utf-8">') < page.indexOf('rel="icon"'),
+  );
   assert.ok(page.includes('href="/favicon.ico"'));
   assert.ok(page.includes('href="/favicon.svg"'));
   assert.ok(page.includes('href="/apple-touch-icon.png"'));

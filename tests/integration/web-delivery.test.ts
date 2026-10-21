@@ -806,3 +806,44 @@ await test('an unexpected server error is logged with the failure', async () => 
     await server.close();
   }
 });
+
+await test('only adaptive icon SVG responses permit their inline colour style', async () => {
+  const directory = await writeBuild();
+  const server = await startTestServer({ webDist: directory });
+  const policy =
+    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; style-src 'unsafe-inline'";
+  try {
+    for (const path of [
+      'favicon.svg',
+      'assets/icon-AbCdEfGh.svg',
+      'assets/other-AbCdEfGh.svg',
+    ]) {
+      await writeFile(
+        join(directory, path),
+        '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      );
+      const response = await server.app.inject({
+        method: 'GET',
+        url: `/${path}`,
+      });
+      assert.equal(response.statusCode, 200);
+      assert.equal(response.headers['content-type'], 'image/svg+xml');
+      const expected = path.includes('other-')
+        ? policy.replace("; style-src 'unsafe-inline'", '')
+        : policy;
+      assert.equal(response.headers['content-security-policy'], expected);
+      if (!path.includes('other-')) {
+        const cached = await server.app.inject({
+          method: 'GET',
+          url: `/${path}`,
+          headers: { 'if-none-match': String(response.headers['etag']) },
+        });
+        assert.equal(cached.statusCode, 304);
+        assert.equal(cached.headers['content-security-policy'], policy);
+      }
+    }
+  } finally {
+    await server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
