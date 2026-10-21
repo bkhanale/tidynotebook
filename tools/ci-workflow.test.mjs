@@ -69,7 +69,7 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     .find((step) => step.name === 'Check documents');
   assert.equal(
     record(documents?.env).DOCS_BASE,
-    '${{ github.event.pull_request.base.sha || github.event.before }}',
+    '${{ needs.scope.outputs.base }}',
   );
   assert.deepEqual(record(jobs.workflows).needs, ['scope', 'static']);
   assert.match(String(record(jobs.workflows).if), /!cancelled\(\)/);

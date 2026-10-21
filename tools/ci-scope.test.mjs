@@ -147,6 +147,7 @@ await test('only a successful Check from CI push or manual proof permits a short
   const checks = {
     check_runs: [
       {
+        id: 100,
         name: 'Check',
         head_sha: base,
         status: 'completed',
@@ -314,4 +315,112 @@ await test('document checks use the complete proven diff and the fork guard stay
       "if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository",
     ),
   );
+});
+
+await test('only the latest trusted Check can prove a SHA after a rerun', () => {
+  const sha = 'a'.repeat(40);
+  const check = {
+    id: 100,
+    name: 'Check',
+    head_sha: sha,
+    app: { id: 15368 },
+    check_suite: { id: 71 },
+    status: 'completed',
+    conclusion: 'success',
+  };
+  const workflow = {
+    head_sha: sha,
+    path: '.github/workflows/ci.yml',
+    event: 'push',
+    check_suite_id: 71,
+  };
+  for (const conclusion of ['failure', 'cancelled', null]) {
+    const newer = { ...check, id: 101, conclusion };
+    for (const check_runs of [
+      [check, newer],
+      [newer, check],
+    ])
+      assert.equal(
+        hasPassingCheck({ check_runs }, sha, { workflow_runs: [workflow] }),
+        false,
+      );
+  }
+  assert.equal(
+    hasPassingCheck(
+      {
+        check_runs: [
+          { ...check, conclusion: 'failure' },
+          { ...check, id: 101 },
+        ],
+      },
+      sha,
+      { workflow_runs: [workflow] },
+    ),
+    true,
+  );
+  assert.equal(
+    hasPassingCheck(
+      {
+        check_runs: [
+          check,
+          { ...check, id: 101, conclusion: 'failure', check_suite: { id: 72 } },
+        ],
+      },
+      sha,
+      { workflow_runs: [workflow, { ...workflow, check_suite_id: 72 }] },
+    ),
+    false,
+  );
+  assert.equal(
+    hasPassingCheck({ total_count: 101, check_runs: [check] }, sha, {
+      workflow_runs: [workflow],
+    }),
+    false,
+  );
+});
+
+await test('the total search budget returns no base even if an API request hangs', async () => {
+  let calls = 0;
+  /** @type {AbortSignal | undefined} */
+  let signal;
+  const base = await provenPushBase(
+    ['a'.repeat(40), 'b'.repeat(40)],
+    (_sha, current) => {
+      calls++;
+      signal = current;
+      return new Promise(() => {});
+    },
+    { timeoutMs: 10 },
+  );
+  assert.equal(base, undefined);
+  assert.equal(calls, 1);
+  assert.equal(signal?.aborted, true);
+});
+
+await test('the scope command ignores event.before and emits an empty base without push proof', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'scope-event-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const event = join(directory, 'event.json');
+  writeFileSync(event, JSON.stringify({ before: 'a'.repeat(40) }));
+  for (const name of [
+    'push',
+    'workflow_dispatch',
+    'schedule',
+    'workflow_run',
+  ]) {
+    const output = join(directory, `${name}.txt`);
+    execFileSync(process.execPath, ['tools/ci-scope.mjs'], {
+      env: {
+        ...process.env,
+        GITHUB_EVENT_NAME: name,
+        GITHUB_EVENT_PATH: event,
+        GITHUB_OUTPUT: output,
+        GITHUB_TOKEN: '',
+      },
+    });
+    assert.equal(
+      readFileSync(output, 'utf8'),
+      'base=\nsource=true\nimage=true\nworkflows=true\n',
+    );
+  }
 });

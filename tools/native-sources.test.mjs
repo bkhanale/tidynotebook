@@ -461,4 +461,77 @@ await test('a primary hash mismatch or certificate failure never uses the mirror
   assert.equal(mirror.requests(), 0);
 });
 
+await test('exhausted primary and mirror failures write no output', async (t) => {
+  const primary = await fixture(t, (_request, response) =>
+    response.writeHead(503).end(),
+  );
+  const mirror = await fixture(t, (_request, response) =>
+    response.writeHead(503).end(),
+  );
+  await mkdir(primary.output);
+  await assert.rejects(
+    downloadNativeSource(
+      { file: 'source.tar.gz', url: primary.url, sha256 },
+      [mirror.url],
+      primary.options,
+    ),
+    /4 attempts.*503/,
+  );
+  assert.equal(primary.requests(), 4);
+  assert.equal(mirror.requests(), 4);
+  assert.deepEqual(await primary.files(), []);
+});
+
+for (const fails of [false, true])
+  await test(`prepareNativeSources connects package file membership to a ${fails ? 'failed' : 'successful'} Debian mirror`, async (t) => {
+    const file = 'acl_2.3.1.orig.tar.xz';
+    const f = await fixture(t, (request, response) => {
+      if (request.headers.host === 'snapshot.debian.org')
+        response.writeHead(503).end();
+      else {
+        assert.equal(request.headers.host, 'deb.debian.org');
+        assert.equal(request.url, '/debian/pool/main/a/acl/' + file);
+        if (fails) response.writeHead(503).end();
+        else response.end(bytes);
+      }
+    });
+    const connect = f.options.agent.createConnection.bind(f.options.agent);
+    f.options.agent.createConnection = (options, callback) =>
+      connect(
+        {
+          ...options,
+          host: '127.0.0.1',
+          port: Number(new URL(f.url).port),
+          servername: 'localhost',
+        },
+        callback,
+      );
+    await writeFile(
+      f.manifestFile,
+      JSON.stringify({
+        packages: [{ name: 'acl', files: [file] }],
+        sources: [
+          {
+            file,
+            url: 'https://snapshot.debian.org/file/' + 'a'.repeat(40),
+            sha256,
+          },
+        ],
+      }),
+    );
+    if (fails) {
+      await assert.rejects(f.download(), /4 attempts.*503/);
+      assert.equal(f.requests(), 8);
+      assert.deepEqual(await f.files(), []);
+      return;
+    }
+    await f.download();
+    assert.equal(f.requests(), 5);
+    assert.deepEqual(await readFile(join(f.output, file)), bytes);
+    assert.deepEqual(
+      JSON.parse(await readFile(join(f.output, 'manifest.json'), 'utf8')),
+      JSON.parse(await readFile(f.manifestFile, 'utf8')),
+    );
+  });
+
 after(() => rm(directory, { recursive: true, force: true }));

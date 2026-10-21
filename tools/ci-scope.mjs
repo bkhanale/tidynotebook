@@ -86,24 +86,33 @@ export function hasPassingCheck(payload, base, workflows) {
         run.path === '.github/workflows/ci.yml' &&
         ['push', 'workflow_dispatch'].includes(String(run.event)),
     );
-  return (
-    Array.isArray(runs) &&
-    runs
-      .map(record)
-      .some(
-        (run) =>
-          run.name === 'Check' &&
-          run.head_sha === base &&
-          run.status === 'completed' &&
-          run.conclusion === 'success' &&
-          record(run.app).id === 15368 &&
-          trusted.some(
-            (workflow) =>
-              workflow.check_suite_id === record(run.check_suite).id &&
-              typeof workflow.check_suite_id === 'number',
-          ),
-      )
-  );
+  if (!Array.isArray(runs) || Number(record(payload).total_count) > 100)
+    return false;
+  const checks = runs
+    .map(record)
+    .filter(
+      (run) =>
+        run.name === 'Check' &&
+        run.head_sha === base &&
+        record(run.app).id === 15368 &&
+        trusted.some(
+          (workflow) =>
+            workflow.check_suite_id === record(run.check_suite).id &&
+            typeof workflow.check_suite_id === 'number',
+        ),
+    );
+  // Check run IDs increase with creation, including later run attempts.
+  if (
+    !checks.every(
+      (run) =>
+        typeof run.id === 'number' &&
+        Number.isSafeInteger(run.id) &&
+        run.id > 0,
+    )
+  )
+    return false;
+  const latest = checks.sort((a, b) => Number(b.id) - Number(a.id))[0];
+  return latest?.status === 'completed' && latest.conclusion === 'success';
 }
 
 /** Refuse a short diff without successful proof for its base.
@@ -116,8 +125,9 @@ export function checkedImpact(paths, basePassed) {
 }
 
 /** API errors, missing access and timeouts all select the full scope.
- * @param {string | undefined} base */
-async function previousCheckPassed(base) {
+ * @param {string | undefined} base
+ * @param {AbortSignal} signal */
+async function previousCheckPassed(base, signal) {
   if (!base || !/^[a-f0-9]{40}$/.test(base) || !process.env.GITHUB_TOKEN)
     return false;
   try {
@@ -127,11 +137,11 @@ async function previousCheckPassed(base) {
         authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
         accept: 'application/vnd.github+json',
       },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]),
     };
     const replies = await Promise.all([
       fetch(
-        `${repository}/commits/${base}/check-runs?check_name=Check&per_page=100`,
+        `${repository}/commits/${base}/check-runs?check_name=Check&filter=all&per_page=100`,
         options,
       ),
       fetch(
@@ -175,19 +185,45 @@ export function firstParentAncestors(cwd = process.cwd()) {
   }
 }
 
-/** Only a proven ancestor permits a short push diff.
+/** Only a proven ancestor permits a short push diff within the time budget.
  * @param {string[]} ancestors
- * @param {(sha:string) => Promise<boolean>} [check] */
-export async function provenPushBase(ancestors, check = previousCheckPassed) {
-  try {
-    for (const sha of ancestors.slice(0, 20)) {
-      if (!/^[a-f0-9]{40}$/.test(sha)) return undefined;
-      if (await check(sha)) return sha;
+ * @param {(sha:string, signal:AbortSignal) => Promise<boolean>} [check]
+ * @param {{timeoutMs?:number}} [options] */
+export async function provenPushBase(
+  ancestors,
+  check = previousCheckPassed,
+  options = {},
+) {
+  const controller = new AbortController();
+  /** @type {NodeJS.Timeout | undefined} */
+  let timer;
+  /** @type {Promise<undefined>} */
+  const expired = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve(undefined);
+    }, options.timeoutMs ?? 45_000);
+  });
+  async function search() {
+    try {
+      for (const sha of ancestors.slice(0, 20)) {
+        if (controller.signal.aborted || !/^[a-f0-9]{40}$/.test(sha))
+          return undefined;
+        const passed = await check(sha, controller.signal);
+        if (controller.signal.aborted) return undefined;
+        if (passed) return sha;
+      }
+    } catch {
+      // Missing proof always requires all checks.
     }
-  } catch {
-    // Missing proof always requires all checks.
+    return undefined;
   }
-  return undefined;
+  try {
+    return await Promise.race([search(), expired]);
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
 }
 
 if (import.meta.main) {

@@ -18,9 +18,10 @@ TypeScript module beside the component. Integration tests can check built
 styles and served results. Browser checks cover actual interaction and layout.
 
 CI runs scoped checks on each push. `Check` requires every selected job to
-pass. A push uses its short diff only after the previous head passed `Check`
-in this CI workflow on a push or manual run. Missing proof or an API error
-selects full checks. Manual branch runs select full checks. Source changes run
+pass. A push diffs from the nearest of 20 first-parent ancestors whose latest
+`Check` passed in this CI workflow on a push or manual run. A branch's first
+push can use a proven main ancestor. Missing proof or the search time limit in
+`tools/ci-scope.mjs` selects full checks. Manual branch runs select full checks. Source changes run
 static checks, the bundle budget, three unit shards and four integration
 shards. Only inert Markdown in decisions, design, plans and audits takes the
 short path. It checks changed document formatting and the full document tree.
