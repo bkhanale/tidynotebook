@@ -245,11 +245,17 @@ file `migration_database_url` of the new installation.
 
    For an S3 target, prepare a new empty bucket and its credential files.
    Make a protected `/etc/notesapp/restore-s3.json` with the format above,
-   using the target bucket and credentials. Add this option to the restore
-   command:
+   using the target bucket and credentials. Run:
 
    ```bash
-   --object-store-config-file /etc/notesapp/restore-s3.json
+   sudo tools/ops/restore.sh \
+     --backup-file /mnt/separate-backups/notesapp/backup-20260906-120000Z.tar.gpg \
+     --storage-root /srv/notesapp/storage \
+     --database-url-file /etc/notesapp/secrets/migration_database_url \
+     --key-file /etc/notesapp/secrets/backup_key \
+     --installation-id-file /etc/notesapp/secrets/installation_id \
+     --postgres-container notesapp-postgres-1 \
+     --object-store-config-file /etc/notesapp/restore-s3.json
    ```
 
    Set the application S3 settings to that same target bucket before startup.
