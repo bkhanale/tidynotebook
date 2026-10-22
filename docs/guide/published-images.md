@@ -2,26 +2,26 @@
 
 This page is for the person who runs the server.
 
-Use the official stable image for an installation. The current stable release
-is 0.19.0. A digest fixes the image bytes, so a later pull cannot change them.
-The public image and release manifest need no login.
+Use the official stable image for an installation. The shell commands below
+select the release. A digest fixes the image bytes, so a later pull cannot
+change them. The public image and release manifest need no login.
 
 ## Supported platforms
 
-- Release 0.19.0 supports `linux/amd64`.
-- From the next stable release, the release workflow builds and tests native
-  `linux/amd64` and `linux/arm64` images and publishes one image index.
-- Existing tags and digests keep their current bytes. Release 0.19.0 does not
-  gain an arm64 image.
-- macOS and Windows need Docker with Linux containers. An ARM host needs
-  amd64 emulation to run 0.19.0. Native Windows containers are not supported.
+The selected release supports `linux/amd64`. It has no native arm64 image.
+An ARM host needs amd64 emulation to run it. Existing tags and digests keep
+their current bytes.
+
+macOS needs Docker with Linux containers. On Windows, use WSL2 with Docker
+Linux containers and the shell tools listed in the quick start. Native
+Windows containers are not supported.
 
 ## Select the stable image
 
 Start with the release checkout and a prepared `.env` from
 [Quick start](quickstart.md) or [Self-hosting](self-hosting.md). Install `curl`
 and `jq` on the host. Run these commands in the root of the clone, in Bash.
-They also work with the operator scripts shipped in 0.19.0.
+They also work with the operator scripts shipped in the selected release.
 
 ```bash
 set -euo pipefail
@@ -45,8 +45,11 @@ image="$(jq -ser --arg tag "$tag" --arg commit "$commit" '
   | .image.reference + "@" + .image.digest
 ' .tooling/published-release/release-manifest.json)"
 test -n "$image"
-sed -i '/^NOTESAPP_IMAGE=/d' .env
-printf 'NOTESAPP_IMAGE=%s\n' "$image" >> .env
+settings_file="$(mktemp .env.XXXXXX)"
+awk '!/^NOTESAPP_IMAGE=/' .env > "$settings_file"
+printf 'NOTESAPP_IMAGE=%s\n' "$image" >> "$settings_file"
+chmod 600 "$settings_file"
+mv "$settings_file" .env
 ```
 
 The checks stop on a different repository, tag, version, source commit, image
@@ -54,9 +57,8 @@ name, or invalid digest. If a check fails, do not start the application.
 Keep one `NOTESAPP_IMAGE` line in `.env`. Do not replace it with `latest` or
 `main`. Neither tag fixes a stable release.
 
-The selector shipped in 0.19.0 uses the GitHub CLI. Use the commands above for
-an anonymous 0.19.0 installation. The next release will include an anonymous
-`tools/ops/select-image.sh` that performs these checks and prints the image pin.
+The selector shipped with the selected release uses the GitHub CLI. Use the
+commands above for an anonymous installation.
 
 ## Pull and start
 

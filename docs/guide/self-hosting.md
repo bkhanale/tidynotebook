@@ -69,14 +69,13 @@ cd notesapp
 ```
 
 The repository is public. No GitHub account or registry login is required.
-Release 0.19.0 supports `linux/amd64`. The next stable release will also
-support native `linux/arm64`. See
+The selected release supports `linux/amd64`. See
 [Supported platforms](published-images.md#supported-platforms).
 
 Compose names the containers after this folder. The backup steps use the
 container name, so keep the folder name in your installation notes.
 
-The tag fixes the Compose files and operator scripts to release 0.19.0.
+The tag fixes the Compose files and operator scripts to the selected release.
 Use the matching pinned image in the steps below. Source builds belong to the
 [contributor path](../../CONTRIBUTING.md).
 

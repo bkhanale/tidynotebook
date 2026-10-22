@@ -14,8 +14,9 @@ that you need to keep.
 - Docker Engine and Docker Compose v2.
 - Git, Bash, `curl`, `jq`, `openssl`, and `sudo`.
 - A new clone. The setup script refuses an existing `.env` file.
-- A Linux `amd64` host for release 0.19.0. On macOS or Windows, use Docker
-  with Linux containers. An ARM host needs amd64 emulation for this release.
+- A Linux `amd64` host for the selected release. On macOS, use Docker with
+  Linux containers. On Windows, use WSL2 with Docker Linux containers and
+  the shell tools above. An ARM host needs amd64 emulation for this release.
   See [Supported platforms](published-images.md#supported-platforms).
 
 ## 1. Get the release files
@@ -96,8 +97,14 @@ rm .env
 
 ## Build from source
 
-Contributors can build a chosen source checkout with `docker compose build`
-and start it with `docker compose up -d --wait`. See
-[CONTRIBUTING.md](../../CONTRIBUTING.md) for the code setup and checks.
+Contributors can build a chosen source checkout. Override the stable image
+pin with a separate local image name for both commands:
+
+```bash
+NOTESAPP_IMAGE=notesapp-source:local docker compose build
+NOTESAPP_IMAGE=notesapp-source:local docker compose up -d --no-build --wait
+```
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the code setup and checks.
 
 For a server that holds real data, use [Self-hosting](self-hosting.md).
