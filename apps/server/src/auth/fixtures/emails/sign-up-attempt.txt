@@ -1,21 +1,20 @@
 Account notice
 
 You already have an account
+===========================
 
-Somebody asked for a new account on tidy notebook at notes.example.com with this address. The address already has an account, so nothing changed.
+Someone asked to create a new account on tidy notebook at notes.example.com with this email address. You already have an account, so nothing changed.
 
-To sign in, open the sign-in page. If you do not know your password, select Forgot password on that page.
+To sign in, open the sign-in page. If you don't know your password, select Forgot password.
 
 Sign in:
 https://notes.example.com/login
 
-If the link does not open, copy the address into your browser.
+If this wasn't you, you can ignore this email. Your account is safe.
 
-If you asked for the account yourself, you already have one. Otherwise, ignore this message.
+You're receiving this email because a sign-up used the email address of your existing account.
 
-You get this message because a sign-up on tidy notebook at notes.example.com used the address of your existing account.
-
-This message is automatic.
+This is an automated email, so replies aren't read.
 
 For help, contact your installation administrator.
 

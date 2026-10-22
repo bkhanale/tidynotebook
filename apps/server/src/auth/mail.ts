@@ -14,12 +14,23 @@
 import { createTransport } from 'nodemailer';
 import type { MailConfig, MailFields } from '../config.ts';
 
+/** An embedded PNG, referenced by its content ID rather than a remote URL. */
+export type MailInlineImage = {
+  readonly filename: string;
+  readonly cid: string;
+  readonly contentType: 'image/png';
+  readonly encoding: 'base64';
+  readonly contentDisposition: 'inline';
+  readonly content: string;
+};
+
 /** One message that the server sends. */
 export type MailMessage = {
   readonly to: string;
   readonly subject: string;
   readonly text: string;
   readonly html: string;
+  readonly inlineImages?: readonly MailInlineImage[];
 };
 
 /** Sends one message. */
@@ -184,6 +195,7 @@ export function envelopeOf(
   readonly text: string;
   readonly html: string;
   readonly headers: Readonly<Record<string, string>>;
+  readonly attachments?: MailInlineImage[];
 } {
   return {
     from,
@@ -192,6 +204,9 @@ export function envelopeOf(
     text: message.text,
     html: message.html,
     headers: automaticHeaders,
+    ...(message.inlineImages
+      ? { attachments: message.inlineImages.map((image) => ({ ...image })) }
+      : {}),
   };
 }
 

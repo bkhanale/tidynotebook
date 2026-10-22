@@ -243,7 +243,7 @@ await test('a reset link opens the application and replaces the password', async
   const notice = mailsTo(person.email).at(-1);
   assert.equal(
     notice?.subject,
-    'Your password on tidy notebook at 127.0.0.1 changed',
+    'Your password on tidy notebook at 127.0.0.1 was changed',
   );
   assert.ok(
     notice?.text.split('\n').includes('http://127.0.0.1/forgot-password'),

@@ -8,6 +8,10 @@ import {
 
 const hostile = `A <script>alert("x")</script> & 'value'`;
 const footer = {
+  attribution: hostile,
+  receipt: hostile,
+  supportIntro: hostile,
+  supportLabel: hostile,
   installationName: hostile,
   help: hostile,
   linkFallback: hostile,
@@ -88,4 +92,20 @@ await test('every instruction in HTML is also present in the text alternative', 
     ...Object.values(footer),
   ])
     assert.ok(value && message.text.includes(value));
+});
+
+await test('the layout includes client safeguards and clear plain text', () => {
+  const message = renderEmail({
+    origin: 'https://notes.example.test',
+    footer,
+    subject: 'Test',
+    content: { ...content, heading: 'Test heading' },
+  });
+  assert.match(message.text, /Test heading\n============/);
+  assert.match(message.html, /<v:roundrect/);
+  assert.match(message.html, /\[data-ogsc\]/);
+  assert.match(message.html, /\[data-ogsb\]/);
+  assert.match(message.html, /telephone=no,date=no,address=no,email=no/);
+  assert.doesNotMatch(message.html, /word-break:break-all/);
+  assert.equal((message.html.match(/&#847;&zwnj;&nbsp;/g) ?? []).length, 90);
 });

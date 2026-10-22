@@ -61,6 +61,7 @@ export function createAccountRemoval(
                 to: account.email,
                 origin: dependencies.origin,
                 days,
+                removalAt: account.removalAt,
                 portal: dependencies.portal,
               }),
             ),

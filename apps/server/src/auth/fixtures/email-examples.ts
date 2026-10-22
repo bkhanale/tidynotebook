@@ -17,6 +17,7 @@ export const emailExamples = [
       ...base,
       link: `${base.origin}/invitation#EXAMPLE-NOT-A-REAL-TOKEN`,
       lifetimeHours: 168,
+      inviterName: 'Alex Morgan',
     }),
   },
   {
@@ -41,7 +42,12 @@ export const emailExamples = [
   ...[30, 7].flatMap((days) =>
     [true, false].map((portal) => ({
       name: `removal-${String(days)}-${portal ? 'billing' : 'administrator'}`,
-      message: removalNoticeMessage({ ...base, days, portal }),
+      message: removalNoticeMessage({
+        ...base,
+        days,
+        portal,
+        removalAt: days === 7 ? '2026-10-30T00:30:00Z' : '2026-11-22T00:30:00Z',
+      }),
     })),
   ),
   {
@@ -53,11 +59,12 @@ export const emailExamples = [
   },
   {
     name: 'long-addresses',
-    message: passwordResetMessage({
+    message: invitationMessage({
       ...base,
       origin: `https://${'long-installation-name-'.repeat(2)}example.notes.example.com`,
-      link: `https://${'long-installation-name-'.repeat(2)}example.notes.example.com/reset-password#${'EXAMPLE-NOT-A-REAL-TOKEN-'.repeat(16)}`,
+      link: `https://${'long-installation-name-'.repeat(2)}example.notes.example.com/invitation#${'EXAMPLE-NOT-A-REAL-TOKEN-'.repeat(16)}`,
       supportUrl: `https://support.example.test/${'long-support-path/'.repeat(12)}`,
+      inviterName: 'Alexandra ' + 'Longname'.repeat(14),
       lifetimeHours: 1,
     }),
   },

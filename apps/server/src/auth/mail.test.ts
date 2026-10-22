@@ -212,5 +212,23 @@ await test('every email type reaches the wire with both alternatives', async () 
     const html = wire.indexOf('Content-Type: text/html');
     assert.ok(plain >= 0 && html > plain, name);
     assert.match(wire, /Auto-Submitted: auto-generated/, name);
+    assert.match(wire, /Content-Type: multipart\/related;/, name);
+    for (const appearance of ['light', 'dark']) {
+      assert.ok(
+        wire.includes(`Content-ID: <notebook-${appearance}@notesapp>`),
+        name,
+      );
+      assert.ok(
+        wire.includes(
+          `Content-Disposition: inline; filename=notebook-${appearance}.png`,
+        ),
+        name,
+      );
+    }
+    assert.equal(
+      (wire.match(/Content-Type: image\/png/g) ?? []).length,
+      2,
+      name,
+    );
   }
 });

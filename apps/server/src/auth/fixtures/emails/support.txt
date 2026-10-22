@@ -1,26 +1,24 @@
-Mail test
+Test email
 
-Your test message arrived
+Your test email arrived
+=======================
 
-This message checks the mail settings of tidy notebook at notes.example.com.
+This email checks the mail settings of tidy notebook at notes.example.com.
 
-It arrived, so invitations, sign-up links and password resets can reach a person too.
+Your mail settings work, so invitations and password resets will be delivered.
 
-This message has a formatted version and a plain text version. Check both in your mail application.
+This email has a formatted version and a plain text version. Check both in your mail application.
 
 Open your notebook:
 https://notes.example.com/
 
-If the link does not open, copy the address into your browser.
+If this email is in your spam folder, ask your mail administrator to check the sender settings.
 
-If this message is in your spam folder, ask your mail administrator to check the sender settings.
+You're receiving this email because an administrator requested a test email to this address.
 
-You get this message because an administrator asked tidy notebook at notes.example.com to send a mail test to this address.
-
-This message is automatic.
+This is an automated email, so replies aren't read.
 
 For help, contact support:
-
 https://support.example.test/help?from=email&topic=account
 
 -- 

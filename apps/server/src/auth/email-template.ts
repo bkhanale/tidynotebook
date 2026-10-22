@@ -1,5 +1,6 @@
 /** Shared HTML and plain text email layout (design 028, record 0232). */
 import { productName } from '@notesapp/core';
+import { emailLogoCids } from './email-logo.ts';
 
 /** A copy of the Default theme. An integration test checks both palettes. */
 export const emailPalettes = {
@@ -42,10 +43,15 @@ export type EmailContent = {
   readonly panel: string;
   readonly reason: string;
   readonly warning?: boolean;
+  readonly providerSupport?: boolean;
 };
 
 /** Shared footer words supplied by messages.ts. */
 export type EmailFooter = {
+  readonly attribution: string;
+  readonly receipt: string;
+  readonly supportIntro: string;
+  readonly supportLabel: string;
   readonly installationName: string;
   readonly help: string;
   readonly linkFallback: string;
@@ -109,44 +115,78 @@ export function renderEmail(input: {
   const text =
     [
       c.label,
-      c.heading,
+      `${c.heading}\n${'='.repeat(c.heading.length)}`,
       ...c.paragraphs,
       `${c.action.label}:\n${url}`,
       ...(c.lifetime ? [c.lifetime] : []),
-      footer.linkFallback,
       c.panel,
-      c.reason,
+      footer.receipt,
       footer.automatic,
-      help,
-      ...(supportUrl ? [supportUrl] : []),
+      supportUrl
+        ? `${footer.supportIntro}${footer.supportLabel}:\n${supportUrl}`
+        : help,
       `-- \n${name}`,
     ].join('\n\n') + '\n';
+  const darkRules = [
+    ['.page', `background-color:${dark.surface}`],
+    [
+      '.card',
+      `background-color:${dark.surfaceCard};border-color:${dark.borderSubtle}`,
+    ],
+    ['.text,.url', `color:${dark.text}`],
+    ['.strong', `color:${dark.textStrong}`],
+    ['.muted,.label', `color:${dark.textMuted}`],
+    ['.warning', `color:${dark.dangerText}`],
+    ['.link', `color:${dark.accentText}`],
+    ['.button-cell', `background-color:${dark.accentFill}`],
+    ['.button-link', `color:${dark.accentOnFill}`],
+    ['.panel', `background-color:${dark.surfaceHover}`],
+    ['.logo-light', 'display:none'],
+    ['.logo-dark', 'display:block'],
+  ] as const;
+  const darkCss = (prefix = '') =>
+    darkRules
+      .map(
+        ([selectors, declarations]) =>
+          `${selectors
+            .split(',')
+            .map((selector) => `${prefix}${selector}`)
+            .join(
+              ',',
+            )}{${declarations.split(';').join('!important;')}!important}`,
+      )
+      .join('');
+  const buttonWidth = Math.min(
+    440,
+    Math.max(180, c.action.label.length * 9 + 44),
+  );
   const html = `<!doctype html>
-<html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><meta name="x-apple-disable-message-reformatting"><title>${e(input.subject)}</title>
+<html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><meta name="x-apple-disable-message-reformatting"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no"><title>${e(input.subject)}</title>
 <style>
 :root{color-scheme:light dark;supported-color-schemes:light dark}
 body{margin:0;padding:0;width:100%!important}a{text-decoration:underline}a:focus{outline:2px solid ${light.accentText};outline-offset:3px}
 @media(max-width:620px){.shell{padding:20px 12px!important}.card{padding:24px 20px!important}.brand-row{padding:0 4px 16px!important}.foot{padding:20px 4px!important}.button-table{width:100%!important}.button-link{display:block!important;text-align:center!important}}
-@media(prefers-color-scheme:dark){.page{background-color:${dark.surface}!important}.card{background-color:${dark.surfaceCard}!important;border-color:${dark.borderSubtle}!important}.text,.url{color:${dark.text}!important}.strong{color:${dark.textStrong}!important}.muted,.label{color:${dark.textMuted}!important}.warning{color:${dark.dangerText}!important}.link{color:${dark.accentText}!important}.tile,.button-cell{background-color:${dark.accentFill}!important}.tile,.button-link{color:${dark.accentOnFill}!important}.panel{background-color:${dark.surfaceHover}!important}}
-</style></head>
+ .logo-dark{display:none}
+@media(prefers-color-scheme:dark){${darkCss()}}
+${darkCss('[data-ogsc] ')}${darkCss('[data-ogsb] ')}
+</style><!--[if mso]><style>body,table,td,p,a,h1{font-family:Arial,sans-serif!important}</style><![endif]--></head>
 <body class="page" bgcolor="${light.surface}" style="margin:0;padding:0;background-color:${light.surface}">
-<div aria-hidden="true" style="display:none;max-height:0;overflow:hidden;mso-hide:all">${e(c.preview)}</div>
+<div aria-hidden="true" style="display:none;max-height:0;overflow:hidden;mso-hide:all">${e(c.preview)}${'&#847;&zwnj;&nbsp;'.repeat(90)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="page" bgcolor="${light.surface}" style="background-color:${light.surface};table-layout:fixed"><tr><td align="center" class="shell" style="padding:32px 12px">
 <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;table-layout:fixed">
-<tr><td class="brand-row" style="padding:0 4px 16px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td aria-hidden="true" class="tile" width="32" height="32" align="center" bgcolor="${light.accentFill}" style="width:32px;height:32px;border-radius:8px;background-color:${light.accentFill};color:${light.accentOnFill};${font}font-size:16px;line-height:32px;font-weight:700">tn</td><td class="strong" style="padding-left:10px;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.textStrong}">${e(productName)}</td></tr></table></td></tr>
+<tr><td class="brand-row" style="padding:0 4px 16px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="32" height="32" style="width:32px;height:32px"><img class="logo-light" src="cid:${emailLogoCids.light}" alt="${e(productName)}" width="32" height="32" style="display:block;border:0;width:32px;height:32px"><!--[if !mso]><!--><img class="logo-dark" src="cid:${emailLogoCids.dark}" alt="${e(productName)}" width="32" height="32" style="display:none;border:0;width:32px;height:32px;mso-hide:all"><!--<![endif]--></td><td class="strong" style="padding-left:10px;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.textStrong}">${e(productName)}</td></tr></table></td></tr>
 <tr><td class="card" bgcolor="${light.surfaceCard}" style="padding:32px;background-color:${light.surfaceCard};border:1px solid ${light.borderSubtle};border-radius:12px;overflow-wrap:anywhere;word-wrap:break-word">
-<p class="label${c.warning ? ' warning' : ''}" style="margin:0 0 8px;${font}font-size:16px;line-height:24px;font-weight:600;color:${c.warning ? light.dangerText : light.textMuted}">${e(c.label)}</p>
+<p class="label${c.warning ? ' warning' : ''}" style="margin:0 0 6px;${font}font-size:13px;line-height:18px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;color:${c.warning ? light.dangerText : light.textMuted}">${e(c.label)}</p>
 <h1 class="strong" style="margin:0 0 16px;${font}font-size:24px;line-height:31px;font-weight:700;color:${light.textStrong}">${e(c.heading)}</h1>
 ${c.paragraphs.map((p) => paragraph(p)).join('')}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="button-table" style="margin:24px 0 0"><tr><td class="button-cell" align="center" bgcolor="${light.accentFill}" style="background-color:${light.accentFill};border-radius:8px;mso-padding-alt:12px 22px"><a class="button-link" href="${e(url)}" style="display:inline-block;padding:12px 22px;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.accentOnFill};text-decoration:none;border-radius:8px;mso-padding-alt:0">${e(c.action.label)}</a></td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="button-table" style="margin:24px 0 0"><tr><td class="button-cell" align="center" bgcolor="${light.accentFill}" style="background-color:${light.accentFill};border-radius:8px;mso-padding-alt:0"><!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${e(url)}" style="height:48px;v-text-anchor:middle;width:${buttonWidth}px" arcsize="17%" stroke="f" fillcolor="${light.accentFill}"><w:anchorlock/><center style="font-family:Arial,sans-serif;font-size:16px;font-weight:600;color:${light.accentOnFill}">${e(c.action.label)}</center></v:roundrect><![endif]--><!--[if !mso]><!--><a class="button-link" href="${e(url)}" style="display:inline-block;padding:12px 22px;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.accentOnFill};text-decoration:none;border-radius:8px;mso-padding-alt:0">${e(c.action.label)}</a><!--<![endif]--></td></tr></table>
 ${c.lifetime ? paragraph(c.lifetime, 'muted', 'margin:12px 0 0;') : ''}
 ${paragraph(footer.linkFallback, 'muted', 'margin:20px 0 4px;')}
-<p class="url" style="margin:0;${font}font-size:16px;line-height:25px;color:${light.text};word-break:break-all;overflow-wrap:anywhere"><a class="link" href="${e(url)}" style="color:${light.accentText};text-decoration:underline">${e(url)}</a></p>
+<p class="url" style="margin:0;${font}font-size:14px;line-height:20px;color:${light.text};word-break:break-word;overflow-wrap:anywhere"><a class="link" href="${e(url)}" style="color:${light.accentText};text-decoration:underline">${e(url)}</a></p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;table-layout:fixed"><tr><td class="panel" bgcolor="${light.surfaceHover}" style="padding:16px;border-radius:8px;background-color:${light.surfaceHover}">${paragraph(c.panel, 'muted', 'margin:0;')}</td></tr></table>
 </td></tr><tr><td class="foot" style="padding:20px 4px;overflow-wrap:anywhere;word-break:break-word">
-${paragraph(name, 'muted', 'margin:0 0 8px;')}${paragraph(`${c.reason} ${footer.automatic}`, 'muted', 'margin:0 0 8px;')}
-${paragraph(help, 'muted', 'margin:0;')}${supportUrl ? `<p style="margin:4px 0 0;${font}font-size:16px;line-height:25px;word-break:break-all;overflow-wrap:anywhere"><a class="link" href="${e(supportUrl)}" style="color:${light.accentText}">${e(supportUrl)}</a></p>` : ''}
+<p class="muted" style="margin:0;${font}font-size:13px;line-height:20px;color:${light.textMuted}">${e(footer.attribution)} ${e(footer.automatic)} ${supportUrl ? `${e(footer.supportIntro)}<a class="link" href="${e(supportUrl)}" style="color:${light.accentText}">${e(footer.supportLabel)}</a>.` : e(help)}</p>
 </td></tr></table><!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table></body></html>`;
   return { html, text };

@@ -417,6 +417,7 @@ export function createAdministrationHandlers(
       );
       if (transport !== null)
         await mailInvitation(transport, {
+          inviterName: resolved.name,
           origin: dependencies.origin,
           email,
           link: issued.link,

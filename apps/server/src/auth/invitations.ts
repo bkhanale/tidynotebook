@@ -60,11 +60,13 @@ export async function mailInvitation(
     readonly email: string;
     readonly link: string;
     readonly lifetimeHours: number;
+    readonly inviterName?: string | null;
   },
 ): Promise<void> {
   await mail.send(
     invitationMessage({
       to: input.email,
+      inviterName: input.inviterName ?? null,
       supportUrl: mail.supportUrl ?? null,
       origin: input.origin,
       link: input.link,

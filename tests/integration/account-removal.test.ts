@@ -146,7 +146,8 @@ await test('the run removes a locked account past its time and never an active o
 
 await test('a mail goes 30 days and 7 days before the removal, and never twice', async () => {
   const person = await account();
-  await control(person.accountId, 'locked', new Date(Date.now() + 20 * day));
+  const removalAt = new Date(Date.now() + 20 * day);
+  await control(person.accountId, 'locked', removalAt);
   const mailer = capture();
   const run = createAccountRemoval({
     store: identity,
@@ -158,8 +159,17 @@ await test('a mail goes 30 days and 7 days before the removal, and never twice',
   await run();
   const first = mailer.sent.filter((message) => message.to === person.email);
   assert.equal(first.length, 1);
-  assert.match(first[0]?.subject ?? '', /is deleted in 20 days$/);
-  assert.match(first[0]?.text ?? '', /ask the administrator/);
+  assert.match(first[0]?.subject ?? '', /will be deleted in 20 days$/);
+  assert.match(first[0]?.text ?? '', /ask your administrator/);
+  const scheduledDate = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(removalAt);
+  assert.ok(
+    first[0]?.text.includes(`Your account will be deleted on ${scheduledDate}`),
+  );
   await run();
   assert.equal(
     mailer.sent.filter((message) => message.to === person.email).length,
@@ -169,7 +179,7 @@ await test('a mail goes 30 days and 7 days before the removal, and never twice',
   await run(new Date(Date.now() + 14 * day));
   const second = mailer.sent.filter((message) => message.to === person.email);
   assert.equal(second.length, 2);
-  assert.match(second[1]?.subject ?? '', /is deleted in 6 days$/);
+  assert.match(second[1]?.subject ?? '', /will be deleted in 6 days$/);
   await run(new Date(Date.now() + 15 * day));
   assert.equal(
     mailer.sent.filter((message) => message.to === person.email).length,

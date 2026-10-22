@@ -11,6 +11,7 @@ import {
   verificationMessage,
 } from './messages.ts';
 
+const removalAt = '2026-10-30T23:30:00-02:00';
 const origin = 'https://notes.example.com';
 const link = 'https://notes.example.com/page#secret-token';
 
@@ -20,7 +21,13 @@ const messages = [
   signUpAttemptMessage({ to: 'a@example.com', origin }),
   passwordResetMessage({ to: 'a@example.com', origin, link, lifetimeHours: 1 }),
   passwordChangedMessage({ to: 'a@example.com', origin }),
-  removalNoticeMessage({ to: 'a@example.com', origin, days: 30, portal: true }),
+  removalNoticeMessage({
+    to: 'a@example.com',
+    origin,
+    removalAt,
+    days: 30,
+    portal: true,
+  }),
 ];
 
 await test('a life in hours reads as a whole phrase with its count', () => {
@@ -75,33 +82,36 @@ await test('the mail before a removal names the time, the way to keep the accoun
   const thirty = removalNoticeMessage({
     to: 'a@example.com',
     origin,
+    removalAt,
     days: 30,
     portal: true,
   });
   assert.equal(
     thirty.subject,
-    'Your account on tidy notebook at notes.example.com is deleted in 30 days',
+    'Your account on tidy notebook at notes.example.com will be deleted in 30 days',
   );
-  assert.match(thirty.text, /In 30 days, the account and every note/);
-  assert.match(thirty.text, /open billing/);
+  assert.match(thirty.text, /On 31 October 2026 the account and all its notes/);
+  assert.match(thirty.text, /open Billing/);
   assert.ok(thirty.text.split('\n').includes(`${origin}/login`));
-  assert.match(thirty.text, /select Export my notes/);
+  assert.match(thirty.text, /select Export all notes/);
   const seven = removalNoticeMessage({
     to: 'a@example.com',
     origin,
+    removalAt,
     days: 7,
     portal: false,
   });
-  assert.match(seven.subject, /is deleted in 7 days$/);
-  assert.match(seven.text, /ask the administrator/);
+  assert.match(seven.subject, /will be deleted in 7 days$/);
+  assert.match(seven.text, /ask your administrator/);
   assert.doesNotMatch(seven.text, /billing|portal/);
   const one = removalNoticeMessage({
     to: 'a@example.com',
     origin,
+    removalAt,
     days: 1,
     portal: false,
   });
-  assert.match(one.subject, /is deleted in 1 day$/);
+  assert.match(one.subject, /will be deleted in 1 day$/);
 });
 
 await test('every email matches its HTML and text golden files', async () => {
@@ -126,11 +136,15 @@ await test('every email matches its HTML and text golden files', async () => {
     );
     assert.match(message.html, /<html lang="en"/);
     assert.equal((message.html.match(/<h1\b/g) ?? []).length, 1, name);
-    assert.doesNotMatch(message.html, /<img\b|<script\b|<link\b|url\(/i);
-    assert.match(message.text, /This message is automatic\./);
-    assert.match(
-      message.text,
-      /If the link does not open, copy the address into your browser\./,
+    assert.doesNotMatch(message.html, /<script\b|<link\b|url\(/i);
+    assert.match(message.text, /This is an automated email/);
+    assert.doesNotMatch(message.text, /Button not working|this page/);
+    assert.match(message.html, /src="cid:notebook-light@notesapp"/);
+    assert.match(message.html, /src="cid:notebook-dark@notesapp"/);
+    assert.equal(message.inlineImages?.length, 2);
+    assert.deepEqual(
+      [...message.html.matchAll(/src="([^"]+)"/g)].map((match) => match[1]),
+      ['cid:notebook-light@notesapp', 'cid:notebook-dark@notesapp'],
     );
     assert.match(message.text, /For help, contact/);
     const links = [...message.html.matchAll(/href="([^"]+)"/g)];
@@ -143,4 +157,44 @@ await test('every email matches its HTML and text golden files', async () => {
       );
     }
   }
+});
+
+await test('an available inviter name is escaped and an empty name uses the general invitation', () => {
+  const named = invitationMessage({
+    to: 'a@example.test',
+    origin,
+    link,
+    lifetimeHours: 24,
+    inviterName: '<img src=x onerror=alert(1)> & Alex',
+  });
+  assert.doesNotMatch(named.html, /<img src=x/);
+  assert.match(named.html, /&lt;img src=x onerror=alert\(1\)&gt; &amp; Alex/);
+  assert.match(named.text, /<img src=x onerror=alert\(1\)> & Alex invited you/);
+  const unnamed = invitationMessage({
+    to: 'a@example.test',
+    origin,
+    link,
+    lifetimeHours: 24,
+    inviterName: '   ',
+  });
+  assert.match(unnamed.text, /You're invited to create an account/);
+});
+
+await test('billing removal support uses the configured URL or the provider fallback', () => {
+  const base = {
+    to: 'a@example.test',
+    origin,
+    days: 7,
+    removalAt,
+    portal: true,
+  };
+  const fallback = removalNoticeMessage(base);
+  assert.match(fallback.text, /For help, contact support at your provider/);
+  assert.doesNotMatch(fallback.html, /installation administrator/);
+  const supportUrl =
+    'https://support.example.test/help?topic=account&from=email';
+  const configured = removalNoticeMessage({ ...base, supportUrl });
+  assert.match(configured.html, />contact support<\/a>/);
+  assert.doesNotMatch(configured.html, />https:\/\/support/);
+  assert.ok(configured.text.split('\n').includes(supportUrl));
 });

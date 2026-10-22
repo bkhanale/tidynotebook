@@ -93,7 +93,7 @@ text and stay out of this design.
    no client. It does not give a clear action or a visual hierarchy.
 2. Send `multipart/alternative`: the plain text part first, then one HTML part
    with inline styles, written by the same function from the same words. No
-   image, no web font, no remote file. This is the recommendation.
+   remote image, no web font, no remote file. This is the accepted approach.
 3. Use a mail template library. It adds a dependency and a build step for
    seven short messages, and the output still needs the same review.
 
@@ -101,17 +101,18 @@ text and stay out of this design.
 
 The email mockups predate the official notebook logo change in record 0230.
 
-One column on the surface colour of the Default theme. A small notebook tile and
+One column on the surface colour of the Default theme. The official notebook mark and
 the name sit above one card. The card holds a short label, one heading, the
 paragraphs, one button, the time that the link works, the full address of the
 link as text, and one quiet panel that says what to do if the person did not
 ask. A foot names the installation, says why the person gets the message, and
 says that the message is automatic. A message has at most one button.
 
-The tile is text in a coloured table cell, not a picture, so a client that
-blocks pictures shows the same message. Tables carry the layout, so the
-classic Outlook for Windows draws it. The button is a link inside a coloured
-cell, so it works with no script and no picture.
+The official mark uses inline CID PNG attachments for light and dark mode,
+with alt text and the wordmark beside it. No remote image loads. Tables carry
+the layout. Classic Outlook for Windows gets a VML button and Arial fallback.
+Other clients get a link inside a coloured cell. The button needs no script
+or picture. Record 0232 records the approved review changes.
 
 ### Colours and type
 
@@ -148,7 +149,8 @@ approval.
 ### Accessibility
 
 - The HTML part has `lang`, one `h1`, presentation tables, and text of at least
-  the body size.
+  16 px in the body. Labels and the footer use 13 px; the visible action
+  address uses 14 px, as approved in record 0232.
 - Every action is a link with its words, and the full address is also there as
   text that a person can read and copy.
 - Each colour pair meets the contrast rule of the theme registry, because
@@ -170,8 +172,9 @@ of what a person can do. That list names only behaviour that the product has
 today and that `docs/guide/` states: Markdown, offline drafts, and version
 history.
 
-Each subject stays as it is now, except that it names the installation as
-`tidy notebook at host` in each one. Each message gains a label, a heading and
+Each subject names the installation as `tidy notebook at host`. Removal
+subjects state the remaining days, and their headings show the real scheduled
+date in UTC. Each message gains a label, a heading and
 a preview line. The test message also says that it has two parts, so an
 administrator checks both.
 
@@ -350,7 +353,8 @@ Email:
 
 - Every message of the core has an HTML part and a plain text part, written by
   one function from one value.
-- The HTML part holds no `img`, no remote `link`, no remote `url()`, no
+- The HTML part uses only the official notebook mark as inline CID images.
+  It holds no remote `img`, no remote `link`, no remote `url()`, no
   script and no action address that is not of the installation. The configured support
   address is the only link that can be outside it. A unit test proves
   this for each message.
@@ -399,7 +403,7 @@ Link previews:
   keep its text. The first scope does not change this.
 - A service can treat the root `og:url` as the canonical address and send a
   click to the root. The owner checks this after the deployment.
-- Spam filters read HTML. A message with no image, no tracking and one link of
+- Spam filters read HTML. A message with no remote image, no tracking and one link of
   its own origin keeps a small risk. The test message lets an administrator
   check it.
 

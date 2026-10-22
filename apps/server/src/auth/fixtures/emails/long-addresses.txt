@@ -1,26 +1,26 @@
-Password reset
+Invitation
 
-Reset your password
+You're invited to tidy notebook
+===============================
 
-Somebody asked to reset the password of your account on tidy notebook at long-installation-name-long-installation-name-example.notes.example.com.
+Alexandra LongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongname invited you to create an account on tidy notebook at long-installation-name-long-installation-name-example.notes.example.com.
 
-Choose a new password with the link below. This link is for you. Do not share it.
+Write in Markdown, keep drafts offline, and use version history to return to earlier work.
 
-Choose a new password:
-https://long-installation-name-long-installation-name-example.notes.example.com/reset-password#EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-
+Choose a password to accept your invitation. This link is for you. Do not share it.
+
+Accept invitation:
+https://long-installation-name-long-installation-name-example.notes.example.com/invitation#EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-
 
 The link works once, for 1 hour.
 
-If the link does not open, copy the address into your browser.
+If you don't want an account, you can ignore this email.
 
-If you did not ask for a new password, ignore this message. Your password does not change.
+You're receiving this email because Alexandra LongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongnameLongname invited you to create an account.
 
-You get this message because somebody asked for a password reset on tidy notebook at long-installation-name-long-installation-name-example.notes.example.com.
-
-This message is automatic.
+This is an automated email, so replies aren't read.
 
 For help, contact support:
-
 https://support.example.test/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/
 
 -- 

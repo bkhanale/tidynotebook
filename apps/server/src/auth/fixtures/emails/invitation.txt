@@ -1,8 +1,9 @@
 Invitation
 
-Your notebook is ready to start
+You're invited to tidy notebook
+===============================
 
-You have an invitation to make an account on tidy notebook at notes.example.com.
+Alex Morgan invited you to create an account on tidy notebook at notes.example.com.
 
 Write in Markdown, keep drafts offline, and use version history to return to earlier work.
 
@@ -13,13 +14,11 @@ https://notes.example.com/invitation#EXAMPLE-NOT-A-REAL-TOKEN
 
 The link works once, for 7 days.
 
-If the link does not open, copy the address into your browser.
+If you don't want an account, you can ignore this email.
 
-If you do not want an account, ignore this message.
+You're receiving this email because Alex Morgan invited you to create an account.
 
-You get this message because an administrator invited this address to tidy notebook at notes.example.com.
-
-This message is automatic.
+This is an automated email, so replies aren't read.
 
 For help, contact your installation administrator.
 
