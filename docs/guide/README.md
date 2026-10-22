@@ -4,10 +4,11 @@ This page is for anyone who uses tidy notebook or runs it on their own server.
 Pick the group that fits your task.
 
 tidy notebook is a self-hosted Markdown notes application for you and the
-people you invite. Each account has its own notes. A note is a Markdown file in
-a folder that you choose. When you type, the application writes a draft on your
-device. When you save, it creates one version on your server. History keeps
-every version.
+people you invite. Each account has its own notes. Write in Markdown and
+organize notes in folders. Export your notes as ordinary Markdown files. Live
+notes and history are stored in PostgreSQL. Images use local or object storage.
+When you type, the application writes a draft on your device. A pause in typing
+or a manual save creates a version on your server. History keeps each version.
 
 ## Writing notes
 

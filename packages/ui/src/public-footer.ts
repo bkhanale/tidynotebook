@@ -147,7 +147,7 @@ export function publicFooterTree({
             'tidy notebook',
           ],
         ),
-        node('p', {}, ['Open source. Plain Markdown files.']),
+        node('p', {}, ['Open source. Write in Markdown. Export your notes.']),
         node('p', {}, ['© 2026 tidy notebook']),
       ]),
       ...columns.map((column, index) =>
