@@ -131,6 +131,6 @@ tidy notebook is available under the
 You can use, change and share it. When you run a changed copy as a service for
 other people, you must offer them the source of your copy.
 
-A contribution comes in under the same license, with a sign-off on each commit
-and no contributor license agreement. See
-[CONTRIBUTING.md](CONTRIBUTING.md#license-and-sign-off).
+Contributions use the same license. There is no contributor license agreement
+or required commit sign-off. See
+[CONTRIBUTING.md](CONTRIBUTING.md#license).
