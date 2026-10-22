@@ -187,7 +187,8 @@ await test('the wire message has text first and HTML second, with automatic head
   const sent = await transport.sendMail(
     envelopeOf('sender@example.test', message),
   );
-  const wire = String(sent.message);
+  assert.ok(Buffer.isBuffer(sent.message));
+  const wire = sent.message.toString('utf8');
   assert.match(wire, /Content-Type: multipart\/alternative;/);
   assert.match(wire, /Auto-Submitted: auto-generated/);
   assert.ok(
@@ -204,7 +205,8 @@ await test('every email type reaches the wire with both alternatives', async () 
     const sent = await transport.sendMail(
       envelopeOf('sender@example.test', example),
     );
-    const wire = String(sent.message);
+    assert.ok(Buffer.isBuffer(sent.message));
+    const wire = sent.message.toString('utf8');
     assert.match(wire, /Content-Type: multipart\/alternative;/, name);
     const plain = wire.indexOf('Content-Type: text/plain');
     const html = wire.indexOf('Content-Type: text/html');
