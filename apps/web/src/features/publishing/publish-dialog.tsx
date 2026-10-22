@@ -174,7 +174,7 @@ export function PublishDialog({
       {address === '' ? (
         <>
           <DialogBody>
-            <div className="space-y-3" id={scopeId}>
+            <div className="flex flex-col gap-3" id={scopeId}>
               {sentences.map((sentence) => (
                 <p className="m-0 text-control text-muted" key={sentence}>
                   {sentence}
