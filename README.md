@@ -7,6 +7,10 @@ can invite other people. Each account has its own notes.
 Write in Markdown. Export your notes as ordinary Markdown files. Live notes
 and history are stored in PostgreSQL. Images use local or object storage.
 
+![The tidy notebook editor in light mode, with note folders, a travel checklist, and a table.](docs/assets/editor-light.png)
+
+[Product website](https://tidynotebook.com) · [Hosted guide](https://docs.tidynotebook.com)
+
 **Status:** 0.19.0 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
 [Open issues](https://github.com/tidynotebook/tidynotebook/issues) for the
