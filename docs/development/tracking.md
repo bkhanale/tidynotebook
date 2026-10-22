@@ -8,9 +8,9 @@ This page states where to find open work and what each issue contains.
 open work. The list order does not define priority. Use milestones and labels
 to find the intended release, priority, and area.
 
-The repository keeps no separate release work list. The earlier tracking
-decision is recorded in
-[0027, track work on the GitHub board](../decisions/0027-track-work-on-the-github-board.md).
+The repository keeps no separate release work list.
+[Decision 0232](../decisions/0232-public-issues-are-the-work-entry-point.md)
+states the public entry point and replaces the earlier board guidance.
 
 ## Issue details
 

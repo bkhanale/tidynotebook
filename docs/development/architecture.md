@@ -1,9 +1,9 @@
 # Architecture
 
-Notes are written in Markdown and exported as ordinary Markdown files.
+Notes use Markdown. Export creates ordinary Markdown files and includes images.
 Live notes and history use PostgreSQL. Images use local or object storage.
-Typing writes a device draft. A pause or manual save creates a server version.
-Markdown export includes images. It does not include history.
+Typing writes a device draft. A pause or manual save queues a local version.
+Synchronization creates the server version. Export does not include history.
 
 ## Apps and packages
 

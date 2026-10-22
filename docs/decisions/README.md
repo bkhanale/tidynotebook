@@ -257,6 +257,7 @@ the development process. Old process records remain as history.
 | [0229](0229-incremental-mcp-edits-use-exact-document-ranges.md)                       | Incremental MCP edits use exact document ranges                                 |
 | [0230](0230-the-notebook-is-the-official-mark.md)                                     | The notebook is the official mark                                               |
 | [0231](0231-hosted-ci-checks-each-push.md)                                            | Hosted CI checks each push                                                      |
+| [0232](0232-public-issues-are-the-work-entry-point.md)                                | Public issues are the work entry point                                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
