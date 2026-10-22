@@ -168,7 +168,7 @@ One directory per audit date, `audits/YYYY-MM-DD/`.
 **Belongs:** findings with their file and line evidence.
 
 **Does not belong:** a fix. A finding becomes an issue on the
-[GitHub project board](https://github.com/users/bkhanale/projects/2). See
+[Open issues](https://github.com/tidynotebook/tidynotebook/issues). See
 [development/tracking.md](development/tracking.md).
 
 **Header:** the title line, then a date and the commit that was read, both
@@ -187,7 +187,7 @@ item answers.
 **Does not belong:** the argument that chose the approach. That is the design.
 
 **Header:** the title line, then the status line, then the pointer to the
-[GitHub project board](https://github.com/users/bkhanale/projects/2). A
+[Open issues](https://github.com/tidynotebook/tidynotebook/issues). A
 `## Decisions` heading links into `decisions/`.
 
 **Tone:** structured and minimal, like a decision record. An agent reads a plan

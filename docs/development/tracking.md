@@ -1,25 +1,24 @@
 # Work tracking
 
-This page states where the open work of the product lives and how a row is
-shaped.
+This page states where to find open work and what each issue contains.
 
-## The board is the one list
+## Open issues
 
-The [GitHub project board](https://github.com/users/bkhanale/projects/2) is the
-single prioritized list of open work. The owner orders the rows. A row near the
-top is more important than a row below it.
+[Open issues](https://github.com/tidynotebook/tidynotebook/issues) lists the
+open work. The list order does not define priority. Use milestones and labels
+to find the intended release, priority, and area.
 
-The board replaces the release lists that this repository used to hold. It
-holds no release list now. See
+The repository keeps no separate release work list. The earlier tracking
+decision is recorded in
 [0027, track work on the GitHub board](../decisions/0027-track-work-on-the-github-board.md).
 
-## The shape of a row
+## Issue details
 
-Each row on the board is a GitHub issue. Each issue carries three fields:
+Each issue carries three fields:
 
-- A milestone, which names the release that the work ships in.
-- A priority label, which sets the order of the work.
-- An area label, which names the part of the product that the work touches.
+- A milestone, which names the intended release.
+- A priority label, which states the priority of the work.
+- An area label, which names the part of the product that the work changes.
 
 The issue body states the problem and the evidence. It points at code by path.
 It does not copy source.
