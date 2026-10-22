@@ -16,8 +16,8 @@ END $$;
 --> statement-breakpoint
 CREATE POLICY workspace_welcome_notes_account_owner ON public.workspace_welcome_notes
   FOR ALL TO notesapp_app
-  USING (public.notesapp_workspace_owner(workspace_id) = public.notesapp_current_account())
-  WITH CHECK (public.notesapp_workspace_owner(workspace_id) = public.notesapp_current_account());
+  USING (public.notesapp_member_role(workspace_id) = 'owner')
+  WITH CHECK (public.notesapp_member_role(workspace_id) = 'owner');
 --> statement-breakpoint
 GRANT SELECT, UPDATE ON public.workspace_welcome_notes TO notesapp_app;
 --> statement-breakpoint

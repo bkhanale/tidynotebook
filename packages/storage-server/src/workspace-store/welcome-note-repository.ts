@@ -11,8 +11,9 @@ export async function pendingWelcomeNote(
     `select exists (
        select 1 from workspace_welcome_notes n
        join workspaces w on w.id = n.workspace_id and w.personal
+       join memberships m on m.workspace_id = w.id and m.role = 'owner'
        where n.workspace_id = $1 and n.completed_at is null
-         and public.notesapp_workspace_owner(w.id) = $2
+         and m.account_id = $2
      ) as pending`,
     [context.workspaceId, context.actor.accountId],
   );

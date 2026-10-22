@@ -50,9 +50,16 @@ for (const scenario of [
     const database = await createDisposableDatabase();
     const directory = await mkdtemp(join(tmpdir(), 'notesapp-welcome-'));
     const session = await openSession(database.migrationUrl);
+    let app: Awaited<ReturnType<typeof createApp>> | undefined;
+    t.after(async () => {
+      await app?.close();
+      await session.close();
+      await database.destroy();
+      await rm(directory, { recursive: true, force: true });
+    });
     const operatorToken = randomUUID();
     const sent: MailMessage[] = [];
-    const app = await createApp(
+    app = await createApp(
       loadServerConfig({
         NOTESAPP_ORIGIN: origin.origin,
         NOTESAPP_DATABASE_URL: database.runtimeUrl,
@@ -60,11 +67,13 @@ for (const scenario of [
         NOTESAPP_STORAGE_ROOT: directory,
         NOTESAPP_AUTH_SECRET: 'welcome-note-test-secret-123456789',
         NOTESAPP_NEW_ACCOUNT_STANDING: standing,
-        NOTESAPP_REGISTRATION_POLICY: 'open',
         NOTESAPP_OPERATOR_TOKEN: operatorToken,
         NOTESAPP_SIGNUP_DIFFICULTY: '8',
         NOTESAPP_BREACH_CHECK: 'off',
         NOTESAPP_LOG_LEVEL: 'silent',
+        NOTESAPP_MAX_BODY_BYTES: '1048576',
+        NOTESAPP_MAX_HEADER_BYTES: '16384',
+        NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
         NOTESAPP_RATE_LIMIT_MAX: '10000',
       }),
       {
@@ -76,12 +85,6 @@ for (const scenario of [
         },
       },
     );
-    t.after(async () => {
-      await app.close();
-      await session.close();
-      await database.destroy();
-      await rm(directory, { recursive: true, force: true });
-    });
     await app.listen({ host: '127.0.0.1', port: 0 });
     const address = app.server.address();
     assert.ok(address !== null && typeof address !== 'string');
@@ -91,6 +94,9 @@ for (const scenario of [
       body: { email: 'owner@notes.invalid', password },
     });
     assert.equal(owner.error, undefined);
+    await session.query(
+      "update installation_settings set registration_policy = 'open'",
+    );
 
     const email = `welcome-${randomUUID()}@notes.invalid`;
     const challenge = await getSignUpChallenge({ headers: origin });
