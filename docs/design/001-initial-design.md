@@ -44,7 +44,7 @@ Use stable releases checked on 2026-09-05. Pin direct dependencies and the packa
 
 | Area | Selected version or package | Responsibility |
 | --- | --- | --- |
-| Runtime | Node.js 26.12.1 | Application and server tests. This is the Current release line. |
+| Runtime | Node.js 26.8.1 | Application and server tests. This is the Current release line. |
 | Language | TypeScript 7.0.2 | Strict application compilation and type checks. |
 | Package manager | pnpm 12.3.4 | Workspace dependencies and reproducible installs. |
 | Web | React and React DOM 19.2.8, Vite 8.2.2, React Router 8.3.1 | Application shell and navigation. |

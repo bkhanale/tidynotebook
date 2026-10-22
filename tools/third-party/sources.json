@@ -152,7 +152,7 @@
   },
   {
     "file": "docker-node.txt",
-    "url": "https://raw.githubusercontent.com/nodejs/docker-node/feeba252e1e8bec14470f5ee8f9be7fce65bf935/LICENSE",
+    "url": "https://raw.githubusercontent.com/nodejs/docker-node/80f02a542da739e6a662451d1db66456a0dea253/LICENSE",
     "sha256": "782e17d54343aa3f6db60430015692b6540089b3ec5b78274981ada2d3c3c423"
   },
   {
