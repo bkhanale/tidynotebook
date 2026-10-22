@@ -21,7 +21,11 @@ import {
   lockedAccountKeeps,
 } from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
-import { findChannel, findOperation } from '@notesapp/api-contract';
+import {
+  findChannel,
+  findOperation,
+  requestValidator,
+} from '@notesapp/api-contract';
 import {
   ConfigError,
   loadLegalTexts,
@@ -1076,10 +1080,14 @@ async function composeApp(
       const resolved = requestActor(request);
       if (resolved === undefined || resolved.standing !== 'active') return;
       const workspaceId = readProperty(request.params, 'workspaceId');
+      // Identity runs before route validation. Use the contract validator so
+      // malformed parameters cannot start pending welcome note work.
+      const validParams = requestValidator(operation.id, 'params');
       const workspaces =
         operation.id === 'listWorkspaces'
           ? await identity.memberships(resolved.actor.accountId)
-          : typeof workspaceId === 'string'
+          : typeof workspaceId === 'string' &&
+              validParams?.(request.params) === true
             ? [{ workspaceId, role: 'owner' }]
             : [];
       for (const workspace of workspaces) {

@@ -211,6 +211,33 @@ for (const scenario of [
       }
     }
 
+    const reported: unknown[] = [];
+    const originalError = app.log.error;
+    app.log.error = (value: unknown) => {
+      reported.push(value);
+    };
+    try {
+      const invalid = await app.inject({
+        method: 'GET',
+        url: '/api/workspaces/not-a-uuid/files',
+        headers: { ...headers, host: '127.0.0.1' },
+      });
+      assert.equal(invalid.statusCode, 400);
+      assert.equal(
+        reported.some(
+          (entry) =>
+            typeof entry === 'object' &&
+            entry !== null &&
+            'event' in entry &&
+            entry.event === 'welcome_note.failed',
+        ),
+        false,
+        'invalid parameters do not attempt welcome note work or log an unexpected seed failure',
+      );
+    } finally {
+      app.log.error = originalError;
+    }
+
     // The first requests arrive together. Direct file access works without
     // a preceding workspace list, including an existing browser session.
     const concurrent = await Promise.all(
