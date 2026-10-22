@@ -26,11 +26,12 @@ the storage layout.
 - Node.js, GnuPG and `tar` on the host. Use the Node version selected by the
   release checkout. The scripts run on the host. Under `sudo`, the `PATH`
   must hold `node`.
-- For S3 backups, `jq`, the pnpm version selected by the release checkout,
-  and the dependencies of that checkout.
-  Run `pnpm install --frozen-lockfile` as your normal user before the backup.
+- For an S3 backup or restore, the pnpm version selected by the release
+  checkout and the dependencies of that checkout. Run
+  `pnpm install --frozen-lockfile` as your normal user before either operation.
   No application source build is needed. The S3 adapter uses the installed
   AWS SDK.
+- `jq` to create the S3 settings file in the configuration step below.
 
 If you made these files yourself, each one must have mode `0600`. The key file
 holds at least 32 bytes of strong random data. The ID file holds one UUID.
@@ -273,10 +274,11 @@ file `migration_database_url` of the new installation.
 
    For a filesystem target, omit the restore command's object storage option.
    Remove `docker/compose.s3.yaml` from `COMPOSE_FILE` and remove any custom S3
-   environment settings from the application service. If you set
-   `NOTESAPP_OBJECT_STORE` directly, set it to `filesystem`. The application
-   must read the restored local storage folder. The startup command below
-   applies the target settings.
+   environment settings from the application service. For a deployment with
+   custom environment settings, use
+   [Object storage configuration](configuration.md#object-storage) to select
+   local storage. The application must read the restored local storage folder.
+   The startup command below applies the target settings.
 
    The script verifies the archive before it changes data. It then loads the
    database and writes the attachments through the target adapter. At the end
