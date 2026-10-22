@@ -181,8 +181,8 @@ inside the first ten lines.
 **Purpose:** the ordered work that follows from the decision records of one
 design. A plan stays here after it ships, with the status `complete`.
 
-**Belongs:** the items, in order, with the record and the release row that each
-item answers.
+**Belongs:** the items, in order, with the record and the issue that each item
+answers. The issue's milestone identifies the intended release.
 
 **Does not belong:** the argument that chose the approach. That is the design.
 
