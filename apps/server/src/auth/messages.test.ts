@@ -20,7 +20,11 @@ const messages = [
   verificationMessage({ to: 'a@example.com', origin, link, lifetimeHours: 24 }),
   signUpAttemptMessage({ to: 'a@example.com', origin }),
   passwordResetMessage({ to: 'a@example.com', origin, link, lifetimeHours: 1 }),
-  passwordChangedMessage({ to: 'a@example.com', origin }),
+  passwordChangedMessage({
+    to: 'a@example.com',
+    origin,
+    changedAt: '2026-10-23T14:05:00Z',
+  }),
   removalNoticeMessage({
     to: 'a@example.com',
     origin,
@@ -194,7 +198,25 @@ await test('billing removal support uses the configured URL or the provider fall
   const supportUrl =
     'https://support.example.test/help?topic=account&from=email';
   const configured = removalNoticeMessage({ ...base, supportUrl });
-  assert.match(configured.html, />contact support<\/a>/);
+  assert.match(configured.html, />contact\u00a0support<\/a>/);
   assert.doesNotMatch(configured.html, />https:\/\/support/);
   assert.ok(configured.text.split('\n').includes(supportUrl));
+});
+
+await test('password change time is recorded in UTC and kept together in HTML', () => {
+  const message = passwordChangedMessage({
+    to: 'a@example.test',
+    origin,
+    changedAt: '2026-10-24T00:05:00+10:00',
+  });
+  assert.match(message.text, /was changed on 23 October 2026 at 14:05 UTC\./);
+  assert.ok(
+    message.html.includes(
+      '23\u00a0October\u00a02026\u00a0at\u00a014:05\u00a0UTC',
+    ),
+  );
+  assert.doesNotMatch(message.text, /tell your administrator/);
+  assert.ok(message.html.includes('tidy\u00a0notebook'));
+  assert.doesNotMatch(message.text, /\u00a0/);
+  assert.doesNotMatch(message.subject, /\u00a0/);
 });

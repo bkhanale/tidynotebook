@@ -17,7 +17,8 @@ one shared renderer. The renderer escapes values and uses presentation tables,
 inline light styles, the Default theme colours and a dark media query. It loads
 no remote image, font, script or other remote file. The official notebook mark
 from record 0230 is attached as two inline CID PNGs for light and dark mode.
-The product wordmark stays beside the mark.
+The product wordmark stays beside the mark. Both images have empty alt text,
+so assistive software reads the product name once.
 
 Each email has one primary action, its full address, a reason for the email,
 and support information. Actions belong to the configured installation.
@@ -60,3 +61,9 @@ address directly below its action label. It omits the button fallback instructio
 Outlook gets a VML button, Arial fallback and web dark mode selectors. Apple
 Mail gets format detection controls. Preview padding holds back body text in
 inbox previews. Gmail colour inversion remains a staging check after merge.
+
+The second design review keeps product names and dates together in HTML.
+Subjects and plain text keep normal spaces. Password change notices include
+the reset callback time in UTC. Both logo variants remain available in Outlook;
+the hidden dark variant uses a container that dark mode rules can show. The
+Outlook button cell has no background, so only the VML shape draws its fill.

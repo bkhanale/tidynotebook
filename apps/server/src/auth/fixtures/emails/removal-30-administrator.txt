@@ -5,7 +5,7 @@ Your account will be deleted on 22 November 2026
 
 Your account on notes.example.com is locked. On 22 November 2026 the account and all its notes will be permanently deleted.
 
-To keep your account, ask your administrator to unlock it. You can still sign in to download your notes.
+To keep your account, ask your administrator to unlock it.
 
 To download your notes, sign in, open Settings, and select Export all notes.
 

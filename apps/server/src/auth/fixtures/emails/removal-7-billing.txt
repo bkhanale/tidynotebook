@@ -9,7 +9,7 @@ To keep your account, sign in and open Billing to start or renew your plan.
 
 To download your notes, sign in, open Settings, and select Export all notes.
 
-Sign in to keep your account:
+Sign in to renew your plan:
 https://notes.example.com/login
 
 If you don't need this account, you don't have to do anything.

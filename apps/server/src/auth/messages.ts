@@ -28,8 +28,23 @@ type LinkInput = MessageInput & {
   readonly lifetimeHours: number;
 };
 
+function keepTogether(value: string): string {
+  return value.replaceAll(' ', '\u00a0');
+}
+
+function utcDate(instant: string): string {
+  return keepTogether(
+    new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(new Date(instant)),
+  );
+}
+
 function signature(origin: string): string {
-  return `${productName} at ${installationHost(origin)}`;
+  return `${keepTogether(productName)} at ${installationHost(origin)}`;
 }
 
 function message(
@@ -39,7 +54,7 @@ function message(
 ): MailMessage {
   return {
     to: input.to,
-    subject,
+    subject: subject.replaceAll('\u00a0', ' '),
     inlineImages: emailLogoImages,
     ...renderEmail({
       ...input,
@@ -53,7 +68,7 @@ function message(
           ? 'For help, contact support at your provider.'
           : 'For help, contact your installation administrator.',
         supportIntro: 'For help, ',
-        supportLabel: 'contact support',
+        supportLabel: keepTogether('contact support'),
         linkFallback:
           'Button not working? Copy and paste this link into your browser:',
         automatic: "This is an automated email, so replies aren't read.",
@@ -71,14 +86,14 @@ export function invitationMessage(
   const lifetime = `The link works once, for ${lifetimeWords(input.lifetimeHours)}.`;
   return message(input, `Your invitation to ${name}`, {
     label: 'Invitation',
-    heading: `You're invited to ${productName}`,
+    heading: `You're invited to ${keepTogether(productName)}`,
     preview: `Choose a password to create your account. ${lifetime}`,
     paragraphs: [
       inviter
         ? `${inviter} invited you to create an account on ${name}.`
         : `You're invited to create an account on ${name}.`,
       'Write in Markdown, keep drafts offline, and use version history to return to earlier work.',
-      'Choose a password to accept your invitation. This link is for you. Do not share it.',
+      "Choose a password to accept your invitation. This link is just for you, so don't share it.",
     ],
     action: { label: 'Accept invitation', url: input.link },
     lifetime,
@@ -122,12 +137,12 @@ export function signUpAttemptMessage(input: MessageInput): MailMessage {
       preview: 'A new sign-up used your address. Your account has not changed.',
       paragraphs: [
         `Someone asked to create a new account on ${name} with this email address. You already have an account, so nothing changed.`,
-        "To sign in, open the sign-in page. If you don't know your password, select Forgot password.",
+        `Sign in with your existing account. If you don't remember your password, select ${keepTogether('Forgot password')}.`,
       ],
       action: { label: 'Sign in', url: `${input.origin}/login` },
       panel:
         "If this wasn't you, you can ignore this email. Your account is safe.",
-      reason: 'a sign-up used the email address of your existing account',
+      reason: 'someone tried to sign up with your email address',
     },
   );
 }
@@ -142,7 +157,7 @@ export function passwordResetMessage(input: LinkInput): MailMessage {
     preview: `Choose a new password. ${lifetime}`,
     paragraphs: [
       `Someone asked to reset the password for your account on ${name}.`,
-      'Choose a new password with the link below. This link is for you. Do not share it.',
+      "Choose a new password with the link below. This link is just for you, so don't share it.",
     ],
     action: { label: 'Choose a new password', url: input.link },
     lifetime,
@@ -152,17 +167,27 @@ export function passwordResetMessage(input: LinkInput): MailMessage {
   });
 }
 
-/** Confirmation after a password reset. The callback provides no event time. */
-export function passwordChangedMessage(input: MessageInput): MailMessage {
+/** Confirmation with the time recorded by the password reset callback. */
+export function passwordChangedMessage(
+  input: MessageInput & { readonly changedAt: string },
+): MailMessage {
   const name = signature(input.origin);
+  const date = utcDate(input.changedAt);
+  const time = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'UTC',
+  }).format(new Date(input.changedAt));
+  const changedAt = keepTogether(`${date} at ${time} UTC`);
   return message(input, `Your password on ${name} was changed`, {
     label: 'Security notice',
     heading: 'Your password was changed',
     warning: true,
     preview: "Your password was changed. If this wasn't you, reset it now.",
     paragraphs: [
-      `The password for your account on ${name} was changed. All devices that were signed in have been signed out.`,
-      "If you didn't make this change, reset your password now and tell your administrator.",
+      `The password for your account on ${name} was changed on ${changedAt}. All devices that were signed in have been signed out.`,
+      "If you didn't make this change, reset your password now.",
     ],
     action: {
       label: 'Reset your password',
@@ -176,7 +201,7 @@ export function passwordChangedMessage(input: MessageInput): MailMessage {
 /** An administrator checks mail delivery and both message parts. */
 export function testMessage(input: MessageInput): MailMessage {
   const name = signature(input.origin);
-  return message(input, `Test message from ${name}`, {
+  return message(input, `Test email from ${name}`, {
     label: 'Test email',
     heading: 'Your test email arrived',
     preview:
@@ -188,7 +213,7 @@ export function testMessage(input: MessageInput): MailMessage {
     ],
     action: { label: 'Open your notebook', url: `${input.origin}/` },
     panel:
-      'If this email is in your spam folder, ask your mail administrator to check the sender settings.',
+      "If this email landed in spam, check the sender address and your domain's SPF, DKIM and DMARC records.",
     reason: 'an administrator requested a test email to this address',
   });
 }
@@ -203,12 +228,7 @@ export function removalNoticeMessage(
 ): MailMessage {
   const name = signature(input.origin);
   const when = lifetimeWords(input.days * 24);
-  const date = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(input.removalAt));
+  const date = utcDate(input.removalAt);
   return message(input, `Your account on ${name} will be deleted in ${when}`, {
     label: 'Account removal',
     heading: `Your account will be deleted on ${date}`,
@@ -219,12 +239,12 @@ export function removalNoticeMessage(
       `Your account on ${installationHost(input.origin)} is locked. On ${date} the account and all its notes will be permanently deleted.`,
       input.portal
         ? 'To keep your account, sign in and open Billing to start or renew your plan.'
-        : 'To keep your account, ask your administrator to unlock it. You can still sign in to download your notes.',
+        : 'To keep your account, ask your administrator to unlock it.',
       'To download your notes, sign in, open Settings, and select Export all notes.',
     ],
     action: {
       label: input.portal
-        ? 'Sign in to keep your account'
+        ? 'Sign in to renew your plan'
         : 'Sign in to export your notes',
       url: `${input.origin}/login`,
     },

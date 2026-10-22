@@ -37,7 +37,13 @@ export const emailExamples = [
       lifetimeHours: 1,
     }),
   },
-  { name: 'password-changed', message: passwordChangedMessage(base) },
+  {
+    name: 'password-changed',
+    message: passwordChangedMessage({
+      ...base,
+      changedAt: '2026-10-23T14:05:00Z',
+    }),
+  },
   { name: 'test-message', message: testMessage(base) },
   ...[30, 7].flatMap((days) =>
     [true, false].map((portal) => ({

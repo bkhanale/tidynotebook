@@ -227,7 +227,7 @@ await test('a test message goes to the administrator and a failure names its kin
   assert.equal(responseOf(tested.response).status, 200);
   assert.deepEqual(tested.data, { to: ownerEmail });
   assert.equal(sent.at(-1)?.to, ownerEmail);
-  assert.match(sent.at(-1)?.subject ?? '', /^Test message from tidy notebook/);
+  assert.match(sent.at(-1)?.subject ?? '', /^Test email from tidy notebook/);
   failure = Object.assign(new Error('535 5.7.8 rejected for notes'), {
     code: 'EAUTH',
     responseCode: 535,

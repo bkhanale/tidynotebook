@@ -5,14 +5,14 @@ You already have an account
 
 Someone asked to create a new account on tidy notebook at notes.example.com with this email address. You already have an account, so nothing changed.
 
-To sign in, open the sign-in page. If you don't know your password, select Forgot password.
+Sign in with your existing account. If you don't remember your password, select Forgot password.
 
 Sign in:
 https://notes.example.com/login
 
 If this wasn't you, you can ignore this email. Your account is safe.
 
-You're receiving this email because a sign-up used the email address of your existing account.
+You're receiving this email because someone tried to sign up with your email address.
 
 This is an automated email, so replies aren't read.
 

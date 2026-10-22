@@ -248,6 +248,10 @@ await test('a reset link opens the application and replaces the password', async
   assert.ok(
     notice?.text.split('\n').includes('http://127.0.0.1/forgot-password'),
   );
+  assert.match(
+    notice?.text ?? '',
+    /was changed on \d{1,2} [A-Z][a-z]+ \d{4} at \d{2}:\d{2} UTC\./,
+  );
   // A link works once.
   const again = await resetPassword({
     headers: origin,

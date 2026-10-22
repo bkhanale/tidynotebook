@@ -109,3 +109,21 @@ await test('the layout includes client safeguards and clear plain text', () => {
   assert.doesNotMatch(message.html, /word-break:break-all/);
   assert.equal((message.html.match(/&#847;&zwnj;&nbsp;/g) ?? []).length, 90);
 });
+
+await test('Outlook can show either logo without a second button background', () => {
+  const message = renderEmail({
+    origin: 'https://notes.example.test',
+    footer,
+    subject: 'Test',
+    content,
+  });
+  assert.match(
+    message.html,
+    /<div class="logo-dark" style="display:none;mso-hide:all"><img/,
+  );
+  assert.equal((message.html.match(/alt=""/g) ?? []).length, 2);
+  assert.doesNotMatch(message.html, /class="button-cell"[^>]*bgcolor/);
+  assert.match(message.html, /\.button-cell\{background:none!important\}/);
+  assert.match(message.html, /<center[^>]*font-weight:bold/);
+  assert.doesNotMatch(message.html, /\n \.logo-dark/);
+});

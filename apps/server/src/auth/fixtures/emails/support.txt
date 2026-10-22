@@ -12,7 +12,7 @@ This email has a formatted version and a plain text version. Check both in your 
 Open your notebook:
 https://notes.example.com/
 
-If this email is in your spam folder, ask your mail administrator to check the sender settings.
+If this email landed in spam, check the sender address and your domain's SPF, DKIM and DMARC records.
 
 You're receiving this email because an administrator requested a test email to this address.
 

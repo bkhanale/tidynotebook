@@ -7,7 +7,7 @@ Alex Morgan invited you to create an account on tidy notebook at notes.example.c
 
 Write in Markdown, keep drafts offline, and use version history to return to earlier work.
 
-Choose a password to accept your invitation. This link is for you. Do not share it.
+Choose a password to accept your invitation. This link is just for you, so don't share it.
 
 Accept invitation:
 https://notes.example.com/invitation#EXAMPLE-NOT-A-REAL-TOKEN

@@ -565,8 +565,10 @@ function buildAuth(
       // library ends every session of the account. A mail server that fails
       // does not undo the reset.
       onPasswordReset: (data: { user: { email: string } }): Promise<void> => {
+        const changedAt = new Date().toISOString();
         sendLater(() =>
           passwordChangedMessage({
+            changedAt,
             supportUrl: mail.supportUrl ?? null,
             to: data.user.email,
             origin: config.origin,
