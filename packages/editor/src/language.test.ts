@@ -104,6 +104,31 @@ await test('partial cached parses inside code and math keep the complete tree', 
   }
 });
 
+await test('cached blocks that cross two input ranges keep their source ranges', () => {
+  const doc = 'intro\n\n```\ncode\n```\n\ntail\n';
+  const parser = noteMarkdown({ headless: true }).language.parser;
+  const full = parser.parse(doc);
+  const partial = parser.parse(doc, TreeFragment.addTree(full), [
+    { from: 0, to: 11 },
+    { from: 12, to: doc.length },
+  ]);
+  const after = parser.parse(doc, TreeFragment.addTree(partial));
+  for (const tree of [partial, after]) {
+    const blocks: { name: string; from: number; to: number }[] = [];
+    tree.iterate({
+      enter(node) {
+        if (node.name === 'Paragraph' || node.name === 'FencedCode')
+          blocks.push({ name: node.name, from: node.from, to: node.to });
+      },
+    });
+    assert.deepEqual(blocks, [
+      { name: 'Paragraph', from: 0, to: 5 },
+      { name: 'FencedCode', from: 7, to: 19 },
+      { name: 'Paragraph', from: 21, to: 25 },
+    ]);
+  }
+});
+
 await test('the offline preview keeps the same structure before and after a fence language loads', async () => {
   const language = fenceLanguageOf('python');
   assert.ok(language !== null);
