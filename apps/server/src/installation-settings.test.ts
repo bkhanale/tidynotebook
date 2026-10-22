@@ -298,3 +298,32 @@ await test('the support address reaches stored transports and the mailer', async
   assert.equal(settings.mailer.supportUrl, url);
   assert.equal((await settings.mailer.current())?.supportUrl, url);
 });
+
+await test('stored transports keep prototype methods and their receiver', async () => {
+  class ConnectedTransport {
+    readonly sent: MailMessage[] = [];
+    send(next: MailMessage): Promise<void> {
+      this.sent.push(next);
+      return Promise.resolve();
+    }
+  }
+  const connected = new ConnectedTransport();
+  const supportUrl = 'https://support.example.test/help';
+  const settings = createInstallationSettings({
+    config: loadServerConfig({
+      ...base,
+      NOTESAPP_MAIL_SUPPORT_URL: supportUrl,
+    }),
+    reader: { installationSettings: () => Promise.resolve(stored) },
+    environmentMail: null,
+    environmentTexts: { terms: null, privacy: null },
+    passwordSeal: seal,
+    connect: () => connected,
+  });
+  const current = await settings.mailer.current();
+  assert.ok(current);
+  assert.equal(current.supportUrl, supportUrl);
+  await current.send(message);
+  await settings.mailer.send(message);
+  assert.deepEqual(connected.sent, [message, message]);
+});

@@ -174,8 +174,12 @@ export function createInstallationSettings(
   ): MailTransport | null => {
     const mail = settings.mail;
     if (mail === null || !environment.mailUsable(mail)) return null;
+    const transport = connect({
+      ...mail,
+      password: openPassword(mail.passwordSealed),
+    });
     return {
-      ...connect({ ...mail, password: openPassword(mail.passwordSealed) }),
+      send: (message) => transport.send(message),
       supportUrl: config.mailSupportUrl,
     };
   };
