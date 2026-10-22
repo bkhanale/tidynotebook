@@ -32,7 +32,9 @@ publish the database port. The database network is private.
 You need a Linux host that you control, and a user that can run `sudo`.
 Install these tools on the host:
 
-- Docker Engine and Docker Compose. They run the server.
+- Docker Engine and Docker Compose with support for `up --wait`.
+  Check that `docker compose up --help` lists `--wait`. Update Compose if it
+  does not.
 - Git, Bash, `curl`, and `jq`. They get the release files and check the image pin.
 - Node.js. The backup scripts run it on the host. Under `sudo`, the `PATH` of
   `sudo` must hold `node`.

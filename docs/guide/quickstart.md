@@ -11,7 +11,9 @@ that you need to keep.
 
 ## What you need
 
-- Docker Engine and Docker Compose v2.
+- Docker Engine and Docker Compose with support for `up --wait`.
+  Check that `docker compose up --help` lists `--wait`. Update Compose if it
+  does not.
 - Git, Bash, `curl`, `jq`, `openssl`, and `sudo`.
 - A new clone. The setup script refuses an existing `.env` file.
 - A Linux `amd64` host for the selected release. On macOS, use Docker with
