@@ -251,7 +251,7 @@ export function VerifyPage(): ReactNode {
           {state.kind === 'invalid' ? (
             <Notice tone="problem" message={state.message} />
           ) : (
-            <p className="m-0 text-control text-muted">
+            <p className="mb-5 mt-0 text-control text-muted">
               The address {state.email} is proved. Sign in with it and your
               password.
             </p>
