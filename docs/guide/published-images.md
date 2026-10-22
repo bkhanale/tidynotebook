@@ -29,8 +29,10 @@ tag=v0.19.0
 commit="$(git rev-parse --verify "$tag^{commit}")"
 test "$(git rev-parse HEAD)" = "$commit"
 mkdir -p .tooling/published-release
-curl --fail --silent --show-error --location --connect-timeout 10 --max-time 60 \
-  "https://github.com/tidynotebook/tidynotebook/releases/download/$tag/release-manifest.json" \
+release="https://github.com/tidynotebook/tidynotebook/releases/download/$tag"
+curl --fail --silent --show-error --location \
+  --connect-timeout 10 --max-time 60 \
+  "$release/release-manifest.json" \
   --output .tooling/published-release/release-manifest.json
 image="$(jq -ser --arg tag "$tag" --arg commit "$commit" '
   select(length == 1) | .[0]
