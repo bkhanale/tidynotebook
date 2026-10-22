@@ -1,5 +1,7 @@
 # Published images
 
+This page is for the person who runs the server.
+
 Use the official stable image for an installation. The current stable release
 is 0.19.0. A digest fixes the image bytes, so a later pull cannot change them.
 The public image and release manifest need no login.
@@ -27,7 +29,7 @@ tag=v0.19.0
 commit="$(git rev-parse --verify "$tag^{commit}")"
 test "$(git rev-parse HEAD)" = "$commit"
 mkdir -p .tooling/published-release
-curl --fail --silent --show-error --location \
+curl --fail --silent --show-error --location --connect-timeout 10 --max-time 60 \
   "https://github.com/tidynotebook/tidynotebook/releases/download/$tag/release-manifest.json" \
   --output .tooling/published-release/release-manifest.json
 image="$(jq -ser --arg tag "$tag" --arg commit "$commit" '

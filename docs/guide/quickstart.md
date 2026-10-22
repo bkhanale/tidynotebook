@@ -1,5 +1,7 @@
 # Quick start
 
+This page is for the person who runs the server.
+
 Run the stable release on your own machine with Docker Compose. You do not
 need a GitHub account, a registry login, Node.js, or a source build.
 

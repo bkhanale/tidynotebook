@@ -35,7 +35,7 @@ commit="$(git rev-parse --verify --quiet "$TAG^{commit}")" || fail "this checkou
 
 directory="$PWD/.tooling/published-release/$TAG"
 mkdir -p "$directory"
-curl --fail --silent --show-error --location \
+curl --fail --silent --show-error --location --connect-timeout 10 --max-time 60 \
   "https://github.com/$REPOSITORY/releases/download/$TAG/release-manifest.json" \
   --output "$directory/release-manifest.json"
 
