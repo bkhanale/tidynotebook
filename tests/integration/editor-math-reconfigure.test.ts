@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { setTimeout } from 'node:timers/promises';
 import { Window } from 'happy-dom';
 
 await test('display math keeps its source range after viewport parsing and editor reconfiguration', async () => {
@@ -33,6 +32,10 @@ await test('display math keeps its source range after viewport parsing and edito
       await import('../../packages/editor/dist/create-editor.js');
     const { findRichRegions } =
       await import('../../packages/editor/dist/widgets.js');
+    const { fenceLanguageOf } =
+      await import('../../packages/editor/dist/language.js');
+    const { forceParsing, syntaxTreeAvailable } =
+      await import('@codemirror/language');
     const doc =
       '# Editor and math\n\n```javascript\nfunction greet(name) {\n  return `Hello, ${name}`;\n}\nconst count = 42;\n```\n\nInline math: $E = mc^2$.\n\n$$\n\\frac{a}{b} + \\sqrt{x^2 + y^2}\n$$\n\nEnd of smoke test.\n';
     const rich = { renderMath: () => '<span>Formula</span>' };
@@ -49,9 +52,14 @@ await test('display math keeps its source range after viewport parsing and edito
           { kind: 'math-display', from: 134, to: 170 },
         ],
       );
-      // Let the lazy fence language and the viewport parse finish before
-      // the theme transaction publishes the parser's cached work.
-      await setTimeout(150);
+      // Finish the lazy fence load and queued viewport work, then publish
+      // a complete tree before the theme transaction uses the cached parse.
+      const fence = fenceLanguageOf('javascript');
+      assert.ok(fence !== null);
+      await fence.load();
+      await browser.happyDOM.waitUntilComplete();
+      assert.ok(forceParsing(view, view.state.doc.length));
+      assert.ok(syntaxTreeAvailable(view.state, view.state.doc.length));
       for (const theme of ['dark', 'light'] as const) {
         setEditorTheme(view, theme);
         setEditorRich(view, rich);
