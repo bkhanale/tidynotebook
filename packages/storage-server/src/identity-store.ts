@@ -366,9 +366,7 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
      */
     operatorPromote(email: string): Promise<string | null>;
     /** The current role of one account in each of its workspaces. */
-    memberships(
-      accountId: string,
-    ): Promise<
+    memberships(accountId: string): Promise<
       readonly {
         workspaceId: string;
         role: Role;
