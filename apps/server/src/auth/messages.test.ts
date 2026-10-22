@@ -128,6 +128,10 @@ await test('every email matches its HTML and text golden files', async () => {
     assert.equal((message.html.match(/<h1\b/g) ?? []).length, 1, name);
     assert.doesNotMatch(message.html, /<img\b|<script\b|<link\b|url\(/i);
     assert.match(message.text, /This message is automatic\./);
+    assert.match(
+      message.text,
+      /If the link does not open, copy the address into your browser\./,
+    );
     assert.match(message.text, /For help, contact/);
     const links = [...message.html.matchAll(/href="([^"]+)"/g)];
     assert.ok(links.length >= 2, name);

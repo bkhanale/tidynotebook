@@ -134,7 +134,7 @@ body{margin:0;padding:0;width:100%!important}a{text-decoration:underline}a:focus
 ${c.paragraphs.map((p) => paragraph(p)).join('')}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="button-table" style="margin:24px 0 0"><tr><td class="button-cell" align="center" bgcolor="${light.accentFill}" style="background-color:${light.accentFill};border-radius:8px;mso-padding-alt:12px 22px"><a class="button-link" href="${e(url)}" style="display:inline-block;padding:12px 22px;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.accentOnFill};text-decoration:none;border-radius:8px;mso-padding-alt:0">${e(c.action.label)}</a></td></tr></table>
 ${c.lifetime ? paragraph(c.lifetime, 'muted', 'margin:12px 0 0;') : ''}
-${paragraph('If the button does not work, copy this address into your browser:', 'muted', 'margin:20px 0 4px;')}
+${paragraph('If the link does not open, copy the address into your browser.', 'muted', 'margin:20px 0 4px;')}
 <p class="url" style="margin:0;${font}font-size:16px;line-height:25px;color:${light.text};word-break:break-all;overflow-wrap:anywhere"><a class="link" href="${e(url)}" style="color:${light.accentText};text-decoration:underline">${e(url)}</a></p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;table-layout:fixed"><tr><td class="panel" bgcolor="${light.surfaceHover}" style="padding:16px;border-radius:8px;background-color:${light.surfaceHover}">${paragraph(c.panel, 'muted', 'margin:0;')}</td></tr></table>
 </td></tr><tr><td class="foot" style="padding:20px 4px;overflow-wrap:anywhere;word-break:break-word">

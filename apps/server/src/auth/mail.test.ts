@@ -196,3 +196,19 @@ await test('the wire message has text first and HTML second, with automatic head
   );
   assert.match(wire, /<p>Text<\/p>/);
 });
+
+await test('every email type reaches the wire with both alternatives', async () => {
+  const { emailExamples } = await import('./fixtures/email-examples.ts');
+  const transport = createTransport({ streamTransport: true, buffer: true });
+  for (const { name, message: example } of emailExamples) {
+    const sent = await transport.sendMail(
+      envelopeOf('sender@example.test', example),
+    );
+    const wire = String(sent.message);
+    assert.match(wire, /Content-Type: multipart\/alternative;/, name);
+    const plain = wire.indexOf('Content-Type: text/plain');
+    const html = wire.indexOf('Content-Type: text/html');
+    assert.ok(plain >= 0 && html > plain, name);
+    assert.match(wire, /Auto-Submitted: auto-generated/, name);
+  }
+});
