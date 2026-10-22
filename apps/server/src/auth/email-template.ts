@@ -107,6 +107,7 @@ export function renderEmail(input: {
       ...c.paragraphs,
       `${c.action.label}:\n${url}`,
       ...(c.lifetime ? [c.lifetime] : []),
+      'If the link does not open, copy the address into your browser.',
       c.panel,
       c.reason,
       'This message is automatic.',

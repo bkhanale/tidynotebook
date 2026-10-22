@@ -11,6 +11,8 @@ This message has a formatted version and a plain text version. Check both in you
 Open your notebook:
 https://notes.example.com/
 
+If the link does not open, copy the address into your browser.
+
 If this message is in your spam folder, ask your mail administrator to check the sender settings.
 
 You get this message because an administrator asked tidy notebook at notes.example.com to send a mail test to this address.

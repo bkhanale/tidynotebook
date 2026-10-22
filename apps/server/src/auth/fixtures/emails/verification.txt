@@ -13,6 +13,8 @@ https://notes.example.com/verify#EXAMPLE-NOT-A-REAL-TOKEN
 
 The link works for 1 day.
 
+If the link does not open, copy the address into your browser.
+
 If you did not ask for an account, ignore this message. Without the link, no account is made.
 
 You get this message because somebody asked to make an account on tidy notebook at notes.example.com with this address.
