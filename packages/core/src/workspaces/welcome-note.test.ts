@@ -32,6 +32,7 @@ const input = createFileChangeset({
   },
 });
 
+/** Rejects calls outside the new-note commit path. */
 function unused(): never {
   throw new Error('This operation must not run in a welcome note test.');
 }
@@ -55,8 +56,8 @@ const documents: DocumentService = {
 
 type State = NonNullable<Awaited<ReturnType<WelcomeNoteTransaction['state']>>>;
 
-/** The welcome probe sees no note; the content write returns the refusal. */
-function fakeStore(code: DomainErrorCode, state: Partial<State> = {}) {
+/** The welcome probe sees no note; the content write accepts or refuses it. */
+function fakeStore(code: DomainErrorCode | null, state: Partial<State> = {}) {
   const recorded: (DomainErrorCode | 'unexpected' | null)[] = [];
   let commits = 0;
   let writes = 0;
@@ -66,9 +67,39 @@ function fakeStore(code: DomainErrorCode, state: Partial<State> = {}) {
     purgedFiles: () => Promise.resolve([]),
     headStates: () => Promise.resolve(new Map()),
     documents: () => Promise.resolve(new Map()),
-    async accept() {
+    async accept(writer, accepted) {
       writes += 1;
-      return fail(code);
+      if (code !== null) return fail(code);
+      return ok({
+        mutationId: accepted.mutationId,
+        revisionIds: accepted.revisions.map((revision) => revision.id),
+        cursor: '1',
+        revisions: accepted.revisions.map((revision) => ({
+          revisionId: revision.id,
+          fileId: revision.fileId,
+          parents: revision.parents,
+          path: revision.path,
+          deleted: revision.deleted,
+          digest: revision.content.digest,
+          size:
+            revision.content.kind === 'markdown'
+              ? new TextEncoder().encode(revision.content.text).byteLength
+              : 0,
+          actorAccountId: writer.accountId,
+          serverTime: '2026-10-23T00:00:00.000Z',
+          message: revision.message,
+          acceptedState:
+            accepted.documents.find(
+              (document) => document.fileId === revision.fileId,
+            )?.state ?? null,
+          merged: false,
+          epoch:
+            accepted.documents.find(
+              (document) => document.fileId === revision.fileId,
+            )?.epoch ?? null,
+        })),
+        superseded: [],
+      });
     },
     heads: unused,
     revisionPaths: () => Promise.resolve(new Map()),
@@ -126,6 +157,15 @@ function fakeStore(code: DomainErrorCode, state: Partial<State> = {}) {
   };
   return { store, recorded, commits: () => commits, writes: () => writes };
 }
+
+await test('an accepted commit creates the welcome note and completes its record', async () => {
+  const fake = fakeStore(null);
+  const result = await completeWelcomeNote(fake.store, actor, input, 'digest');
+  assert.deepEqual(result, ok('created'));
+  assert.deepEqual(fake.recorded, [null]);
+  assert.equal(fake.commits(), 1);
+  assert.equal(fake.writes(), 1);
+});
 
 for (const code of ['path_conflict', 'purged'] as const) {
   await test(`${code} from the commit completes the welcome record`, async () => {
