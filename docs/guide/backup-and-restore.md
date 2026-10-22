@@ -20,9 +20,11 @@ the storage layout.
   - `installation_id`: the random ID of this installation.
 - A separate encrypted folder for the backups, for example
   `/mnt/separate-backups/notesapp`. It must not be inside the storage folder.
-- Node.js 26.12.1, GnuPG and `tar` on the host. The scripts run them there.
-  Under `sudo`, the `PATH` must hold `node`.
-- For S3 backups, `jq`, pnpm 12.3.4, and the dependencies of the release checkout.
+- Node.js, GnuPG and `tar` on the host. Use the Node version selected by the
+  release checkout. The scripts run on the host. Under `sudo`, the `PATH`
+  must hold `node`.
+- For S3 backups, `jq`, the pnpm version selected by the release checkout,
+  and the dependencies of that checkout.
   Run `pnpm install --frozen-lockfile` as your normal user before the backup.
   No application source build is needed. The S3 adapter uses the installed
   AWS SDK.
@@ -113,11 +115,11 @@ The command does these things:
 ### Back up an S3 installation
 
 The archive includes the database and every finalized attachment that it
-references. A separate bucket copy is not required. The archive format stays
-at version 1, so existing filesystem archives remain readable. The updated
-scripts can restore an archive to either storage type. The scripts shipped
-in 0.19.0 do not support S3 backups. Use the operator scripts from the release
-that includes this support.
+references. A separate bucket copy is not required. The archive format is
+unchanged, so existing filesystem archives remain readable. The updated
+scripts can restore an archive to either storage type. Check both commands
+with `--help`. Each must list `--object-store-config-file`. Older scripts
+without this option do not support S3 backups.
 
 Create the protected settings file:
 
