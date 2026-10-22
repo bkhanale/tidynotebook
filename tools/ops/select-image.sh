@@ -2,7 +2,7 @@
 # Print the fixed image of one official tidy notebook release.
 #
 # Run it from a checkout of that release. It downloads the release manifest
-# with the GitHub CLI, checks that the manifest belongs to this repository,
+# over HTTPS without a login, checks that the manifest belongs to this repository,
 # this tag and this checkout, and prints one NOTESAPP_IMAGE line with the
 # image digest. The digest names one image for good, so a later pull cannot
 # get a different image.
@@ -25,7 +25,7 @@ fi
 TAG="$1"
 [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || \
   fail "$TAG is not a release tag. A release tag looks like v1.2.3."
-command -v gh >/dev/null 2>&1 || fail 'the GitHub CLI, gh, is required.'
+command -v curl >/dev/null 2>&1 || fail 'curl is required.'
 command -v jq >/dev/null 2>&1 || fail 'jq is required.'
 
 [[ "$(git rev-parse --show-toplevel 2>/dev/null)" == "$PWD" ]] || \
@@ -35,8 +35,9 @@ commit="$(git rev-parse --verify --quiet "$TAG^{commit}")" || fail "this checkou
 
 directory="$PWD/.tooling/published-release/$TAG"
 mkdir -p "$directory"
-gh release download "$TAG" --repo "$REPOSITORY" \
-  --pattern release-manifest.json --dir "$directory" --clobber
+curl --fail --silent --show-error --location \
+  "https://github.com/$REPOSITORY/releases/download/$TAG/release-manifest.json" \
+  --output "$directory/release-manifest.json"
 
 image="$(jq -ser --arg tag "$TAG" --arg commit "$commit" \
   --arg repository "$REPOSITORY" --arg image "$IMAGE" '

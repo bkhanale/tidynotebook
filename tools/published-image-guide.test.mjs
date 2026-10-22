@@ -50,8 +50,8 @@ function selectImage(tag, asset, checkout = commit, top) {
       { mode: 0o700 },
     );
     writeFileSync(
-      join(cwd, 'bin/gh'),
-      `#!${process.execPath}\nimport {appendFileSync,copyFileSync} from 'node:fs';\nconst a=process.argv.slice(2);appendFileSync('cli.log',JSON.stringify(a)+'\\n');if(a[0]!=='release'||a[1]!=='download')process.exit(2);copyFileSync('asset.json',a[a.indexOf('--dir')+1]+'/release-manifest.json');\n`,
+      join(cwd, 'bin/curl'),
+      `#!${process.execPath}\nimport {appendFileSync,copyFileSync} from 'node:fs';\nconst a=process.argv.slice(2);appendFileSync('cli.log',JSON.stringify(a)+'\\n');if(!a.includes('--fail')||!a.includes('--location')||!a.some(x=>x==='https://github.com/tidynotebook/tidynotebook/releases/download/v0.3.5/release-manifest.json'))process.exit(2);copyFileSync('asset.json',a[a.indexOf('--output')+1]);\n`,
       { mode: 0o700 },
     );
     writeFileSync(
@@ -78,12 +78,19 @@ function selectImage(tag, asset, checkout = commit, top) {
   }
 }
 
-await test('the guide selects the image with the tested script', () => {
+await test('the stable guide selects the public manifest with source and digest checks', () => {
   const guide = readFileSync(
     join(root, 'docs/guide/published-images.md'),
     'utf8',
   );
-  assert.match(guide, /^tools\/ops\/select-image\.sh v\S+$/m);
+  assert.match(guide, /curl --fail --silent --show-error --location/);
+  assert.match(guide, /git rev-parse HEAD/);
+  assert.match(guide, /and \.source\.commit == \$commit/);
+  assert.match(
+    guide,
+    /and \.image\.reference == "ghcr\.io\/tidynotebook\/core"/,
+  );
+  assert.match(guide, /docker compose up -d --no-build --wait/);
 });
 
 await test('the script selects the official digest from the fixed checkout and manifest', () => {

@@ -1,66 +1,74 @@
 # Published images
 
-This page is for the person who runs the server. It shows how to run an
-official release image with Compose, and how to fix the image by its digest, so
-that a later pull cannot change it.
+Use the official stable image for an installation. The current stable release
+is 0.19.0. A digest fixes the image bytes, so a later pull cannot change them.
+The public image and release manifest need no login.
 
-Use this path when a public release and its image exist. Until then, build the
-image on your own machine with the [Quick start](quickstart.md) or with
-[Self-hosting](self-hosting.md).
+## Supported platforms
 
-Set up the installation with [Self-hosting](self-hosting.md) first. Before you
-move to a new release, make and verify a backup. See [Upgrade](upgrade.md).
+- Release 0.19.0 supports `linux/amd64`.
+- From the next stable release, the release workflow builds and tests native
+  `linux/amd64` and `linux/arm64` images and publishes one image index.
+- Existing tags and digests keep their current bytes. Release 0.19.0 does not
+  gain an arm64 image.
+- macOS and Windows need Docker with Linux containers. An ARM host needs
+  amd64 emulation to run 0.19.0. Native Windows containers are not supported.
 
-## What you need
+## Select the stable image
 
-- The GitHub CLI (`gh`) and `jq`. The script below uses both. Sign in to the
-  GitHub CLI once with `gh auth login`.
-- A clone of the code that is checked out at the release tag. The release must
-  hold `tools/ops/select-image.sh`. Releases up to 0.18.1 do not hold it.
-
-## 1. Check out the release tag
-
-Choose one release tag from the releases of the official repository, for
-example `v1.2.3`. These commands get the tags and go to the one you chose.
+Start with the release checkout and a prepared `.env` from
+[Quick start](quickstart.md) or [Self-hosting](self-hosting.md). Install `curl`
+and `jq` on the host. Run these commands in the root of the clone, in Bash.
+They also work with the operator scripts shipped in 0.19.0.
 
 ```bash
-git fetch --tags
-git checkout v1.2.3
+set -euo pipefail
+tag=v0.19.0
+commit="$(git rev-parse --verify "$tag^{commit}")"
+test "$(git rev-parse HEAD)" = "$commit"
+mkdir -p .tooling/published-release
+curl --fail --silent --show-error --location \
+  "https://github.com/tidynotebook/tidynotebook/releases/download/$tag/release-manifest.json" \
+  --output .tooling/published-release/release-manifest.json
+image="$(jq -ser --arg tag "$tag" --arg commit "$commit" '
+  select(length == 1) | .[0]
+  | select(.repository == "tidynotebook/tidynotebook"
+    and .tag == $tag and .version == ($tag | ltrimstr("v"))
+    and .source.commit == $commit
+    and .image.reference == "ghcr.io/tidynotebook/core"
+    and (.image.digest | type == "string" and length == 71
+      and test("^sha256:[a-f0-9]{64}$")))
+  | .image.reference + "@" + .image.digest
+' .tooling/published-release/release-manifest.json)"
+test -n "$image"
+sed -i '/^NOTESAPP_IMAGE=/d' .env
+printf 'NOTESAPP_IMAGE=%s\n' "$image" >> .env
 ```
 
-## 2. Get the image address
+The checks stop on a different repository, tag, version, source commit, image
+name, or invalid digest. If a check fails, do not start the application.
+Keep one `NOTESAPP_IMAGE` line in `.env`. Do not replace it with `latest` or
+`main`. Neither tag fixes a stable release.
 
-This script downloads the manifest of the release and prints the image address
-with its digest. It checks that the manifest belongs to this repository, to
-this tag and to this checkout, and it stops when one does not match. It must
-run in the clone that you checked out in step 1.
+The selector shipped in 0.19.0 uses the GitHub CLI. Use the commands above for
+an anonymous 0.19.0 installation. The next release will include an anonymous
+`tools/ops/select-image.sh` that performs these checks and prints the image pin.
 
-```bash
-tools/ops/select-image.sh v1.2.3
-```
-
-It prints one line that starts with `NOTESAPP_IMAGE=`.
-
-## 3. Save the image address
-
-Open `.env` in a text editor. `.env.example` has a line
-`NOTESAPP_IMAGE=notesapp:latest`. Replace that line with the line that the
-script printed. Keep one `NOTESAPP_IMAGE` line only. Later commands of this
-installation read the digest from `.env`.
-
-Only the owner of the installation should read `.env`.
-
-## 4. Pull and start the image
-
-The first command downloads the image. The second command starts the
-application from it, and does not build the code.
+## Pull and start
 
 ```bash
 docker compose pull app
-docker compose up -d --no-build
+docker compose up -d --no-build --wait
 ```
 
-The digest names one image for good. Keep this `NOTESAPP_IMAGE` line for all
-later commands of this installation. Never replace it with a moving tag such
-as `latest`. The settings, the secret files and the migration commands stay the
-same. [Configuration](configuration.md) names every setting.
+The primary install path does not build source. The settings, secret files,
+and migrations use the same release checkout. Keep the manifest and image
+pin with your installation records. Before an upgrade, make and verify a
+backup. See [Upgrade](upgrade.md).
+
+## Release maintenance
+
+For each stable release, update the install example to its real source tag
+and verify both install guides with its manifest and image digest. Test the
+published platforms before changing the platform list. Never replace an
+existing version tag or digest to add a platform.

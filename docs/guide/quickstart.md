@@ -1,89 +1,65 @@
 # Quick start
 
-This page is for the person who runs the server. It takes you from a clone of
-the code to a running tidy notebook on your own machine. You do four things:
-clone, prepare, start, and open the application in a browser.
+Run the stable release on your own machine with Docker Compose. You do not
+need a GitHub account, a registry login, Node.js, or a source build.
 
-This is a test installation. It keeps all data in a folder inside the clone and
-serves only your own machine. Read [Self-hosting](self-hosting.md) before you
-store data that you care about. A real installation puts the secrets, the
-database and the attachments outside the clone, on encrypted storage, behind
-HTTPS.
+This is a test installation. It keeps data inside the clone and serves only
+your own machine. Use [Self-hosting](self-hosting.md) before you store data
+that you need to keep.
 
 ## What you need
 
-- Docker Engine and Docker Compose.
-- Git, `openssl` and `sudo`.
-- A new clone. Do not use an existing installation. The script in step 2
-  refuses a clone that already has a `.env` file.
+- Docker Engine and Docker Compose v2.
+- Git, Bash, `curl`, `jq`, `openssl`, and `sudo`.
+- A new clone. The setup script refuses an existing `.env` file.
+- A Linux `amd64` host for release 0.19.0. On macOS or Windows, use Docker
+  with Linux containers. An ARM host needs amd64 emulation for this release.
+  See [Supported platforms](published-images.md#supported-platforms).
 
-## 1. Get the code
+## 1. Get the release files
 
-This command copies the code to a new folder named `notesapp`. The second
-command goes into that folder. Run all later commands in it.
+Use the public stable tag. The clone provides Compose files and operator
+scripts that match the image.
 
 ```bash
-git clone https://github.com/tidynotebook/tidynotebook.git notesapp
+git clone --branch v0.19.0 --depth 1 https://github.com/tidynotebook/tidynotebook.git notesapp
 cd notesapp
 ```
 
-The repository is private until launch. Before launch, a clone needs access
-from the owner.
+Run the remaining commands in this folder.
 
 ## 2. Prepare the test installation
-
-This script does the whole setup. It needs `sudo` for two small steps, so it
-can ask for your password.
 
 ```bash
 tools/ops/quickstart.sh
 ```
 
-The script does these things:
+The script asks for `sudo` to create secret files and set the attachment
+folder owner. It writes `.env` and creates database, attachment, and secret
+folders under `.tooling/quickstart`. Git ignores these files.
 
-1. It stops with a message when `.env` or the folder `.tooling/quickstart`
-   exists. It never changes an installation that exists.
-2. It makes three folders under `.tooling/quickstart`: one for the database
-   (`postgres`), one for the attachments (`storage`) and one for the secrets
-   (`secrets`).
-3. It runs `tools/ops/create-secrets.sh` with `sudo`. This writes the secret
-   files: random passwords and keys that the application and the database use.
-   [Create the secret files](self-hosting.md#create-the-secret-files) names
-   each file.
-4. It gives the attachments folder to user 10001 with `sudo`. That is the user
-   inside the application container. The container cannot write to a folder
-   that belongs to another user.
-5. It writes the settings file `.env`. The file sets the address
-   `http://127.0.0.1:3000` and the three folders.
+## 3. Select and start the stable image
 
-Git and the Docker build ignore `.env` and `.tooling/`, so none of this goes
-into a commit or an image.
+Complete [Select the stable image](published-images.md#select-the-stable-image).
+That step checks the public release manifest and writes the exact image digest
+to `.env`. Stop if the check fails.
 
-## 3. Build and start
-
-The first command builds the application image from the code. This takes a few
-minutes the first time. The second command starts the database and the
-application in the background. The third command shows their state.
+Then download and start the image:
 
 ```bash
-docker compose build
-docker compose up -d
+docker compose pull app
+docker compose up -d --no-build --wait
 docker compose ps
 ```
 
-Wait until `docker compose ps` shows the application as healthy. Compose
-starts the database first. The application then updates the database and
-starts the server. Run `docker compose ps` again when the state is still
-starting.
-
-To see that the server is ready, run this command. It prints a short answer
-that starts with `{"status":"ok"` when the server is ready.
+Compose starts PostgreSQL first. The application updates the database and
+then starts the server. To check readiness:
 
 ```bash
-curl http://127.0.0.1:3000/ready
+curl --fail http://127.0.0.1:3000/ready
 ```
 
-When the application does not become healthy, read its log:
+The answer starts with `{"status":"ok"`. If startup fails, read the log:
 
 ```bash
 docker compose logs app
@@ -91,35 +67,34 @@ docker compose logs app
 
 ## 4. Open the application
 
-Open `http://127.0.0.1:3000` in a browser. Use this exact address. The server
-serves the address that is set in `.env` and refuses a request for any other
-host name, so `localhost` does not work.
+Open `http://127.0.0.1:3000`. Use this exact address. The default settings do
+not serve the host name `localhost`.
 
-The first visit shows a screen to create the first account. Enter an email
-address and a password. This account is the administrator. The screen closes
-after that account exists, and every later visit shows the sign-in page.
+Create the first account with an email address and a password. This account
+is the administrator. Later visits show the sign-in page.
 
 ## Stop and remove
 
-This command stops the application and the database. It keeps all your data.
+To stop the containers and keep the data:
 
 ```bash
 docker compose down
 ```
 
-To start again, run `docker compose up -d`.
+To start again, use `docker compose up -d --no-build --wait`.
 
-The data of the test stays in `.tooling/quickstart`. Files in that folder
-belong to the container user, so deleting the folder needs administrator
-rights. Stop the containers first. Then delete the folder and the settings
-file:
+To remove this test installation, stop the containers first. Then remove its
+data and settings:
 
 ```bash
 sudo rm -rf .tooling/quickstart
 rm .env
 ```
 
-## Next steps
+## Build from source
 
-When the test works, install for real. Follow [Self-hosting](self-hosting.md).
-It uses the same scripts, with folders outside the clone and HTTPS.
+Contributors can build a chosen source checkout with `docker compose build`
+and start it with `docker compose up -d --wait`. See
+[CONTRIBUTING.md](../../CONTRIBUTING.md) for the code setup and checks.
+
+For a server that holds real data, use [Self-hosting](self-hosting.md).

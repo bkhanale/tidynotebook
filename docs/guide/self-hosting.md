@@ -22,7 +22,7 @@ publish the database port. The database network is private.
    keys.
 6. [Write the settings file](#write-the-settings-file): copy `.env.example` to
    `.env` and edit it.
-7. [Start the server](#start-the-server): build and start the containers.
+7. [Start the server](#start-the-server): pull and start the stable image.
 8. [Set up HTTPS](#set-up-https): put a TLS proxy in front.
 9. [Create the first account](#create-the-first-account): make the
    administrator.
@@ -33,7 +33,7 @@ You need a Linux host that you control, and a user that can run `sudo`.
 Install these tools on the host:
 
 - Docker Engine and Docker Compose. They run the server.
-- Git. It gets the code.
+- Git, Bash, `curl`, and `jq`. They get the release files and check the image pin.
 - Node.js. The backup scripts run it on the host. Under `sudo`, the `PATH` of
   `sudo` must hold `node`.
 - GnuPG. The backup scripts use it to encrypt the backups.
@@ -63,19 +63,21 @@ This command copies the code to a folder named `notesapp`. The second command
 goes into that folder. Run all later commands in it.
 
 ```bash
-git clone https://github.com/tidynotebook/tidynotebook.git notesapp
+git clone --branch v0.19.0 --depth 1 https://github.com/tidynotebook/tidynotebook.git notesapp
 cd notesapp
 ```
 
-The repository is private until launch. Before launch, a clone needs access
-from the owner.
+The repository is public. No GitHub account or registry login is required.
+Release 0.19.0 supports `linux/amd64`. The next stable release will also
+support native `linux/arm64`. See
+[Supported platforms](published-images.md#supported-platforms).
 
 Compose names the containers after this folder. The backup steps use the
 container name, so keep the folder name in your installation notes.
 
-To install a fixed release, check out its tag in the clone, for example
-`git checkout v1.2.3`. The release must hold `tools/ops/create-secrets.sh`,
-which the next steps use. Releases up to 0.18.1 do not hold it.
+The tag fixes the Compose files and operator scripts to release 0.19.0.
+Use the matching pinned image in the steps below. Source builds belong to the
+[contributor path](../../CONTRIBUTING.md).
 
 ## Prepare encrypted storage
 
@@ -225,17 +227,17 @@ valid. Otherwise it names the missing value.
 docker compose config --quiet
 ```
 
-Then build the image, start the containers in the background, and show their
-state:
+Complete [Select the stable image](published-images.md#select-the-stable-image)
+to check the release manifest and write its digest to `.env`. Stop if that
+check fails. Then pull and start the image:
 
 ```bash
-docker compose build
-docker compose up -d
+docker compose pull app
+docker compose up -d --no-build --wait
 docker compose ps
 ```
 
-The build takes a few minutes the first time. Compose starts the database
-first. The application container then applies the database migrations with
+The image needs no source build. Compose starts the database first. The application container then applies the database migrations with
 the administrator role. After that it starts the server with the restricted
 role. The application is ready when `docker compose ps` shows it as healthy.
 Run `docker compose ps` again if it still shows starting.

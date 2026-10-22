@@ -69,13 +69,14 @@ tidy notebook has two editions. They run the same code.
 
 ## Requirements
 
-- Node.js 26.12.1
-- pnpm 12.3.4
-- Docker Engine and Docker Compose v2
-- PostgreSQL 18 for a self-hosted installation
+- Docker Engine and Docker Compose v2 with Linux containers
+- PostgreSQL 18 for a self-hosted installation (included in Compose)
+- Release 0.19.0: `linux/amd64`. The next stable release will also support
+  native `linux/arm64`. See [Supported platforms](docs/guide/published-images.md#supported-platforms).
 
-To run a server you need Docker and Docker Compose. You need Node.js and pnpm
-to change the code.
+The [quick start](docs/guide/quickstart.md) runs the pinned stable image.
+To change the code, use Node.js 26.12.1 and pnpm 12.3.4. The backup guide
+lists the host tools needed for backups.
 
 ## Development
 
