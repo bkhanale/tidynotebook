@@ -648,3 +648,9 @@ export type {
   OAuthClientIdentity,
   OAuthRedirectAddress,
 } from './identity/oauth.ts';
+export { completeWelcomeNote } from './workspaces/welcome-note.ts';
+export type {
+  WelcomeNoteStore,
+  WelcomeNoteTransaction,
+  WelcomeNoteOutcome,
+} from './workspaces/welcome-note.ts';

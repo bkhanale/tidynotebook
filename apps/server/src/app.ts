@@ -49,7 +49,13 @@ import {
   createAuthPool,
   createAuthProtocol,
 } from './auth/better-auth.ts';
-import { createIdentityAdapter, refuseLocked } from './auth/actor.ts';
+import {
+  createIdentityAdapter,
+  refuseLocked,
+  requestActor,
+} from './auth/actor.ts';
+import { seedWelcomeNote } from './auth/welcome-note.ts';
+import { readProperty } from './values.ts';
 import { createMcpProtocol } from './mcp/protocol.ts';
 import type { McpTool } from './mcp/registry.ts';
 import { createPublicationHasher } from './auth/publication-secrets.ts';
@@ -1065,7 +1071,30 @@ async function composeApp(
         },
       }),
     },
-    identity: adapter.resolver,
+    identity: async (request, operation) => {
+      await adapter.resolver(request, operation);
+      const resolved = requestActor(request);
+      if (resolved === undefined || resolved.standing !== 'active') return;
+      const workspaceId = readProperty(request.params, 'workspaceId');
+      const workspaces =
+        operation.id === 'listWorkspaces'
+          ? await identity.memberships(resolved.actor.accountId)
+          : typeof workspaceId === 'string'
+            ? [{ workspaceId, role: 'owner' }]
+            : [];
+      for (const workspace of workspaces) {
+        if (workspace.role !== 'owner') continue;
+        await seedWelcomeNote(
+          content,
+          resolved.actor.accountId,
+          workspace.workspaceId,
+          (code) =>
+            createServerLogger(request.log)
+              .bind({ requestId: request.id })
+              .emit('welcome_note.failed', { code }),
+        );
+      }
+    },
     protocols: [
       createMcpProtocol({
         config,

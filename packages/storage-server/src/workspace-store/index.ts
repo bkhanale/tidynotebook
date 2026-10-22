@@ -26,10 +26,12 @@ import type {
   TransactOptions,
   WorkspaceStore,
   WorkspaceTransaction,
+  WelcomeNoteStore,
+  WelcomeNoteTransaction,
 } from '@notesapp/core';
 import { runSyncCleanup } from '../snapshots.ts';
 import { operational, unreachable } from './errors.ts';
-import { runTransaction } from './transaction.ts';
+import { runTransaction, type TransactionBuilder } from './transaction.ts';
 import { membershipRepository } from './membership-repository.ts';
 import { dailyNoteSettingsRepository } from './daily-note-settings-repository.ts';
 import { templateSettingsRepository } from './template-settings-repository.ts';
@@ -38,6 +40,10 @@ import { historyRepository } from './history-repository.ts';
 import { trashRepository } from './trash-repository.ts';
 import { searchRepository } from './search-repository.ts';
 import { syncRepository } from './sync-repository.ts';
+import {
+  pendingWelcomeNote,
+  welcomeNoteRepository,
+} from './welcome-note-repository.ts';
 import {
   probePublicationWrite,
   runPublicationRead,
@@ -154,6 +160,8 @@ export type PublishedLinkStore = {
 
 /** A workspace store and the calls that a process needs to manage its pool. */
 export type WorkspaceStoreHandle = WorkspaceStore & {
+  pendingWelcomeNote: WelcomeNoteStore['pendingWelcomeNote'];
+  welcomeNote: WelcomeNoteStore['welcomeNote'];
   /**
    * The read-only store of the reader path.
    *
@@ -300,6 +308,78 @@ export function openWorkspaceStore(
 
   return {
     documents,
+    pendingWelcomeNote(actor, workspaceId) {
+      return runTransaction(
+        pool,
+        actor,
+        workspaceId,
+        pendingWelcomeNote,
+        { readOnly: true },
+        (client, db, transactionActor, scope) => ({
+          client,
+          db,
+          actor: transactionActor,
+          workspaceId: scope,
+          documents,
+        }),
+      );
+    },
+    async welcomeNote(actor, workspaceId, run) {
+      const build: TransactionBuilder<WelcomeNoteTransaction> = (
+        client,
+        db,
+        transactionActor,
+        scope,
+      ) => {
+        const tx = createTransaction(
+          client,
+          db,
+          transactionActor,
+          scope,
+          documents,
+        );
+        const content: WorkspaceStore = {
+          documents,
+          async transact(boundActor, boundWorkspace, callback) {
+            if (boundActor !== transactionActor || boundWorkspace !== scope)
+              throw new Error(
+                'notesapp: the welcome note left its transaction scope.',
+              );
+            return callback(tx);
+          },
+        };
+        return welcomeNoteRepository(
+          {
+            client,
+            db,
+            actor: transactionActor,
+            workspaceId: scope,
+            documents,
+          },
+          content,
+        );
+      };
+      try {
+        return await runTransaction(pool, actor, workspaceId, run, {}, build);
+      } catch (error) {
+        // The failed content transaction is gone. Record only a fixed code
+        // in a new transaction, without replacing a concurrent completion.
+        try {
+          await runTransaction(
+            pool,
+            actor,
+            workspaceId,
+            (tx) => tx.record('unexpected'),
+            {},
+            build,
+          );
+        } catch {
+          // An unavailable database cannot keep its own failure record. The
+          // caller still logs the safe unexpected failure code.
+        }
+        throw error;
+      }
+    },
     async transact<T>(
       actor: Actor,
       workspaceId: string,

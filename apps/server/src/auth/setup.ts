@@ -14,7 +14,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type {
   ConsentVersions,
   NewAccountSettings,
-  WorkspaceStore,
+  WelcomeNoteStore,
 } from '@notesapp/core';
 import { consentMatches, readInvitation, verifyActor } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
@@ -22,6 +22,7 @@ import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { DomainProblemError, ForbiddenError } from '../plugins/problem.ts';
 import { readProperty } from '../values.ts';
 import { requireWriteOrigin } from './actor.ts';
+import { createServerLogger } from '../logging.ts';
 import type { NotesappAuth } from './better-auth.ts';
 import { secretDigest } from './publication-secrets.ts';
 import { registerIdentity, startSession } from './registration.ts';
@@ -63,7 +64,7 @@ function invitationRefused(): DomainProblemError {
 export type SetupDependencies = {
   readonly auth: NotesappAuth;
   readonly identity: IdentityStoreHandle;
-  readonly content: WorkspaceStore;
+  readonly content: WelcomeNoteStore;
   /** The served origins of the deployment, from `config.servedOrigins`. */
   readonly servedOrigins: readonly ServedOrigin[];
   /** The controls that a new account starts with (record 0189). */
@@ -89,10 +90,21 @@ export function createSetupHandlers(
   };
 
   /** Writes the welcome note into the personal workspace of an account. */
-  const welcome = async (accountId: string): Promise<void> => {
+  const welcome = async (
+    accountId: string,
+    request: FastifyRequest,
+  ): Promise<void> => {
     const [membership] = await identity.memberships(accountId);
     if (membership !== undefined)
-      await seedWelcomeNote(content, accountId, membership.workspaceId);
+      await seedWelcomeNote(
+        content,
+        accountId,
+        membership.workspaceId,
+        (code) =>
+          createServerLogger(request.log)
+            .bind({ requestId: request.id })
+            .emit('welcome_note.failed', { code }),
+      );
   };
 
   return {
@@ -137,7 +149,7 @@ export function createSetupHandlers(
       }
       // The one welcome note is written through the same commit path that the
       // create operation uses, so it has a revision and reaches every device.
-      await welcome(made.value.accountId);
+      await welcome(made.value.accountId, request);
       const cookies = await startSession(auth, made.value.email, password);
       if (cookies.length === 0)
         throw new Error('notesapp: the first account got no session.');
@@ -200,7 +212,7 @@ export function createSetupHandlers(
       const actor = verifyActor(made.value.accountId, []);
       if (documents !== null && consent !== null && actor.ok)
         await identity.account(actor.value, (tx) => tx.recordConsent(consent));
-      await welcome(made.value.accountId);
+      await welcome(made.value.accountId, request);
       const cookies = await startSession(auth, made.value.email, password);
       if (cookies.length === 0)
         throw new Error('notesapp: the new account got no session.');
@@ -251,7 +263,8 @@ export function createSetupHandlers(
       requireWriteOrigin(servedOrigins, request);
       const verified = await verifyOpen(open, text(request.body, 'token'));
       if (!verified.ok) throw new DomainProblemError(verified.error);
-      if (verified.value.created) await welcome(verified.value.accountId);
+      if (verified.value.created)
+        await welcome(verified.value.accountId, request);
       return {
         status: 200,
         mediaType: jsonMediaType,

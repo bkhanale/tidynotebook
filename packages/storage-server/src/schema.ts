@@ -446,6 +446,15 @@ export const workspaces = pgTable('workspaces', {
     .defaultNow(),
 });
 
+/** The first note keeps its completion record even after the note is purged. */
+export const workspaceWelcomeNotes = pgTable('workspace_welcome_notes', {
+  workspaceId: uuid('workspace_id')
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  failureCode: text('failure_code'),
+});
+
 /**
  * Stored bytes of one workspace.
  *

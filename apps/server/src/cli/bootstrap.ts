@@ -90,6 +90,11 @@ export async function bootstrapOwner(
         content,
         made.value.accountId,
         membership.workspaceId,
+        (code) => {
+          process.stderr.write(
+            `notesapp: the welcome note is pending (${code}).\n`,
+          );
+        },
       );
     return {
       authUserId: made.value.authUserId,

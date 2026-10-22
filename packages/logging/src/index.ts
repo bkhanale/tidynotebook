@@ -63,6 +63,8 @@ export type LogEventFields = {
    */
   readonly 'auth.breach_check_unavailable': Record<string, never>;
   readonly 'auth.failed': { readonly source: 'better-auth' };
+  /** A welcome note stays pending. No error message or note data is logged. */
+  readonly 'welcome_note.failed': { readonly code: string };
   readonly 'web.problem': { readonly problemCode: string };
   /**
    * A route boundary of the web application held a render failure
@@ -105,6 +107,7 @@ export const logEventCatalog = {
   'auth.warning': { level: 'warn', fields: ['source'] },
   'auth.breach_check_unavailable': { level: 'warn', fields: [] },
   'auth.failed': { level: 'error', fields: ['source'] },
+  'welcome_note.failed': { level: 'error', fields: ['code'] },
   'web.problem': { level: 'warn', fields: ['problemCode'] },
   'web.render_failed': {
     level: 'error',

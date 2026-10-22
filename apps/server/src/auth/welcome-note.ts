@@ -1,24 +1,16 @@
 /**
- * The one note that a first run creates.
- *
- * The note is written once, during setup, through the same commit path that
- * the create operation uses. It therefore has a revision, a history entry and
- * a sync cursor, exactly like a note that a person made, and it reaches every
- * device. Nothing creates it a second time: setup runs only while no account
- * exists.
- *
- * The text lives here and not in the web application, because the web
- * application no longer offers a starter note.
+ * The first note of a personal workspace. A durable completion record lets
+ * locked accounts wait until activation without creating the note twice.
  */
 import {
   actionsForRole,
-  commitChangeset,
+  completeWelcomeNote,
   createFileChangeset,
   generateUUID,
   workspaceText,
   requestDigest,
   verifyActor,
-  type WorkspaceStore,
+  type WelcomeNoteStore,
   productName,
 } from '@notesapp/core';
 
@@ -59,17 +51,14 @@ Press Cmd or Ctrl and P to search your notes or to run an action.
 `;
 
 /**
- * Writes the welcome note into the workspace of the new owner.
- *
- * The call returns `false` when the note could not be written. Setup then
- * still succeeds: an account without the welcome note is a working
- * installation, and a failed seed must not remove the owner that was just
- * created.
+ * Attempts the pending note. A refused write stays pending. Only a safe code
+ * reaches the failure reporter, including for an unexpected exception.
  */
 export async function seedWelcomeNote(
-  store: WorkspaceStore,
+  store: WelcomeNoteStore,
   accountId: string,
   workspaceId: string,
+  reportFailure: (code: string) => void,
 ): Promise<boolean> {
   const actor = verifyActor(accountId, [
     { workspaceId, actions: actionsForRole('owner') },
@@ -103,11 +92,17 @@ export async function seedWelcomeNote(
     { workspaceId, fileId, ifMatch: null },
     body,
   );
-  const committed = await commitChangeset(
-    store,
-    actor.value,
-    changeset,
-    digest,
-  );
-  return committed.ok;
+  try {
+    const committed = await completeWelcomeNote(
+      store,
+      actor.value,
+      changeset,
+      digest,
+    );
+    if (!committed.ok) reportFailure(committed.error.code);
+    return committed.ok;
+  } catch {
+    reportFailure('unexpected');
+    return false;
+  }
 }
