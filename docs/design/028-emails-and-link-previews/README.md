@@ -31,10 +31,10 @@ two review pages. The pages load nothing from the network.
 
 | Surface                                                            | Owner | Change in this task                    |
 | ------------------------------------------------------------------ | ----- | -------------------------------------- |
-| The words of every message, `apps/server/src/auth/messages.ts`     | core  | Proposal for an HTML part and copy     |
-| The transport, `apps/server/src/auth/mail.ts`                      | core  | Proposal for a second part             |
-| The application shell, `apps/web/index.html`                       | core  | Proposal for the preview tags          |
-| The published page, `apps/server/src/routes/published-document.ts` | core  | Proposal for the preview tags          |
+| The words of every message, `apps/server/src/auth/messages.ts`     | core  | Shared HTML and plain text implemented |
+| The transport, `apps/server/src/auth/mail.ts`                      | core  | Multipart delivery implemented         |
+| The application shell, `apps/web/index.html`                       | core  | Generic preview tags implemented       |
+| The published page, `apps/server/src/routes/published-document.ts` | core  | Generic preview tags implemented       |
 | The plan end notice, `packages/domain/src/mirror/notices.ts`       | cloud | Concept only. No change.               |
 | The notice outbox, `packages/storage/src/stores/notices.ts`        | cloud | Concept only. No change.               |
 | Owner alarms, `packages/domain/src/alarms/`                        | cloud | Out of scope. They go to the operator. |
@@ -56,7 +56,7 @@ one now has HTML and plain text from the shared renderer.
 | Sign-up attempt  | `signUpAttemptMessage`   | `auth/open-registration.ts` | `/login`                             |
 | Password reset   | `passwordResetMessage`   | `auth/better-auth.ts`       | `/reset-password#token`, works once  |
 | Password changed | `passwordChangedMessage` | `auth/better-auth.ts`       | `/forgot-password`                   |
-| Test message     | `testMessage`            | `routes/administration.ts`  | none                                 |
+| Test message     | `testMessage`            | `routes/administration.ts`  | `/`                                  |
 | Removal notice   | `removalNoticeMessage`   | `jobs/account-removal.ts`   | `/login`, with or without the portal |
 
 The cloud sends one notice to a person: the end of a plan or of a seat,
@@ -175,11 +175,11 @@ Each subject stays as it is now, except that it names the installation as
 a preview line. The test message also says that it has two parts, so an
 administrator checks both.
 
-### The transport plan for the core
+### The core transport
 
-- `MailMessage` gains an optional `html`. `envelopeOf` passes it to the
+- `MailMessage` requires `html` beside `text`. `envelopeOf` passes it to the
   transport library, which then writes `multipart/alternative` with the plain
-  text part first. A message with no `html` stays plain text.
+  text part first. Every core message has both parts.
 - `messages.ts` writes both parts from one value of each message, so the two
   parts cannot say different things. Every value that enters the HTML part is
   escaped. The host is the host of the configured origin, never a request
@@ -187,12 +187,14 @@ administrator checks both.
 - The budget, the automatic headers, the sender, the settings of record 0148
   and the fields of record 0150 do not change. The removal job keeps its
   current behaviour.
-- A self-hosted installation keeps its own host in the subject, the heading
+- A self-hosted installation keeps its own host in the subject, the body
   and the foot. The product name stays `tidy notebook`.
 
-Compatibility: no setting, stored value, operator command or image command
-changes. A mail client that shows only plain text shows the same words as
-today, plus the new label and list.
+Compatibility: `MailMessage` requires HTML. The optional
+`NOTESAPP_MAIL_SUPPORT_URL` adds a support link in both parts. Without it,
+the footer names the installation administrator. A support link can be outside
+the installation, but it loads no remote file. Stored values, operator commands
+and image commands do not change. Plain text keeps every instruction and link.
 
 ### Cloud
 
@@ -349,7 +351,8 @@ Email:
 - Every message of the core has an HTML part and a plain text part, written by
   one function from one value.
 - The HTML part holds no `img`, no remote `link`, no remote `url()`, no
-  script and no address that is not of the installation. A unit test proves
+  script and no action address that is not of the installation. The configured support
+  address is the only link that can be outside it. A unit test proves
   this for each message.
 - A test proves that every value from a person or a setting is escaped.
 - The plain text part of each message holds every link and every instruction
