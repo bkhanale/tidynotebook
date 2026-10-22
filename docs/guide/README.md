@@ -8,7 +8,8 @@ people you invite. Each account has its own notes. Write in Markdown and
 organize notes in folders. Export your notes as ordinary Markdown files. Live
 notes and history are stored in PostgreSQL. Images use local or object storage.
 When you type, the application writes a draft on your device. A pause in typing
-or a manual save creates a version on your server. History keeps each version.
+or a manual save queues a version, and synchronization sends it to your server.
+History keeps each version.
 
 ## Writing notes
 

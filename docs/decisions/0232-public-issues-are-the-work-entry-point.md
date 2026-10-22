@@ -6,9 +6,8 @@
 ## Context
 
 The board address in the active documentation is not available to public
-readers. The chief orchestrator directs the documentation to the public issue
-list and removes the claim that board order defines priority. Historical
-records must stay unchanged.
+readers. The active documentation links to the public issue list and no longer
+claims that board order defines priority.
 
 ## Decision
 
