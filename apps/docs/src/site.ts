@@ -19,6 +19,15 @@ export const productName = 'tidy notebook';
 /** The name of the site, as a browser tab and a search engine read it. */
 export const siteName = `${productName} docs`;
 
+/** The shared product image used when a documentation link is shared. */
+export const socialPreview = {
+  file: 'social-preview-v1.png',
+  type: 'image/png',
+  width: 1200,
+  height: 630,
+  alt: 'tidy notebook. An open-source home for your notes. Write in Markdown. Export any time. The editor shows a trip plan.',
+} as const;
+
 /** The repository that holds the source of the product and of this site. */
 export const repositoryUrl = 'https://github.com/tidynotebook/tidynotebook';
 

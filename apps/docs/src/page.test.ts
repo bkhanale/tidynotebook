@@ -215,3 +215,27 @@ await test('docs uses the shared footer below its page resources and frame', () 
   assert.ok(footer.includes('src="/notesapp/assets/icon.svg"'));
   assert.ok(html.includes('href="https://tidynotebook.com/privacy"'));
 });
+
+await test('social preview addresses stay local when no origin is configured', () => {
+  for (const html of [
+    pageDocument({
+      ...view,
+      settings: { base: '/private-docs/', origin: null },
+    }),
+    missingDocument({ base: '/private-docs/', origin: null }, assets, groups),
+  ]) {
+    assert.match(html, /property="og:url" content="\/private-docs\//);
+    assert.match(
+      html,
+      /property="og:image" content="\/private-docs\/social-preview-v1\.png"/,
+    );
+    assert.match(
+      html,
+      /name="twitter:image" content="\/private-docs\/social-preview-v1\.png"/,
+    );
+    assert.doesNotMatch(
+      html,
+      /(?:property="og:(?:url|image)"|name="twitter:image") content="https?:/,
+    );
+  }
+});

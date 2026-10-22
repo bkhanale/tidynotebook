@@ -29,6 +29,7 @@ import {
   apiDownload,
 } from '../../apps/docs/src/api-reference.ts';
 import { buildSite } from '../../apps/docs/src/build.ts';
+import { socialPreview } from '../../apps/docs/src/site.ts';
 import {
   administrationSections,
   settingsSections,
@@ -86,6 +87,61 @@ await test('the built documentation site', async (t) => {
   t.after(async () => {
     await rm(output, { recursive: true, force: true });
   });
+
+  await t.test(
+    'every page has one complete social preview at the configured origin',
+    async () => {
+      const documents = [
+        ...pages,
+        {
+          address: `${base}404.html`,
+          html: await readFile(join(output, '404.html'), 'utf8'),
+        },
+      ];
+      const imageAddress = `${origin}${base}${socialPreview.file}`;
+      for (const { address, html } of documents) {
+        for (const [attribute, name, value] of [
+          ['property', 'og:title', null],
+          ['property', 'og:description', null],
+          ['property', 'og:site_name', 'tidy notebook docs'],
+          ['property', 'og:url', `${origin}${address}`],
+          ['property', 'og:type', 'website'],
+          ['property', 'og:image', imageAddress],
+          ['property', 'og:image:type', 'image/png'],
+          ['property', 'og:image:width', '1200'],
+          ['property', 'og:image:height', '630'],
+          ['property', 'og:image:alt', socialPreview.alt],
+          ['name', 'twitter:card', 'summary_large_image'],
+          ['name', 'twitter:image', imageAddress],
+        ]) {
+          const tags = [
+            ...html.matchAll(
+              new RegExp(
+                `<meta ${attribute}="${name}" content="([^"]*)">`,
+                'g',
+              ),
+            ),
+          ];
+          assert.equal(tags.length, 1, `${address}: ${name}`);
+          if (value !== null)
+            assert.equal(tags[0]?.[1], value, `${address}: ${name}`);
+          else assert.ok(tags[0]?.[1], `${address}: ${name} is empty`);
+        }
+      }
+      const image = await readFile(join(output, socialPreview.file));
+      assert.deepEqual(
+        image.subarray(0, 8),
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      );
+      assert.equal(image.readUInt32BE(16), 1200);
+      assert.equal(image.readUInt32BE(20), 630);
+      assert.ok(
+        image.equals(
+          await readFile(join(root, 'apps/docs/images', socialPreview.file)),
+        ),
+      );
+    },
+  );
 
   await t.test('docs copies and links the official icon set', async () => {
     for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png']) {

@@ -43,7 +43,7 @@ import {
   type PageLink,
   type SiteAssets,
 } from './page.ts';
-import { readSiteSettings, type SiteSettings } from './site.ts';
+import { readSiteSettings, socialPreview, type SiteSettings } from './site.ts';
 import {
   apiDocumentFile,
   apiDownload,
@@ -107,6 +107,10 @@ async function copyAssets(
   });
   for (const name of ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png'])
     await cp(join(input.web, name), join(input.output, name));
+  await cp(
+    join(packageDirectory, 'images', socialPreview.file),
+    join(input.output, socialPreview.file),
+  );
   let icon: string | null = null;
   if (shell.icon !== null) {
     await cp(join(input.web, shell.icon), join(input.output, shell.icon));

@@ -58,6 +58,7 @@ import {
   productName,
   repositoryUrl,
   siteName,
+  socialPreview,
   type SiteSettings,
 } from './site.ts';
 
@@ -300,10 +301,14 @@ function head(
   assets: SiteAssets,
   title: string,
   description: string,
+  path: string,
   extra: readonly string[],
 ): string {
   const styles = assets.stylesheets.map(
     (href) => `<link rel="stylesheet" href="${escapeAttribute(href)}">`,
+  );
+  const image = escapeAttribute(
+    absoluteAddress(settings, `${settings.base}${socialPreview.file}`),
   );
   const lines = [
     '<meta charset="utf-8">',
@@ -313,6 +318,15 @@ function head(
     `<meta property="og:title" content="${escapeAttribute(title)}">`,
     `<meta property="og:description" content="${escapeAttribute(description)}">`,
     `<meta property="og:site_name" content="${escapeAttribute(siteName)}">`,
+    `<meta property="og:url" content="${escapeAttribute(absoluteAddress(settings, path))}">`,
+    '<meta property="og:type" content="website">',
+    `<meta property="og:image" content="${image}">`,
+    `<meta property="og:image:type" content="${socialPreview.type}">`,
+    `<meta property="og:image:width" content="${socialPreview.width}">`,
+    `<meta property="og:image:height" content="${socialPreview.height}">`,
+    `<meta property="og:image:alt" content="${escapeAttribute(socialPreview.alt)}">`,
+    '<meta name="twitter:card" content="summary_large_image">',
+    `<meta name="twitter:image" content="${image}">`,
     `<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="${escapeAttribute(settings.base)}favicon.ico">`,
     `<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttribute(settings.base)}apple-touch-icon.png">`,
     ...(assets.icon === null
@@ -460,10 +474,17 @@ export function pageDocument(view: PageView): string {
   return `<!doctype html>
 <html lang="en">
   <head>
-${head(settings, view.assets, title, page.description, [
-  ...canonical,
-  `<link rel="alternate" type="text/markdown" title="${words.viewMarkdown}" href="${escapeAttribute(markdown)}">`,
-])}
+${head(
+  settings,
+  view.assets,
+  title,
+  page.description,
+  pageHref(settings, page.slug),
+  [
+    ...canonical,
+    `<link rel="alternate" type="text/markdown" title="${words.viewMarkdown}" href="${escapeAttribute(markdown)}">`,
+  ],
+)}
   </head>
   <body class="${bodyClasses}" data-docs-base="${escapeAttribute(settings.base)}">
     <a class="sr-only rounded-md bg-card px-3 py-2 text-control text-strong focus-visible:not-sr-only focus-visible:absolute focus-visible:left-2 focus-visible:top-2 focus-visible:z-40 focus-visible:outline-2 focus-visible:outline-focus" href="#docs-text">${words.skip}</a>
@@ -511,7 +532,7 @@ export function missingDocument(
   return `<!doctype html>
 <html lang="en">
   <head>
-${head(settings, assets, `${words.missingTitle} | ${siteName}`, words.missingText, ['<meta name="robots" content="noindex">'])}
+${head(settings, assets, `${words.missingTitle} | ${siteName}`, words.missingText, `${settings.base}404.html`, ['<meta name="robots" content="noindex">'])}
   </head>
   <body class="${bodyClasses}" data-docs-base="${escapeAttribute(settings.base)}">
     ${header(settings)}
