@@ -870,6 +870,8 @@ await test('the normalised repository root runs the icon generation check', asyn
     for (const path of [
       'tools/check-design-rules.mjs',
       'tools/generate-icons.mjs',
+      '.prettierrc.json',
+      'apps/server/src/auth/email-logo.ts',
       'tools/workspace.mjs',
       'packages/ui/assets/notebook.svg',
       'packages/ui/src/icons.tsx',

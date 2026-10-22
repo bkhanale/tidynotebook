@@ -236,7 +236,9 @@ await test('a known and a new address get the same status and body', async () =>
   // The owner of the known address reads about the attempt, and the new
   // address gets its link.
   const [notice] = mailsTo(ownerEmail);
-  assert.ok(notice?.text.includes('already has an account'));
+  assert.ok(
+    notice?.text.includes('You already have an account, so nothing changed.'),
+  );
   assert.ok(!notice?.text.includes('/verify#'));
   lastToken(fresh);
   // The known account keeps its password.
