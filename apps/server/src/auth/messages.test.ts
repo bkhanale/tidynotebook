@@ -103,3 +103,40 @@ await test('the mail before a removal names the time, the way to keep the accoun
   });
   assert.match(one.subject, /is deleted in 1 day$/);
 });
+
+await test('every email matches its HTML and text golden files', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { emailExamples } = await import('./fixtures/email-examples.ts');
+  for (const { name, message } of emailExamples) {
+    assert.equal(
+      message.html,
+      await readFile(
+        new URL(`./fixtures/emails/${name}.html.golden`, import.meta.url),
+        'utf8',
+      ),
+      name,
+    );
+    assert.equal(
+      message.text,
+      await readFile(
+        new URL(`./fixtures/emails/${name}.txt`, import.meta.url),
+        'utf8',
+      ),
+      name,
+    );
+    assert.match(message.html, /<html lang="en"/);
+    assert.equal((message.html.match(/<h1\b/g) ?? []).length, 1, name);
+    assert.doesNotMatch(message.html, /<img\b|<script\b|<link\b|url\(/i);
+    assert.match(message.text, /This message is automatic\./);
+    assert.match(message.text, /For help, contact/);
+    const links = [...message.html.matchAll(/href="([^"]+)"/g)];
+    assert.ok(links.length >= 2, name);
+    for (const [, link] of links) {
+      const decoded = (link ?? '').replaceAll('&amp;', '&');
+      assert.ok(
+        message.text.split('\n').includes(decoded),
+        `${name}: ${decoded}`,
+      );
+    }
+  }
+});

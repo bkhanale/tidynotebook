@@ -552,6 +552,7 @@ function buildAuth(
       }): Promise<void> => {
         sendLater(() =>
           passwordResetMessage({
+            supportUrl: config.mailSupportUrl,
             to: data.user.email,
             origin: config.origin,
             link: resetPasswordLink(config.origin, data.token),
@@ -566,6 +567,7 @@ function buildAuth(
       onPasswordReset: (data: { user: { email: string } }): Promise<void> => {
         sendLater(() =>
           passwordChangedMessage({
+            supportUrl: config.mailSupportUrl,
             to: data.user.email,
             origin: config.origin,
           }),

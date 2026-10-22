@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-01
+- Amended by [record 0232](0232-every-core-email-has-html-and-plain-text.md) for HTML and plain text alternatives.
 
 ## Context
 

@@ -17,6 +17,7 @@ const message: MailMessage = {
   to: 'a@example.com',
   subject: 'Subject',
   text: 'Text\n',
+  html: '<p>Text</p>',
 };
 
 await test('every message states that a program wrote it', () => {
@@ -27,6 +28,7 @@ await test('every message states that a program wrote it', () => {
       to: 'a@example.com',
       subject: 'Subject',
       text: 'Text\n',
+      html: '<p>Text</p>',
       headers: {
         'Auto-Submitted': 'auto-generated',
         'X-Auto-Response-Suppress': 'All',
@@ -174,4 +176,23 @@ await test('the mail fields of the environment build the transport of its URL', 
     user: 'me@example.com',
     pass: 'p@ss:w/rd?#%',
   });
+});
+
+await test('the wire message has text first and HTML second, with automatic headers', async () => {
+  const transport = createTransport({
+    streamTransport: true,
+    buffer: true,
+    newline: 'unix',
+  });
+  const sent = await transport.sendMail(
+    envelopeOf('sender@example.test', message),
+  );
+  const wire = String(sent.message);
+  assert.match(wire, /Content-Type: multipart\/alternative;/);
+  assert.match(wire, /Auto-Submitted: auto-generated/);
+  assert.ok(
+    wire.indexOf('Content-Type: text/plain') <
+      wire.indexOf('Content-Type: text/html'),
+  );
+  assert.match(wire, /<p>Text<\/p>/);
 });

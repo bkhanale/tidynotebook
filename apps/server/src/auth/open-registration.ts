@@ -154,7 +154,11 @@ export async function signUpOpen(
     await context.password.hash(input.password);
     await send(
       dependencies,
-      signUpAttemptMessage({ to: email, origin: dependencies.origin }),
+      signUpAttemptMessage({
+        to: email,
+        origin: dependencies.origin,
+        supportUrl: dependencies.mail.supportUrl ?? null,
+      }),
     );
     return ok(undefined);
   }
@@ -184,6 +188,7 @@ export async function signUpOpen(
   await send(
     dependencies,
     verificationMessage({
+      supportUrl: dependencies.mail.supportUrl ?? null,
       to: email,
       origin: dependencies.origin,
       link: verificationLink(dependencies.origin, token),

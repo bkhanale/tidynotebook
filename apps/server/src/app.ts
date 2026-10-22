@@ -844,7 +844,7 @@ async function composeApp(
     reader: identity,
     environmentMail:
       options?.mail === undefined
-        ? createMailTransport(config.mail)
+        ? createMailTransport(config.mail, config.mailSupportUrl)
         : options.mail,
     environmentTexts: options?.legalTexts ?? (await loadLegalTexts(config)),
     passwordSeal: createMailPasswordSeal(config.authSecret),

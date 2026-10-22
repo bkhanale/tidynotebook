@@ -1,0 +1,25 @@
+Password reset
+
+Reset your password
+
+Somebody asked to reset the password of your account on tidy notebook at long-installation-name-long-installation-name-example.notes.example.com.
+
+Choose a new password with the link below. This link is for you. Do not share it.
+
+Choose a new password:
+https://long-installation-name-long-installation-name-example.notes.example.com/reset-password#EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-EXAMPLE-NOT-A-REAL-TOKEN-
+
+The link works once, for 1 hour.
+
+If you did not ask for a new password, ignore this message. Your password does not change.
+
+You get this message because somebody asked for a password reset on tidy notebook at long-installation-name-long-installation-name-example.notes.example.com.
+
+This message is automatic.
+
+For help, contact support:
+
+https://support.example.test/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/long-support-path/
+
+-- 
+tidy notebook at long-installation-name-long-installation-name-example.notes.example.com

@@ -118,6 +118,7 @@ services:
       NOTESAPP_OPERATOR_TOKEN_FILE: ${NOTESAPP_OPERATOR_TOKEN_FILE:-}
       # The account portal that every account opens from Settings, and that a
       # locked account opens to unlock itself.
+      NOTESAPP_MAIL_SUPPORT_URL: ${NOTESAPP_MAIL_SUPPORT_URL:-}
       NOTESAPP_ACCOUNT_PORTAL_URL: ${NOTESAPP_ACCOUNT_PORTAL_URL:-}
       # The caps of the whole installation for one month (record 0193): the
       # bytes of the published pages, the bytes of the downloads, and the

@@ -9,7 +9,7 @@ metadata that a link preview reads, the tags, the HTML title and the image,
 shows only the product, never a note, an account or a token. That promise
 covers the metadata only. A crawler that fetches an open published note can
 still read and keep the text of the page. Item 1 of the proposed work, the
-link preview, is implemented. The email part is still a proposal.
+link preview, is implemented. The core email part is implemented by record 0232. Cloud email remains a proposal.
 
 ## Review files
 
@@ -47,7 +47,7 @@ its own review.
 ## Inventory
 
 The core sends seven kinds of message. The removal notice has two forms. Each
-one is plain text today.
+one now has HTML and plain text from the shared renderer.
 
 | Message          | Function                 | Caller                      | Link                                 |
 | ---------------- | ------------------------ | --------------------------- | ------------------------------------ |
@@ -419,5 +419,16 @@ Each item is one pull request that merges and deploys alone.
 
 ## Decisions
 
-None yet. Item 2 of the proposed work adds a record that amends
-[record 0141](../../decisions/0141-a-person-resets-a-password-in-the-application.md).
+[Record 0232](../../decisions/0232-every-core-email-has-html-and-plain-text.md)
+amends record 0141 for core email. It was approved by the orchestrator on the
+owner's delegation, 2026-10-22. The shared renderer is
+`apps/server/src/auth/email-template.ts`. `MailMessage` requires both parts.
+The optional support URL can be outside the installation; no remote file loads.
+The administrator test now has an action that opens the installation.
+
+Core implementation status: complete. Local visual and test results are in the
+implementation PR. Cloud notices remain plain text and need a separate change.
+The staging mail client checks are deferred until after merge, on the
+orchestrator's instruction, using an approved `@bhu.sh` inbox. No outside email
+is sent during implementation. The review HTML above is the original proposal;
+the PR screenshots show the implemented emails.

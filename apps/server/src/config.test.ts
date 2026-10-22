@@ -1372,3 +1372,30 @@ await test('MCP accepts the application origin and excludes the published host',
         ),
     );
 });
+
+await test('the email support URL is optional and must be safe to open', () => {
+  assert.equal(loadServerConfig(valid).mailSupportUrl, null);
+  assert.equal(
+    loadServerConfig(environment({ NOTESAPP_MAIL_SUPPORT_URL: '' }))
+      .mailSupportUrl,
+    null,
+  );
+  const url = 'https://support.example.test/help?topic=account&from=email';
+  assert.equal(
+    loadServerConfig(environment({ NOTESAPP_MAIL_SUPPORT_URL: url }))
+      .mailSupportUrl,
+    url,
+  );
+  for (const invalid of [
+    'javascript:alert(1)',
+    'data:text/html,test',
+    'not a URL',
+    'https://user:password@example.test/',
+  ]) {
+    assert.throws(
+      () =>
+        loadServerConfig(environment({ NOTESAPP_MAIL_SUPPORT_URL: invalid })),
+      /NOTESAPP_MAIL_SUPPORT_URL/,
+    );
+  }
+});

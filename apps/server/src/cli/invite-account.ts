@@ -49,7 +49,7 @@ export async function inviteAccount(input: {
       reader: identity,
       environmentMail:
         input.mail === undefined
-          ? createMailTransport(input.config.mail)
+          ? createMailTransport(input.config.mail, input.config.mailSupportUrl)
           : input.mail,
       environmentTexts: { terms: null, privacy: null },
       passwordSeal: createMailPasswordSeal(input.config.authSecret),

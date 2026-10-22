@@ -257,6 +257,7 @@ the development process. Old process records remain as history.
 | [0229](0229-incremental-mcp-edits-use-exact-document-ranges.md)                       | Incremental MCP edits use exact document ranges                                 |
 | [0230](0230-the-notebook-is-the-official-mark.md)                                     | The notebook is the official mark                                               |
 | [0231](0231-hosted-ci-checks-each-push.md)                                            | Hosted CI checks each push                                                      |
+| [0232](0232-every-core-email-has-html-and-plain-text.md)                              | Every core email has HTML and plain text                                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -879,3 +880,6 @@ of the grant.
 Record 0229 follows [design 027](../design/027-incremental-note-edits-through-mcp.md).
 It adds incremental MCP edits through exact document ranges and receipt-safe
 retries. It refines record 0227 for the two new tools.
+
+Record [0232](0232-every-core-email-has-html-and-plain-text.md) amends record 0141.
+Every core email has HTML and plain text from one shared template.

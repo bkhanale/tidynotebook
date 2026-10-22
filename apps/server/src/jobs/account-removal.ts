@@ -57,6 +57,7 @@ export function createAccountRemoval(
         : (account, days) =>
             transport.send(
               removalNoticeMessage({
+                supportUrl: transport.supportUrl ?? null,
                 to: account.email,
                 origin: dependencies.origin,
                 days,

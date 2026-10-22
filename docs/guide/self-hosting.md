@@ -341,3 +341,6 @@ The server runs. Do these things next.
   [Server operations](operations.md).
 - Read the [Security model](security-model.md) to learn what the product
   protects and what it does not.
+
+Emails have HTML and plain text versions. You can set `NOTESAPP_MAIL_SUPPORT_URL`
+to show your support address in each footer. See [Configuration](configuration.md).

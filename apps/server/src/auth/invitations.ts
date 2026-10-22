@@ -65,6 +65,7 @@ export async function mailInvitation(
   await mail.send(
     invitationMessage({
       to: input.email,
+      supportUrl: mail.supportUrl ?? null,
       origin: input.origin,
       link: input.link,
       lifetimeHours: input.lifetimeHours,

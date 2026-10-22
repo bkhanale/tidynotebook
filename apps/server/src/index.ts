@@ -205,3 +205,5 @@ export {
   linkPreviewPlaceholder,
 } from './link-preview.ts';
 export { createSearchHandlers } from './routes/search.ts';
+
+export { emailPalettes } from './auth/email-template.ts';

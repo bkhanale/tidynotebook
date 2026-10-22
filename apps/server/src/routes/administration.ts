@@ -289,7 +289,11 @@ export function createAdministrationHandlers(
         throw new ForbiddenError('The account has no address to write to.');
       try {
         await settings.mailer.send(
-          testMessage({ to, origin: dependencies.origin }),
+          testMessage({
+            to,
+            origin: dependencies.origin,
+            supportUrl: settings.mailer.supportUrl ?? null,
+          }),
         );
       } catch (error) {
         throw new MailFailedError(mailFailureReason(error));

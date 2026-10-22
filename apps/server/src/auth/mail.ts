@@ -19,10 +19,13 @@ export type MailMessage = {
   readonly to: string;
   readonly subject: string;
   readonly text: string;
+  readonly html: string;
 };
 
 /** Sends one message. */
 export type MailTransport = {
+  /** The optional support address supplied by the installation. */
+  readonly supportUrl?: string | null;
   send(message: MailMessage): Promise<void>;
 };
 
@@ -179,6 +182,7 @@ export function envelopeOf(
   readonly to: string;
   readonly subject: string;
   readonly text: string;
+  readonly html: string;
   readonly headers: Readonly<Record<string, string>>;
 } {
   return {
@@ -186,6 +190,7 @@ export function envelopeOf(
     to: message.to,
     subject: message.subject,
     text: message.text,
+    html: message.html,
     headers: automaticHeaders,
   };
 }
@@ -200,11 +205,14 @@ export function envelopeOf(
  */
 export function createMailTransport(
   mail: MailConfig | null,
+  supportUrl: string | null = null,
 ): MailTransport | null {
   if (mail === null) return null;
-  if (mail.kind === 'fields') return connectMailTransport(mail.fields);
+  if (mail.kind === 'fields')
+    return { ...connectMailTransport(mail.fields), supportUrl };
   const transport = createTransport(mail.smtpUrl);
   return {
+    supportUrl,
     async send(message: MailMessage): Promise<void> {
       await transport.sendMail({ ...envelopeOf(mail.from, message) });
     },
@@ -227,12 +235,14 @@ export function budgetedTransport(
 ): Mailer {
   /** One transport under the budget of each address. */
   const budgeted = (transport: MailTransport): MailTransport => ({
+    supportUrl: transport.supportUrl ?? null,
     async send(message: MailMessage): Promise<void> {
       if (!(await mayMail(message.to))) return;
       await transport.send(message);
     },
   });
   return {
+    supportUrl: mailer.supportUrl ?? null,
     available: () => mailer.available(),
     async current(): Promise<MailTransport | null> {
       const transport = await mailer.current();

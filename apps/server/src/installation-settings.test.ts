@@ -29,7 +29,12 @@ const base = {
   NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
 };
 const seal = createMailPasswordSeal(secret);
-const message: MailMessage = { to: 'a@example.com', subject: 's', text: 't' };
+const message: MailMessage = {
+  to: 'a@example.com',
+  subject: 's',
+  text: 't',
+  html: '<p>t</p>',
+};
 
 /** A decider over one row, and the transports it built. */
 function decider(
@@ -285,4 +290,11 @@ await test('a template takes the host of the origin', () => {
     settings.template('privacy'),
     /tidy notebook at notes\.example\.com/,
   );
+});
+
+await test('the support address reaches stored transports and the mailer', async () => {
+  const url = 'https://help.example.test/';
+  const { settings } = decider(stored, { NOTESAPP_MAIL_SUPPORT_URL: url });
+  assert.equal(settings.mailer.supportUrl, url);
+  assert.equal((await settings.mailer.current())?.supportUrl, url);
 });

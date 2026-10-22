@@ -103,6 +103,8 @@ export type ServerConfig = {
    * [decision 0042](../../../docs/decisions/0042-the-listening-socket-is-not-the-public-origin.md).
    */
   readonly origin: string;
+  /** Optional support address shown in every email (record 0232). */
+  readonly mailSupportUrl: string | null;
   /** MCP is off when this setting is absent (0225). */
   readonly mcpOrigin: string | null;
   /** PostgreSQL connection URL of the runtime role. */
@@ -400,6 +402,7 @@ export const optionalVariables = [
   'NOTESAPP_SMTP_USERNAME',
   'NOTESAPP_SMTP_PASSWORD',
   'NOTESAPP_MAIL_FROM',
+  'NOTESAPP_MAIL_SUPPORT_URL',
   'NOTESAPP_SESSION_MAX_AGE_S',
   'NOTESAPP_RATE_LIMIT_WINDOW_S',
   'NOTESAPP_RATE_LIMIT_MAX',
@@ -671,6 +674,7 @@ const configSchema: SchemaObject = {
     NOTESAPP_SMTP_SECURITY: { type: 'string', enum: [...mailSecurities] },
     NOTESAPP_SMTP_USERNAME: { type: 'string', maxLength: 320 },
     NOTESAPP_SMTP_PASSWORD: { type: 'string', maxLength: 1024 },
+    NOTESAPP_MAIL_SUPPORT_URL: { type: 'string', maxLength: 2048 },
     NOTESAPP_MAIL_FROM: { type: 'string', minLength: 3, maxLength: 320 },
     NOTESAPP_SESSION_MAX_AGE_S: positiveInteger,
     NOTESAPP_RATE_LIMIT_WINDOW_S: positiveInteger,
@@ -873,6 +877,7 @@ export function loadServerConfig(
   );
   return {
     origin: canonical,
+    mailSupportUrl: readMailSupportUrl(raw.NOTESAPP_MAIL_SUPPORT_URL),
     mcpOrigin,
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
@@ -1456,4 +1461,23 @@ function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
     pendingHours,
     proofDifficulty,
   };
+}
+
+/** The support link is optional, and must be safe to open from an email. */
+function readMailSupportUrl(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  try {
+    const url = new URL(value);
+    if (
+      ['http:', 'https:'].includes(url.protocol) &&
+      !url.username &&
+      !url.password
+    )
+      return url.href;
+  } catch {
+    /* The same safe message covers all invalid values. */
+  }
+  throw new ConfigError([
+    'NOTESAPP_MAIL_SUPPORT_URL: name a full http or https address with no user.',
+  ]);
 }

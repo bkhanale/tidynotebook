@@ -1,0 +1,25 @@
+Address check
+
+Finish your account
+
+Somebody asked for an account on tidy notebook at notes.example.com with this address.
+
+Confirm that the address is yours to finish your account.
+
+Write in Markdown, keep drafts offline, and use version history to return to earlier work.
+
+Confirm email address:
+https://notes.example.com/verify#EXAMPLE-NOT-A-REAL-TOKEN
+
+The link works for 1 day.
+
+If you did not ask for an account, ignore this message. Without the link, no account is made.
+
+You get this message because somebody asked to make an account on tidy notebook at notes.example.com with this address.
+
+This message is automatic.
+
+For help, contact your installation administrator.
+
+-- 
+tidy notebook at notes.example.com

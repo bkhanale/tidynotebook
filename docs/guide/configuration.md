@@ -231,6 +231,14 @@ makes no call.
 
 ## Mail
 
+Every email has an HTML version and a plain text version. The product name
+and installation address are the same in both. Set `NOTESAPP_MAIL_SUPPORT_URL`
+to a full HTTP or HTTPS support address to show it in each footer. The address
+must have no user credentials and must contain no secret. It can be outside
+the installation. Leave it empty to show: For help, contact your installation
+administrator. This setting applies to both environment and application mail
+settings. It does not change the sender or the reply address.
+
 The mail server sends invitations, the links of a sign-up and the links of a
 password reset. You can set it on the accounts page instead. A mail server in
 the environment wins, and the page then offers no change. See

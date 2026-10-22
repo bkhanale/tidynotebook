@@ -1,0 +1,21 @@
+Account notice
+
+You already have an account
+
+Somebody asked for a new account on tidy notebook at notes.example.com with this address. The address already has an account, so nothing changed.
+
+To sign in, open the sign-in page. If you do not know your password, select Forgot password on that page.
+
+Sign in:
+https://notes.example.com/login
+
+If you asked for the account yourself, you already have one. Otherwise, ignore this message.
+
+You get this message because a sign-up on tidy notebook at notes.example.com used the address of your existing account.
+
+This message is automatic.
+
+For help, contact your installation administrator.
+
+-- 
+tidy notebook at notes.example.com

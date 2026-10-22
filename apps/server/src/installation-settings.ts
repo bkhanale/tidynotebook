@@ -174,13 +174,17 @@ export function createInstallationSettings(
   ): MailTransport | null => {
     const mail = settings.mail;
     if (mail === null || !environment.mailUsable(mail)) return null;
-    return connect({ ...mail, password: openPassword(mail.passwordSealed) });
+    return {
+      ...connect({ ...mail, password: openPassword(mail.passwordSealed) }),
+      supportUrl: config.mailSupportUrl,
+    };
   };
 
   const currentTransport = async (): Promise<MailTransport | null> =>
     input.environmentMail ?? applicationTransport(await stored());
 
   const mailer: Mailer = {
+    supportUrl: config.mailSupportUrl,
     available: async () => (await currentTransport()) !== null,
     current: currentTransport,
     async send(message: MailMessage): Promise<void> {
