@@ -1083,25 +1083,22 @@ async function composeApp(
       // Identity runs before route validation. Use the contract validator so
       // malformed parameters cannot start pending welcome note work.
       const validParams = requestValidator(operation.id, 'params');
-      const workspaces =
-        operation.id === 'listWorkspaces'
-          ? await identity.memberships(resolved.actor.accountId)
-          : typeof workspaceId === 'string' &&
-              validParams?.(request.params) === true
-            ? [{ workspaceId, role: 'owner' }]
-            : [];
-      for (const workspace of workspaces) {
-        if (workspace.role !== 'owner') continue;
-        await seedWelcomeNote(
-          content,
-          resolved.actor.accountId,
-          workspace.workspaceId,
-          (code) =>
-            createServerLogger(request.log)
-              .bind({ requestId: request.id })
-              .emit('welcome_note.failed', { code }),
-        );
-      }
+      const personal = resolved.welcomeWorkspaceId;
+      if (personal === undefined) return;
+      if (
+        operation.id !== 'listWorkspaces' &&
+        (workspaceId !== personal || validParams?.(request.params) !== true)
+      )
+        return;
+      await seedWelcomeNote(
+        content,
+        resolved.actor.accountId,
+        personal,
+        (code) =>
+          createServerLogger(request.log)
+            .bind({ requestId: request.id })
+            .emit('welcome_note.failed', { code }),
+      );
     },
     protocols: [
       createMcpProtocol({

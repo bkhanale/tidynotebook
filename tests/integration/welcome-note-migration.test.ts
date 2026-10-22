@@ -154,6 +154,11 @@ await test('the welcome note migration uses the UTC cutoff, account bytes, and r
       [purged.workspaceId, randomUUID()],
     );
     excluded.push(purged.workspaceId);
+    const disabled = await account();
+    await sql.query("update accounts set state = 'disabled' where id = $1", [
+      disabled.accountId,
+    ]);
+    excluded.push(disabled.workspaceId);
     const removed = await account();
     await sql.query('update accounts set removed_at = now() where id = $1', [
       removed.accountId,

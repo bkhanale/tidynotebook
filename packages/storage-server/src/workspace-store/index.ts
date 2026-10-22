@@ -30,7 +30,11 @@ import type {
   WelcomeNoteTransaction,
 } from '@notesapp/core';
 import { runSyncCleanup } from '../snapshots.ts';
-import { operational, unreachable } from './errors.ts';
+import {
+  operational,
+  unreachable,
+  WorkspaceUnavailableError,
+} from './errors.ts';
 import { runTransaction, type TransactionBuilder } from './transaction.ts';
 import { membershipRepository } from './membership-repository.ts';
 import { dailyNoteSettingsRepository } from './daily-note-settings-repository.ts';
@@ -308,21 +312,26 @@ export function openWorkspaceStore(
 
   return {
     documents,
-    pendingWelcomeNote(actor, workspaceId) {
-      return runTransaction(
-        pool,
-        actor,
-        workspaceId,
-        pendingWelcomeNote,
-        { readOnly: true },
-        (client, db, transactionActor, scope) => ({
-          client,
-          db,
-          actor: transactionActor,
-          workspaceId: scope,
-          documents,
-        }),
-      );
+    async pendingWelcomeNote(actor, workspaceId) {
+      try {
+        return await runTransaction(
+          pool,
+          actor,
+          workspaceId,
+          pendingWelcomeNote,
+          { readOnly: true },
+          (client, db, transactionActor, scope) => ({
+            client,
+            db,
+            actor: transactionActor,
+            workspaceId: scope,
+            documents,
+          }),
+        );
+      } catch (error) {
+        if (error instanceof WorkspaceUnavailableError) return false;
+        throw error;
+      }
     },
     async welcomeNote(actor, workspaceId, run) {
       const build: TransactionBuilder<WelcomeNoteTransaction> = (

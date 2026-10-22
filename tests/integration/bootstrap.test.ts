@@ -10,7 +10,7 @@ import {
   signInWithPassword,
 } from '@notesapp/api-client';
 import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
-import { createDisposableDatabase } from './support/database.ts';
+import { createDisposableDatabase, openSession } from './support/database.ts';
 
 /** Keeps only the cookie pairs that a later generated operation sends. */
 function cookieHeader(values: readonly string[]): string {
@@ -40,6 +40,19 @@ await test('operator bootstrap seeds the welcome note', async () => {
   let app: Awaited<ReturnType<typeof createApp>> | null = null;
   try {
     await bootstrapOwner({ config, email, name: 'Owner', password });
+    const state = await openSession(database.migrationUrl);
+    try {
+      const [record] = await state.query<{ completed: boolean }>(
+        'select completed_at is not null as completed from workspace_welcome_notes',
+      );
+      assert.equal(
+        record?.completed,
+        true,
+        'the owner record is completed before workspace access',
+      );
+    } finally {
+      await state.close();
+    }
     app = await createApp(config);
     await app.listen({ host: '127.0.0.1', port: 0 });
     const address = app.server.address();

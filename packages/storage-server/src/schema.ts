@@ -452,6 +452,7 @@ export const workspaceWelcomeNotes = pgTable('workspace_welcome_notes', {
     .primaryKey()
     .references(() => workspaces.id, { onDelete: 'cascade' }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
+  attemptedAt: timestamp('attempted_at', { withTimezone: true }),
   failureCode: text('failure_code'),
 });
 

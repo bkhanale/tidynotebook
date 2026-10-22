@@ -368,7 +368,14 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
     /** The current role of one account in each of its workspaces. */
     memberships(
       accountId: string,
-    ): Promise<readonly { workspaceId: string; role: Role }[]>;
+    ): Promise<
+      readonly {
+        workspaceId: string;
+        role: Role;
+        personal?: boolean;
+        welcomePending?: boolean;
+      }[]
+    >;
     /** Whether any application account exists. The bootstrap command uses it. */
     hasAccount(): Promise<boolean>;
     /**
@@ -1629,14 +1636,25 @@ export function openIdentityStore(
     async memberships(accountId: string) {
       assertUuid(accountId, 'the account');
       return inTransaction(accountId, null, async (client) => {
-        const rows = await client.query<{ workspace_id: string; role: string }>(
-          `select workspace_id, role::text as role
-             from memberships where account_id = $1 order by workspace_id`,
+        const rows = await client.query<{
+          workspace_id: string;
+          role: string;
+          personal: boolean;
+          welcome_pending: boolean;
+        }>(
+          `select m.workspace_id, m.role::text as role, w.personal,
+             (n.workspace_id is not null and n.completed_at is null
+               and (n.attempted_at is null or n.attempted_at <= now() - interval '5 minutes')) as welcome_pending
+             from memberships m join workspaces w on w.id = m.workspace_id
+             left join workspace_welcome_notes n on n.workspace_id = w.id and w.personal and m.role = 'owner'
+             where m.account_id = $1 order by m.workspace_id`,
           [accountId],
         );
         return rows.rows.map((row) => ({
           workspaceId: row.workspace_id,
           role: asRole(row.role),
+          personal: row.personal,
+          welcomePending: row.welcome_pending,
         }));
       });
     },

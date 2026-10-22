@@ -14,13 +14,15 @@ import type { WorkspaceStore } from '../files/ports.ts';
 /** All calls use one workspace lock and one database transaction. */
 export type WelcomeNoteTransaction = {
   /** Null for an ineligible workspace, including another person's workspace. */
-  state(): Promise<{
+  state(path: string): Promise<{
     readonly completed: boolean;
+    readonly existing: boolean;
+    readonly retryReady: boolean;
     readonly standing: ControlStanding;
   } | null>;
   /** A content store bound to this same transaction, with no nested commit. */
   readonly content: WorkspaceStore;
-  /** Null completes the seed. A refusal leaves it pending for another attempt. */
+  /** Null completes the seed. Other codes record a failed attempt. */
   record(code: DomainErrorCode | 'unexpected' | null): Promise<void>;
 };
 
@@ -35,7 +37,8 @@ export type WelcomeNoteStore = {
   ): Promise<T>;
 };
 
-export type WelcomeNoteOutcome = 'created' | 'pending' | 'unchanged';
+export type WelcomeNoteOutcome =
+  'created' | 'completed' | 'pending' | 'unchanged';
 
 /** Completes a pending note once. A deleted completed note stays deleted. */
 export async function completeWelcomeNote(
@@ -47,10 +50,24 @@ export async function completeWelcomeNote(
   if (!(await store.pendingWelcomeNote(actor, input.workspaceId)))
     return ok('unchanged');
   return store.welcomeNote(actor, input.workspaceId, async (tx) => {
-    const state = await tx.state();
-    if (state === null || state.completed) return ok('unchanged');
+    const state = await tx.state(input.revisions[0]?.path ?? '');
+    if (state === null) return ok('unchanged');
+    if (state.completed) return ok('completed');
     if (state.standing === 'locked') return ok('pending');
+    if (state.existing) {
+      await tx.record(null);
+      return ok('completed');
+    }
+    if (!state.retryReady) return ok('pending');
     const written = await commitChangeset(tx.content, actor, input, digest);
+    if (
+      !written.ok &&
+      (written.error.code === 'path_conflict' ||
+        written.error.code === 'purged')
+    ) {
+      await tx.record(null);
+      return ok('completed');
+    }
     await tx.record(written.ok ? null : written.error.code);
     return written.ok ? ok('created') : fail(written.error.code);
   });

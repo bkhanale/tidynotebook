@@ -50,6 +50,8 @@ server. History lists each version.
 Press Cmd or Ctrl and P to search your notes or to run an action.
 `;
 
+const completedWorkspaces = new WeakMap<WelcomeNoteStore, Set<string>>();
+
 /**
  * Attempts the pending note. A refused write stays pending. Only a safe code
  * reaches the failure reporter, including for an unexpected exception.
@@ -60,6 +62,7 @@ export async function seedWelcomeNote(
   workspaceId: string,
   reportFailure: (code: string) => void,
 ): Promise<boolean> {
+  if (completedWorkspaces.get(store)?.has(workspaceId) === true) return true;
   const actor = verifyActor(accountId, [
     { workspaceId, actions: actionsForRole('owner') },
   ]);
@@ -99,6 +102,17 @@ export async function seedWelcomeNote(
       changeset,
       digest,
     );
+    if (
+      committed.ok &&
+      (committed.value === 'created' || committed.value === 'completed')
+    ) {
+      let completed = completedWorkspaces.get(store);
+      if (completed === undefined) {
+        completed = new Set();
+        completedWorkspaces.set(store, completed);
+      }
+      completed.add(workspaceId);
+    }
     if (!committed.ok) reportFailure(committed.error.code);
     return committed.ok;
   } catch {

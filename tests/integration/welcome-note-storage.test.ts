@@ -59,6 +59,16 @@ await test('a failed completion rolls back the note and keeps pending work in th
       },
     });
     const actor = memberActor(accountId, workspaceId);
+    assert.deepEqual(
+      await completeWelcomeNote(
+        content,
+        memberActor(strangerId, workspaceId),
+        input,
+        'invisible',
+      ),
+      { ok: true, value: 'unchanged' },
+    );
+    assert.equal(await content.pendingWelcomeNote(actor, randomUUID()), false);
     await assert.rejects(() =>
       completeWelcomeNote(content, actor, input, 'welcome-storage-test'),
     );
@@ -81,6 +91,10 @@ await test('a failed completion rolls back the note and keeps pending work in th
     await session.query(
       'drop trigger test_refuse_welcome on workspace_welcome_notes',
     );
+    await session.query(
+      "update workspace_welcome_notes set attempted_at = now() - interval '6 minutes' where workspace_id = $1",
+      [workspaceId],
+    );
     assert.deepEqual(
       await completeWelcomeNote(content, actor, input, 'welcome-storage-test'),
       { ok: true, value: 'created' },
@@ -95,6 +109,25 @@ await test('a failed completion rolls back the note and keeps pending work in th
     );
     assert.equal(Number(completed?.count), 1);
     assert.equal(completed?.completed, true);
+    // Old pods can write the note after the migration creates a pending row.
+    // New code must complete that row without a second content write.
+    await session.query(
+      'update workspace_welcome_notes set completed_at = null, attempted_at = null where workspace_id = $1',
+      [workspaceId],
+    );
+    assert.deepEqual(
+      await completeWelcomeNote(content, actor, input, 'rolling-deploy'),
+      { ok: true, value: 'completed' },
+    );
+    const [existing] = await session.query<{
+      count: string;
+      completed: boolean;
+    }>(
+      'select (select count(*) from files where workspace_id = $1) as count, completed_at is not null as completed from workspace_welcome_notes where workspace_id = $1',
+      [workspaceId],
+    );
+    assert.equal(Number(existing?.count), 1);
+    assert.equal(existing?.completed, true);
 
     const stranger = await openSession(database.runtimeUrl, strangerId);
     try {

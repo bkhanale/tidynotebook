@@ -15,7 +15,7 @@ import {
   signInWithPassword,
 } from '@notesapp/api-client';
 import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
-import { createDisposableDatabase } from './support/database.ts';
+import { createDisposableDatabase, openSession } from './support/database.ts';
 
 function responseOf(response: Response | undefined): Response {
   if (response === undefined)
@@ -161,6 +161,19 @@ await test('setup refuses every later account', async () => {
 });
 
 await test('the owner session has one personal workspace', async () => {
+  const state = await openSession(database.migrationUrl);
+  try {
+    const [record] = await state.query<{ completed: boolean }>(
+      'select completed_at is not null as completed from workspace_welcome_notes',
+    );
+    assert.equal(
+      record?.completed,
+      true,
+      'the owner record is completed before workspace access',
+    );
+  } finally {
+    await state.close();
+  }
   const headers = { origin: 'http://127.0.0.1', cookie: ownerCookie };
   const account = await getAccount({ headers });
   assert.equal(account.data?.email, email);

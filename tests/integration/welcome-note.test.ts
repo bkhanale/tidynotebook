@@ -198,6 +198,28 @@ for (const scenario of [
         );
         assert.equal(refused?.completed_at, null);
         assert.equal(refused?.failure_code, 'quota');
+        const [attempt] = await session.query<{ attempted_at: Date }>(
+          'select attempted_at from workspace_welcome_notes where workspace_id = $1',
+          [workspaceId],
+        );
+        await Promise.all(
+          Array.from({ length: 4 }, () =>
+            listFiles({ headers, path: { workspaceId } }),
+          ),
+        );
+        const [backoff] = await session.query<{ attempted_at: Date }>(
+          'select attempted_at from workspace_welcome_notes where workspace_id = $1',
+          [workspaceId],
+        );
+        assert.deepEqual(
+          backoff?.attempted_at,
+          attempt?.attempted_at,
+          'requests during backoff do not attempt another write',
+        );
+        await session.query(
+          "update workspace_welcome_notes set attempted_at = now() - interval '6 minutes' where workspace_id = $1",
+          [workspaceId],
+        );
         assert.ok(active.data);
         const raised = await setOperatorAccountControls({
           headers: operator,

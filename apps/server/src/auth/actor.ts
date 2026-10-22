@@ -40,6 +40,8 @@ import { applicationOrigins, type ServedOrigin } from '../served-origins.ts';
 /** A verified actor and the account facts of its credential. */
 export type ResolvedActor = {
   readonly actor: Actor;
+  /** Pending personal workspace from the existing membership read. */
+  readonly welcomeWorkspaceId?: string;
   /** Whether the account uses every operation or the list of record 0201. */
   readonly standing: ControlStanding;
   /** The identity user of the account, which a password check names. */
@@ -323,7 +325,9 @@ export function createIdentityAdapter(
 ): IdentityAdapter {
   /** Both credentials read the same current membership and build the same actor. */
   async function withAccount(
-    input: Omit<ResolvedActor, 'actor'> & { readonly accountId: string },
+    input: Omit<ResolvedActor, 'actor' | 'welcomeWorkspaceId'> & {
+      readonly accountId: string;
+    },
     delegation?: ToolDelegation,
   ): Promise<ResolvedActor | null> {
     const memberships = await dependencies.identity.memberships(
@@ -332,8 +336,17 @@ export function createIdentityAdapter(
     if (delegation !== undefined) requireActiveDelegation(delegation);
     const verified = verifyActor(input.accountId, sessionGrants(memberships));
     if (!verified.ok) return null;
+    const personal = memberships.find(
+      (entry) =>
+        entry.personal === true &&
+        entry.role === 'owner' &&
+        entry.welcomePending === true,
+    );
     return {
       actor: verified.value,
+      ...(personal === undefined
+        ? {}
+        : { welcomeWorkspaceId: personal.workspaceId }),
       standing: input.standing,
       authUserId: input.authUserId,
       sessionId: input.sessionId,

@@ -288,6 +288,13 @@
       "when": 1792692400789,
       "tag": "0040_kind_eternals",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792707794800,
+      "tag": "0041_grey_rattler",
+      "breakpoints": true
     }
   ]
 }
