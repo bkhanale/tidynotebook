@@ -64,9 +64,12 @@ bucket migration, or retention deletion during this window.
    The name starts with the name of the clone folder. It is
    `notesapp-postgres-1` only when the folder is named `notesapp`.
 
-3. Run the backup. Use `sudo`, because the secret files belong to user 10001
-   and only that user and `root` can read them. Put the name of your database
-   container after `--postgres-container`.
+3. Choose the command for your storage type. For S3, use
+   [Back up an S3 installation](#back-up-an-s3-installation) instead of the
+   command below. For filesystem storage, run the following command with
+   `sudo`. The secret files belong to user 10001, so only that user and `root`
+   can read them. Put your database container name after
+   `--postgres-container`.
 
    ```bash
    sudo tools/ops/backup.sh \
@@ -230,8 +233,9 @@ file `migration_database_url` of the new installation.
 
 4. Find the name of the new database container with `docker compose ps`, as in
    the backup steps.
-5. Run the restore. The storage root is the empty storage folder of the new
-   installation.
+5. Choose one restore command for the target storage type. The storage root
+   is the empty local storage folder of the new installation. For a filesystem
+   target, run:
 
    ```bash
    sudo tools/ops/restore.sh \
