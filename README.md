@@ -65,7 +65,7 @@ tidy notebook has two editions. They run the same code.
 
 ## Requirements
 
-- Node.js 26.10.0
+- Node.js 26.12.1
 - pnpm 12.3.4
 - Docker Engine and Docker Compose v2
 - PostgreSQL 18 for a self-hosted installation
