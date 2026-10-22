@@ -155,13 +155,14 @@ function required(env, name) {
 
 /** @param {string} mode @param {NodeJS.ProcessEnv} env */
 export async function runBackupObjects(mode, env) {
-  const { store, assertEmpty } = await openStore(
+  const storage = await openStore(
     required(env, 'NOTESAPP_STORAGE_ROOT'),
     env.NOTESAPP_OBJECT_STORE_CONFIG_FILE,
   );
+  const { store } = storage;
   try {
     if (mode === 'empty') {
-      await assertEmpty();
+      await storage.assertEmpty();
       return;
     }
     const contentDir = required(env, 'NOTESAPP_CONTENT_DIR');
