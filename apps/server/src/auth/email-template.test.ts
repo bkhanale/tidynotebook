@@ -7,6 +7,12 @@ import {
 } from './email-template.ts';
 
 const hostile = `A <script>alert("x")</script> & 'value'`;
+const footer = {
+  installationName: hostile,
+  help: hostile,
+  linkFallback: hostile,
+  automatic: hostile,
+};
 const content: EmailContent = {
   label: hostile,
   heading: hostile,
@@ -24,6 +30,7 @@ const content: EmailContent = {
 await test('every dynamic content field is escaped in HTML and stays readable in text', () => {
   const message = renderEmail({
     origin: 'https://notes.example.test',
+    footer,
     subject: hostile,
     supportUrl: `https://support.example.test/?q=${hostile}`,
     content,
@@ -46,6 +53,7 @@ await test('links refuse active schemes, credentials and foreign action origins'
     assert.throws(() =>
       renderEmail({
         origin: 'https://notes.example.test',
+        footer,
         subject: 'Test',
         content: { ...content, action: { label: 'Open', url } },
       }),
@@ -54,6 +62,7 @@ await test('links refuse active schemes, credentials and foreign action origins'
   assert.throws(() =>
     renderEmail({
       origin: 'https://notes.example.test',
+      footer,
       subject: 'Test',
       content,
       supportUrl: 'javascript:alert(1)',
@@ -64,6 +73,7 @@ await test('links refuse active schemes, credentials and foreign action origins'
 await test('every instruction in HTML is also present in the text alternative', () => {
   const message = renderEmail({
     origin: 'https://notes.example.test',
+    footer,
     subject: 'Test',
     content,
   });
@@ -75,6 +85,7 @@ await test('every instruction in HTML is also present in the text alternative', 
     content.lifetime,
     content.panel,
     content.reason,
+    ...Object.values(footer),
   ])
     assert.ok(value && message.text.includes(value));
 });

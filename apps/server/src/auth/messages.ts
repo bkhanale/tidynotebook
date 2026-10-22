@@ -39,7 +39,20 @@ function message(
   return {
     to: input.to,
     subject,
-    ...renderEmail({ ...input, subject, content }),
+    ...renderEmail({
+      ...input,
+      subject,
+      content,
+      footer: {
+        installationName: signature(input.origin),
+        help: input.supportUrl
+          ? 'For help, contact support:'
+          : 'For help, contact your installation administrator.',
+        linkFallback:
+          'If the link does not open, copy the address into your browser.',
+        automatic: 'This message is automatic.',
+      },
+    }),
   };
 }
 

@@ -116,9 +116,11 @@ services:
       # The file holds one secret, so mount it and name its path in the
       # container. An empty value turns the operator API off.
       NOTESAPP_OPERATOR_TOKEN_FILE: ${NOTESAPP_OPERATOR_TOKEN_FILE:-}
+      # The optional public support address in every email footer. An empty
+      # value names the installation administrator.
+      NOTESAPP_MAIL_SUPPORT_URL: ${NOTESAPP_MAIL_SUPPORT_URL:-}
       # The account portal that every account opens from Settings, and that a
       # locked account opens to unlock itself.
-      NOTESAPP_MAIL_SUPPORT_URL: ${NOTESAPP_MAIL_SUPPORT_URL:-}
       NOTESAPP_ACCOUNT_PORTAL_URL: ${NOTESAPP_ACCOUNT_PORTAL_URL:-}
       # The caps of the whole installation for one month (record 0193): the
       # bytes of the published pages, the bytes of the downloads, and the
