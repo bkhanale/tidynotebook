@@ -8,12 +8,14 @@ DATABASE_URL_FILE=""
 KEY_FILE=""
 INSTALLATION_ID_FILE=""
 POSTGRES_CONTAINER=""
+OBJECT_STORE_CONFIG_FILE=""
+OBJECTS_TOOL="$(cd "$(dirname "$0")/.." && pwd)/backup-objects.mjs"
 
 usage() {
   printf '%s\n' \
     'Usage: tools/ops/restore.sh --backup-file FILE --storage-root DIR' \
     '  --database-url-file FILE --key-file FILE --installation-id-file FILE' \
-    '  [--postgres-container NAME]'
+    '  [--postgres-container NAME] [--object-store-config-file FILE]'
 }
 
 fail() {
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --key-file) KEY_FILE="${2:-}"; shift 2 ;;
     --installation-id-file) INSTALLATION_ID_FILE="${2:-}"; shift 2 ;;
     --postgres-container) POSTGRES_CONTAINER="${2:-}"; shift 2 ;;
+    --object-store-config-file) OBJECT_STORE_CONFIG_FILE="${2:-}"; shift 2 ;;
     --help) usage; exit 0 ;;
     *) usage >&2; fail "unknown option $1" ;;
   esac
@@ -57,6 +60,10 @@ protected_file "$DATABASE_URL_FILE" '--database-url-file'
 protected_file "$KEY_FILE" '--key-file'
 protected_file "$INSTALLATION_ID_FILE" '--installation-id-file'
 validate_backup_identity
+if [[ -n "$OBJECT_STORE_CONFIG_FILE" ]]; then
+  protected_file "$OBJECT_STORE_CONFIG_FILE" '--object-store-config-file'
+fi
+export NOTESAPP_OBJECT_STORE_CONFIG_FILE="$OBJECT_STORE_CONFIG_FILE"
 DATABASE_URL="$(<"$DATABASE_URL_FILE")"
 export NOTESAPP_OPS_DATABASE_URL="$DATABASE_URL"
 
@@ -96,6 +103,8 @@ restore_database() {
   fi
 }
 
+NOTESAPP_STORAGE_ROOT="$STORAGE_ROOT" node "$OBJECTS_TOOL" empty
+
 has_workspace_table="$(run_psql --tuples-only --no-align --command="SELECT to_regclass('public.workspaces') IS NOT NULL")"
 if [[ "$has_workspace_table" == 't' ]]; then
   workspace_count="$(run_psql --tuples-only --no-align --command='SELECT count(*) FROM public.workspaces')"
@@ -115,7 +124,9 @@ tar --no-same-owner --no-same-permissions -C "$TEMP_DIR" -xf "$TEMP_DIR/backup.t
 
 restore_database >/dev/null
 mkdir -p "$STORAGE_ROOT"
-cp -R "$TEMP_DIR/storage/." "$STORAGE_ROOT/"
+NOTESAPP_STORAGE_ROOT="$STORAGE_ROOT" \
+NOTESAPP_CONTENT_DIR="$TEMP_DIR" \
+node "$OBJECTS_TOOL" restore
 
 run_psql --tuples-only --no-align --field-separator=$'\t' --command="
   SELECT DISTINCT ao.workspace_id::text, ao.digest, ao.size::text
@@ -128,20 +139,7 @@ run_psql --tuples-only --no-align --field-separator=$'\t' --command="
 
 NOTESAPP_STORAGE_ROOT="$STORAGE_ROOT" \
 NOTESAPP_ROWS_PATH="$TEMP_DIR/restored.tsv" \
-node --input-type=module -e "
-  import crypto from 'node:crypto';
-  import fs from 'node:fs';
-  import path from 'node:path';
-  const rows = fs.readFileSync(process.env.NOTESAPP_ROWS_PATH, 'utf8').split('\n').filter(Boolean);
-  for (const row of rows) {
-    const [workspaceId, digest, sizeText] = row.split('\t');
-    const file = path.join(process.env.NOTESAPP_STORAGE_ROOT, 'workspaces', workspaceId, 'attachments', digest);
-    const bytes = fs.readFileSync(file);
-    const actual = crypto.createHash('sha256').update(bytes).digest('hex');
-    if (actual !== digest || bytes.length !== Number(sizeText)) {
-      throw new Error('A restored attachment does not match its database digest or size.');
-    }
-  }
-"
+NOTESAPP_CONTENT_DIR="$TEMP_DIR" \
+node "$OBJECTS_TOOL" verify
 
 printf 'Restoration completed successfully from %s\n' "$BACKUP_FILE"

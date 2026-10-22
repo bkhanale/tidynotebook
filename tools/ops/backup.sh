@@ -14,12 +14,14 @@ DATABASE_URL_FILE=""
 KEY_FILE=""
 INSTALLATION_ID_FILE=""
 POSTGRES_CONTAINER=""
+OBJECT_STORE_CONFIG_FILE=""
+OBJECTS_TOOL="$(cd "$(dirname "$0")/.." && pwd)/backup-objects.mjs"
 
 usage() {
   printf '%s\n' \
     'Usage: tools/ops/backup.sh --storage-root DIR --backup-root DIR' \
     '  --database-url-file FILE --key-file FILE --installation-id-file FILE' \
-    '  [--postgres-container NAME]'
+    '  [--postgres-container NAME] [--object-store-config-file FILE]'
 }
 
 fail() {
@@ -52,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --key-file) KEY_FILE="${2:-}"; shift 2 ;;
     --installation-id-file) INSTALLATION_ID_FILE="${2:-}"; shift 2 ;;
     --postgres-container) POSTGRES_CONTAINER="${2:-}"; shift 2 ;;
+    --object-store-config-file) OBJECT_STORE_CONFIG_FILE="${2:-}"; shift 2 ;;
     --help) usage; exit 0 ;;
     *) usage >&2; fail "unknown option $1" ;;
   esac
@@ -64,6 +67,10 @@ protected_file "$DATABASE_URL_FILE" '--database-url-file'
 protected_file "$KEY_FILE" '--key-file'
 protected_file "$INSTALLATION_ID_FILE" '--installation-id-file'
 validate_backup_identity
+if [[ -n "$OBJECT_STORE_CONFIG_FILE" ]]; then
+  protected_file "$OBJECT_STORE_CONFIG_FILE" '--object-store-config-file'
+fi
+export NOTESAPP_OBJECT_STORE_CONFIG_FILE="$OBJECT_STORE_CONFIG_FILE"
 command -v gpg >/dev/null 2>&1 || fail 'gpg is required.'
 command -v tar >/dev/null 2>&1 || fail 'tar is required.'
 
@@ -145,45 +152,7 @@ NOTESAPP_STORAGE_ROOT="$STORAGE_ROOT" \
 NOTESAPP_CONTENT_DIR="$CONTENT_DIR" \
 NOTESAPP_ROWS_PATH="$STAGE_DIR/referenced.tsv" \
 NOTESAPP_INSTALLATION_HASH="$INSTALLATION_HASH" \
-node --input-type=module -e "
-  import crypto from 'node:crypto';
-  import fs from 'node:fs';
-  import path from 'node:path';
-  const storageRoot = process.env.NOTESAPP_STORAGE_ROOT;
-  const contentDir = process.env.NOTESAPP_CONTENT_DIR;
-  const rows = fs.readFileSync(process.env.NOTESAPP_ROWS_PATH, 'utf8').split('\n').filter(Boolean);
-  const objects = [];
-  for (const row of rows) {
-    const [workspaceId, digest, sizeText] = row.split('\t');
-    if (!/^[0-9a-f-]{36}$/.test(workspaceId) || !/^[0-9a-f]{64}$/.test(digest)) {
-      throw new Error('The database returned an invalid attachment identity.');
-    }
-    const relative = path.join('workspaces', workspaceId, 'attachments', digest);
-    const source = path.join(storageRoot, relative);
-    const target = path.join(contentDir, 'storage', relative);
-    const bytes = fs.readFileSync(source);
-    const actual = crypto.createHash('sha256').update(bytes).digest('hex');
-    if (actual !== digest || bytes.length !== Number(sizeText)) {
-      throw new Error('A referenced attachment does not match its database digest or size.');
-    }
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
-    objects.push({ path: relative, sha256: actual, size: bytes.length });
-  }
-  const database = fs.readFileSync(path.join(contentDir, 'database.sql'));
-  const manifest = {
-    version: 1,
-    createdAt: new Date().toISOString(),
-    installationHash: process.env.NOTESAPP_INSTALLATION_HASH,
-    database: {
-      file: 'database.sql',
-      sha256: crypto.createHash('sha256').update(database).digest('hex'),
-      size: database.length
-    },
-    objects
-  };
-  fs.writeFileSync(path.join(contentDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-"
+node "$OBJECTS_TOOL" backup
 
 tar --format=posix -C "$CONTENT_DIR" -cf "$STAGE_DIR/backup.tar" .
 gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$KEY_FILE" \
