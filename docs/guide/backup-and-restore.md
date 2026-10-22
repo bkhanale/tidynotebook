@@ -18,6 +18,9 @@ the storage layout.
     when it runs inside the database container.
   - `backup_key`: the passphrase that encrypts the backups.
   - `installation_id`: the random ID of this installation.
+- An encrypted host volume for the storage root. The backup command stages
+  plaintext database and attachment files there before it encrypts the archive.
+  The command does not encrypt the host volume.
 - A separate encrypted folder for the backups, for example
   `/mnt/separate-backups/notesapp`. It must not be inside the storage folder.
 - Node.js, GnuPG and `tar` on the host. Use the Node version selected by the
@@ -165,9 +168,10 @@ sudo tools/ops/backup.sh \
   --object-store-config-file /etc/notesapp/backup-s3.json
 ```
 
-`--storage-root` remains the local work directory. It holds temporary backup
-files on encrypted host storage. Attachment reads use the configured bucket,
-not this directory. A missing image, a size or digest mismatch, or a store
+`--storage-root` is the local work directory. Set it to a directory on an
+encrypted host volume. The command stages plaintext database and attachment
+files there before it encrypts the archive. This option does not encrypt the
+host volume. Attachment reads use the configured bucket, not this directory. A missing image, a size or digest mismatch, or a store
 failure stops the backup and removes its incomplete archive. Start the
 application only after the backup command has finished. Use the same S3
 settings option in scheduled backups.
@@ -264,9 +268,15 @@ file `migration_database_url` of the new installation.
      --object-store-config-file /etc/notesapp/restore-s3.json
    ```
 
-   Set the application S3 settings to that same target bucket before startup.
-   Use the same Compose S3 override as the original installation. A filesystem
-   target needs no object storage option.
+   For an S3 target, set the application S3 settings to that same target bucket
+   before startup. Include `docker/compose.s3.yaml` in `COMPOSE_FILE`.
+
+   For a filesystem target, omit the restore command's object storage option.
+   Remove `docker/compose.s3.yaml` from `COMPOSE_FILE` and remove any custom S3
+   environment settings from the application service. If you set
+   `NOTESAPP_OBJECT_STORE` directly, set it to `filesystem`. The application
+   must read the restored local storage folder. The startup command below
+   applies the target settings.
 
    The script verifies the archive before it changes data. It then loads the
    database and writes the attachments through the target adapter. At the end
@@ -283,10 +293,10 @@ file `migration_database_url` of the new installation.
    sudo chown -R 10001:10001 /srv/notesapp/storage
    ```
 
-7. Start the application:
+7. Apply the target settings and start the application:
 
    ```bash
-   docker compose start app
+   docker compose up -d --no-build --wait
    ```
 
 8. Keep public access closed. Check that the server is ready. Sign in as the
