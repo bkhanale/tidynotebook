@@ -31,15 +31,11 @@ DOCKER_DEFAULT_PLATFORM=linux/amd64
 ```
 
 This default applies to all services. On an ARM host, keep PostgreSQL native:
-add this setting to the `postgres` service in `docker-compose.override.yml`.
-Create that file if it does not exist. Keep any settings already in it.
-Compose reads this override with `docker-compose.yml`.
-
-```yaml
-services:
-  postgres:
-    platform: linux/arm64
-```
+set `platform` to `linux/arm64` for the `postgres` service in
+`docker-compose.override.yml`. Create that file if it does not exist. Keep any
+settings already in it. Compose reads this override with `docker-compose.yml`.
+See the [Compose platform setting](https://docs.docker.com/reference/compose-file/services/#platform)
+for the file structure.
 
 ### ARM Linux
 
