@@ -25,7 +25,7 @@ await test('the model agrees within one channel value with the owner sample, inc
     ['#ffffff', '#191926'],
     ['#f0efec', '#555145'],
     ['#ececea', '#16171c'],
-  ]) {
+  ] as const) {
     const actual = rgb(protonColor(input, 'background'));
     const expected = rgb(sampled);
     for (const channel of ['r', 'g', 'b'] as const)
