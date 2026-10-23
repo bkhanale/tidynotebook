@@ -23,7 +23,9 @@ for (const failVerification of [false, true]) {
       const storage = join(directory, 'storage');
       const backups = join(directory, 'backups');
       const bin = join(directory, 'bin');
-      for (const path of [storage, backups, bin]) mkdirSync(path);
+      const gnupg = join(directory, 'gnupg');
+      for (const path of [storage, backups, bin, gnupg])
+        mkdirSync(path, { mode: 0o700 });
       const stale = join(storage, '.backup-stage.interrupted');
       mkdirSync(stale);
       writeFileSync(join(stale, 'database.sql'), 'interrupted plaintext');
@@ -35,6 +37,7 @@ for (const failVerification of [false, true]) {
         'backup-20000101-000000Z.tar.gpg.partial',
       );
       writeFileSync(interruptedArchive, 'interrupted ciphertext');
+      // Regression guard: an app-writable lock symlink must not be followed.
       const protectedTarget = join(directory, 'protected-target');
       writeFileSync(protectedTarget, 'must remain unchanged');
       symlinkSync(protectedTarget, join(storage, '.backup.lock'));
@@ -49,6 +52,24 @@ for (const failVerification of [false, true]) {
         chmodSync(path, 0o600);
       }
       const commands = {
+        flock: `#!/bin/bash
+if [[ "$2" == "\${FLOCK_FAIL_DESCRIPTOR:-}" ]]; then
+  exit "$FLOCK_FAIL_STATUS"
+fi
+exec "$REAL_FLOCK" "$@"
+`,
+        sync: `#!/bin/bash
+set -euo pipefail
+if [[ "$1" == -- ]]; then
+  [[ -s "$2" && "$2" == *.partial && ! -e "\${2%.partial}" ]]
+  printf 'file\n' >> "$SYNC_CHECKED"
+else
+  [[ "$1" == -f && "$2" == -- && "$3" == "$BACKUPS_DIR" ]]
+  [[ -n "$(find "$BACKUPS_DIR" -maxdepth 1 -name 'backup-*.tar.gpg' -print -quit)" ]]
+  printf 'filesystem\n' >> "$SYNC_CHECKED"
+fi
+exec "$REAL_SYNC" "$@"
+`,
         psql: '#!/bin/sh\nexit 0\n',
         pg_dump: '#!/bin/sh\nprintf "SELECT 1;\\n"\n',
         gpg: `#!/bin/bash
@@ -97,41 +118,68 @@ fi
       }
       const checked = join(directory, 'publication-checked');
       const verified = join(directory, 'verification-checked');
-      const result = spawnSync(
-        resolve('tools/ops/backup.sh'),
-        [
-          '--storage-root',
-          storage,
-          '--backup-root',
-          backups,
-          '--database-url-file',
-          join(directory, 'database-url'),
-          '--key-file',
-          join(directory, 'key'),
-          '--installation-id-file',
-          join(directory, 'installation'),
-        ],
-        {
-          encoding: 'utf8',
-          env: {
-            ...process.env,
-            PATH: `${bin}:${process.env.PATH}`,
-            REAL_GPG: execFileSync('which', ['gpg'], {
-              encoding: 'utf8',
-            }).trim(),
-            FAIL_VERIFICATION: failVerification ? '1' : '0',
-            PUBLICATION_CHECKED: checked,
-            VERIFICATION_CHECKED: verified,
-            BACKUPS_DIR: backups,
-            SOURCE_STORAGE: storage,
-            SECOND_STORAGE: join(directory, 'second-storage'),
-            SECOND_BACKUPS: join(directory, 'second-backups'),
-            BACKUP_SCRIPT: resolve('tools/ops/backup.sh'),
-            FIXTURE_ROOT: directory,
-            CONCURRENCY_CHECKED: join(directory, 'concurrency-checked'),
-          },
+      const args = [
+        '--storage-root',
+        storage,
+        '--backup-root',
+        backups,
+        '--database-url-file',
+        join(directory, 'database-url'),
+        '--key-file',
+        join(directory, 'key'),
+        '--installation-id-file',
+        join(directory, 'installation'),
+      ];
+      const options = {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GNUPGHOME: gnupg,
+          REAL_FLOCK: execFileSync('which', ['flock'], {
+            encoding: 'utf8',
+          }).trim(),
+          REAL_SYNC: execFileSync('which', ['sync'], {
+            encoding: 'utf8',
+          }).trim(),
+          SYNC_CHECKED: join(directory, 'sync-checked'),
+          PATH: `${bin}:${process.env.PATH}`,
+          REAL_GPG: execFileSync('which', ['gpg'], {
+            encoding: 'utf8',
+          }).trim(),
+          FAIL_VERIFICATION: failVerification ? '1' : '0',
+          PUBLICATION_CHECKED: checked,
+          VERIFICATION_CHECKED: verified,
+          BACKUPS_DIR: backups,
+          SOURCE_STORAGE: storage,
+          SECOND_STORAGE: join(directory, 'second-storage'),
+          SECOND_BACKUPS: join(directory, 'second-backups'),
+          BACKUP_SCRIPT: resolve('tools/ops/backup.sh'),
+          FIXTURE_ROOT: directory,
+          CONCURRENCY_CHECKED: join(directory, 'concurrency-checked'),
         },
-      );
+      };
+      for (const descriptor of ['8', '9']) {
+        for (const status of ['1', '73']) {
+          const failed = spawnSync(resolve('tools/ops/backup.sh'), args, {
+            ...options,
+            env: {
+              ...options.env,
+              FLOCK_FAIL_DESCRIPTOR: descriptor,
+              FLOCK_FAIL_STATUS: status,
+            },
+          });
+          assert.notEqual(failed.status, 0);
+          assert.match(
+            failed.stderr,
+            status === '1'
+              ? /another backup is using this (storage|backup) root/
+              : /cannot lock .*; the filesystem must support flock/,
+          );
+          assert.equal(existsSync(stale), true);
+          assert.equal(existsSync(interruptedArchive), true);
+        }
+      }
+      const result = spawnSync(resolve('tools/ops/backup.sh'), args, options);
       assert.equal(existsSync(checked), true, result.stderr);
       assert.equal(existsSync(verified), true, result.stderr);
       assert.equal(
@@ -157,8 +205,13 @@ fi
         assert.notEqual(result.status, 0);
         assert.deepEqual(files, []);
         assert.doesNotMatch(result.stdout, /Backup completed successfully/);
+        assert.equal(existsSync(join(directory, 'sync-checked')), false);
       } else {
         assert.equal(result.status, 0, result.stderr);
+        assert.equal(
+          readFileSync(join(directory, 'sync-checked'), 'utf8'),
+          'file\nfilesystem\n',
+        );
         assert.equal(files.length, 1);
         assert.match(files[0] ?? '', /^backup-.*\.tar\.gpg$/);
         assert.match(result.stdout, /Backup completed successfully/);

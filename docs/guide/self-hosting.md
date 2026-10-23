@@ -37,6 +37,10 @@ Install these tools on the host:
 - Node.js. The backup scripts run it on the host. Under `sudo`, the `PATH` of
   `sudo` must hold `node`.
 - GnuPG. The backup scripts use it to encrypt the backups.
+- `flock` (util-linux), which the backup script uses to prevent concurrent
+  backups.
+- GNU coreutils 8.24 or later. The backup script uses `sync` to write the
+  archive and filesystem changes to disk.
 - The PostgreSQL client tools. They give the backup scripts access to the
   database when you do not use the container option.
 - `lsblk`. The encrypted storage check uses it.

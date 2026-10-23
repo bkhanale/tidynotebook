@@ -39,6 +39,10 @@ that it can recover old data.
 Only one backup can use a storage folder or backup folder at a time. The
 command writes a `.partial` archive, verifies it, then gives it the final name.
 At startup, it removes temporary data left by an interrupted backup.
+Both folders must support `flock` on read-only directory descriptors. Some
+NFS filesystems do not support this. Use a compatible filesystem if the
+command reports that it cannot lock a folder. GNU coreutils 8.24 or later is
+required to flush the archive and backup filesystem before success is reported.
 
 Run these steps in the clone folder. The application writes while it runs. The
 database part of a backup is consistent on its own. The attachment files never
@@ -115,10 +119,11 @@ Make at least one backup each day. Use the scheduler of your host. Copy the
 encrypted archives to storage that is separate from the application host. Never
 copy the backup key with the archives.
 
-To see the newest archive, list the backup folder. The newest file is first:
+To see the newest complete archive, list `backup-*.tar.gpg` files. The newest
+file is first. Files with a `.partial` suffix are incomplete:
 
 ```bash
-ls -lt /mnt/separate-backups/notesapp
+ls -lt /mnt/separate-backups/notesapp/backup-*.tar.gpg
 ```
 
 Raise an alert when the newest archive is older than one day. Use your own

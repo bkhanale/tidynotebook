@@ -67,6 +67,7 @@ validate_backup_identity
 command -v gpg >/dev/null 2>&1 || fail 'gpg is required.'
 command -v tar >/dev/null 2>&1 || fail 'tar is required.'
 command -v flock >/dev/null 2>&1 || fail 'flock is required.'
+command -v sync >/dev/null 2>&1 || fail 'GNU coreutils sync 8.24 or later is required.'
 
 DATABASE_URL="$(<"$DATABASE_URL_FILE")"
 export NOTESAPP_OPS_DATABASE_URL="$DATABASE_URL"
@@ -113,12 +114,25 @@ esac
 case "$STORAGE_ROOT/" in
   "$BACKUP_ROOT/"*) fail 'application storage must not be inside the backup root.' ;;
 esac
+lock_directory() {
+  local descriptor="$1" directory="$2" label="$3" status
+  if flock --nonblock "$descriptor"; then
+    return
+  else
+    status=$?
+  fi
+  if [[ "$status" == 1 ]]; then
+    fail "another backup is using this $label root."
+  fi
+  fail "cannot lock $directory; the filesystem must support flock."
+}
+
 # Lock directory descriptors without creating files in app-writable storage.
 umask 077
 exec 8< "$STORAGE_ROOT"
-flock --nonblock 8 || fail 'another backup is using this storage root.'
+lock_directory 8 "$STORAGE_ROOT" storage
 exec 9< "$BACKUP_ROOT"
-flock --nonblock 9 || fail 'another backup is using this backup root.'
+lock_directory 9 "$BACKUP_ROOT" backup
 find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 -type d -name '.backup-stage.*' -exec rm -rf -- {} +
 find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type f -name 'backup-*.tar.gpg.partial' -delete
 
@@ -204,7 +218,9 @@ gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$KEY_FILE"
   --key-file "$KEY_FILE" \
   --installation-id-file "$INSTALLATION_ID_FILE"
 
+sync -- "$PARTIAL_FILE"
 mv -- "$PARTIAL_FILE" "$ARCHIVE_FILE"
+sync -f -- "$BACKUP_ROOT"
 
 NOTESAPP_BACKUP_ROOT="$BACKUP_ROOT" node --input-type=module -e "
   import fs from 'node:fs';
