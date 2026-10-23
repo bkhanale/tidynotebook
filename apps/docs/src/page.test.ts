@@ -216,7 +216,7 @@ await test('docs uses the shared footer below its page resources and frame', () 
   assert.ok(html.includes('href="https://tidynotebook.com/privacy"'));
 });
 
-await test('social preview addresses stay local when no origin is configured', () => {
+await test('social addresses are absent when no origin is configured', () => {
   for (const html of [
     pageDocument({
       ...view,
@@ -224,18 +224,17 @@ await test('social preview addresses stay local when no origin is configured', (
     }),
     missingDocument({ base: '/private-docs/', origin: null }, assets, groups),
   ]) {
-    assert.match(html, /property="og:url" content="\/private-docs\//);
-    assert.match(
-      html,
-      /property="og:image" content="\/private-docs\/social-preview-v1\.png"/,
-    );
-    assert.match(
-      html,
-      /name="twitter:image" content="\/private-docs\/social-preview-v1\.png"/,
-    );
     assert.doesNotMatch(
       html,
-      /(?:property="og:(?:url|image)"|name="twitter:image") content="https?:/,
+      /<meta[^>]*\b(?:property|name)="og:(?:url|image(?::[^"]*)?)"/,
     );
+    assert.doesNotMatch(html, /<meta[^>]*\b(?:property|name)="twitter:image"/);
+    assert.equal(html.match(/<meta[^>]*\bproperty="og:type"/g)?.length, 1);
+    assert.equal(html.match(/<meta[^>]*\bname="twitter:card"/g)?.length, 1);
   }
+});
+
+await test('a missing page has no Open Graph URL', () => {
+  const html = missingDocument(view.settings, assets, groups);
+  assert.doesNotMatch(html, /<meta[^>]*\b(?:property|name)="og:url"/);
 });

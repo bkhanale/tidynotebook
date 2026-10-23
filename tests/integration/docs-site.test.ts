@@ -100,33 +100,40 @@ await test('the built documentation site', async (t) => {
       ];
       const imageAddress = `${origin}${base}${socialPreview.file}`;
       for (const { address, html } of documents) {
-        for (const [attribute, name, value] of [
-          ['property', 'og:title', null],
-          ['property', 'og:description', null],
-          ['property', 'og:site_name', 'tidy notebook docs'],
-          ['property', 'og:url', `${origin}${address}`],
-          ['property', 'og:type', 'website'],
-          ['property', 'og:image', imageAddress],
-          ['property', 'og:image:type', 'image/png'],
-          ['property', 'og:image:width', '1200'],
-          ['property', 'og:image:height', '630'],
-          ['property', 'og:image:alt', socialPreview.alt],
-          ['name', 'twitter:card', 'summary_large_image'],
-          ['name', 'twitter:image', imageAddress],
+        for (const [name, value] of [
+          ['og:title', null],
+          ['og:description', null],
+          ['og:site_name', 'tidy notebook docs'],
+          ['og:type', 'website'],
+          ['og:image', imageAddress],
+          ['og:image:type', 'image/png'],
+          ['og:image:width', '1200'],
+          ['og:image:height', '630'],
+          ['og:image:alt', socialPreview.alt],
+          ['twitter:card', 'summary_large_image'],
+          ['twitter:image', imageAddress],
         ]) {
           const tags = [
             ...html.matchAll(
-              new RegExp(
-                `<meta ${attribute}="${name}" content="([^"]*)">`,
-                'g',
-              ),
+              new RegExp(`<meta[^>]*\\b(?:property|name)="${name}"[^>]*>`, 'g'),
             ),
           ];
           assert.equal(tags.length, 1, `${address}: ${name}`);
+          const content = /\bcontent="([^"]*)"/.exec(tags[0]?.[0] ?? '')?.[1];
           if (value !== null)
-            assert.equal(tags[0]?.[1], value, `${address}: ${name}`);
-          else assert.ok(tags[0]?.[1], `${address}: ${name} is empty`);
+            assert.equal(content, value, `${address}: ${name}`);
+          else assert.ok(content, `${address}: ${name} is empty`);
         }
+        const urls = [
+          ...html.matchAll(/<meta[^>]*\b(?:property|name)="og:url"[^>]*>/g),
+        ];
+        const missing = address === `${base}404.html`;
+        assert.equal(urls.length, missing ? 0 : 1, `${address}: og:url`);
+        if (!missing)
+          assert.equal(
+            /\bcontent="([^"]*)"/.exec(urls[0]?.[0] ?? '')?.[1],
+            `${origin}${address}`,
+          );
       }
       const image = await readFile(join(output, socialPreview.file));
       assert.deepEqual(
