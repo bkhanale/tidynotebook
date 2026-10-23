@@ -8,6 +8,8 @@ import {
   mkdtempSync,
   readdirSync,
   rmSync,
+  readFileSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,6 +30,14 @@ for (const failVerification of [false, true]) {
       // Similar names must not be removed by startup cleanup.
       const retained = join(storage, 'backup-stage.keep');
       mkdirSync(retained);
+      const interruptedArchive = join(
+        backups,
+        'backup-20000101-000000Z.tar.gpg.partial',
+      );
+      writeFileSync(interruptedArchive, 'interrupted ciphertext');
+      const protectedTarget = join(directory, 'protected-target');
+      writeFileSync(protectedTarget, 'must remain unchanged');
+      symlinkSync(protectedTarget, join(storage, '.backup.lock'));
       const settings = {
         'database-url': 'postgres://fixture:fixture@localhost/fixture',
         key: 'test-backup-passphrase-with-more-than-thirty-two-bytes',
@@ -55,7 +65,26 @@ if [[ " $* " == *" --symmetric "* ]]; then
   "$REAL_GPG" "\${args[@]}"
   [[ -s "$output" && ! -e "\${output%.partial}" ]]
   touch "$PUBLICATION_CHECKED"
+  # A different source cannot clean an archive that this backup is writing.
+  if "$BACKUP_SCRIPT" --storage-root "$SECOND_STORAGE" --backup-root "$BACKUPS_DIR" \
+    --database-url-file "$FIXTURE_ROOT/database-url" --key-file "$FIXTURE_ROOT/key" \
+    --installation-id-file "$FIXTURE_ROOT/installation" > "$FIXTURE_ROOT/concurrent.log" 2>&1; then
+    exit 1
+  fi
+  grep -q 'another backup is using this backup root' "$FIXTURE_ROOT/concurrent.log"
+  [[ -s "$output" ]]
+  # The same source cannot clean this stage through a different destination.
+  if "$BACKUP_SCRIPT" --storage-root "$SOURCE_STORAGE" --backup-root "$SECOND_BACKUPS" \
+    --database-url-file "$FIXTURE_ROOT/database-url" --key-file "$FIXTURE_ROOT/key" \
+    --installation-id-file "$FIXTURE_ROOT/installation" > "$FIXTURE_ROOT/concurrent.log" 2>&1; then
+    exit 1
+  fi
+  grep -q 'another backup is using this storage root' "$FIXTURE_ROOT/concurrent.log"
+  [[ -n "$(find "$SOURCE_STORAGE" -maxdepth 1 -type d -name '.backup-stage.*' -print -quit)" ]]
+  touch "$CONCURRENCY_CHECKED"
 else
+  [[ -z "$(find "$BACKUPS_DIR" -maxdepth 1 -name 'backup-*.tar.gpg' -print -quit)" ]]
+  touch "$VERIFICATION_CHECKED"
   [[ "$FAIL_VERIFICATION" != 1 ]] || exit 1
   exec "$REAL_GPG" "$@"
 fi
@@ -67,6 +96,7 @@ fi
         chmodSync(path, 0o700);
       }
       const checked = join(directory, 'publication-checked');
+      const verified = join(directory, 'verification-checked');
       const result = spawnSync(
         resolve('tools/ops/backup.sh'),
         [
@@ -91,10 +121,29 @@ fi
             }).trim(),
             FAIL_VERIFICATION: failVerification ? '1' : '0',
             PUBLICATION_CHECKED: checked,
+            VERIFICATION_CHECKED: verified,
+            BACKUPS_DIR: backups,
+            SOURCE_STORAGE: storage,
+            SECOND_STORAGE: join(directory, 'second-storage'),
+            SECOND_BACKUPS: join(directory, 'second-backups'),
+            BACKUP_SCRIPT: resolve('tools/ops/backup.sh'),
+            FIXTURE_ROOT: directory,
+            CONCURRENCY_CHECKED: join(directory, 'concurrency-checked'),
           },
         },
       );
       assert.equal(existsSync(checked), true, result.stderr);
+      assert.equal(existsSync(verified), true, result.stderr);
+      assert.equal(
+        existsSync(join(directory, 'concurrency-checked')),
+        true,
+        result.stderr,
+      );
+      assert.equal(existsSync(interruptedArchive), false);
+      assert.equal(
+        readFileSync(protectedTarget, 'utf8'),
+        'must remain unchanged',
+      );
       assert.equal(existsSync(stale), false);
       assert.equal(existsSync(retained), true);
       assert.deepEqual(

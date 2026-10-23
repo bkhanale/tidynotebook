@@ -36,9 +36,9 @@ that it can recover old data.
 
 ## Make a backup
 
-Only one backup can use a storage root at a time. The command writes a
-`.partial` archive, verifies it, then gives it the final name. Startup removes
-leftover `.backup-stage.*` folders while it holds the storage-root lock.
+Only one backup can use a storage folder or backup folder at a time. The
+command writes a `.partial` archive, verifies it, then gives it the final name.
+At startup, it removes temporary data left by an interrupted backup.
 
 Run these steps in the clone folder. The application writes while it runs. The
 database part of a backup is consistent on its own. The attachment files never

@@ -113,11 +113,14 @@ esac
 case "$STORAGE_ROOT/" in
   "$BACKUP_ROOT/"*) fail 'application storage must not be inside the backup root.' ;;
 esac
-# Keep startup cleanup from removing the stage of another backup.
+# Lock directory descriptors without creating files in app-writable storage.
 umask 077
-exec 8> "$STORAGE_ROOT/.backup.lock"
+exec 8< "$STORAGE_ROOT"
 flock --nonblock 8 || fail 'another backup is using this storage root.'
+exec 9< "$BACKUP_ROOT"
+flock --nonblock 9 || fail 'another backup is using this backup root.'
 find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 -type d -name '.backup-stage.*' -exec rm -rf -- {} +
+find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type f -name 'backup-*.tar.gpg.partial' -delete
 
 ARCHIVE_TIMESTAMP="$(date -u +%Y%m%d-%H%M%SZ)"
 ARCHIVE_FILE="$BACKUP_ROOT/backup-$ARCHIVE_TIMESTAMP.tar.gpg"
