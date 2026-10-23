@@ -32,15 +32,17 @@ with the new release tag. Keep the same tag for the checkout and image selection
    ```bash
    (
      set -euo pipefail
-     if ! grep -Eq '^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=[[:space:]]*[^[:space:]]+' .env; then
-       printf '%s\n' 'Set the current NOTESAPP_IMAGE value in .env before upgrading.' >&2
-       exit 1
-     fi
-     grep -E '^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=' .env > notesapp-image-previous.txt
+     image="$(env -u NOTESAPP_IMAGE docker compose --env-file .env config --format json |
+       jq -er '.services.app.image | select(test("^[^[:space:]#]+$") and . != "notesapp:latest")')"
+     printf 'NOTESAPP_IMAGE=%s\n' "$image" > notesapp-image-previous.txt
    )
    ```
 
-   Stop if this command fails. Keep the saved file with the backup. Then complete [Select the stable image](published-images.md#select-the-stable-image).
+   This saves the image value that Compose resolves from `.env`, without a
+   shell override. An empty or invalid value, or the source-build fallback,
+   stops the command before it changes the saved file. Stop if the command
+   fails. Keep the saved file with the backup. Then complete
+   [Select the stable image](published-images.md#select-the-stable-image).
    Its commands read the checked-out tag, check the public manifest, and write
    the new image digest to `.env`. Stop if any check fails. Do not edit the
    digest by hand.
@@ -85,14 +87,20 @@ There is no downward migration. To go back to the old release:
    ```bash
    (
      set -euo pipefail
-     grep -Eq '^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=[[:space:]]*[^[:space:]]+' notesapp-image-previous.txt
      settings_file="$(mktemp .env.XXXXXX)"
+     trap 'rm -f "$settings_file"' EXIT
      awk '!/^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=/' .env > "$settings_file"
      cat notesapp-image-previous.txt >> "$settings_file"
+     env -u NOTESAPP_IMAGE docker compose --env-file "$settings_file" config --format json |
+       jq -e '.services.app.image | select(test("^[^[:space:]#]+$") and . != "notesapp:latest")' > /dev/null
      chmod 600 "$settings_file"
      mv "$settings_file" .env
    )
    ```
+
+   The command checks the proposed settings with Compose before it replaces
+   `.env`. If the saved image is empty, invalid, or the source-build fallback, it
+   stops and keeps the current settings.
 
 3. Start the old release against the restored data:
 
