@@ -130,6 +130,7 @@ fi
         '--installation-id-file',
         join(directory, 'installation'),
       ];
+      /** @type {import('node:child_process').SpawnSyncOptionsWithStringEncoding} */
       const options = {
         encoding: 'utf8',
         env: {
