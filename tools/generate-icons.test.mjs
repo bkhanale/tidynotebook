@@ -85,13 +85,16 @@ await test('ICO comparison permits PNG encoding changes but checks every directo
 });
 
 await test('the default email logo keeps its own dark tile and light mark without a media query', async () => {
-  const { emailLogoImages } =
-    await import('../apps/server/src/auth/email-logo.ts');
-  const image = emailLogoImages.find(
-    (value) => value.filename === 'notebook-light.png',
+  const source = await readFile(
+    resolve(root, 'apps/server/src/auth/email-logo.ts'),
+    'utf8',
   );
-  assert.ok(image);
-  const { data, info } = await sharp(Buffer.from(image.content, 'base64'))
+  const payload =
+    /filename: 'notebook-light.png',[\s\S]*?content:\s*'([^']+)'/.exec(
+      source,
+    )?.[1];
+  assert.ok(payload);
+  const { data, info } = await sharp(Buffer.from(payload, 'base64'))
     .resize(32, 32)
     .ensureAlpha()
     .raw()
