@@ -66,6 +66,7 @@ protected_file "$INSTALLATION_ID_FILE" '--installation-id-file'
 validate_backup_identity
 command -v gpg >/dev/null 2>&1 || fail 'gpg is required.'
 command -v tar >/dev/null 2>&1 || fail 'tar is required.'
+command -v flock >/dev/null 2>&1 || fail 'flock is required.'
 
 DATABASE_URL="$(<"$DATABASE_URL_FILE")"
 export NOTESAPP_OPS_DATABASE_URL="$DATABASE_URL"
@@ -112,8 +113,16 @@ esac
 case "$STORAGE_ROOT/" in
   "$BACKUP_ROOT/"*) fail 'application storage must not be inside the backup root.' ;;
 esac
+# Keep startup cleanup from removing the stage of another backup.
+umask 077
+exec 8> "$STORAGE_ROOT/.backup.lock"
+flock --nonblock 8 || fail 'another backup is using this storage root.'
+find "$STORAGE_ROOT" -mindepth 1 -maxdepth 1 -type d -name '.backup-stage.*' -exec rm -rf -- {} +
+
 ARCHIVE_TIMESTAMP="$(date -u +%Y%m%d-%H%M%SZ)"
 ARCHIVE_FILE="$BACKUP_ROOT/backup-$ARCHIVE_TIMESTAMP.tar.gpg"
+PARTIAL_FILE="$ARCHIVE_FILE.partial"
+[[ ! -e "$PARTIAL_FILE" ]] || fail "backup output already exists: $PARTIAL_FILE"
 [[ ! -e "$ARCHIVE_FILE" ]] || fail "backup output already exists: $ARCHIVE_FILE"
 STAGE_DIR="$(mktemp -d "$STORAGE_ROOT/.backup-stage.XXXXXX")"
 CONTENT_DIR="$STAGE_DIR/content"
@@ -122,9 +131,7 @@ mkdir -p "$CONTENT_DIR/storage"
 cleanup() {
   local status=$?
   rm -rf "$STAGE_DIR"
-  if [[ $status -ne 0 ]]; then
-    rm -f "$ARCHIVE_FILE"
-  fi
+  rm -f "$PARTIAL_FILE"
   exit "$status"
 }
 trap cleanup EXIT INT TERM
@@ -187,12 +194,14 @@ node --input-type=module -e "
 
 tar --format=posix -C "$CONTENT_DIR" -cf "$STAGE_DIR/backup.tar" .
 gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$KEY_FILE" \
-  --symmetric --cipher-algo AES256 --output "$ARCHIVE_FILE" "$STAGE_DIR/backup.tar"
+  --symmetric --cipher-algo AES256 --output "$PARTIAL_FILE" "$STAGE_DIR/backup.tar"
 
 "$(dirname "$0")/verify-backup.sh" \
-  --backup-file "$ARCHIVE_FILE" \
+  --backup-file "$PARTIAL_FILE" \
   --key-file "$KEY_FILE" \
   --installation-id-file "$INSTALLATION_ID_FILE"
+
+mv -- "$PARTIAL_FILE" "$ARCHIVE_FILE"
 
 NOTESAPP_BACKUP_ROOT="$BACKUP_ROOT" node --input-type=module -e "
   import fs from 'node:fs';
