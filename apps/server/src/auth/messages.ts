@@ -236,7 +236,7 @@ export function removalNoticeMessage(
     warning: true,
     providerSupport: input.portal,
     paragraphs: [
-      `Your account on ${installationHost(input.origin)} is locked. On ${date} the account and all its notes will be permanently deleted.`,
+      `Your account on ${installationHost(input.origin)} is locked. On\u00a0${date} the account and all its notes will be permanently deleted.`,
       input.portal
         ? 'To keep your account, sign in and open Billing to start or renew your plan.'
         : 'To keep your account, ask your administrator to unlock it.',

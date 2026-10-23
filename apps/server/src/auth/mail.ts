@@ -223,8 +223,10 @@ export function createMailTransport(
   supportUrl: string | null = null,
 ): MailTransport | null {
   if (mail === null) return null;
-  if (mail.kind === 'fields')
-    return { ...connectMailTransport(mail.fields), supportUrl };
+  if (mail.kind === 'fields') {
+    const transport = connectMailTransport(mail.fields);
+    return { supportUrl, send: (message) => transport.send(message) };
+  }
   const transport = createTransport(mail.smtpUrl);
   return {
     supportUrl,

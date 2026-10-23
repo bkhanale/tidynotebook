@@ -95,6 +95,7 @@ await test('the mail before a removal names the time, the way to keep the accoun
     'Your account on tidy notebook at notes.example.com will be deleted in 30 days',
   );
   assert.match(thirty.text, /On 31 October 2026 the account and all its notes/);
+  assert.ok(thirty.html.includes('On\u00a031\u00a0October\u00a02026'));
   assert.match(thirty.text, /open Billing/);
   assert.ok(thirty.text.split('\n').includes(`${origin}/login`));
   assert.match(thirty.text, /select Export all notes/);
