@@ -305,8 +305,14 @@ file `migration_database_url` of the new installation.
    docker compose up -d --no-build --wait
    ```
 
-8. Keep public access closed. Check that the server is ready. Sign in as the
-   restored administrator. Open notes, their history, and attachments.
+8. Keep public access closed. Check that the server is ready.
+
+   ```bash
+   curl http://127.0.0.1:3000/ready
+   ```
+
+   Sign in as the restored administrator. Open notes, their history, and
+   attachments.
    For S3, confirm that the image loads from the target bucket while its local
    attachment path is absent.
 
@@ -323,10 +329,6 @@ file `migration_database_url` of the new installation.
    new secret. Do not expect old sessions to survive the restore.
 
    Make and verify a new backup, then reopen access.
-
-   ```bash
-   curl http://127.0.0.1:3000/ready
-   ```
 
 ## Two facts a restore depends on
 
