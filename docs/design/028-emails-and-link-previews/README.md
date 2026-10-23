@@ -439,3 +439,6 @@ The staging mail client checks are deferred until after merge, on the
 orchestrator's instruction, using an approved `@bhu.sh` inbox. No outside email
 is sent during implementation. The review HTML above is the original proposal;
 the PR screenshots show the implemented emails.
+
+The [Proton dark mode follow-up](proton-dark-mode.md) records the client source
+review, the forced-colour fix and the separate cloud mirror changes.
