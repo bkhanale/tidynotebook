@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   configureClient,
+  createApiKey,
   createOwner,
   deleteFile,
   getAccount,
@@ -24,10 +25,12 @@ import { leadingZeroBits, proofInput } from '@notesapp/core';
 import {
   createApp,
   loadServerConfig,
+  withToolDelegation,
   type MailMessage,
 } from '@notesapp/server';
 import { createDisposableDatabase, openSession } from './support/database.ts';
 import { deletionForHead, useDocumentHeaders } from './support/documents.ts';
+import { LogRecorder } from './support/server.ts';
 
 const origin = { origin: 'http://127.0.0.1' };
 const password = 'welcome-note-test-password-123';
@@ -59,6 +62,7 @@ for (const scenario of [
     });
     const operatorToken = randomUUID();
     const sent: MailMessage[] = [];
+    const logs = new LogRecorder();
     app = await createApp(
       loadServerConfig({
         NOTESAPP_ORIGIN: origin.origin,
@@ -70,13 +74,14 @@ for (const scenario of [
         NOTESAPP_OPERATOR_TOKEN: operatorToken,
         NOTESAPP_SIGNUP_DIFFICULTY: '8',
         NOTESAPP_BREACH_CHECK: 'off',
-        NOTESAPP_LOG_LEVEL: 'silent',
+        NOTESAPP_LOG_LEVEL: 'warn',
         NOTESAPP_MAX_BODY_BYTES: '1048576',
         NOTESAPP_MAX_HEADER_BYTES: '16384',
         NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
         NOTESAPP_RATE_LIMIT_MAX: '10000',
       }),
       {
+        logStream: logs,
         mail: {
           send: (message) => {
             sent.push(message);
@@ -185,6 +190,102 @@ for (const scenario of [
         0,
         'activation alone does not write content',
       );
+      // Program credentials can read a pending personal workspace. Only a
+      // browser session can start the automatic welcome write.
+      const key = await createApiKey({
+        headers,
+        body: { name: 'Welcome read test' },
+      });
+      assert.ok(key.data);
+      const programHeaders = {
+        ...headers,
+        authorization: `Bearer ${key.data.token}`,
+      };
+      const programWorkspaces = await listWorkspaces({
+        headers: programHeaders,
+      });
+      assert.equal(programWorkspaces.error, undefined);
+      const programFiles = await listFiles({
+        headers: programHeaders,
+        path: { workspaceId },
+      });
+      assert.equal(programFiles.error, undefined);
+      assert.equal(programFiles.data?.files.length, 0);
+      const [identity] = await session.query<{ auth_user_id: string }>(
+        'select auth_user_id from account_identities where account_id = $1',
+        [accountId],
+      );
+      assert.ok(identity);
+      for (const scopes of [['notes:read'], ['notes:read', 'notes:write']]) {
+        await withToolDelegation(
+          {
+            accountId,
+            authUserId: identity.auth_user_id,
+            standing: 'active',
+            grantId: randomUUID(),
+            scopes,
+          },
+          ['listWorkspaces', 'listFiles'],
+          async () => {
+            const listed = await app.inject({
+              url: '/api/workspaces',
+              headers: { ...headers, host: '127.0.0.1' },
+            });
+            assert.equal(listed.statusCode, 200, listed.body);
+            const files = await app.inject({
+              url: `/api/workspaces/${workspaceId}/files`,
+              headers: { ...headers, host: '127.0.0.1' },
+            });
+            assert.equal(files.statusCode, 200, files.body);
+            assert.equal(files.json().files.length, 0);
+          },
+        );
+      }
+      const [untouched] = await session.query<{
+        completed_at: Date | null;
+        attempted_at: Date | null;
+        count: string;
+      }>(
+        'select completed_at, attempted_at, (select count(*) from files where workspace_id = $1) as count from workspace_welcome_notes where workspace_id = $1',
+        [workspaceId],
+      );
+      assert.equal(untouched?.completed_at, null);
+      assert.equal(
+        untouched?.attempted_at,
+        null,
+        'program and delegated reads never attempt a welcome write',
+      );
+      assert.equal(Number(untouched?.count), 0);
+      if (!quota) {
+        await session.query(`create function test_refuse_welcome_completion() returns trigger language plpgsql as $$
+          begin raise exception 'Private welcome failure details'; end $$`);
+        await session.query(`create trigger test_refuse_welcome_completion before update on workspace_welcome_notes
+          for each row when (NEW.completed_at is not null) execute function test_refuse_welcome_completion()`);
+        const refused = await listFiles({ headers, path: { workspaceId } });
+        assert.equal(refused.error, undefined);
+        assert.equal(refused.data?.files.length, 0);
+        assert.deepEqual(
+          logs
+            .records()
+            .filter((record) => record['event'] === 'welcome_note.failed')
+            .map((record) => ({
+              code: record['code'],
+              level: record['level'],
+            })),
+          [{ code: 'unexpected', level: 50 }],
+        );
+        assert.equal(
+          logs.lines.join('').includes('Private welcome failure details'),
+          false,
+        );
+        await session.query(
+          'drop trigger test_refuse_welcome_completion on workspace_welcome_notes',
+        );
+        await session.query(
+          "update workspace_welcome_notes set attempted_at = now() - interval '6 minutes' where workspace_id = $1",
+          [workspaceId],
+        );
+      }
       if (quota) {
         const empty = await listFiles({ headers, path: { workspaceId } });
         assert.equal(empty.error, undefined);
@@ -198,6 +299,16 @@ for (const scenario of [
         );
         assert.equal(refused?.completed_at, null);
         assert.equal(refused?.failure_code, 'quota');
+        assert.deepEqual(
+          logs
+            .records()
+            .filter((record) => record['event'] === 'welcome_note.failed')
+            .map((record) => ({
+              code: record['code'],
+              level: record['level'],
+            })),
+          [{ code: 'quota', level: 40 }],
+        );
         const [attempt] = await session.query<{ attempted_at: Date }>(
           'select attempted_at from workspace_welcome_notes where workspace_id = $1',
           [workspaceId],
