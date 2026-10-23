@@ -652,6 +652,12 @@ for (const backend of ['filesystem', 's3', 'filesystem-to-s3'])
         const failedRoot = join(configRoot, `failed-${fault}`);
         let faultOptions = sourceOptions;
         if (fault === 'unavailable') {
+          assert.ok(sourceBucket);
+          await sourceBucket.store.write(
+            objectKey,
+            Readable.from([content]),
+            content.length,
+          );
           const invalidConfig = join(configRoot, 'unavailable.json');
           const sourceConfig = sourceOptions[1];
           assert.ok(sourceConfig);
@@ -702,6 +708,10 @@ for (const backend of ['filesystem', 's3', 'filesystem-to-s3'])
         );
         assertNoS3Secrets(failed);
         assert.notEqual(failed.status, 0);
+        if (fault === 'unavailable') {
+          assert.match(failed.stderr, /service availability/);
+          assert.doesNotMatch(failed.stderr, /database digest or size/);
+        }
         assert.equal(
           failed.stdout.includes('Backup completed successfully'),
           false,
@@ -781,6 +791,7 @@ for (const backend of ['filesystem', 's3', 'filesystem-to-s3'])
         assert.deepEqual(await buffer(restored), content);
       } else {
         assert.ok(existsSync(restoredFile));
+        assert.deepEqual(readFileSync(restoredFile), content);
       }
 
       // The note and its two saved versions survive the cycle with their text.

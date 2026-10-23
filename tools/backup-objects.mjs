@@ -37,6 +37,32 @@ function textSetting(value, name) {
   return text;
 }
 
+/** Validate transport before any storage client or credential is opened.
+ * @param {unknown} value
+ * @returns {string | null} */
+export function backupStorageEndpoint(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string')
+    throw new BackupObjectError('The object storage endpoint is invalid.');
+  let endpoint;
+  try {
+    endpoint = new URL(value);
+  } catch {
+    throw new BackupObjectError('The object storage endpoint is invalid.');
+  }
+  const loopback = ['127.0.0.1', '[::1]', 'localhost'].includes(
+    endpoint.hostname,
+  );
+  if (
+    endpoint.protocol !== 'https:' &&
+    !(endpoint.protocol === 'http:' && loopback)
+  )
+    throw new BackupObjectError(
+      'Object storage needs HTTPS. HTTP is permitted only on loopback addresses.',
+    );
+  return endpoint.href;
+}
+
 /** @param {string} root @param {string | undefined} configFile */
 async function openStore(root, configFile) {
   if (!configFile) {
@@ -48,13 +74,7 @@ async function openStore(root, configFile) {
     };
   }
   const settings = record(JSON.parse(protectedValue(configFile)));
-  const endpoint = settings.endpoint;
-  if (
-    endpoint !== undefined &&
-    endpoint !== null &&
-    typeof endpoint !== 'string'
-  )
-    throw new BackupObjectError('The object storage endpoint is invalid.');
+  const endpoint = backupStorageEndpoint(settings.endpoint);
   const config = {
     bucket: textSetting(settings, 'bucket'),
     region: textSetting(settings, 'region'),

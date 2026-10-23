@@ -137,7 +137,7 @@ sudo install -m 600 /dev/null /etc/notesapp/backup-s3.json
 Use your bucket, region, endpoint, and the host paths of the credential files
 from [Object storage](operations.md#object-storage). For AWS, set `endpoint`
 to `null`. For R2 or MinIO, use an HTTPS endpoint that the backup host can
-reach. A container-only host name does not work from the host.
+reach. A container-only host name does not work from the host. HTTP is accepted only on a loopback address for a local store.
 
 ```bash
 jq -n \
