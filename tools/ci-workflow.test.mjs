@@ -427,12 +427,22 @@ await test('release proves both native images before the only publication jobs',
   const action = await loadYaml('.github/actions/publish-core/action.yml');
   const publication = record(action.runs).steps;
   assert.ok(Array.isArray(publication));
-  const attest = publication
+  const attestations = publication
     .map(record)
-    .find((step) =>
+    .filter((step) =>
       String(step.uses).startsWith('actions/attest-build-provenance@'),
     );
-  assert.equal(record(attest?.with)['push-to-registry'], true);
+  assert.deepEqual(
+    attestations.map((step) => record(step.with)['subject-name']),
+    ['ghcr.io/tidynotebook/tidynotebook', 'ghcr.io/tidynotebook/core'],
+  );
+  for (const step of attestations) {
+    assert.equal(record(step.with)['push-to-registry'], true);
+    assert.equal(
+      record(step.with)['subject-digest'],
+      '${{ steps.publish.outputs.digest }}',
+    );
+  }
   const download = publication
     .map(record)
     .find((step) => step.run === 'node tools/download-core-artifacts.mjs');

@@ -64,3 +64,19 @@ The digest names one image for good. Keep this `NOTESAPP_IMAGE` line for all
 later commands of this installation. Never replace it with a moving tag such
 as `latest`. The settings, the secret files and the migration commands stay the
 same. [Configuration](configuration.md) names every setting.
+
+## Image names and existing pins
+
+New image publication uses `ghcr.io/tidynotebook/tidynotebook` as the primary
+name. The same new images are also published as `ghcr.io/tidynotebook/core`.
+Both names must have the same image index digest and the same native images.
+
+Keep an existing `core` pin when you stay on its release. Existing `core`
+tags and digests remain supported. Historical release manifests keep their
+original image name. The selector accepts both official names and prints the
+name from the manifest unchanged.
+
+For an upgrade, select the new release and use its complete image address.
+Do not replace only the package name in an old pin. An old image is not
+necessarily available under the new name. The image name change does not
+rename `NOTESAPP_*` settings, Compose projects, storage folders, or databases.

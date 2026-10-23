@@ -5,7 +5,12 @@ import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { image, repository, versionFromRef } from './release-workflow.mjs';
+import {
+  compatibilityImage,
+  image,
+  repository,
+  versionFromRef,
+} from './release-workflow.mjs';
 import { record } from './workspace.mjs';
 
 /** @param {string[]} args */
@@ -21,46 +26,54 @@ const sha = process.env.SOURCE_SHA ?? '';
 assert.match(sha, /^[a-f0-9]{40}$/);
 assert.ok(process.env.RUNNER_TEMP);
 
-// A failed registry read is not proof that a fixed tag is free.
+const authFile = join(
+  process.env.DOCKER_CONFIG ?? join(homedir(), '.docker'),
+  'config.json',
+);
+
+// Check both names before any image write. Never replace a historical tag.
 if (version !== 'main') {
-  const authorization = Buffer.from(
-    `${process.env.GITHUB_ACTOR}:${process.env.GH_TOKEN}`,
-  ).toString('base64');
-  const reply = await fetch(
-    'https://ghcr.io/token?service=ghcr.io&scope=repository:tidynotebook/core:pull',
-    {
-      headers: { authorization: `Basic ${authorization}` },
-    },
-  );
-  assert.equal(reply.status, 200, 'Cannot read registry access.');
-  const token = record(await reply.json()).token;
-  assert.equal(typeof token, 'string');
-  const manifest = await fetch(
-    `https://ghcr.io/v2/tidynotebook/core/manifests/${version}`,
-    {
-      headers: {
-        authorization: `Bearer ${String(token)}`,
-        accept:
-          'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json',
+  for (const reference of [image, compatibilityImage]) {
+    const packagePath = reference.slice('ghcr.io/'.length);
+    const authorization = Buffer.from(
+      `${process.env.GITHUB_ACTOR}:${process.env.GH_TOKEN}`,
+    ).toString('base64');
+    const reply = await fetch(
+      `https://ghcr.io/token?service=ghcr.io&scope=repository:${packagePath}:pull`,
+      {
+        headers: { authorization: `Basic ${authorization}` },
       },
-    },
-  );
-  assert.equal(
-    manifest.status,
-    404,
-    'The version exists or registry access failed. Fixed versions cannot be replaced.',
-  );
-  const errors = record(await manifest.json()).errors;
-  assert.ok(
-    Array.isArray(errors) &&
-      errors.length > 0 &&
-      errors.every((error) =>
-        ['MANIFEST_UNKNOWN', 'NAME_UNKNOWN'].includes(
-          String(record(error).code),
+    );
+    assert.equal(reply.status, 200, 'Cannot read registry access.');
+    const token = record(await reply.json()).token;
+    assert.equal(typeof token, 'string');
+    const manifest = await fetch(
+      `https://ghcr.io/v2/${packagePath}/manifests/${version}`,
+      {
+        headers: {
+          authorization: `Bearer ${String(token)}`,
+          accept:
+            'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json',
+        },
+      },
+    );
+    assert.equal(
+      manifest.status,
+      404,
+      'The version exists or registry access failed. Fixed versions cannot be replaced.',
+    );
+    const errors = record(await manifest.json()).errors;
+    assert.ok(
+      Array.isArray(errors) &&
+        errors.length > 0 &&
+        errors.every((error) =>
+          ['MANIFEST_UNKNOWN', 'NAME_UNKNOWN'].includes(
+            String(record(error).code),
+          ),
         ),
-      ),
-    'Registry tag absence is not proved.',
-  );
+      'Registry tag absence is not proved.',
+    );
+  }
 }
 
 /** @type {string[]} */
@@ -142,10 +155,7 @@ for (const [index, arch] of ['amd64', 'arm64'].entries()) {
       'copy',
       '--preserve-digests',
       '--authfile',
-      join(
-        process.env.DOCKER_CONFIG ?? join(homedir(), '.docker'),
-        'config.json',
-      ),
+      authFile,
       `oci:${join(process.env.RUNNER_TEMP, `oci-${arch}`)}:proved`,
       `docker://${source}`,
     ],
@@ -197,10 +207,55 @@ assert.deepEqual(
     .sort((a, b) => a.localeCompare(b)),
   'The published index must contain exactly the pushed image digests.',
 );
+
+// Copy the complete, verified index. A second index build can change its digest.
+execFileSync(
+  'skopeo',
+  [
+    'copy',
+    '--all',
+    '--preserve-digests',
+    '--authfile',
+    authFile,
+    `docker://${image}@${digest}`,
+    `docker://${compatibilityImage}:${version}`,
+  ],
+  { stdio: 'inherit' },
+);
+const compatibilityDigest = docker([
+  'buildx',
+  'imagetools',
+  'inspect',
+  `${compatibilityImage}:${version}`,
+  '--format',
+  '{{.Manifest.Digest}}',
+]).trim();
+assert.equal(
+  compatibilityDigest,
+  digest,
+  'The compatibility image must have the same index digest.',
+);
+const compatibilityIndex = record(
+  JSON.parse(
+    docker([
+      'buildx',
+      'imagetools',
+      'inspect',
+      `${compatibilityImage}@${digest}`,
+      '--raw',
+    ]),
+  ),
+);
+assert.deepEqual(
+  compatibilityIndex,
+  index,
+  'The compatibility image must contain the same complete index.',
+);
+
 assert.ok(process.env.GITHUB_OUTPUT);
 appendFileSync(process.env.GITHUB_OUTPUT, `digest=${digest}\n`);
 assert.ok(process.env.GITHUB_STEP_SUMMARY);
 appendFileSync(
   process.env.GITHUB_STEP_SUMMARY,
-  `Core source: \`${sha}\`\n\nImage: \`${image}@${digest}\`\n\nTag: \`${version}\`\n`,
+  `Source: \`${sha}\`\n\nImage: \`${image}@${digest}\`\n\nCompatibility image: \`${compatibilityImage}@${digest}\`\n\nTag: \`${version}\`\n`,
 );

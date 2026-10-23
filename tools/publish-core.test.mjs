@@ -26,6 +26,7 @@ const labels = (arch) => ({
 const layers = (arch) => ['sha256:' + (arch === 'amd64' ? '1' : '3').repeat(64)];
 if (process.argv[1].endsWith('/gh')) console.log(process.env.STALE ? 'b'.repeat(40) : sha);
 else if (process.argv[1].endsWith('/skopeo')) {
+ if (args[0] === 'copy' && args.at(-1).startsWith('docker://ghcr.io/tidynotebook/core:') && process.env.COPY_FAIL) process.exit(1);
  if (args[0] === 'inspect') {
   if (args.includes('--config')) {
    const arch = args.at(-1).includes('oci-arm64') ? 'arm64' : 'amd64';
@@ -39,13 +40,14 @@ else if (process.argv[1].endsWith('/skopeo')) {
  console.log(JSON.stringify([{ Os: 'linux', Architecture: arch, RootFS: { Layers: layers(arch) }, Config: { Labels: labels(arch) } }]));
 } else if (args.includes('inspect')) {
  if (args.includes('--raw')) {
-  const pushed = readFileSync(process.env.CALLS, 'utf8').trim().split('\\n').map(JSON.parse).map((call) => call.at(-1)).filter((value) => value?.startsWith('docker://')).map((value) => value.split('@')[1]);
+  const pushed = readFileSync(process.env.CALLS, 'utf8').trim().split('\\n').map(JSON.parse).map((call) => call.at(-1)).filter((value) => value?.startsWith('docker://ghcr.io/tidynotebook/tidynotebook@')).map((value) => value.split('@')[1]);
+  if (process.env.BAD_COMPATIBILITY_INDEX && args.some((value) => value.startsWith('ghcr.io/tidynotebook/core@'))) pushed.pop();
   if (process.env.BAD_INDEX === 'missing') pushed.pop();
   if (process.env.BAD_INDEX === 'extra') pushed.push('sha256:' + '4'.repeat(64));
   if (process.env.BAD_INDEX === 'duplicate') pushed[1] = pushed[0];
   if (process.env.BAD_INDEX === 'wrong') pushed[1] = 'sha256:' + '5'.repeat(64);
   console.log(JSON.stringify({ manifests: pushed.reverse().map((digest) => ({ digest })) }));
- } else console.log('sha256:' + '2'.repeat(64));
+ } else console.log('sha256:' + (process.env.BAD_COMPATIBILITY_DIGEST && args.includes('ghcr.io/tidynotebook/core:' + process.env.VERSION) ? '6' : '2').repeat(64));
 }
 `;
   for (const command of ['docker', 'gh', 'skopeo'])
@@ -54,8 +56,11 @@ else if (process.argv[1].endsWith('/skopeo')) {
   await writeFile(
     shim,
     `globalThis.fetch = async (url) => {
+    const { appendFileSync } = await import('node:fs');
+    appendFileSync(process.env.REGISTRY_CALLS, String(url) + '\\n');
     if (String(url).includes('/token?')) return Response.json({ token: 'fake' });
-    return process.env.EXISTS ? Response.json({}, { status: 200 }) : Response.json({ errors: [{ code: 'MANIFEST_UNKNOWN' }] }, { status: 404 });
+    if (process.env.REGISTRY_FAIL && String(url).includes('/' + process.env.REGISTRY_FAIL + '/manifests/')) return Response.json({}, {status: 403});
+    return (process.env.EXISTS && (!process.env.EXISTS_IMAGE || String(url).includes('/' + process.env.EXISTS_IMAGE + '/manifests/'))) ? Response.json({}, { status: 200 }) : Response.json({ errors: [{ code: 'MANIFEST_UNKNOWN' }] }, { status: 404 });
   };`,
   );
   const result = spawnSync(
@@ -67,6 +72,7 @@ else if (process.argv[1].endsWith('/skopeo')) {
         ...process.env,
         PATH: `${directory}:${process.env.PATH}`,
         CALLS: log,
+        REGISTRY_CALLS: join(directory, 'registry-calls'),
         RUNNER_TEMP: directory,
         GITHUB_REPOSITORY: 'tidynotebook/tidynotebook',
         GITHUB_REF: 'refs/heads/main',
@@ -85,6 +91,10 @@ else if (process.argv[1].endsWith('/skopeo')) {
   return {
     ...result,
     calls,
+    registryCalls: await readFile(
+      join(directory, 'registry-calls'),
+      'utf8',
+    ).catch(() => ''),
     output: await readFile(join(directory, 'output'), 'utf8').catch(() => ''),
   };
 }
@@ -94,19 +104,23 @@ await test('publication loads and checks both proved archives without rebuilding
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.calls.match(/"load"/g)?.length, 2);
   assert.equal(
-    result.calls.match(/docker:\/\/ghcr.io\/tidynotebook\/core@sha256:/g)
-      ?.length,
+    result.calls.match(
+      /"docker:\/\/ghcr.io\/tidynotebook\/tidynotebook@sha256:[a-f0-9]+"\]\n/g,
+    )?.length,
     2,
   );
-  assert.equal(result.calls.match(/"--preserve-digests"/g)?.length, 2);
+  assert.equal(result.calls.match(/"--preserve-digests"/g)?.length, 3);
   assert.doesNotMatch(result.calls, /"push"|"tag"|:build-/);
   assert.ok(
     result.calls.lastIndexOf('"load"') < result.calls.indexOf('docker://'),
   );
   assert.match(
     result.calls,
-    /"imagetools","create","--tag","ghcr.io\/tidynotebook\/core:main"/,
+    /"imagetools","create","--tag","ghcr.io\/tidynotebook\/tidynotebook:main"/,
   );
+  assert.equal(result.calls.match(/"imagetools","create"/g)?.length, 1);
+  assert.match(result.calls, /"copy","--all","--preserve-digests"/);
+  assert.match(result.calls, /"docker:\/\/ghcr.io\/tidynotebook\/core:main"/);
   assert.doesNotMatch(result.calls, /"build"|"run"/);
   assert.equal(result.output, `digest=sha256:${'2'.repeat(64)}\n`);
 });
@@ -149,6 +163,56 @@ await test('the final index must contain exactly the two pushed child digests', 
     const result = await publication(context, { BAD_INDEX: fault });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /exactly the pushed image digests/);
+    assert.equal(result.output, '');
+  }
+});
+
+for (const packageName of ['tidynotebook', 'core']) {
+  await test(`an existing ${packageName} version blocks writes to both names`, async (context) => {
+    const result = await publication(context, {
+      GITHUB_REF: 'refs/tags/v1.2.3',
+      VERSION: '1.2.3',
+      EXISTS: '1',
+      EXISTS_IMAGE: packageName,
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Fixed versions cannot be replaced/);
+    assert.equal(result.calls, '');
+    assert.equal(result.output, '');
+  });
+  await test(`unavailable ${packageName} registry access is not proof of absence`, async (context) => {
+    const result = await publication(context, {
+      GITHUB_REF: 'refs/tags/v1.2.3',
+      VERSION: '1.2.3',
+      REGISTRY_FAIL: packageName,
+    });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.calls, '');
+    assert.equal(result.output, '');
+  });
+}
+
+await test('a new fixed version checks both names before publication', async (context) => {
+  const result = await publication(context, {
+    GITHUB_REF: 'refs/tags/v1.2.3',
+    VERSION: '1.2.3',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  for (const name of ['tidynotebook', 'core'])
+    assert.match(
+      result.registryCalls,
+      new RegExp(`/tidynotebook/${name}/manifests/1\\.2\\.3`),
+    );
+});
+
+await test('a failed compatibility copy or different digest cannot report success', async (context) => {
+  for (const fault of [
+    'COPY_FAIL',
+    'BAD_COMPATIBILITY_DIGEST',
+    'BAD_COMPATIBILITY_INDEX',
+  ]) {
+    const result = await publication(context, { [fault]: '1' });
+    assert.notEqual(result.status, 0);
     assert.equal(result.output, '');
   }
 });

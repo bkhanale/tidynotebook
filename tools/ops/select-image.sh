@@ -9,7 +9,8 @@
 set -euo pipefail
 
 REPOSITORY='tidynotebook/tidynotebook'
-IMAGE='ghcr.io/tidynotebook/core'
+IMAGE='ghcr.io/tidynotebook/tidynotebook'
+COMPATIBILITY_IMAGE='ghcr.io/tidynotebook/core'
 
 fail() {
   printf 'notesapp image: %s\n' "$1" >&2
@@ -39,12 +40,13 @@ gh release download "$TAG" --repo "$REPOSITORY" \
   --pattern release-manifest.json --dir "$directory" --clobber
 
 image="$(jq -ser --arg tag "$TAG" --arg commit "$commit" \
-  --arg repository "$REPOSITORY" --arg image "$IMAGE" '
+  --arg repository "$REPOSITORY" --arg image "$IMAGE" \
+  --arg compatibilityImage "$COMPATIBILITY_IMAGE" '
   select(length == 1) | .[0]
   | select(.repository == $repository
     and .tag == $tag and .version == ($tag | ltrimstr("v"))
     and .source.commit == $commit
-    and .image.reference == $image
+    and (.image.reference == $image or .image.reference == $compatibilityImage)
     and (.image.digest | type == "string" and length == 71
       and test("^sha256:[a-f0-9]{64}$")))
   | .image.reference + "@" + .image.digest' \

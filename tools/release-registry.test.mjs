@@ -7,14 +7,14 @@ import {
   releaseImage,
 } from './release-registry.mjs';
 
-await test('future image uses the repository owner and the core package', () => {
+await test('future image uses the repository owner and product name', () => {
   assert.equal(
     releaseImage('https://github.com/Example/notebook.git'),
-    'ghcr.io/example/core',
+    'ghcr.io/example/notebook',
   );
   assert.equal(
     releaseImage('git@github.com:Example/notebook.git'),
-    'ghcr.io/example/core',
+    'ghcr.io/example/notebook',
   );
   assert.throws(() => releaseImage('https://example.com/owner/repository'));
 });
@@ -39,15 +39,15 @@ await test('registry image accepts fixed package addresses only', () => {
 await test('publication refuses a legacy draft and keeps a published legacy identity', () => {
   const origin = 'https://github.com/example/notebook';
   assert.equal(
-    publicationImage(origin, 'ghcr.io/example/core', false).legacy,
+    publicationImage(origin, 'ghcr.io/example/notebook', false).legacy,
     false,
   );
   assert.throws(
-    () => publicationImage(origin, 'ghcr.io/example/notebook', false),
+    () => publicationImage(origin, 'ghcr.io/example/core', false),
     /old image package/,
   );
   assert.equal(
-    publicationImage(origin, 'ghcr.io/example/notebook', true).legacy,
+    publicationImage(origin, 'ghcr.io/example/core', true).legacy,
     true,
   );
 });
@@ -66,7 +66,10 @@ await test('read-only checks choose the fixed manifest before the workflow or fu
     diagnosticImage(origin, 'IMAGE: ghcr.io/example/notebook').reference,
     'ghcr.io/example/notebook',
   );
-  assert.equal(diagnosticImage(origin, '').reference, 'ghcr.io/example/core');
+  assert.equal(
+    diagnosticImage(origin, '').reference,
+    'ghcr.io/example/notebook',
+  );
   assert.throws(
     () => diagnosticImage(origin, 'IMAGE: ghcr.io/example/core', 'bad'),
     /image address is invalid/,

@@ -5,6 +5,12 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Publish new images as `ghcr.io/tidynotebook/tidynotebook` and `ghcr.io/tidynotebook/core` with the same digest. Keep existing `core` tags, digest pins, and historical release manifests usable.
+
 ## 0.19.0 - 2026-10-15
 
 This release updates tidy notebook.

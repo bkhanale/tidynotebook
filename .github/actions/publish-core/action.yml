@@ -1,5 +1,5 @@
 name: Publish proved core images
-description: Publish the two tested image archives and attest their index.
+description: Publish the tested index under both image names and attest each name.
 inputs:
   version:
     description: Validated stable version or main
@@ -63,6 +63,11 @@ runs:
         SOURCE_SHA: ${{ inputs.sha }}
         GH_TOKEN: ${{ github.token }}
       run: node tools/publish-core.mjs
+    - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+      with:
+        subject-name: ghcr.io/tidynotebook/tidynotebook
+        subject-digest: ${{ steps.publish.outputs.digest }}
+        push-to-registry: true
     - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
       with:
         subject-name: ghcr.io/tidynotebook/core

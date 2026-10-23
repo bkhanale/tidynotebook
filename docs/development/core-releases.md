@@ -2,6 +2,7 @@
 
 `release.yml` is the only core image publication path. Each main push builds
 and proves native amd64 and arm64 images, then publishes
+`ghcr.io/tidynotebook/tidynotebook:main` and the compatibility name
 `ghcr.io/tidynotebook/core:main`. Fast forward merges use `GITHUB_TOKEN`, which
 does not trigger push workflows. Both merge workflows therefore dispatch this
 workflow on main after a successful merge. A manual run on main can recover a
@@ -25,7 +26,18 @@ uncompressed layer digests match the tested image, then checks that the final
 index contains exactly the pushed image digests. Publish jobs use Ubuntu 24.04
 and require Skopeo `1.13.3`; a missing or different version stops publication. Version `v1.2.3` publishes
 `:1.2.3`. Existing version tags cannot be replaced. There is no `latest` alias.
-The index has GitHub OIDC provenance, with no stored signing key.
+The primary index is created once. Skopeo copies that index and all native
+images to the compatibility name with digest preservation. Readback must
+confirm the same index digest and contents under both names. Each name has
+GitHub OIDC provenance, with no stored signing key.
+
+Before a stable version writes either package, both version tags must be
+absent. Existing stable version tags are never replaced. Historical `core` tags and digests
+stay usable; this workflow does not rename, delete, or backfill old images.
+A failed copy can leave one name published. The run then fails and reports no
+successful digest output. Do not delete or move that fixed tag to retry.
+Recover an incomplete publication only after a separate review of the
+published digest and the tested artifacts.
 
 Version publication requires the `release` environment. The owner is its sole
 required reviewer. Allow only tags `v*`. Disable administrator bypass. Keep
@@ -34,10 +46,12 @@ Use no wait timer and no environment secrets. Create this environment before
 the first version run. The workflow checks its protection before use and again
 after approval. Automatic main publication has no environment approval.
 
-The run summary gives the source SHA and image index digest. In a separate
-cloud PR, set `core.json.ref` to that SHA and `core.json.image` to
-`ghcr.io/tidynotebook/core@sha256:<index digest>`. Cloud source sync and deployment
-then use the same core version. This workflow does not deploy cloud.
+The run summary gives the source SHA and both image addresses with the same
+index digest. Use `ghcr.io/tidynotebook/tidynotebook` for new pins. Existing
+`core` pins remain valid. See
+[Image names and existing pins](../guide/published-images.md#image-names-and-existing-pins)
+for the operator steps. Downstream source and image pins must identify the
+same version. This workflow does not deploy an installation.
 
 This activates image publication from decision 0228 with stable tags supplied
 by the maintainer. It replaces its local dispatch command, SSH tag signing,

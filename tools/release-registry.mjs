@@ -3,8 +3,7 @@ import { githubRepository } from './pr-screenshots.mjs';
 
 /** @param {string} origin */
 export function releaseImage(origin) {
-  const owner = githubRepository(origin).split('/')[0]?.toLowerCase();
-  return `ghcr.io/${owner}/core`;
+  return `ghcr.io/${githubRepository(origin).toLowerCase()}`;
 }
 
 /** @param {unknown} reference */

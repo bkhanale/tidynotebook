@@ -86,18 +86,23 @@ await test('the guide selects the image with the tested script', () => {
   assert.match(guide, /^tools\/ops\/select-image\.sh v\S+$/m);
 });
 
-await test('the script selects the official digest from the fixed checkout and manifest', () => {
-  const result = selectImage('v0.3.5', manifest);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(
-    result.stdout,
-    new RegExp(
-      '^NOTESAPP_IMAGE=ghcr.io/tidynotebook/core@sha256:' +
-        'b'.repeat(64) +
-        '\\n$',
-    ),
-  );
-});
+for (const reference of [
+  'ghcr.io/tidynotebook/core',
+  'ghcr.io/tidynotebook/tidynotebook',
+])
+  await test(`the script preserves the fixed manifest identity: ${reference}`, () => {
+    const result = selectImage('v0.3.5', {
+      ...manifest,
+      image: { ...manifest.image, reference },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      result.stdout,
+      new RegExp(
+        '^NOTESAPP_IMAGE=' + reference + '@sha256:' + 'b'.repeat(64) + '\\n$',
+      ),
+    );
+  });
 
 await test('the script refuses invalid tags before directory or CLI use', () => {
   for (const tag of [
@@ -138,7 +143,7 @@ await test('the script refuses a different checkout or malformed official asset'
       ...manifest,
       image: {
         ...manifest.image,
-        reference: 'ghcr.io/tidynotebook/tidynotebook',
+        reference: 'ghcr.io/tidynotebook/unrelated',
       },
     },
     {
