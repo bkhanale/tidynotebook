@@ -44,3 +44,10 @@ by the maintainer. It replaces its local dispatch command, SSH tag signing,
 release notes, and resumable publication design. It creates no Git
 tags or GitHub Releases. Distribution and notice checks remain required.
 Vulnerability scanning is follow-up work and is not a publication gate yet.
+
+## Release maintenance
+
+For each stable release, update the install example to its real source tag
+and verify both install guides with its manifest and image digest. Test the
+published platforms before changing the platform list. Never replace an
+existing version tag or digest to add a platform.

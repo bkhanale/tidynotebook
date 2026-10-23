@@ -116,10 +116,3 @@ The primary install path does not build source. The settings, secret files,
 and migrations use the same release checkout. Keep the manifest and image
 pin with your installation records. Before an upgrade, make and verify a
 backup. See [Upgrade](upgrade.md).
-
-## Release maintenance
-
-For each stable release, update the install example to its real source tag
-and verify both install guides with its manifest and image digest. Test the
-published platforms before changing the platform list. Never replace an
-existing version tag or digest to add a platform.
