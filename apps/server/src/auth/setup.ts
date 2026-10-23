@@ -103,7 +103,12 @@ export function createSetupHandlers(
         (code) =>
           createServerLogger(request.log)
             .bind({ requestId: request.id })
-            .emit('welcome_note.failed', { code }),
+            .emit(
+              code === 'unexpected'
+                ? 'welcome_note.failed'
+                : 'welcome_note.refused',
+              { code },
+            ),
       );
   };
 
