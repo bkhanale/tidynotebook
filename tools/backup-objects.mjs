@@ -75,6 +75,9 @@ async function openStore(root, configFile) {
   }
   const settings = record(JSON.parse(protectedValue(configFile)));
   const endpoint = backupStorageEndpoint(settings.endpoint);
+  // Only the protected settings file can select a custom storage endpoint.
+  // The SDK reads this setting for both clients, including shared profiles.
+  process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'true';
   const config = {
     bucket: textSetting(settings, 'bucket'),
     region: textSetting(settings, 'region'),

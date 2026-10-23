@@ -65,3 +65,109 @@ await test('all storage commands reject remote HTTP before reading credentials',
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+await test('both backup clients ignore inherited endpoints and keep explicit endpoints', async (t) => {
+  const { S3Client } = await import('@aws-sdk/client-s3');
+  const directory = mkdtempSync(join(tmpdir(), 'backup-inherited-endpoint-'));
+  const originalSend = S3Client.prototype.send;
+  /** @type {{protocol: string, hostname: string}[]} */
+  const requests = [];
+  t.mock.method(
+    S3Client.prototype,
+    'send',
+    /** @this {import('@aws-sdk/client-s3').S3Client} @param {unknown[]} args */
+    function (...args) {
+      t.mock.method(
+        this.config.requestHandler,
+        'handle',
+        /** @param {{protocol: string, hostname: string}} request */
+        async (request) => {
+          requests.push({
+            protocol: request.protocol,
+            hostname: request.hostname,
+          });
+          throw new Error('intercepted backup transport');
+        },
+      );
+      return Reflect.apply(originalSend, this, args);
+    },
+  );
+  const names = [
+    'AWS_ENDPOINT_URL',
+    'AWS_ENDPOINT_URL_S3',
+    'AWS_CONFIG_FILE',
+    'AWS_PROFILE',
+    'AWS_IGNORE_CONFIGURED_ENDPOINT_URLS',
+  ];
+  const previous = new Map(names.map((name) => [name, process.env[name]]));
+  try {
+    const awsConfig = join(directory, 'aws-config');
+    writeFileSync(
+      awsConfig,
+      '[profile backup-test]\nendpoint_url = http://profile-endpoint.invalid\n',
+    );
+    process.env.AWS_CONFIG_FILE = awsConfig;
+    process.env.AWS_PROFILE = 'backup-test';
+    const settings = join(directory, 'settings.json');
+    const key = join(directory, 'key');
+    const secret = join(directory, 'secret');
+    for (const file of [key, secret])
+      writeFileSync(file, 'synthetic-test-credential', { mode: 0o600 });
+    const rows = join(directory, 'rows');
+    const workspace = 'b49fdde6-c617-4f46-9d94-b76427e27ef4';
+    const digest = 'a'.repeat(64);
+    writeFileSync(rows, `${workspace}\t${digest}\t3\n`);
+    const env = {
+      NOTESAPP_STORAGE_ROOT: directory,
+      NOTESAPP_CONTENT_DIR: directory,
+      NOTESAPP_ROWS_PATH: rows,
+      NOTESAPP_OBJECT_STORE_CONFIG_FILE: settings,
+    };
+    for (const source of [
+      'environment',
+      'service-environment',
+      'profile',
+      'explicit',
+    ]) {
+      delete process.env.AWS_ENDPOINT_URL;
+      delete process.env.AWS_ENDPOINT_URL_S3;
+      if (source === 'environment')
+        process.env.AWS_ENDPOINT_URL = 'http://environment-endpoint.invalid';
+      if (source === 'service-environment')
+        process.env.AWS_ENDPOINT_URL_S3 = 'http://service-endpoint.invalid';
+      writeFileSync(
+        settings,
+        JSON.stringify({
+          bucket: 'backup-test-bucket',
+          region: 'us-east-1',
+          ...(source === 'explicit'
+            ? { endpoint: 'http://127.0.0.1:9500' }
+            : {}),
+          accessKeyIdFile: key,
+          secretAccessKeyFile: secret,
+        }),
+        { mode: 0o600 },
+      );
+      for (const mode of ['backup', 'empty']) {
+        process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'false';
+        requests.length = 0;
+        await assert.rejects(runBackupObjects(mode, env));
+        assert.equal(requests.length, 1, `${source}: ${mode}`);
+        assert.deepEqual(
+          requests[0],
+          source === 'explicit'
+            ? { protocol: 'http:', hostname: '127.0.0.1' }
+            : {
+                protocol: 'https:',
+                hostname: 'backup-test-bucket.s3.us-east-1.amazonaws.com',
+              },
+        );
+      }
+    }
+  } finally {
+    for (const [name, value] of previous)
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
