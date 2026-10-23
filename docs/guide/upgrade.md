@@ -85,7 +85,7 @@ There is no downward migration. To go back to the old release:
    ```bash
    (
      set -euo pipefail
-     grep -Eq '^NOTESAPP_IMAGE=.+$' notesapp-image-previous.txt
+     grep -Eq '^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=[[:space:]]*[^[:space:]]+' notesapp-image-previous.txt
      settings_file="$(mktemp .env.XXXXXX)"
      awk '!/^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=/' .env > "$settings_file"
      cat notesapp-image-previous.txt >> "$settings_file"
