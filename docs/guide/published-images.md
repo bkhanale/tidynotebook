@@ -30,6 +30,17 @@ command, so you do not need to set it again in a new shell:
 DOCKER_DEFAULT_PLATFORM=linux/amd64
 ```
 
+This default applies to all services. On an ARM host, keep PostgreSQL native:
+add this setting to the `postgres` service in `docker-compose.override.yml`.
+Create that file if it does not exist. Keep any settings already in it.
+Compose reads this override with `docker-compose.yml`.
+
+```yaml
+services:
+  postgres:
+    platform: linux/arm64
+```
+
 ### ARM Linux
 
 Install the amd64 QEMU executable handler on the Docker host, then select
@@ -42,8 +53,9 @@ docker run --privileged --rm \
 ```
 
 Add `DOCKER_DEFAULT_PLATFORM=linux/amd64` to the installation's `.env` file,
-as in the Apple Silicon steps. The image selection commands below keep that
-line.
+as in the Apple Silicon steps. Also add the PostgreSQL platform override from
+those steps to keep the database native. The image selection commands below
+keep the `.env` platform line.
 
 The registration command registers the emulator on that host. See
 [Docker's QEMU setup](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually)
@@ -102,8 +114,9 @@ name, or invalid digest. If a check fails, do not start the application.
 Keep one `NOTESAPP_IMAGE` line in `.env`. Do not replace it with `latest` or
 `main`. Neither tag fixes a stable release.
 
-The selector shipped with the selected release uses the GitHub CLI. Use the
-commands above for an anonymous installation.
+The current `tools/ops/select-image.sh` uses `curl` over HTTPS to download the
+manifest and `jq` to check it. Older release checkouts can require the GitHub
+CLI instead. The commands above work without a GitHub login in either case.
 
 ## Pull and start
 
