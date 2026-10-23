@@ -1,6 +1,6 @@
 # 0188. The repository opens under AGPL-3.0-only
 
-- Status: Accepted. Opening time superseded by [0223](0223-core-source-opens-before-distribution.md)
+- Status: Accepted. Opening time superseded by [0223](0223-core-source-opens-before-distribution.md). Sign-off requirement superseded by [0233](0233-contributions-do-not-require-sign-off.md)
 - Date: 2026-10-04
 
 ## Context

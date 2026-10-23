@@ -80,7 +80,7 @@ gh api repos/tidynotebook/tidynotebook
 ```
 
 Read the existing rulesets first. Main requires PRs, resolved threads, Check,
-Sign-off, linear history and the merge queue. Deletion and force push are
+linear history and the merge queue. Deletion and force push are
 refused. No actor bypasses protection. See
 [record 0228](../decisions/0228-hosted-proof-and-release.md).
 

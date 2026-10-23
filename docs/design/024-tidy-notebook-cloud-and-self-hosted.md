@@ -137,6 +137,8 @@ offered as source too, unless every contributor signs a CLA, which keeps many
 contributors away. A separate program that talks over HTTP is not a part of
 the core.
 
+[Record 0233](../decisions/0233-contributions-do-not-require-sign-off.md) removes the sign-off requirement.
+
 **P3a is the choice.** The core holds no payment provider, no plan, no price
 and no billing screen. One image serves both editions, and the cloud runs the
 public image with no change. The private repository `tidynotebook/cloud` holds
@@ -171,6 +173,8 @@ today, so the change needs no consent from anybody. Contributions come in under
 the same license with a Developer Certificate of Origin sign-off. The repository
 can open before image publication and cloud launch under
 [record 0223](../decisions/0223-core-source-opens-before-distribution.md).
+
+[Record 0233](../decisions/0233-contributions-do-not-require-sign-off.md) states the current contribution terms: no required sign-off.
 
 ## The fourth question: what the core offers to a plan
 
