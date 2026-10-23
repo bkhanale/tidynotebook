@@ -39,6 +39,9 @@ holds the shape of both workflow files.
   a running job, and its `max` queue keeps the pending jobs in order, so a new
   request does not cancel an earlier one that waits.
 
+Approval requests follow [CONTRIBUTING](../../CONTRIBUTING.md#review-and-merge).
+[Decision 0235](../decisions/0235-authors-may-request-approval-after-clean-reviews.md) changes no gate below.
+
 ## Gates
 
 The script reads the pull request first and freezes its head H. Then it reads
