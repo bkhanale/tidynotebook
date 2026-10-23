@@ -16,7 +16,8 @@ sign-off is required. A missing `Signed-off-by` line does not block a change.
 
 This replaces the sign-off requirement and DCO check in record
 [0188](0188-the-repository-opens-under-agpl-3-0-only.md), and the DCO guidance
-in records 0223, 0224 and 0228. The license and the boundary between core and cloud stay the same.
+in records 0223, 0224 and 0228. The license and the boundary between core and
+cloud stay the same.
 
 ## Consequences
 
