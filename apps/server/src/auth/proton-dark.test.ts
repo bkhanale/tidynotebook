@@ -109,10 +109,9 @@ await test('authored dark and Outlook dark rules include unclassed auto-links', 
       ),
       name,
     );
-    assert.ok(
-      message.html.includes(
-        '.button-cell .button-link{color:#141414!important}',
-      ),
+    assert.match(
+      message.html,
+      /@media\(prefers-color-scheme:dark\)\{[^\n]*\.button-cell \.button-link\{color:#141414!important\}/,
       name,
     );
     for (const hook of ['data-ogsc', 'data-ogsb'])
