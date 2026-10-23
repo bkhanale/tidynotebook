@@ -32,11 +32,11 @@ with the new release tag. Keep the same tag for the checkout and image selection
    ```bash
    (
      set -euo pipefail
-     if ! grep -Eq '^NOTESAPP_IMAGE=[^[:space:]]+' .env; then
+     if ! grep -Eq '^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=[[:space:]]*[^[:space:]]+' .env; then
        printf '%s\n' 'Set the current NOTESAPP_IMAGE value in .env before upgrading.' >&2
        exit 1
      fi
-     grep '^NOTESAPP_IMAGE=' .env > notesapp-image-previous.txt
+     grep -E '^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=' .env > notesapp-image-previous.txt
    )
    ```
 
