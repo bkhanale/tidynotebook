@@ -20,7 +20,7 @@ the storage layout.
   - `installation_id`: the random ID of this installation.
 - A separate encrypted folder for the backups, for example
   `/mnt/separate-backups/notesapp`. It must not be inside the storage folder.
-- Node.js, GnuPG and `tar` on the host. The scripts run them there. Under
+- Node.js, GnuPG, `tar` and `flock` on the host. The scripts run them there. Under
   `sudo`, the `PATH` must hold `node`.
 
 If you made these files yourself, each one must have mode `0600`. The key file
@@ -35,6 +35,10 @@ volume key or the backup key is lost, stop. Never make a new key and claim
 that it can recover old data.
 
 ## Make a backup
+
+Only one backup can use a storage root at a time. The command writes a
+`.partial` archive, verifies it, then gives it the final name. Startup removes
+leftover `.backup-stage.*` folders while it holds the storage-root lock.
 
 Run these steps in the clone folder. The application writes while it runs. The
 database part of a backup is consistent on its own. The attachment files never

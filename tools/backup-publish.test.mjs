@@ -25,7 +25,7 @@ for (const failVerification of [false, true]) {
       const stale = join(storage, '.backup-stage.interrupted');
       mkdirSync(stale);
       writeFileSync(join(stale, 'database.sql'), 'interrupted plaintext');
-      // Similar names and symlink targets must not be removed by startup cleanup.
+      // Similar names must not be removed by startup cleanup.
       const retained = join(storage, 'backup-stage.keep');
       mkdirSync(retained);
       const settings = {
