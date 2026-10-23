@@ -53,4 +53,4 @@ printf '%s\n' \
 
 printf '%s\n' \
   "notesapp quick start: wrote .env and the test data directories in $DATA." \
-  'notesapp quick start: next, run docker compose build and docker compose up -d.'
+  'notesapp quick start: next, select and start the stable image as shown in docs/guide/quickstart.md.'

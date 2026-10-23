@@ -19,7 +19,9 @@ that you need to keep.
 - A Linux `amd64` host for the selected release. On macOS, use Docker with
   Linux containers. On Windows, use WSL2 with Docker Linux containers and
   the shell tools above. An ARM host needs amd64 emulation for this release.
-  See [Supported platforms](published-images.md#supported-platforms).
+  Before image selection and startup, follow the concrete
+  [Apple Silicon](published-images.md#apple-silicon) or
+  [ARM Linux](published-images.md#arm-linux) steps for your host.
 
 ## 1. Get the release files
 
@@ -43,6 +45,9 @@ tools/ops/quickstart.sh
 The script asks for `sudo` to create secret files and set the attachment
 folder owner. It writes `.env` and creates database, attachment, and secret
 folders under `.tooling/quickstart`. Git ignores these files.
+
+If the setup script's final message suggests a source build, continue with
+step 3 below to select and start the stable image.
 
 ## 3. Select and start the stable image
 

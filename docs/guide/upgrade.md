@@ -14,58 +14,40 @@ states. Keep the archive.
 
 ## 2. Install the new release
 
-Use the steps that fit how you run the server.
+Run these commands in the installation's clone folder. Replace `vX.Y.Z`
+with the new release tag. Keep the same tag for the checkout and image selection.
 
-### An installation built from source
-
-You built the image from the code with `docker compose build`. Run these
-commands in the clone folder. Replace `v1.2.3` with the tag of the new release.
-
-1. Get the new tags from the repository, and go to the new release:
+1. Fetch the new tag and check it out:
 
    ```bash
-   git fetch --tags
-   git checkout v1.2.3
+   git fetch --depth 1 origin tag vX.Y.Z
+   git checkout vX.Y.Z
    ```
 
-2. Build the new image. Then start the application from it. Compose replaces
-   the old container.
+   The checkout supplies the Compose files, operator scripts, and migrations
+   that match the new image. Do not select an image from the old checkout.
+
+2. Complete [Select the stable image](published-images.md#select-the-stable-image).
+   Its commands read the checked-out tag, check the public manifest, and write
+   the new image digest to `.env`. Stop if any check fails. Do not edit the
+   digest by hand.
+
+3. On an ARM host, complete the applicable
+   [platform steps](published-images.md#supported-platforms) in this shell.
+   Download the selected image and apply the release settings:
 
    ```bash
-   docker compose build
-   docker compose up -d
-   ```
-
-3. Check the state. Run this command again until the application shows as
-   healthy:
-
-   ```bash
+   docker compose pull app
+   docker compose up -d --no-build --wait
    docker compose ps
    ```
 
-4. When the application does not become healthy, read its log:
+   Compose replaces the application container and waits for it to be healthy.
+   It does not build source. If startup fails, read the application log:
 
    ```bash
    docker compose logs app
    ```
-
-### An installation that uses a published image
-
-You run an official image. Follow [Published images](published-images.md) to
-get the new `NOTESAPP_IMAGE` line with the script `tools/ops/select-image.sh`.
-Then do these steps:
-
-1. Open `.env` in a text editor. Replace the old `NOTESAPP_IMAGE` line with the
-   new one.
-2. Download the new image and start the application from it:
-
-   ```bash
-   docker compose pull app
-   docker compose up -d --no-build
-   ```
-
-3. Check the state with `docker compose ps`, and read the log with
-   `docker compose logs app`, as above.
 
 ## What happens at the start
 
@@ -88,3 +70,15 @@ There is no downward migration. To go back to the old release:
 
 Do not copy a database without its attachments. Do not copy attachments
 without the database from the same moment. The two parts are one backup.
+
+## Contributor source builds
+
+Contributors who build from source first check out the new tag as above.
+Use a separate local image name for both the build and startup commands:
+
+```bash
+NOTESAPP_IMAGE=notesapp-source:local docker compose build
+NOTESAPP_IMAGE=notesapp-source:local docker compose up -d --no-build --wait
+```
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the contributor checks.

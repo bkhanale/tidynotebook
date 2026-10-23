@@ -16,40 +16,74 @@ macOS needs Docker with Linux containers. On Windows, use WSL2 with Docker
 Linux containers and the shell tools listed in the quick start. Native
 Windows containers are not supported.
 
+### Apple Silicon
+
+In Docker Desktop **Settings**, open **General**. Select the Apple
+Virtualization framework and enable **Use Rosetta for x86_64/amd64 emulation
+on Apple Silicon**. Apply the settings and restart Docker Desktop. See
+[Docker Desktop settings](https://docs.docker.com/desktop/settings-and-maintenance/settings/).
+
+In each shell that runs Compose for this installation, set:
+
+```bash
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
+```
+
+### ARM Linux
+
+Install the amd64 QEMU executable handler on the Docker host, then select
+the image platform in the shell that runs Compose:
+
+```bash
+docker run --privileged --rm \
+  tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 \
+  --install amd64
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
+```
+
+The first command registers the emulator on that host. See
+[Docker's QEMU setup](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually)
+for host requirements. Set the platform in each shell used for this installation.
+On either ARM platform, emulation can be slower than a native amd64 host.
+
 ## Select the stable image
 
 Start with the release checkout and a prepared `.env` from
 [Quick start](quickstart.md) or [Self-hosting](self-hosting.md). Install `curl`
 and `jq` on the host. Run these commands in the root of the clone, in Bash.
-They also work with the operator scripts shipped in the selected release.
+The commands select the stable tag checked out in this folder. They also
+work with the operator scripts shipped in that release. An upgrade first
+checks out its new tag, as [Upgrade](upgrade.md) states.
 
 ```bash
-set -euo pipefail
-tag=v0.19.0
-commit="$(git rev-parse --verify "$tag^{commit}")"
-test "$(git rev-parse HEAD)" = "$commit"
-mkdir -p .tooling/published-release
-release="https://github.com/tidynotebook/tidynotebook/releases/download/$tag"
-curl --fail --silent --show-error --location \
-  --connect-timeout 10 --max-time 60 \
-  "$release/release-manifest.json" \
-  --output .tooling/published-release/release-manifest.json
-image="$(jq -ser --arg tag "$tag" --arg commit "$commit" '
-  select(length == 1) | .[0]
-  | select(.repository == "tidynotebook/tidynotebook"
-    and .tag == $tag and .version == ($tag | ltrimstr("v"))
-    and .source.commit == $commit
-    and .image.reference == "ghcr.io/tidynotebook/core"
-    and (.image.digest | type == "string" and length == 71
-      and test("^sha256:[a-f0-9]{64}$")))
-  | .image.reference + "@" + .image.digest
-' .tooling/published-release/release-manifest.json)"
-test -n "$image"
-settings_file="$(mktemp .env.XXXXXX)"
-awk '!/^NOTESAPP_IMAGE=/' .env > "$settings_file"
-printf 'NOTESAPP_IMAGE=%s\n' "$image" >> "$settings_file"
-chmod 600 "$settings_file"
-mv "$settings_file" .env
+(
+  set -euo pipefail
+  tag="$(git describe --tags --exact-match HEAD)"
+  commit="$(git rev-parse --verify "$tag^{commit}")"
+  test "$(git rev-parse HEAD)" = "$commit"
+  mkdir -p .tooling/published-release
+  release="https://github.com/tidynotebook/tidynotebook/releases/download/$tag"
+  curl --fail --silent --show-error --location \
+    --connect-timeout 10 --max-time 60 \
+    "$release/release-manifest.json" \
+    --output .tooling/published-release/release-manifest.json
+  image="$(jq -ser --arg tag "$tag" --arg commit "$commit" '
+    select(length == 1) | .[0]
+    | select(.repository == "tidynotebook/tidynotebook"
+      and .tag == $tag and .version == ($tag | ltrimstr("v"))
+      and .source.commit == $commit
+      and .image.reference == "ghcr.io/tidynotebook/core"
+      and (.image.digest | type == "string" and length == 71
+        and test("^sha256:[a-f0-9]{64}$")))
+    | .image.reference + "@" + .image.digest
+  ' .tooling/published-release/release-manifest.json)"
+  test -n "$image"
+  settings_file="$(mktemp .env.XXXXXX)"
+  awk '!/^NOTESAPP_IMAGE=/' .env > "$settings_file"
+  printf 'NOTESAPP_IMAGE=%s\n' "$image" >> "$settings_file"
+  chmod 600 "$settings_file"
+  mv "$settings_file" .env
+)
 ```
 
 The checks stop on a different repository, tag, version, source commit, image
