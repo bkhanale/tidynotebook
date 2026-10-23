@@ -103,6 +103,26 @@ await test('the action boundary and label survive both Proton fill paths and ful
 await test('authored dark and Outlook dark rules include unclassed auto-links', () => {
   for (const { name, message } of emailExamples) {
     assert.match(message.html, /a\{color:#1a63c4!important/, name);
+    assert.ok(
+      message.html.includes(
+        '.button-cell .button-link{color:#ffffff!important}',
+      ),
+      name,
+    );
+    assert.ok(
+      message.html.includes(
+        '.button-cell .button-link{color:#141414!important}',
+      ),
+      name,
+    );
+    for (const hook of ['data-ogsc', 'data-ogsb'])
+      assert.ok(
+        message.html.includes(
+          `[${hook}] .button-cell .button-link{color:#141414!important}`,
+        ),
+        name,
+      );
+
     assert.match(message.html, /a,\.link\{color:#6fa8f5!important\}/, name);
     for (const hook of ['data-ogsc', 'data-ogsb'])
       assert.ok(

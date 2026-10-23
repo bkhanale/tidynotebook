@@ -158,7 +158,7 @@ export function renderEmail(input: {
     ['.warning', `color:${dark.dangerText}`],
     ['a,.link', `color:${dark.accentText}`],
     ['.button-link', `background-color:${dark.accentFill}`],
-    ['.button-link', `color:${dark.accentOnFill}`],
+    ['.button-cell .button-link', `color:${dark.accentOnFill}`],
     ['.panel', `background-color:${darkPanel}`],
     ['.logo-light', 'display:none'],
     ['.logo-dark', 'display:block'],
@@ -185,7 +185,7 @@ export function renderEmail(input: {
 <html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><meta name="x-apple-disable-message-reformatting"><meta name="format-detection" content="telephone=no,date=no,address=no,email=no"><title>${e(input.subject)}</title>
 <style>
 :root{color-scheme:light dark;supported-color-schemes:light dark}
-body{margin:0;padding:0;width:100%!important}a{color:${light.accentText}!important;text-decoration:underline}.button-link{color:${light.accentOnFill}!important}a:focus{outline:2px solid ${light.accentText};outline-offset:3px}
+body{margin:0;padding:0;width:100%!important}a{color:${light.accentText}!important;text-decoration:underline}.button-cell .button-link{color:${light.accentOnFill}!important}a:focus{outline:2px solid ${light.accentText};outline-offset:3px}
 @media(max-width:620px){.shell{padding:20px 12px!important}.card{padding:24px 20px!important}.brand-row{padding:0 4px 16px!important}.foot{padding:20px 4px!important}.button-table{width:100%!important}.button-link{display:block!important;text-align:center!important}}
 .logo-dark{display:none}
 @media(prefers-color-scheme:dark){${darkCss()}}
