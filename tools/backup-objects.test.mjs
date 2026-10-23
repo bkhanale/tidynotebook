@@ -69,13 +69,14 @@ await test('all storage commands reject remote HTTP before reading credentials',
 await test('both backup clients ignore inherited endpoints and keep explicit endpoints', async (t) => {
   const { S3Client } = await import('@aws-sdk/client-s3');
   const directory = mkdtempSync(join(tmpdir(), 'backup-inherited-endpoint-'));
-  const originalSend = S3Client.prototype.send;
+  // Capture the method for an explicit Reflect.apply with each client receiver.
+  const originalSend = Reflect.get(S3Client.prototype, 'send');
   /** @type {{protocol: string, hostname: string}[]} */
   const requests = [];
   t.mock.method(
     S3Client.prototype,
     'send',
-    /** @this {import('@aws-sdk/client-s3').S3Client} @param {unknown[]} args */
+    /** @this {import('@aws-sdk/client-s3').S3Client} @param {unknown[]} args @returns {Promise<unknown>} */
     function (...args) {
       t.mock.method(
         this.config.requestHandler,
