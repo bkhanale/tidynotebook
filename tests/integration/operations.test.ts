@@ -355,7 +355,7 @@ await test('host encryption verification script', async () => {
   }
 });
 
-for (const backend of ['filesystem', 's3'])
+for (const backend of ['filesystem', 's3', 'filesystem-to-s3'])
   await test(`${backend} backup and restore round-trip a note with its history and attachments`, async () => {
     const sourceStorage = await mkdtemp(join(tmpdir(), 'notesapp-backup-src-'));
     const targetStorage = await mkdtemp(join(tmpdir(), 'notesapp-backup-tgt-'));
@@ -372,40 +372,51 @@ for (const backend of ['filesystem', 's3'])
     try {
       sourceDb = await createDisposableDatabase();
       targetDb = await createDisposableDatabase();
-      if (backend === 's3') {
-        sourceBucket = await createTestBucket();
-        targetBucket = await createTestBucket();
-        function configFile(bucket: TestBucket, label: string): string {
-          const accessKeyIdFile = join(configRoot, `${label}-access`);
-          const secretAccessKeyFile = join(configRoot, `${label}-secret`);
-          const settingsFile = join(configRoot, `${label}-store.json`);
-          writeFileSync(accessKeyIdFile, bucket.settings.accessKeyId, {
-            mode: 0o600,
-          });
-          writeFileSync(secretAccessKeyFile, bucket.settings.secretAccessKey, {
-            mode: 0o600,
-          });
-          writeFileSync(
-            settingsFile,
-            JSON.stringify({
-              bucket: bucket.settings.bucket,
-              region: bucket.settings.region,
-              endpoint: bucket.settings.endpoint,
-              accessKeyIdFile,
-              secretAccessKeyFile,
-            }),
-            { mode: 0o600 },
-          );
-          return settingsFile;
-        }
+      if (backend === 's3') sourceBucket = await createTestBucket();
+      if (backend !== 'filesystem') targetBucket = await createTestBucket();
+      function configFile(bucket: TestBucket, label: string): string {
+        const accessKeyIdFile = join(configRoot, `${label}-access`);
+        const secretAccessKeyFile = join(configRoot, `${label}-secret`);
+        const settingsFile = join(configRoot, `${label}-store.json`);
+        writeFileSync(accessKeyIdFile, bucket.settings.accessKeyId, {
+          mode: 0o600,
+        });
+        writeFileSync(secretAccessKeyFile, bucket.settings.secretAccessKey, {
+          mode: 0o600,
+        });
+        writeFileSync(
+          settingsFile,
+          JSON.stringify({
+            bucket: bucket.settings.bucket,
+            region: bucket.settings.region,
+            endpoint: bucket.settings.endpoint,
+            accessKeyIdFile,
+            secretAccessKeyFile,
+          }),
+          { mode: 0o600 },
+        );
+        return settingsFile;
+      }
+      if (sourceBucket)
         sourceOptions = [
           '--object-store-config-file',
           configFile(sourceBucket, 'source'),
         ];
+      if (targetBucket)
         targetOptions = [
           '--object-store-config-file',
           configFile(targetBucket, 'target'),
         ];
+      function assertNoS3Secrets(output: { stdout: string; stderr: string }) {
+        for (const bucket of [sourceBucket, targetBucket]) {
+          if (!bucket) continue;
+          for (const text of [output.stdout, output.stderr])
+            assert.equal(
+              text.includes(bucket.settings.secretAccessKey),
+              false,
+              'Command output must not contain the S3 secret.',
+            );
+        }
       }
       const schemaStore = openWorkspaceStore(
         sourceDb.runtimeUrl,
@@ -572,26 +583,45 @@ for (const backend of ['filesystem', 's3'])
 
       // Run backup script
       const backupScript = join(process.cwd(), 'tools/ops/backup.sh');
-      const backupOutput = execFileSync(
-        backupScript,
-        [
-          ...sourceOptions,
-          '--storage-root',
-          sourceStorage,
-          '--backup-root',
-          backupRoot,
-          '--database-url-file',
-          databaseUrlFile,
-          '--key-file',
-          keyFile,
-          '--installation-id-file',
-          installationIdFile,
-          '--postgres-container',
-          postgresContainer,
-        ],
-        { encoding: 'utf8' },
-      );
-      assert.ok(backupOutput.includes('Backup completed successfully'));
+      const backupArguments = [
+        ...sourceOptions,
+        '--storage-root',
+        sourceStorage,
+        '--backup-root',
+        backupRoot,
+        '--database-url-file',
+        databaseUrlFile,
+        '--key-file',
+        keyFile,
+        '--installation-id-file',
+        installationIdFile,
+        '--postgres-container',
+        postgresContainer,
+      ];
+      if (sourceBucket) {
+        const settingsFile = sourceOptions[1];
+        assert.ok(settingsFile);
+        for (const file of [settingsFile, join(configRoot, 'source-secret')]) {
+          chmodSync(file, 0o640);
+          try {
+            const refused = spawnSync(backupScript, backupArguments, {
+              encoding: 'utf8',
+            });
+            assertNoS3Secrets(refused);
+            assert.notEqual(refused.status, 0);
+            assert.match(refused.stderr, /protected|must not be readable/);
+            assert.deepEqual(readdirSync(backupRoot), []);
+          } finally {
+            chmodSync(file, 0o600);
+          }
+        }
+      }
+      const backupOutput = spawnSync(backupScript, backupArguments, {
+        encoding: 'utf8',
+      });
+      assertNoS3Secrets(backupOutput);
+      assert.equal(backupOutput.status, 0, 'Backup must succeed.');
+      assert.ok(backupOutput.stdout.includes('Backup completed successfully'));
 
       const backupFiles = readdirSync(backupRoot);
       assert.equal(backupFiles.length, 1);
@@ -670,7 +700,8 @@ for (const backend of ['filesystem', 's3'])
           ],
           { encoding: 'utf8' },
         );
-        assert.notEqual(failed.status, 0, failed.stdout);
+        assertNoS3Secrets(failed);
+        assert.notEqual(failed.status, 0);
         assert.equal(
           failed.stdout.includes('Backup completed successfully'),
           false,
@@ -704,6 +735,7 @@ for (const backend of ['filesystem', 's3'])
           ],
           { encoding: 'utf8' },
         );
+        assertNoS3Secrets(refused);
         assert.notEqual(refused.status, 0);
         assert.match(refused.stderr, /bucket is not empty/);
         assert.equal(
@@ -715,7 +747,7 @@ for (const backend of ['filesystem', 's3'])
 
       // Run restore into target environment
       const restoreScript = join(process.cwd(), 'tools/ops/restore.sh');
-      const restoreOutput = execFileSync(
+      const restoreOutput = spawnSync(
         restoreScript,
         [
           ...targetOptions,
@@ -734,7 +766,11 @@ for (const backend of ['filesystem', 's3'])
         ],
         { encoding: 'utf8' },
       );
-      assert.ok(restoreOutput.includes('Restoration completed successfully'));
+      assertNoS3Secrets(restoreOutput);
+      assert.equal(restoreOutput.status, 0, 'Restore must succeed.');
+      assert.ok(
+        restoreOutput.stdout.includes('Restoration completed successfully'),
+      );
 
       // Verify that the restored storage root contains the attachment
       const restoredFile = join(targetStorage, relFolder, digest);

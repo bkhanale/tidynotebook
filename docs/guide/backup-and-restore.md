@@ -33,6 +33,9 @@ the storage layout.
   AWS SDK.
 - `jq` to create the S3 settings file in the configuration step below.
 
+During a backup, the storage-root volume needs free space of roughly three
+times the combined database and attachment size.
+
 If you made these files yourself, each one must have mode `0600`. The key file
 holds at least 32 bytes of strong random data. The ID file holds one UUID.
 
@@ -152,8 +155,8 @@ protected file with `sudoedit`, and set the bucket and region for that store.
 
 Both credential files and the settings file must be nonempty regular files
 with mode `0600`. The command reads them directly. Do not put credentials in
-command arguments, shell history, or the settings JSON. The key needs read
-and list access for backup. Restore also needs write access to its target.
+command arguments, shell history, or the settings JSON. Backup needs read
+access. Restore needs list, write, and read access to the target bucket.
 Keep both buckets private.
 
 Stop all writers as above. Then run:
