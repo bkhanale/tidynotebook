@@ -7,7 +7,7 @@ Your account on notes.example.com is locked. On 30 October 2026 the account and 
 
 To keep your account, sign in and open Billing to start or renew your plan.
 
-To download your notes, sign in, open Settings, and select Export all notes.
+To download your notes, sign in and select Export my notes.
 
 Sign in to renew your plan:
 https://notes.example.com/login

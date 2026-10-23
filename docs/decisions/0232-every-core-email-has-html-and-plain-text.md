@@ -67,3 +67,7 @@ Subjects and plain text keep normal spaces. Password change notices include
 the reset callback time in UTC. Both logo variants remain available in Outlook;
 the hidden dark variant uses a container that dark mode rules can show. The
 Outlook button cell has no background, so only the VML shape draws its fill.
+
+Removal notices refer to Export my notes on the locked-account screen. A
+locked account cannot open Settings, which has a separate Export all notes
+control for active accounts.

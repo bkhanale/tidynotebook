@@ -240,7 +240,7 @@ export function removalNoticeMessage(
       input.portal
         ? 'To keep your account, sign in and open Billing to start or renew your plan.'
         : 'To keep your account, ask your administrator to unlock it.',
-      'To download your notes, sign in, open Settings, and select Export all notes.',
+      `To download your notes, sign in and select ${keepTogether('Export my notes')}.`,
     ],
     action: {
       label: input.portal

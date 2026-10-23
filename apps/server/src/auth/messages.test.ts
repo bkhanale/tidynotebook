@@ -98,7 +98,8 @@ await test('the mail before a removal names the time, the way to keep the accoun
   assert.ok(thirty.html.includes('On\u00a031\u00a0October\u00a02026'));
   assert.match(thirty.text, /open Billing/);
   assert.ok(thirty.text.split('\n').includes(`${origin}/login`));
-  assert.match(thirty.text, /select Export all notes/);
+  assert.match(thirty.text, /sign in and select Export my notes/);
+  assert.doesNotMatch(thirty.text, /Settings|Export all notes/);
   const seven = removalNoticeMessage({
     to: 'a@example.com',
     origin,
