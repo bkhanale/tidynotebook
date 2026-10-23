@@ -44,7 +44,6 @@ a fact in the code that a record did not foresee stops and reports it, as
    `checkRegistration` in `apps/server/src/plugins/register.ts` stops startup
    when a contract operation has no handler.
 2. Phase 2 is items 12 to 15, in the private repository `tidynotebook/cloud`.
-   Its issues sit on the same board.
 3. Phase 3 is items 16 to 18, milestone `1.0.0`. Item 18 is the launch, and
    it lands last. Source opening follows [record 0223](../decisions/0223-core-source-opens-before-distribution.md) and does not wait for this phase.
 4. Each item of this repository follows
