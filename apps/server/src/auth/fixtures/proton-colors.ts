@@ -1,8 +1,8 @@
 /**
- * Limited regression model of Proton's published HSL color rules, not a mail
- * client. It handles only opaque hex colors used by these email fixtures.
- * Source: ProtonMail/clients at 2ecb794dbc221384dc6d88840965ac144db301ad,
- * mail-html-transformer/src/transforms/styles/colors.rs and dark_mode_visitor/declaration_block.rs.
+ * Limited regression model, not a mail client. Only opaque HSL/hex colours and
+ * currentColor are supported. Source: ProtonMail/clients at
+ * 2ecb794dbc221384dc6d88840965ac144db301ad, mail-html-transformer/src/transforms/
+ * styles/colors.rs and dark_mode_visitor/declaration_block.rs.
  * Keep this model out of sent email and production imports.
  */
 export function rgb(hex: string): { r: number; g: number; b: number } {
@@ -27,30 +27,19 @@ export function contrast(first: string, second: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-export function protonColor(
-  hex: string,
+/** HSL accepts degrees and percentages, as in the original upstream cases. */
+export function protonHsl(
+  h: number,
+  s: number,
+  l: number,
   purpose: 'foreground' | 'background',
 ): string {
-  const { r, g, b } = rgb(hex);
-  const high = Math.max(r, g, b),
-    low = Math.min(r, g, b),
-    delta = high - low;
-  let l = (high + low) / 2;
-  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
-  let h =
-    delta === 0
-      ? 0
-      : high === r
-        ? ((g - b) / delta) % 6
-        : high === g
-          ? (b - r) / delta + 2
-          : (r - g) / delta + 4;
-  h = (h * 60 + 360) % 360;
-  if (purpose === 'background' && hex.toLowerCase() === '#ffffff')
-    return '#191927';
-  if (s <= 0.05 || l <= 0.01 || l >= 0.95)
+  if (purpose === 'background' && s === 0 && l === 100) return '#191927';
+  // Avoid binary rounding moving an exact five-percent saturation over the boundary.
+  if (s <= 5 + 1e-10 || l <= 1 || l >= 95)
     return purpose === 'background' ? '#16171d' : '#ffffff';
-  l = purpose === 'background' ? Math.min(l, 0.3) : Math.max(l, 0.9);
+  s /= 100;
+  l = (purpose === 'background' ? Math.min(l, 30) : Math.max(l, 90)) / 100;
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
   const m = l - c / 2;
@@ -78,6 +67,30 @@ export function protonColor(
   );
 }
 
+/** Proton skips currentColor and adds no override if a colour stays unchanged. */
+export function protonColor(
+  hex: string,
+  purpose: 'foreground' | 'background',
+): string {
+  if (hex.toLowerCase() === 'currentcolor') return hex;
+  const { r, g, b } = rgb(hex);
+  const high = Math.max(r, g, b),
+    low = Math.min(r, g, b),
+    delta = high - low;
+  const l = (high + low) / 2;
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+  let h =
+    delta === 0
+      ? 0
+      : high === r
+        ? ((g - b) / delta) % 6
+        : high === g
+          ? (b - r) / delta + 2
+          : (r - g) / delta + 4;
+  h = (h * 60 + 360) % 360;
+  return protonHsl(h, s * 100, l * 100, purpose);
+}
+
 /** Proton keeps an existing foreground if it has sufficient contrast. */
 export function protonForeground(
   color: string,
@@ -86,4 +99,33 @@ export function protonForeground(
   return contrast(color, background) >= 4.5
     ? color
     : protonColor(color, 'foreground');
+}
+
+/**
+ * Transform one declaration block, not computed styles. Only changed properties
+ * produce overrides. The browser simulation supplies CSS cascade and media rules.
+ */
+export function protonDeclarations(
+  declarations: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const overrides: Record<string, string> = {};
+  for (const [property, value] of Object.entries(declarations)) {
+    if (property === 'color' || value.toLowerCase() === 'currentcolor')
+      continue;
+    const transformed = protonColor(value, 'background');
+    if (transformed !== value) overrides[property] = transformed;
+  }
+  const foreground = declarations['color'];
+  if (foreground && foreground.toLowerCase() !== 'currentcolor') {
+    const backgrounds = Object.values(overrides);
+    const changed = protonColor(foreground, 'foreground');
+    if (
+      changed !== foreground &&
+      !(backgrounds.length ? backgrounds : ['#191927']).every(
+        (bg) => contrast(foreground, bg) >= 4.5,
+      )
+    )
+      overrides['color'] = changed;
+  }
+  return overrides;
 }

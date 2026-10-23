@@ -83,3 +83,30 @@ await test('ICO comparison permits PNG encoding changes but checks every directo
     /extra ICO bytes/,
   );
 });
+
+await test('the default email logo keeps its own dark tile and light mark without a media query', async () => {
+  const { emailLogoImages } =
+    await import('../apps/server/src/auth/email-logo.ts');
+  const image = emailLogoImages.find(
+    (value) => value.filename === 'notebook-light.png',
+  );
+  assert.ok(image);
+  const { data, info } = await sharp(Buffer.from(image.content, 'base64'))
+    .resize(32, 32)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.equal(info.channels, 4);
+  let dark = 0,
+    light = 0;
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] !== 255) continue;
+    const red = data[index] ?? 0,
+      green = data[index + 1] ?? 0,
+      blue = data[index + 2] ?? 0;
+    if (Math.max(red, green, blue) < 40) dark++;
+    if (Math.min(red, green, blue) > 220) light++;
+  }
+  assert.ok(dark > 200, 'opaque tile under the mark');
+  assert.ok(light > 50, 'light strokes inside the opaque tile');
+});

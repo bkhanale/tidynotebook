@@ -123,7 +123,10 @@ export async function generateIcons(check = false) {
     { appearance: 'light', stroke: light },
     { appearance: 'dark', stroke: dark },
   ]) {
-    const bytes = await sharp(Buffer.from(svg(64, group(stroke))))
+    // The opaque official tile stays visible if a client cannot switch logos.
+    const bytes = await sharp(
+      Buffer.from(appearance === 'light' ? tile(64) : svg(64, group(stroke))),
+    )
       .png()
       .toBuffer();
     emailImages.push(

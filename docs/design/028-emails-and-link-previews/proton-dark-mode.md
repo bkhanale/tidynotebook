@@ -46,35 +46,73 @@ an Outlook fallback, not the mechanism used in Proton. See
 [property purposes](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/dark_mode_visitor/properties.rs)
 and [colour rules](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/colors.rs).
 
-The light info panel now uses the existing `surface` token, `#f7f7f5`, instead
-of `surfaceHover`, `#f0efec`. Proton classifies the first as neutral and maps it
-to `#16171d`. The old warm grey keeps its hue and turns brown. The card's white
-maps to `#191927`, as in the reported screenshot. The authored dark panel stays
-unchanged. No product theme token changes.
+The panel uses a small cool tint derived inside `renderEmail`: fifteen parts
+of `surfaceHover` and one part of `accentText`, per RGB channel. The results
+are `#e3e6ea` in light and `#2f3338` in authored dark. The copied Default palette
+is unchanged, and the product theme does not change. Panel-to-card contrast is
+1.25:1 in each authored mode. Proton maps the light fill to `#424b57`, at 1.96:1
+against its card. Its transformed dark fill also passes the 1.15:1 grouping
+target. Panel text passes 4.5:1 in all these cases. This keeps the grouping
+without the old olive tint or the first fix's nearly invisible neutral fill.
 
-A base anchor rule sets the link colour explicitly, including visited links
-and client-created links that inherit the email stylesheet. The button has its
-own text colour rule. The existing dark class rules still override both. Proton
-can still choose its own accessible link hue. The goal is readable links, not
-an exact brand colour after a client transform. Its
-[base link CSS](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/colors.css)
-and [foreground contrast check](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/dark_mode_visitor/declaration_block.rs)
-explain this limit.
+The purple links in the owner's image are Proton-created links around
+plain-text domains in the body and footer. Proton supplies
+`a:link{color:var(--primary)}`, with `--primary: #8a6eff`. The authored fallback
+URL already had an inline colour and appeared pale blue. The new base `a` rule
+covers client-created anchors. Its authored dark counterpart is `a,.link`,
+including the Outlook hooks. The button's class rules still win over `a`.
+See the SDK [base link CSS](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/colors.css)
+and [foreground contrast check](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/dark_mode_visitor/declaration_block.rs).
+The simulation inserts these domain anchors and checks their final contrast.
+Proton can still choose a different link hue in an installed build.
+
+Proton also processes the sender's dark media rules. An unchanged inline
+`#1a1917` fill creates no override. The authored dark `#ececea` fill maps to
+`#16171d` and can win instead. This explains the owner's sampled button fill
+`#16171c`, within one channel value of the model. A simulation that transforms
+only computed light styles misses this path. See
+[stylesheet processing](https://github.com/ProtonMail/clients/blob/2ecb794dbc221384dc6d88840965ac144db301ad/project/mail/rust/mail/mail-html-transformer/src/transforms/styles/dark_mode_visitor/stylesheet.rs).
+
+The anchor owns the fill. The cell has no fill, so there is no dark hairline
+outside the light button's border. A fixed fill-colour border comes before
+`border-color:currentColor`. If a client drops the latter declaration, the
+fixed border keeps the button size. The dark rules now set the anchor fill.
+
+The default light CID image uses the existing official application icon tile.
+Its embedded opaque background keeps the notebook mark readable if the client
+cannot apply dark media queries. The authored dark CID mark stays unchanged.
+Neither image needs a remote load. The simulation uses the actual CSS logo
+rules; it does not force a logo switch.
 
 Keep both `color-scheme: light dark` metadata entries, the root properties,
-media queries, CID logos, Outlook selectors and VML. These metadata entries
+media queries, CID image delivery, Outlook selectors and VML. These metadata entries
 already existed. They support authored dark rendering, including
 [WebKit dark mode](https://webkit.org/blog/8840/dark-mode-support-in-webkit/),
 but do not disable Proton's transform.
 
 ## Checks
 
-The regression model covers opaque hex colours from the template. Known cases
-come from Proton's published colour tests. It checks button text, the button
-boundary, links and the neutral panel. It also checks a full RGB inversion.
-The forced-dark browser renders apply this colour model to the light layout.
-They are simulations, not screenshots from Proton. They do not emulate the
-whole SDK CSS cascade, WebView, link detection, VML or image policy.
+The regression model checks the original opaque HSL input/output pairs from
+upstream cases 3, 4, 6 and 7, and the hex pair from case 8. A separate test
+compares only the owner's sampled pixel colours, with a one-channel-value
+rounding tolerance. No inbox image or token is stored in the repository.
+The tests cover `currentColor` being skipped, unchanged inline colours creating
+no override, both possible Proton button fills, full RGB inversion, dark
+unclassed anchors and panel contrast.
+
+The forced-dark browser renders process declaration blocks in the sender's
+stylesheets, including dark media rules, and then inline and `bgcolor` values.
+Only changed values create more specific colour overrides. Original media
+queries still control layout and logos. The added Proton base anchor style
+uses `#8a6eff`. Domain detection inserts local test anchors before the contrast
+checks. The Android no-media variant applies the outer colour supplement
+without a media query while the sender's dark media rules do not match.
+Its default light logo must remain readable.
+
+These are source-based simulations, not native Proton screenshots. They cover
+the template's opaque colours and simple selectors, not the complete Rust
+parser, colour profiles, WebView, VML or image policy. Native Proton iOS and
+Android checks remain a release gate, including the fallback logo path.
 
 Before release, check a verification and password reset email in Proton iOS,
 Android and web, Gmail, Outlook and Apple Mail, in light and dark:
@@ -87,21 +125,24 @@ Android and web, Gmail, Outlook and Apple Mail, in light and dark:
 
 ## Cloud mirror follow-up
 
-Do not change cloud from this core task. In `packages/mail`, apply the same
-renderer changes as `apps/server/src/auth/email-template.ts`:
+After the core merge, use the merge commit as the source for the cloud mirror.
+Do not edit cloud from this task.
 
-1. Add `color:#1a63c4!important` to the base `a` rule. Add the base
-   `.button-link{color:#ffffff!important}` rule before the dark rules.
-2. Change the HTML button padding to `10px 20px` and add
-   `border:2px solid currentColor`.
-3. Change VML `stroke="f"` to
-   `stroke="t" strokecolor="#ffffff" strokeweight="2px"`.
-4. Change both the light panel `bgcolor` and inline `background-color` from the
-   light `surfaceHover` token to the light `surface` token. Keep the dark rule.
-5. Keep the metadata, dark selectors, CID images, VML ghost table and text
-   alternative unchanged. Copy the renderer regression coverage, regenerate
-   cloud HTML goldens and run the existing drift check against this core change.
+1. Copy `renderEmail` verbatim from core
+   `apps/server/src/auth/email-template.ts` at the merge commit into
+   `packages/mail/src/email-template.ts`. Keep the token expressions, local
+   panel calculation and declaration order. Do not substitute literal colours.
+   `emailPalettes` and the other renderer declarations are unchanged.
+2. Refresh the mirrored light CID PNG from core's generated
+   `apps/server/src/auth/email-logo.ts`. Keep the cloud module's existing type
+   imports. The dark image and both content IDs are unchanged.
+3. Set `core.json` `ref` to that merge SHA. Update `image` if the existing pin
+   workflow requires it.
+4. Regenerate the three
+   `packages/mail/src/fixtures/emails/plan-ended*.html.golden` files. The text
+   goldens do not change.
+5. Run `pnpm lint`, which includes the drift check, and `pnpm test:unit`.
+   Porting the Proton regression tests is optional and needs cloud's own
+   `emailExamples`.
 
-No message copy, URL, mail configuration, attachment or plain-text change is
-needed. Update the cloud drift reference by its existing workflow when the
-core fix is merged.
+No message copy, URL, mail configuration or plain-text change is needed.

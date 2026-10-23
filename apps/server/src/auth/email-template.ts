@@ -129,6 +129,23 @@ export function renderEmail(input: {
     ]
       .join('\n\n')
       .replaceAll('\u00a0', ' ') + '\n';
+  // A small blue tint keeps the panel distinct after Proton's HSL transform.
+  // Derive both fills from Default tokens without changing the product theme.
+  const panelFill = (base: string, tint: string) =>
+    '#' +
+    [1, 3, 5]
+      .map((offset) =>
+        Math.round(
+          (Number.parseInt(base.slice(offset, offset + 2), 16) * 15 +
+            Number.parseInt(tint.slice(offset, offset + 2), 16)) /
+            16,
+        )
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('');
+  const lightPanel = panelFill(light.surfaceHover, light.accentText);
+  const darkPanel = panelFill(dark.surfaceHover, dark.accentText);
   const darkRules = [
     ['.page', `background-color:${dark.surface}`],
     [
@@ -139,10 +156,10 @@ export function renderEmail(input: {
     ['.strong', `color:${dark.textStrong}`],
     ['.muted,.label', `color:${dark.textMuted}`],
     ['.warning', `color:${dark.dangerText}`],
-    ['.link', `color:${dark.accentText}`],
-    ['.button-cell', `background-color:${dark.accentFill}`],
+    ['a,.link', `color:${dark.accentText}`],
+    ['.button-link', `background-color:${dark.accentFill}`],
     ['.button-link', `color:${dark.accentOnFill}`],
-    ['.panel', `background-color:${dark.surfaceHover}`],
+    ['.panel', `background-color:${darkPanel}`],
     ['.logo-light', 'display:none'],
     ['.logo-dark', 'display:block'],
   ] as const;
@@ -184,11 +201,11 @@ ${darkCss('[data-ogsc] ')}${darkCss('[data-ogsb] ')}
 <p class="label${c.warning ? ' warning' : ''}" style="margin:0 0 6px;${font}font-size:13px;line-height:18px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;color:${c.warning ? light.dangerText : light.textMuted}">${e(c.label)}</p>
 <h1 class="strong" style="margin:0 0 16px;${font}font-size:24px;line-height:31px;font-weight:700;color:${light.textStrong}">${e(c.heading)}</h1>
 ${c.paragraphs.map((p) => paragraph(p)).join('')}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="button-table" style="margin:24px 0 0"><tr><td class="button-cell" align="center" style="background-color:${light.accentFill};border-radius:8px;mso-padding-alt:0"><!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${e(url)}" style="height:48px;v-text-anchor:middle;width:${buttonWidth}px" arcsize="17%" stroke="t" strokecolor="${light.accentOnFill}" strokeweight="2px" fillcolor="${light.accentFill}"><w:anchorlock/><center style="font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:${light.accentOnFill}">${e(c.action.label)}</center></v:roundrect><![endif]--><!--[if !mso]><!--><a class="button-link" href="${e(url)}" style="display:inline-block;padding:10px 20px;border:2px solid currentColor;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.accentOnFill};text-decoration:none;border-radius:8px;mso-padding-alt:0">${e(c.action.label)}</a><!--<![endif]--></td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="button-table" style="margin:24px 0 0"><tr><td class="button-cell" align="center" style="border-radius:8px;mso-padding-alt:0"><!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${e(url)}" style="height:48px;v-text-anchor:middle;width:${buttonWidth}px" arcsize="17%" stroke="t" strokecolor="${light.accentOnFill}" strokeweight="2px" fillcolor="${light.accentFill}"><w:anchorlock/><center style="font-family:Arial,sans-serif;font-size:16px;font-weight:bold;color:${light.accentOnFill}">${e(c.action.label)}</center></v:roundrect><![endif]--><!--[if !mso]><!--><a class="button-link" href="${e(url)}" style="display:inline-block;padding:10px 20px;background-color:${light.accentFill};border:2px solid ${light.accentFill};border-color:currentColor;${font}font-size:16px;line-height:24px;font-weight:600;color:${light.accentOnFill};text-decoration:none;border-radius:8px;mso-padding-alt:0">${e(c.action.label)}</a><!--<![endif]--></td></tr></table>
 ${c.lifetime ? paragraph(c.lifetime, 'muted', 'margin:12px 0 0;') : ''}
 ${paragraph(footer.linkFallback, 'muted', 'margin:20px 0 4px;')}
 <p class="url" style="margin:0;${font}font-size:14px;line-height:20px;color:${light.text};word-break:break-word;overflow-wrap:anywhere"><a class="link" href="${e(url)}" style="color:${light.accentText};text-decoration:underline">${e(url)}</a></p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;table-layout:fixed"><tr><td class="panel" bgcolor="${light.surface}" style="padding:16px;border-radius:8px;background-color:${light.surface}">${paragraph(c.panel, 'muted', 'margin:0;')}</td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;table-layout:fixed"><tr><td class="panel" bgcolor="${lightPanel}" style="padding:16px;border-radius:8px;background-color:${lightPanel}">${paragraph(c.panel, 'muted', 'margin:0;')}</td></tr></table>
 </td></tr><tr><td class="foot" style="padding:20px 4px;overflow-wrap:anywhere;word-break:break-word">
 <p class="muted" style="margin:0;${font}font-size:13px;line-height:20px;color:${light.textMuted}">${e(footer.attribution)} ${e(footer.automatic)} ${supportUrl ? `${e(footer.supportIntro)}<a class="link" href="${e(supportUrl)}" style="color:${light.accentText}">${e(footer.supportLabel)}</a>.` : e(help)}</p>
 </td></tr></table><!--[if mso]></td></tr></table><![endif]-->
