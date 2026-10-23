@@ -83,23 +83,33 @@ await test('a failed run of a job names the job and nothing of an account', () =
   ]);
 });
 
-await test('welcome refusals are warnings and unexpected failures are errors', () => {
+await test('welcome events keep their catalog levels for every code', () => {
   const memory = createMemorySink();
   const logger = createLogger(
     memory.sink,
     () => '2026-10-23T00:00:00.000Z',
   ).bind({ requestId: 'welcome-request' });
   for (const code of ['quota', 'account_locked', 'forbidden', 'unexpected']) {
+    logger.emit('welcome_note.refused', { code });
     logger.emit('welcome_note.failed', { code });
   }
   assert.deepEqual(
     memory.records,
-    ['quota', 'account_locked', 'forbidden', 'unexpected'].map((code) => ({
-      event: 'welcome_note.failed',
-      level: code === 'unexpected' ? 'error' : 'warn',
-      time: '2026-10-23T00:00:00.000Z',
-      requestId: 'welcome-request',
-      code,
-    })),
+    ['quota', 'account_locked', 'forbidden', 'unexpected'].flatMap((code) => [
+      {
+        event: 'welcome_note.refused',
+        level: 'warn',
+        time: '2026-10-23T00:00:00.000Z',
+        requestId: 'welcome-request',
+        code,
+      },
+      {
+        event: 'welcome_note.failed',
+        level: 'error',
+        time: '2026-10-23T00:00:00.000Z',
+        requestId: 'welcome-request',
+        code,
+      },
+    ]),
   );
 });

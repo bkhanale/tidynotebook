@@ -302,7 +302,7 @@ for (const scenario of [
         assert.deepEqual(
           logs
             .records()
-            .filter((record) => record['event'] === 'welcome_note.failed')
+            .filter((record) => record['event'] === 'welcome_note.refused')
             .map((record) => ({
               code: record['code'],
               level: record['level'],
@@ -401,6 +401,32 @@ for (const scenario of [
     assert.equal(completed?.completed, true);
     assert.equal(completed?.failure_code, null);
     assert.equal(Number(completed?.revisions), 1);
+    const [beforeSessionRead] = await session.query<{
+      attempted_at: Date;
+      completed_at: Date;
+    }>(
+      'select attempted_at, completed_at from workspace_welcome_notes where workspace_id = $1',
+      [workspaceId],
+    );
+    assert.ok(beforeSessionRead?.attempted_at);
+    assert.ok(beforeSessionRead.completed_at);
+    const repeatedList = await listWorkspaces({ headers });
+    assert.equal(repeatedList.error, undefined);
+    const repeatedRead = await listFiles({ headers, path: { workspaceId } });
+    assert.equal(repeatedRead.error, undefined);
+    const [afterSessionRead] = await session.query<{
+      attempted_at: Date;
+      completed_at: Date;
+    }>(
+      'select attempted_at, completed_at from workspace_welcome_notes where workspace_id = $1',
+      [workspaceId],
+    );
+    assert.deepEqual(
+      afterSessionRead,
+      beforeSessionRead,
+      'session reads after completion leave welcome attempt and completion times unchanged',
+    );
+
     assert.equal(
       (await verifyAddress({ headers: origin, body: { token } })).error,
       undefined,
