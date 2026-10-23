@@ -2,15 +2,17 @@
 
 Status: active
 
-The [project board](https://github.com/users/bkhanale/projects/2) holds the live
-work. Each item below becomes one issue, with its milestone, a priority label
-and an area label. [Design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md)
+Use [Open issues](https://github.com/tidynotebook/tidynotebook/issues) for
+current work, under [decision 0232](../decisions/0232-public-issues-are-the-work-entry-point.md).
+Issue list order does not define priority. Each item below becomes one issue,
+with its milestone, a priority label and an area label. [Design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md)
 states the problem and the choices. Every choice is closed. An item that finds
 a fact in the code that a record did not foresee stops and reports it, as
 `build-it-right` asks.
 
 ## Decisions
 
+- [0232. Public issues are the work entry point](../decisions/0232-public-issues-are-the-work-entry-point.md)
 - [0186. The open core holds no billing, and a private service sells the cloud](../decisions/0186-the-open-core-holds-no-billing-and-a-private-service-sells-the-cloud.md)
 - [0187. The product is Tidy Notebook on tidynotebook.com](../decisions/0187-the-product-is-tidy-notebook-on-tidynotebook-com.md)
 - [0188. The repository opens under AGPL-3.0-only](../decisions/0188-the-repository-opens-under-agpl-3-0-only.md)
