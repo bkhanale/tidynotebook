@@ -1,4 +1,4 @@
-# 0232. Public issues are the work entry point
+# 0234. Public issues are the work entry point
 
 - Status: Accepted
 - Date: 2026-10-23

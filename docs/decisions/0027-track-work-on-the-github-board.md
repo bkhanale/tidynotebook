@@ -1,7 +1,7 @@
 # 0027. Track work on the GitHub board
 
 - Status: Accepted, work-list guidance replaced by
-  [0232](0232-public-issues-are-the-work-entry-point.md)
+  [0234](0234-public-issues-are-the-work-entry-point.md)
 - Date: 2026-09-13
 
 ## Context

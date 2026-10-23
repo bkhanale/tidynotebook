@@ -3,7 +3,7 @@
 Status: active
 
 Use [Open issues](https://github.com/tidynotebook/tidynotebook/issues) for
-current work, under [decision 0232](../decisions/0232-public-issues-are-the-work-entry-point.md).
+current work, under [decision 0234](../decisions/0234-public-issues-are-the-work-entry-point.md).
 Issue list order does not define priority. Milestones, priority labels, and
 area labels describe the intended work. This plan applies the existing license
 and launch decision to the findings of the
@@ -17,10 +17,10 @@ checks and readback commands. The design is
 
 - [0188. The repository opens under AGPL-3.0-only](../decisions/0188-the-repository-opens-under-agpl-3-0-only.md)
 - [0186. The open core holds no billing](../decisions/0186-the-open-core-holds-no-billing-and-a-private-service-sells-the-cloud.md)
-- [0232. Public issues are the work entry point](../decisions/0232-public-issues-are-the-work-entry-point.md)
 - [0212. Agent lifecycle uses exact input proof](../decisions/0212-agent-lifecycle-proof.md)
 
 - [0223. Core source opens before distribution](../decisions/0223-core-source-opens-before-distribution.md)
+- [0234. Public issues are the work entry point](../decisions/0234-public-issues-are-the-work-entry-point.md)
 
 Source opening follows this plan. Image publication and cloud launch remain
 separate work. Their rights and risk checks do not become accepted through

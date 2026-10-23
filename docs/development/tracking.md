@@ -9,7 +9,7 @@ open work. The list order does not define priority. Use milestones and labels
 to find the intended release, priority, and area.
 
 The repository keeps no separate release work list.
-[Decision 0232](../decisions/0232-public-issues-are-the-work-entry-point.md)
+[Decision 0234](../decisions/0234-public-issues-are-the-work-entry-point.md)
 states the public entry point and replaces the earlier board guidance.
 
 ## Issue details
