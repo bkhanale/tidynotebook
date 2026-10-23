@@ -1,9 +1,9 @@
 # Architecture
 
-tidy notebook is a self-hosted Markdown notes application with separate accounts. A note is
-a Markdown file with one `.md` suffix. Typing writes a draft on the device.
-Save creates one immutable version on the server. Nothing is stored that cannot
-be exported as plain Markdown files.
+Workspace export creates ordinary Markdown files and includes images.
+Live notes and history use PostgreSQL. Images use local or object storage.
+Typing writes a device draft. A pause or manual save queues a local version.
+Synchronization creates the server version. Export does not include history.
 
 ## Apps and packages
 

@@ -42,7 +42,7 @@ name of its date.
 Rules for a name:
 
 - A name needs no `.md` ending. If you type one, the application removes it,
-  because every note is already a Markdown file.
+  because the application adds it when you export the note.
 - A name holds only the file name. It cannot contain a slash. To put a note in
   a folder, use **Move to folder**. To make a note that starts in a folder, use
   **New note in this folder**.
@@ -154,7 +154,7 @@ another one.
 
 Type `](` to get a list of your notes. Select a note to insert a link. Type
 `[[` to open the same list. It also inserts a normal Markdown link, so the
-file stays readable in any other editor.
+exported Markdown stays readable in other editors.
 
 You can also type a whole wiki link, as you do in Obsidian. Examples are
 `[[Plan]]`, `[[Plan|the plan]]` and `[[Plan#Next steps]]`. When you type the

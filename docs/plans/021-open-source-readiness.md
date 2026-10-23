@@ -2,9 +2,11 @@
 
 Status: active
 
-The [GitHub project board](https://github.com/users/bkhanale/projects/2) holds
-the order and priority. This plan applies the existing license and launch
-decision to the findings of the
+Use [Open issues](https://github.com/tidynotebook/tidynotebook/issues) for
+current work, under [decision 0234](../decisions/0234-public-issues-are-the-work-entry-point.md).
+Issue list order does not define priority. Milestones, priority labels, and
+area labels describe the intended work. This plan applies the existing license
+and launch decision to the findings of the
 [audit](../audits/2026-10-11/open-source-readiness.md) and the later
 [public material review](../audits/2026-10-11/public-material-review.md).
 The [control guide](../development/open-source-launch.md) gives the launch
@@ -15,10 +17,10 @@ checks and readback commands. The design is
 
 - [0188. The repository opens under AGPL-3.0-only](../decisions/0188-the-repository-opens-under-agpl-3-0-only.md)
 - [0186. The open core holds no billing](../decisions/0186-the-open-core-holds-no-billing-and-a-private-service-sells-the-cloud.md)
-- [0027. Track work on the GitHub board](../decisions/0027-track-work-on-the-github-board.md)
 - [0212. Agent lifecycle uses exact input proof](../decisions/0212-agent-lifecycle-proof.md)
 
 - [0223. Core source opens before distribution](../decisions/0223-core-source-opens-before-distribution.md)
+- [0234. Public issues are the work entry point](../decisions/0234-public-issues-are-the-work-entry-point.md)
 
 Source opening follows this plan. Image publication and cloud launch remain
 separate work. Their rights and risk checks do not become accepted through

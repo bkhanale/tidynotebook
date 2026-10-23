@@ -4,13 +4,17 @@ tidy notebook is a self-hosted notes application. You write notes in Markdown,
 you keep them in folders, and you store them on a server that you control. You
 can invite other people. Each account has its own notes.
 
-A note is a plain Markdown file. You can take every note out as Markdown files
-at any time.
+Write in Markdown. Export your notes as ordinary Markdown files. Live notes
+and history are stored in PostgreSQL. Images use local or object storage.
+
+![The tidy notebook editor in light mode, with note folders, a travel checklist, and a table.](docs/assets/editor-light.png)
+
+[Product website](https://tidynotebook.com) · [Hosted guide](https://docs.tidynotebook.com)
 
 **Status:** 0.19.0 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
-[GitHub project board](https://github.com/users/bkhanale/projects/2) for the
-open work.
+[Open issues](https://github.com/tidynotebook/tidynotebook/issues) for the
+work list.
 
 ## Where to go
 
@@ -40,8 +44,8 @@ tidy notebook has two editions. They run the same code.
 
 ## Features
 
-- **Plain Markdown files.** Notes live in folders. Nothing is stored that you
-  cannot export as plain Markdown files.
+- **Markdown notes.** Organize notes in folders. Export them as ordinary
+  Markdown files with their images.
 - **One editor.** A live-preview Markdown editor keeps the source editable at
   every position, and shows the note formatted everywhere else. It supports
   CommonMark and GFM, with tables, tasks, footnotes, math and Mermaid.

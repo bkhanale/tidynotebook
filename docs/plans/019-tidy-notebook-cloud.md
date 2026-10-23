@@ -2,9 +2,10 @@
 
 Status: active
 
-The [project board](https://github.com/users/bkhanale/projects/2) holds the live
-work. Each item below becomes one issue, with its milestone, a priority label
-and an area label. [Design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md)
+Use [Open issues](https://github.com/tidynotebook/tidynotebook/issues) for
+current work, under [decision 0234](../decisions/0234-public-issues-are-the-work-entry-point.md).
+Issue list order does not define priority. Each item below becomes one issue,
+with its milestone, a priority label and an area label. [Design 024](../design/024-tidy-notebook-cloud-and-self-hosted.md)
 states the problem and the choices. Every choice is closed. An item that finds
 a fact in the code that a record did not foresee stops and reports it, as
 `build-it-right` asks.
@@ -33,6 +34,7 @@ a fact in the code that a record did not foresee stops and reports it, as
 - [0210. Railway Pro keeps private images within the compute budget](../decisions/0210-railway-pro-keeps-private-images-within-the-compute-budget.md)
 
 - [0223. Core source opens before distribution](../decisions/0223-core-source-opens-before-distribution.md)
+- [0234. Public issues are the work entry point](../decisions/0234-public-issues-are-the-work-entry-point.md)
 
 ## Landing boundaries
 
@@ -42,7 +44,6 @@ a fact in the code that a record did not foresee stops and reports it, as
    `checkRegistration` in `apps/server/src/plugins/register.ts` stops startup
    when a contract operation has no handler.
 2. Phase 2 is items 12 to 15, in the private repository `tidynotebook/cloud`.
-   Its issues sit on the same board.
 3. Phase 3 is items 16 to 18, milestone `1.0.0`. Item 18 is the launch, and
    it lands last. Source opening follows [record 0223](../decisions/0223-core-source-opens-before-distribution.md) and does not wait for this phase.
 4. Each item of this repository follows

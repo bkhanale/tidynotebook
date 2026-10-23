@@ -35,7 +35,9 @@ await test('static and React footers use one structure and the approved links', 
   ])
     assert.ok(html.includes(`>${label}</`), label);
   assert.equal((html.match(/<footer/g) ?? []).length, 1);
-  assert.ok(html.includes('Open source. Plain Markdown files.'));
+  assert.ok(
+    html.includes('Open source. Write in Markdown. Export your notes.'),
+  );
   assert.ok(html.includes('© 2026 tidy notebook'));
   assert.doesNotMatch(
     html,
