@@ -27,7 +27,13 @@ with the new release tag. Keep the same tag for the checkout and image selection
    The checkout supplies the Compose files, operator scripts, and migrations
    that match the new image. Do not select an image from the old checkout.
 
-2. Complete [Select the stable image](published-images.md#select-the-stable-image).
+2. Save the current image setting before you select its replacement:
+
+   ```bash
+   grep '^NOTESAPP_IMAGE=' .env > notesapp-image-previous.txt
+   ```
+
+   Keep this file with the backup. Then complete [Select the stable image](published-images.md#select-the-stable-image).
    Its commands read the checked-out tag, check the public manifest, and write
    the new image digest to `.env`. Stop if any check fails. Do not edit the
    digest by hand.
@@ -65,8 +71,31 @@ There is no downward migration. To go back to the old release:
 
 1. Restore the verified backup from before the upgrade into an empty target.
    See [Backup and restore](backup-and-restore.md#restore).
-2. Check out the old release tag, or set the old `NOTESAPP_IMAGE` line, and
-   start the application against the restored data.
+2. Check out the old release tag and select its image again with
+   [Select the stable image](published-images.md#select-the-stable-image).
+   You can instead restore the saved image setting in `.env`:
+
+   ```bash
+   (
+     set -euo pipefail
+     grep -Eq '^NOTESAPP_IMAGE=.+$' notesapp-image-previous.txt
+     settings_file="$(mktemp .env.XXXXXX)"
+     awk '!/^NOTESAPP_IMAGE=/' .env > "$settings_file"
+     cat notesapp-image-previous.txt >> "$settings_file"
+     chmod 600 "$settings_file"
+     mv "$settings_file" .env
+   )
+   ```
+
+3. Start the old release against the restored data:
+
+   ```bash
+   docker compose up -d --no-build --wait
+   ```
+
+Release 0.18.1 and older have no public image. Going back to one of these
+releases needs the [contributor source build](#contributor-source-builds)
+from its old tag. Use that local image for startup.
 
 Do not copy a database without its attachments. Do not copy attachments
 without the database from the same moment. The two parts are one backup.

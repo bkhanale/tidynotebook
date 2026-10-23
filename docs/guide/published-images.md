@@ -23,27 +23,38 @@ Virtualization framework and enable **Use Rosetta for x86_64/amd64 emulation
 on Apple Silicon**. Apply the settings and restart Docker Desktop. See
 [Docker Desktop settings](https://docs.docker.com/desktop/settings-and-maintenance/settings/).
 
-In each shell that runs Compose for this installation, set:
+Add this setting to the installation's `.env` file. Compose reads it for each
+command, so you do not need to set it again in a new shell:
 
 ```bash
-export DOCKER_DEFAULT_PLATFORM=linux/amd64
+DOCKER_DEFAULT_PLATFORM=linux/amd64
 ```
 
 ### ARM Linux
 
 Install the amd64 QEMU executable handler on the Docker host, then select
-the image platform in the shell that runs Compose:
+the image platform:
 
 ```bash
 docker run --privileged --rm \
   tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 \
   --install amd64
-export DOCKER_DEFAULT_PLATFORM=linux/amd64
 ```
 
-The first command registers the emulator on that host. See
+Add `DOCKER_DEFAULT_PLATFORM=linux/amd64` to the installation's `.env` file,
+as in the Apple Silicon steps. The image selection commands below keep that
+line.
+
+The registration command registers the emulator on that host. See
 [Docker's QEMU setup](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually)
-for host requirements. Set the platform in each shell used for this installation.
+for host requirements. This registration does not survive a host reboot.
+Run the registration command after each boot, before you start the app.
+
+For persistent registration, install your Linux distribution's
+`qemu-user-static` and `binfmt-support` packages. Enable their binfmt service
+at boot and confirm that the amd64 handler is registered before Docker starts
+the app. Package and service names can differ between distributions.
+
 On either ARM platform, emulation can be slower than a native amd64 host.
 
 ## Select the stable image
