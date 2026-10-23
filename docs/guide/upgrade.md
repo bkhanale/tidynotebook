@@ -30,10 +30,17 @@ with the new release tag. Keep the same tag for the checkout and image selection
 2. Save the current image setting before you select its replacement:
 
    ```bash
-   grep '^NOTESAPP_IMAGE=' .env > notesapp-image-previous.txt
+   (
+     set -euo pipefail
+     if ! grep -Eq '^NOTESAPP_IMAGE=[^[:space:]]+' .env; then
+       printf '%s\n' 'Set the current NOTESAPP_IMAGE value in .env before upgrading.' >&2
+       exit 1
+     fi
+     grep '^NOTESAPP_IMAGE=' .env > notesapp-image-previous.txt
+   )
    ```
 
-   Keep this file with the backup. Then complete [Select the stable image](published-images.md#select-the-stable-image).
+   Stop if this command fails. Keep the saved file with the backup. Then complete [Select the stable image](published-images.md#select-the-stable-image).
    Its commands read the checked-out tag, check the public manifest, and write
    the new image digest to `.env`. Stop if any check fails. Do not edit the
    digest by hand.
@@ -80,7 +87,7 @@ There is no downward migration. To go back to the old release:
      set -euo pipefail
      grep -Eq '^NOTESAPP_IMAGE=.+$' notesapp-image-previous.txt
      settings_file="$(mktemp .env.XXXXXX)"
-     awk '!/^NOTESAPP_IMAGE=/' .env > "$settings_file"
+     awk '!/^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=/' .env > "$settings_file"
      cat notesapp-image-previous.txt >> "$settings_file"
      chmod 600 "$settings_file"
      mv "$settings_file" .env

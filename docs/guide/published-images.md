@@ -90,7 +90,7 @@ checks out its new tag, as [Upgrade](upgrade.md) states.
   ' .tooling/published-release/release-manifest.json)"
   test -n "$image"
   settings_file="$(mktemp .env.XXXXXX)"
-  awk '!/^NOTESAPP_IMAGE=/' .env > "$settings_file"
+  awk '!/^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=/' .env > "$settings_file"
   printf 'NOTESAPP_IMAGE=%s\n' "$image" >> "$settings_file"
   chmod 600 "$settings_file"
   mv "$settings_file" .env
