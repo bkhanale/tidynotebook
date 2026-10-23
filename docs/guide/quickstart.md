@@ -104,13 +104,10 @@ rm .env
 
 ## Build from source
 
-Contributors can build a chosen source checkout. Override the stable image
-pin with a separate local image name for both commands:
-
-```bash
-NOTESAPP_IMAGE=notesapp-source:local docker compose build
-NOTESAPP_IMAGE=notesapp-source:local docker compose up -d --no-build --wait
-```
+For a tagged source checkout, complete
+[Contributor source builds](upgrade.md#contributor-source-builds).
+That procedure builds a per-tag local image and saves its name in `.env`
+before startup. Later Compose commands keep that image selection.
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the code setup and checks.
 

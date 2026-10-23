@@ -16,6 +16,8 @@ states. Keep the archive.
 
 Run these commands in the installation's clone folder. Replace `vX.Y.Z`
 with the new release tag. Keep the same tag for the checkout and image selection.
+Before you change the checkout, record the current release tag with the backup.
+You need that tag to rebuild a source image during rollback.
 
 1. Fetch the new tag and check it out:
 
@@ -27,7 +29,12 @@ with the new release tag. Keep the same tag for the checkout and image selection
    The checkout supplies the Compose files, operator scripts, and migrations
    that match the new image. Do not select an image from the old checkout.
 
-2. Save the current image setting before you select its replacement:
+2. Choose the path for the current installation:
+
+   - **Built from source:** this includes installations on release 0.18.1 and
+     older. Skip the save command below. Rollback requires a build from the old
+     tag, as [Contributor source builds](#contributor-source-builds) shows.
+   - **Published image:** save the current image setting with this command:
 
    ```bash
    (
@@ -41,8 +48,9 @@ with the new release tag. Keep the same tag for the checkout and image selection
    This saves the image value that Compose resolves from `.env`, without a
    shell override. An empty or invalid value, or the source-build fallback,
    stops the command before it changes the saved file. Stop if the command
-   fails. Keep the saved file with the backup. Then complete
-   [Select the stable image](published-images.md#select-the-stable-image).
+   fails. Keep the saved file with the backup.
+
+   For both paths, complete [Select the stable image](published-images.md#select-the-stable-image).
    Its commands read the checked-out tag, check the public manifest, and write
    the new image digest to `.env`. Stop if any check fails. Do not edit the
    digest by hand.
@@ -80,9 +88,12 @@ There is no downward migration. To go back to the old release:
 
 1. Restore the verified backup from before the upgrade into an empty target.
    See [Backup and restore](backup-and-restore.md#restore).
-2. Check out the old release tag and select its image again with
-   [Select the stable image](published-images.md#select-the-stable-image).
-   You can instead restore the saved image setting in `.env`:
+2. Check out the old release tag. For a source-built installation, complete
+   [Contributor source builds](#contributor-source-builds) from that tag, then
+   continue with step 3. Releases up to 0.18.1 require this source-build path.
+
+   For a published release, either [select its image again](published-images.md#select-the-stable-image),
+   or restore the saved setting:
 
    ```bash
    (
@@ -108,21 +119,40 @@ There is no downward migration. To go back to the old release:
    docker compose up -d --no-build --wait
    ```
 
-Release 0.18.1 and older have no public image. Going back to one of these
-releases needs the [contributor source build](#contributor-source-builds)
-from its old tag. Use that local image for startup.
-
 Do not copy a database without its attachments. Do not copy attachments
 without the database from the same moment. The two parts are one backup.
 
 ## Contributor source builds
 
-Contributors who build from source first check out the new tag as above.
-Use a separate local image name for both the build and startup commands:
+Use a tagged checkout. For rollback, check out the old release tag first.
+For example, `v0.18.1` produces `notesapp-source:v0.18.1`. Build the application,
+then save this per-tag image name in `.env` through a validated temporary file:
 
 ```bash
-NOTESAPP_IMAGE=notesapp-source:local docker compose build
-NOTESAPP_IMAGE=notesapp-source:local docker compose up -d --no-build --wait
+(
+  set -euo pipefail
+  tag="$(git describe --tags --exact-match)"
+  image="notesapp-source:$tag"
+  NOTESAPP_IMAGE="$image" docker compose build app
+  settings_file="$(mktemp .env.XXXXXX)"
+  trap 'rm -f "$settings_file"' EXIT
+  awk '!/^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=/' .env > "$settings_file"
+  printf '\nNOTESAPP_IMAGE=%s\n' "$image" >> "$settings_file"
+  env -u NOTESAPP_IMAGE docker compose --env-file "$settings_file" config --format json |
+    jq -e --arg image "$image" '.services.app.image == $image' > /dev/null
+  chmod 600 "$settings_file"
+  mv "$settings_file" .env
+)
 ```
+
+Stop if the build or settings check fails. The current settings stay in place.
+Then start the saved image:
+
+```bash
+docker compose up -d --no-build --wait
+```
+
+Later Compose commands read the same local image name from `.env`. They do not
+switch back to the published image that was used before rollback.
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the contributor checks.
