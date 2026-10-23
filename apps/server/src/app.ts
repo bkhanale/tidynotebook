@@ -1078,7 +1078,12 @@ async function composeApp(
     identity: async (request, operation) => {
       await adapter.resolver(request, operation);
       const resolved = requestActor(request);
-      if (resolved === undefined || resolved.standing !== 'active') return;
+      if (
+        resolved === undefined ||
+        resolved.standing !== 'active' ||
+        resolved.sessionId === null
+      )
+        return;
       const workspaceId = readProperty(request.params, 'workspaceId');
       // Identity runs before route validation. Use the contract validator so
       // malformed parameters cannot start pending welcome note work.

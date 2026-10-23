@@ -26,7 +26,7 @@ await test('an unexpected welcome note failure reports only a fixed safe code', 
   assert.deepEqual(reported, ['unexpected']);
 });
 
-await test('a completed welcome note does no database work on later requests', async () => {
+await test('welcome completion is read from the durable store without an in-process cache', async () => {
   let probes = 0;
   let transactions = 0;
   const store: WelcomeNoteStore = {
@@ -64,8 +64,8 @@ await test('a completed welcome note does no database work on later requests', a
     seedWelcomeNote(store, accountId, workspaceId, (code) => errors.push(code));
   assert.equal(await seed(), true);
   await Promise.all(Array.from({ length: 8 }, seed));
-  assert.equal(probes, 1);
-  assert.equal(transactions, 1);
+  assert.equal(probes, 9);
+  assert.equal(transactions, 9);
   assert.deepEqual(errors, []);
 });
 

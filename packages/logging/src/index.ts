@@ -81,7 +81,7 @@ export type LogEventFields = {
 /** One catalogued event name. */
 export type LogEventName = keyof LogEventFields;
 
-/** Fixed level and allowed field names of each event. */
+/** Default level and allowed field names of each event. */
 export const logEventCatalog = {
   'http.request.completed': {
     level: 'info',
@@ -107,7 +107,7 @@ export const logEventCatalog = {
   'auth.warning': { level: 'warn', fields: ['source'] },
   'auth.breach_check_unavailable': { level: 'warn', fields: [] },
   'auth.failed': { level: 'error', fields: ['source'] },
-  'welcome_note.failed': { level: 'error', fields: ['code'] },
+  'welcome_note.failed': { level: 'warn', fields: ['code'] },
   'web.problem': { level: 'warn', fields: ['problemCode'] },
   'web.render_failed': {
     level: 'error',
@@ -161,7 +161,12 @@ export function createLogger(
       const supplied = Object.fromEntries(Object.entries(fields));
       const record: Record<string, unknown> = {
         event,
-        level: definition.level,
+        // Expected welcome refusals are warnings. Unexpected failures need
+        // error reporting while keeping the same safe event and fields.
+        level:
+          event === 'welcome_note.failed' && supplied['code'] === 'unexpected'
+            ? 'error'
+            : definition.level,
         time: now(),
       };
       if (context.requestId !== undefined)
