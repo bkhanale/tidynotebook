@@ -129,20 +129,17 @@ backup. See [Upgrade](upgrade.md).
 
 ## Image names and existing pins
 
-New releases and main images publish only to
-`ghcr.io/tidynotebook/tidynotebook`. New images are not copied to `core`.
-Existing `ghcr.io/tidynotebook/core` tags and digests remain available.
-Keep the full existing address when you stay on an older release.
+New releases and main images use the published image address for that
+release. Existing tags and digests remain available. Keep the full existing
+address when you stay on an older release.
 
 For an upgrade, select the new release and use its complete image address
 and digest. Do not replace only the package name in an old pin. An old digest
 is not necessarily available under the new name. Follow the backup and
 migration steps in [Upgrade](upgrade.md).
 
-The selector accepts both official package names and keeps the address from
-the fixed release manifest. Some earlier releases use the formerly private
-`tidynotebook` package, which is now public. Some releases use `core`. Read the
-release manifest for each release's image address.
+The selector keeps the image address from the fixed release manifest. Read
+the release manifest for each release's image address.
 Without a release manifest, take the verified image index digest from the run
 summary of the matching release. Keep that digest with the matching source
 checkout.
