@@ -140,8 +140,9 @@ is not necessarily available under the new name. Follow the backup and
 migration steps in [Upgrade](upgrade.md).
 
 The selector accepts both official package names and keeps the address from
-the fixed release manifest. Releases through 0.18.1 use the formerly private
-`tidynotebook` package, which is now public. Release 0.19.0 uses `core`.
+the fixed release manifest. Some earlier releases use the formerly private
+`tidynotebook` package, which is now public. Some releases use `core`. Read the
+release manifest for each release's image address.
 Without a release manifest, take the verified image index digest from the run
 summary of the matching release. Keep that digest with the matching source
 checkout.
