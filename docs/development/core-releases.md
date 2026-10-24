@@ -32,7 +32,8 @@ reviewers. Allow only tags `v*` through its custom branch policy. Disable
 administrator bypass. Use no wait timer and no environment secrets. Create
 this environment before the first version run. The workflow checks its
 protection before building and again before publication. A required-reviewer
-rule stops the workflow, even if its reviewer list is empty. Versioned releases
+rule or wait-timer rule stops the workflow, even with an empty reviewer list
+or a zero timer. Versioned releases
 publish without manual approval, under
 [decision 0236](../decisions/0236-versioned-releases-publish-without-manual-approval.md).
 Automatic main publication also has no environment approval.

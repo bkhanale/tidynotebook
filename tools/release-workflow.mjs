@@ -69,6 +69,10 @@ export function requireEnvironment(value) {
     !protection.some((rule) => rule.type === 'required_reviewers'),
     'Remove required reviewers from the release environment.',
   );
+  assert.ok(
+    !protection.some((rule) => rule.type === 'wait_timer'),
+    'Remove the wait timer from the release environment.',
+  );
   assert.deepEqual(environment.deployment_branch_policy, {
     protected_branches: false,
     custom_branch_policies: true,
