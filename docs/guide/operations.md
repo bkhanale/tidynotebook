@@ -361,9 +361,11 @@ to the bucket that aborts an incomplete multipart upload after one day. The
 rule removes an upload that the server can no longer find, for example after a
 stop in the middle of a start. R2, MinIO and AWS each have such a rule.
 
-The backup script copies the storage folder and not a bucket. Back up the
-bucket with the tools of the store. See
-[Backup and restore](backup-and-restore.md).
+The backup command reads referenced images through the configured storage
+adapter and includes them with the database in one encrypted archive. For S3,
+pass the protected object storage settings file. Keep all writers stopped
+until the backup finishes. See
+[Back up an S3 installation](backup-and-restore.md#back-up-an-s3-installation).
 
 ## Migrate and serve as two steps
 

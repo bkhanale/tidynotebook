@@ -28,6 +28,7 @@ import {
   removeMailSettings,
   requestPasswordReset,
   sendTestMessage,
+  signInWithPassword,
   updateInstallation,
   updateLegalDocument,
   updateMailSettings,
@@ -451,7 +452,7 @@ await test('the database refuses half a transport', async () => {
   }
 });
 
-await test('a stored transport that a new server secret cannot open closes sign-up', async () => {
+await test('a new server secret closes sign-up until the administrator repairs mail', async () => {
   await updateLegalDocument({
     headers: owner,
     path: { document: 'privacy' },
@@ -480,9 +481,33 @@ await test('a stored transport that a new server secret cannot open closes sign-
     const challenge = await getSignUpChallenge({ headers: origin });
     assert.equal(responseOf(challenge.response).status, 403);
     assert.equal(memberOf(challenge.error, 'code'), 'registration_closed');
+    const signedIn = await signInWithPassword({
+      headers: origin,
+      body: { email: ownerEmail, password: 'owner-password-123456' },
+    });
+    assert.equal(responseOf(signedIn.response).status, 200);
+    const restoredOwner = {
+      ...origin,
+      cookie: cookieHeader(
+        responseOf(signedIn.response).headers.getSetCookie(),
+      ),
+    };
+    const repaired = await updateMailSettings({
+      headers: restoredOwner,
+      body: mailInput,
+    });
+    assert.equal(responseOf(repaired.response).status, 200);
+    assert.equal((await getSetupStatus()).data?.passwordReset, true);
+    assert.equal((await getSetupStatus()).data?.openRegistration, true);
+    const before = sent.length;
+    const message = await sendTestMessage({ headers: restoredOwner });
+    assert.equal(responseOf(message.response).status, 200);
+    await until(() => sent.length === before + 1);
+    assert.equal(sent.at(-1)?.to, ownerEmail);
   } finally {
     await current.served.close();
     current = await serve();
+    await updateMailSettings({ headers: owner, body: mailInput });
   }
   await updateInstallation({
     headers: owner,
