@@ -14,8 +14,9 @@ states. Keep the archive.
 
 ## 2. Install the new release
 
-Run these commands in the installation's clone folder. Replace `vX.Y.Z`
-with the new release tag. Keep the same tag for the checkout and image selection.
+Run these commands in the installation's clone folder. They select the current
+stable release. For another target release, use its installation instructions
+and matching image selection. Keep the same tag for checkout and image selection.
 Before you change the checkout, record the current release tag with the backup.
 For a source-built installation, preserve the current local image under that tag:
 
@@ -36,8 +37,8 @@ on the Docker host until the upgrade and backup checks are complete.
 1. Fetch the new tag and check it out:
 
    ```bash
-   git fetch --depth 1 origin tag vX.Y.Z
-   git checkout vX.Y.Z
+   git fetch --depth 1 origin tag v0.20.0
+   git checkout v0.20.0
    ```
 
    The checkout supplies the Compose files, operator scripts, and migrations
@@ -65,9 +66,10 @@ on the Docker host until the upgrade and backup checks are complete.
    fails. Keep the saved file with the backup.
 
    For both paths, complete [Select the stable image](published-images.md#select-the-stable-image).
-   Its commands check the source checkout and write the verified image digest
-   to `.env`. Stop if any check fails. Do not edit the
-   digest by hand.
+   Its tag, source commit, and image digest select the same current stable
+   release as the checkout commands above. Stop if a check fails. Use another
+   release's matching selector for that release; do not change only the tag or
+   edit the digest by hand.
 
 3. On an ARM host, complete the applicable
    [platform steps](published-images.md#supported-platforms) in this shell.
