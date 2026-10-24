@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 
-# Serialize each ref. Version approval does not block main or other versions.
+# Serialize each ref without blocking publication on other refs.
 concurrency:
   group: release-core-${{ github.ref }}
   cancel-in-progress: false

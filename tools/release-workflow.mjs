@@ -6,7 +6,6 @@ import { record } from './workspace.mjs';
 
 export const repository = 'tidynotebook/tidynotebook';
 export const image = 'ghcr.io/tidynotebook/core';
-export const ownerId = 23272598;
 
 /** @param {string} ref */
 export function versionFromRef(ref) {
@@ -61,14 +60,15 @@ export function requireEnvironment(value) {
   );
   const rules = environment.protection_rules;
   assert.ok(Array.isArray(rules));
-  const review = rules
-    .map(record)
-    .find((rule) => rule.type === 'required_reviewers');
-  assert.equal(review?.prevent_self_review, false);
-  assert.ok(Array.isArray(review?.reviewers));
-  assert.equal(review.reviewers.length, 1);
-  assert.equal(record(review.reviewers[0]).type, 'User');
-  assert.equal(record(record(review.reviewers[0]).reviewer).id, ownerId);
+  const protection = rules.map(record);
+  assert.ok(
+    protection.every((rule) => typeof rule.type === 'string'),
+    'The release environment returned an invalid protection rule.',
+  );
+  assert.ok(
+    !protection.some((rule) => rule.type === 'required_reviewers'),
+    'Remove required reviewers from the release environment.',
+  );
   assert.deepEqual(environment.deployment_branch_policy, {
     protected_branches: false,
     custom_branch_policies: true,

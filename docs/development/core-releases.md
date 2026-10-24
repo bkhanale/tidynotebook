@@ -6,7 +6,7 @@ and proves native amd64 and arm64 images, then publishes
 does not trigger push workflows. Both merge workflows therefore dispatch this
 workflow on main after a successful merge. A manual run on main can recover a
 failed dispatch. Late runs stop if main has moved. Each ref has its own
-concurrency group, so version approval cannot block main or another version.
+concurrency group, so publication on one ref cannot block another.
 
 An existing stable tag `vMAJOR.MINOR.PATCH` selects a version. Push the tag or
 run the workflow manually on that tag. The source must be on main. The latest
@@ -27,12 +27,15 @@ and require Skopeo `1.13.3`; a missing or different version stops publication. V
 `:1.2.3`. Existing version tags cannot be replaced. There is no `latest` alias.
 The index has GitHub OIDC provenance, with no stored signing key.
 
-Version publication requires the `release` environment. The owner is its sole
-required reviewer. Allow only tags `v*`. Disable administrator bypass. Keep
-prevent self-review off so the sole maintainer can start and approve a run.
-Use no wait timer and no environment secrets. Create this environment before
-the first version run. The workflow checks its protection before use and again
-after approval. Automatic main publication has no environment approval.
+Version publication requires the `release` environment, with no required
+reviewers. Allow only tags `v*` through its custom branch policy. Disable
+administrator bypass. Use no wait timer and no environment secrets. Create
+this environment before the first version run. The workflow checks its
+protection before building and again before publication. A required-reviewer
+rule stops the workflow, even if its reviewer list is empty. Versioned releases
+publish without manual approval, under
+[decision 0236](../decisions/0236-versioned-releases-publish-without-manual-approval.md).
+Automatic main publication also has no environment approval.
 
 The run summary gives the source SHA and image index digest. In a separate
 cloud PR, set `core.json.ref` to that SHA and `core.json.image` to
