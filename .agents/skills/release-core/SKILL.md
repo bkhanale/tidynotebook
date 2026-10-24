@@ -15,9 +15,11 @@ release tags, published versions, package access, and release environment
 before selecting the version. Do not replace a published version.
 
 Prepare the changelog and any release instructions through the repository PR
-and merge process. Use the exact main source SHA with successful same-repository
-push CI proof. An authorized stable version uses an annotated `vMAJOR.MINOR.PATCH`
-tag on that SHA. Push only that tag. The tag starts the release workflow.
+and merge process. At release start, select the current main source SHA with
+successful same-repository push CI proof. Keep that source fixed if main
+advances during the build. The workflow checks version-source ancestry on main.
+Create an annotated `vMAJOR.MINOR.PATCH` tag on the selected SHA as an operator
+step. Push only that tag. The tag starts the release workflow.
 
 Confirm that the workflow succeeds. Read back the public image index and both
 native child digests. Verify GitHub provenance for the exact index digest and
