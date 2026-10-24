@@ -16,12 +16,9 @@ that you need to keep.
   does not.
 - Git, Bash, `curl`, `jq`, `openssl`, and `sudo`.
 - A new clone. The setup script refuses an existing `.env` file.
-- A Linux `amd64` host for the selected release. On macOS, use Docker with
-  Linux containers. On Windows, use WSL2 with Docker Linux containers and
-  the shell tools above. An ARM host needs amd64 emulation for this release.
-  Before image selection and startup, follow the concrete
-  [Apple Silicon](published-images.md#apple-silicon) or
-  [ARM Linux](published-images.md#arm-linux) steps for your host.
+- A Linux `amd64` or `arm64` host. On macOS, use Docker with Linux
+  containers. On Windows, use WSL2 with Docker Linux containers and the shell
+  tools above. See [Supported platforms](published-images.md#supported-platforms).
 
 ## 1. Get the release files
 
@@ -29,7 +26,7 @@ Use the public stable tag. The clone provides Compose files and operator
 scripts that match the image.
 
 ```bash
-git clone --branch v0.19.0 --depth 1 \
+git clone --branch v0.20.0 --depth 1 \
   https://github.com/tidynotebook/tidynotebook.git notesapp
 cd notesapp
 ```
@@ -52,7 +49,7 @@ step 3 below to select and start the stable image.
 ## 3. Select and start the stable image
 
 Complete [Select the stable image](published-images.md#select-the-stable-image).
-That step checks the public release manifest and writes the exact image digest
+That step checks the release checkout and writes the verified image digest
 to `.env`. Stop if the check fails.
 
 Then download and start the image:

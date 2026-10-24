@@ -65,8 +65,8 @@ on the Docker host until the upgrade and backup checks are complete.
    fails. Keep the saved file with the backup.
 
    For both paths, complete [Select the stable image](published-images.md#select-the-stable-image).
-   Its commands read the checked-out tag, check the public manifest, and write
-   the new image digest to `.env`. Stop if any check fails. Do not edit the
+   Its commands check the source checkout and write the verified image digest
+   to `.env`. Stop if any check fails. Do not edit the
    digest by hand.
 
 3. On an ARM host, complete the applicable

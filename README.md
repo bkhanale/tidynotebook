@@ -11,7 +11,7 @@ and history are stored in PostgreSQL. Images use local or object storage.
 
 [Product website](https://tidynotebook.com) · [Hosted guide](https://docs.tidynotebook.com)
 
-**Status:** 0.19.0 is the current release. See
+**Status:** 0.20.0 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
 [Open issues](https://github.com/tidynotebook/tidynotebook/issues) for the
 work list.
@@ -71,8 +71,7 @@ tidy notebook has two editions. They run the same code.
 
 - Docker Engine and Docker Compose v2 with Linux containers
 - PostgreSQL 18 for a self-hosted installation (included in Compose)
-- Release 0.19.0: `linux/amd64`. The next stable release will also support
-  native `linux/arm64`. See [Supported platforms](docs/guide/published-images.md#supported-platforms).
+- Native `linux/amd64` and `linux/arm64`. See [Supported platforms](docs/guide/published-images.md#supported-platforms).
 
 The [quick start](docs/guide/quickstart.md) runs the pinned stable image.
 To change the code, use Node.js 26.12.1 and pnpm 12.3.4. The backup guide

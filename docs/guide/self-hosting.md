@@ -65,13 +65,13 @@ This command copies the code to a folder named `notesapp`. The second command
 goes into that folder. Run all later commands in it.
 
 ```bash
-git clone --branch v0.19.0 --depth 1 \
+git clone --branch v0.20.0 --depth 1 \
   https://github.com/tidynotebook/tidynotebook.git notesapp
 cd notesapp
 ```
 
 The repository is public. No GitHub account or registry login is required.
-The selected release supports `linux/amd64`. See
+The selected release supports native `linux/amd64` and `linux/arm64`. See
 [Supported platforms](published-images.md#supported-platforms).
 
 Compose names the containers after this folder. The backup steps use the
@@ -230,7 +230,7 @@ docker compose config --quiet
 ```
 
 Complete [Select the stable image](published-images.md#select-the-stable-image)
-to check the release manifest and write its digest to `.env`. Stop if that
+to check the release checkout and write the verified image digest to `.env`. Stop if that
 check fails. Then pull and start the image:
 
 ```bash
