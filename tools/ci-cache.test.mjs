@@ -15,7 +15,7 @@ const runtime = {
   CACHE_WRITE: 'true',
 };
 
-test('only trusted main builds export separate architecture caches', () => {
+await test('only trusted main builds export separate architecture caches', () => {
   for (const arch of ['amd64', 'arm64']) {
     const cache = imageCache(arch, runtime);
     assert.deepEqual(cache.from, [
@@ -37,7 +37,7 @@ test('only trusted main builds export separate architecture caches', () => {
   }
 });
 
-test('missing runtime auth and explicit disable select a cold build', () => {
+await test('missing runtime auth and explicit disable select a cold build', () => {
   for (const change of [
     { ACTIONS_RUNTIME_TOKEN: '' },
     { ACTIONS_RESULTS_URL: '' },
@@ -50,7 +50,7 @@ test('missing runtime auth and explicit disable select a cold build', () => {
   assert.throws(() => imageCache('unknown', runtime));
 });
 
-test('cache failure retries with the same image arguments and no remote cache', () => {
+await test('cache failure retries with the same image arguments and no remote cache', () => {
   /** @type {string[][]} */
   const calls = [];
   const args = ['buildx', 'build', '--load', '--provenance=false', '.'];
@@ -77,7 +77,7 @@ test('cache failure retries with the same image arguments and no remote cache', 
   assert.equal(attempts, 1);
 });
 
-test('Compose inputs keep runtime tokens out of files and provide a cold retry', () => {
+await test('Compose inputs keep runtime tokens out of files and provide a cold retry', () => {
   const temporary = mkdtempSync(join(tmpdir(), 'ci-image-'));
   try {
     const result = spawnSync(process.execPath, ['tools/ci-image.mjs'], {
@@ -108,7 +108,7 @@ test('Compose inputs keep runtime tokens out of files and provide a cold retry',
   }
 });
 
-test('the runtime action masks the token and exports only the cache runtime', () => {
+await test('the runtime action masks the token and exports only the cache runtime', () => {
   const temporary = mkdtempSync(join(tmpdir(), 'cache-runtime-'));
   try {
     const environmentPath = join(temporary, 'env');
@@ -134,7 +134,7 @@ test('the runtime action masks the token and exports only the cache runtime', ()
   }
 });
 
-test('the Compose command retries with only the cold override and keeps failure output', () => {
+await test('the Compose command retries with only the cold override and keeps failure output', () => {
   const temporary = mkdtempSync(join(tmpdir(), 'cache-compose-'));
   try {
     const calls = join(temporary, 'calls');
