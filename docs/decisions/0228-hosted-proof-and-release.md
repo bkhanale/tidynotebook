@@ -1,6 +1,6 @@
 # 0228. Hosted checks prove changes and one workflow releases them
 
-- Status: Accepted
+- Status: Accepted; manual release approval superseded by [0236](0236-versioned-releases-publish-without-manual-approval.md)
 - Date: 2026-10-15
 
 ## Context
