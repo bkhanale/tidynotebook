@@ -9,6 +9,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Changed
 
+- New main and version images publish only to the public `ghcr.io/tidynotebook/tidynotebook` package for linux/amd64 and linux/arm64. Existing `core` tags and digests remain available. Upgrade with the new release's complete image address and digest; do not change only the package name in an old pin. Historical `latest` aliases stay at their old images.
+
 - Contributions no longer require a DCO sign-off. Contributions remain under AGPL-3.0-only, with no contributor license agreement.
 
 ## 0.19.0 - 2026-10-15

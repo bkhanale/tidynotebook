@@ -433,6 +433,16 @@ await test('release proves both native images before the only publication jobs',
       String(step.uses).startsWith('actions/attest-build-provenance@'),
     );
   assert.equal(record(attest?.with)['push-to-registry'], true);
+  const { image } = await import('./release-workflow.mjs');
+  assert.equal(record(attest?.with)['subject-name'], image);
+  assert.equal(
+    publication
+      .map(record)
+      .filter((step) =>
+        String(step.uses).startsWith('actions/attest-build-provenance@'),
+      ).length,
+    1,
+  );
   const download = publication
     .map(record)
     .find((step) => step.run === 'node tools/download-core-artifacts.mjs');

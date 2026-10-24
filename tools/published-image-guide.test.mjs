@@ -28,7 +28,7 @@ const manifest = {
   version: '0.3.5',
   source: { commit },
   image: {
-    reference: 'ghcr.io/tidynotebook/core',
+    reference: 'ghcr.io/tidynotebook/tidynotebook',
     digest: 'sha256:' + 'b'.repeat(64),
   },
 };
@@ -88,7 +88,7 @@ await test('the stable guide selects the public manifest with source and digest 
   assert.match(guide, /and \.source\.commit == \$commit/);
   assert.match(
     guide,
-    /and \.image\.reference == "ghcr\.io\/tidynotebook\/core"/,
+    /and \(\.image\.reference == "ghcr\.io\/tidynotebook\/tidynotebook"/,
   );
   assert.match(guide, /docker compose up -d --no-build --wait/);
 });
@@ -99,7 +99,7 @@ await test('the script selects the official digest from the fixed checkout and m
   assert.match(
     result.stdout,
     new RegExp(
-      '^NOTESAPP_IMAGE=ghcr.io/tidynotebook/core@sha256:' +
+      '^NOTESAPP_IMAGE=ghcr.io/tidynotebook/tidynotebook@sha256:' +
         'b'.repeat(64) +
         '\\n$',
     ),
@@ -145,7 +145,7 @@ await test('the script refuses a different checkout or malformed official asset'
       ...manifest,
       image: {
         ...manifest.image,
-        reference: 'ghcr.io/tidynotebook/tidynotebook',
+        reference: 'ghcr.io/tidynotebook/untrusted',
       },
     },
     {
@@ -193,4 +193,17 @@ await test('a missing guide test tool stops with a clear install action', () => 
   } finally {
     rmSync(bin, { recursive: true, force: true });
   }
+});
+
+await test('historical core manifests keep their original image address', () => {
+  const historical = {
+    ...manifest,
+    image: { ...manifest.image, reference: 'ghcr.io/tidynotebook/core' },
+  };
+  const result = selectImage('v0.3.5', historical);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    result.stdout,
+    `NOTESAPP_IMAGE=${historical.image.reference}@${historical.image.digest}\n`,
+  );
 });

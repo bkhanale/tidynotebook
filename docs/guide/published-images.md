@@ -91,7 +91,8 @@ checks out its new tag, as [Upgrade](upgrade.md) states.
     | select(.repository == "tidynotebook/tidynotebook"
       and .tag == $tag and .version == ($tag | ltrimstr("v"))
       and .source.commit == $commit
-      and .image.reference == "ghcr.io/tidynotebook/core"
+      and (.image.reference == "ghcr.io/tidynotebook/tidynotebook"
+        or .image.reference == "ghcr.io/tidynotebook/core")
       and (.image.digest | type == "string" and length == 71
         and test("^sha256:[a-f0-9]{64}$")))
     | .image.reference + "@" + .image.digest
@@ -125,3 +126,28 @@ The primary install path does not build source. The settings, secret files,
 and migrations use the same release checkout. Keep the manifest and image
 pin with your installation records. Before an upgrade, make and verify a
 backup. See [Upgrade](upgrade.md).
+
+## Image names and existing pins
+
+New releases and main images publish only to
+`ghcr.io/tidynotebook/tidynotebook`. New images are not copied to `core`.
+Existing `ghcr.io/tidynotebook/core` tags and digests remain available.
+Keep the full existing address when you stay on an older release.
+
+For an upgrade, select the new release and use its complete image address
+and digest. Do not replace only the package name in an old pin. An old digest
+is not necessarily available under the new name. Follow the backup and
+migration steps in [Upgrade](upgrade.md).
+
+The selector accepts both official package names and keeps the address from
+the fixed release manifest. Releases through 0.18.1 use the formerly private
+`tidynotebook` package, which is now public. Release 0.19.0 uses `core`.
+The current release workflow creates no release manifest; keep the verified
+image index digest from its run summary with the matching source checkout.
+A future stable release must update the install guides with its exact tag and
+verified image digest before those guides select it.
+
+Historical `latest` aliases remain at their old images. They do not select a
+current stable release. New publication does not update or delete them.
+The image name change does not rename `NOTESAPP_*` settings, Compose projects,
+storage folders, databases, or the local source-build image.

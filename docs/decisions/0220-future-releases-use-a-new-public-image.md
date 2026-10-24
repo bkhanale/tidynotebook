@@ -1,6 +1,6 @@
 # 0220. Future releases use a new public image
 
-- Status: Accepted. Opening time superseded by [0223](0223-core-source-opens-before-distribution.md)
+- Status: Accepted. Opening time superseded by [0223](0223-core-source-opens-before-distribution.md). Image name and package visibility superseded by [0237](0237-new-images-use-the-public-tidynotebook-package.md).
 - Date: 2026-10-11
 
 ## Context

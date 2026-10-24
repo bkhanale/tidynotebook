@@ -54,7 +54,9 @@ else if (process.argv[1].endsWith('/skopeo')) {
   await writeFile(
     shim,
     `globalThis.fetch = async (url) => {
-    if (String(url).includes('/token?')) return Response.json({ token: 'fake' });
+    if (String(url) === 'https://api.github.com/orgs/tidynotebook/packages/container/tidynotebook') return Response.json({visibility: process.env.PRIVATE_PACKAGE ? 'private' : 'public', repository: {full_name: process.env.WRONG_REPOSITORY ? 'other/repository' : 'tidynotebook/tidynotebook'}});
+    if (String(url) === 'https://ghcr.io/token?service=ghcr.io&scope=repository:tidynotebook/tidynotebook:pull') return Response.json({ token: 'fake' });
+    if (String(url) !== 'https://ghcr.io/v2/tidynotebook/tidynotebook/manifests/1.2.3') throw new Error('Unexpected registry request: ' + url);
     return process.env.EXISTS ? Response.json({}, { status: 200 }) : Response.json({ errors: [{ code: 'MANIFEST_UNKNOWN' }] }, { status: 404 });
   };`,
   );
@@ -94,8 +96,9 @@ await test('publication loads and checks both proved archives without rebuilding
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.calls.match(/"load"/g)?.length, 2);
   assert.equal(
-    result.calls.match(/docker:\/\/ghcr.io\/tidynotebook\/core@sha256:/g)
-      ?.length,
+    result.calls.match(
+      /docker:\/\/ghcr.io\/tidynotebook\/tidynotebook@sha256:/g,
+    )?.length,
     2,
   );
   assert.equal(result.calls.match(/"--preserve-digests"/g)?.length, 2);
@@ -105,9 +108,12 @@ await test('publication loads and checks both proved archives without rebuilding
   );
   assert.match(
     result.calls,
-    /"imagetools","create","--tag","ghcr.io\/tidynotebook\/core:main"/,
+    /"imagetools","create","--tag","ghcr.io\/tidynotebook\/tidynotebook:main"/,
   );
-  assert.doesNotMatch(result.calls, /"build"|"run"/);
+  assert.doesNotMatch(
+    result.calls,
+    /"build"|"run"|tidynotebook\/core[:@]|"delete"/,
+  );
   assert.equal(result.output, `digest=sha256:${'2'.repeat(64)}\n`);
 });
 
@@ -151,4 +157,25 @@ await test('the final index must contain exactly the two pushed child digests', 
     assert.match(result.stderr, /exactly the pushed image digests/);
     assert.equal(result.output, '');
   }
+});
+
+for (const fault of ['PRIVATE_PACKAGE', 'WRONG_REPOSITORY']) {
+  await test(`package access fault ${fault} stops before any image write`, async (context) => {
+    const result = await publication(context, { [fault]: '1' });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.calls, '');
+  });
+}
+
+await test('a new fixed version writes only the product package', async (context) => {
+  const result = await publication(context, {
+    GITHUB_REF: 'refs/tags/v1.2.3',
+    VERSION: '1.2.3',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    result.calls,
+    /"imagetools","create","--tag","ghcr.io\/tidynotebook\/tidynotebook:1.2.3"/,
+  );
+  assert.doesNotMatch(result.calls, /tidynotebook\/core[:@]|"delete"|:latest/);
 });

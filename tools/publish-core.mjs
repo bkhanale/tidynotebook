@@ -21,13 +21,38 @@ const sha = process.env.SOURCE_SHA ?? '';
 assert.match(sha, /^[a-f0-9]{40}$/);
 assert.ok(process.env.RUNNER_TEMP);
 
+const packagePath = image.slice('ghcr.io/'.length);
+const [packageOwner, packageName] = packagePath.split('/');
+const access = await fetch(
+  `https://api.github.com/orgs/${packageOwner}/packages/container/${packageName}`,
+  {
+    headers: {
+      authorization: `Bearer ${process.env.GH_TOKEN}`,
+      accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  },
+);
+assert.equal(access.status, 200, 'Cannot read image package access.');
+const packageAccess = record(await access.json());
+assert.equal(
+  packageAccess.visibility,
+  'public',
+  'The image package must be public.',
+);
+assert.equal(
+  record(packageAccess.repository).full_name,
+  repository,
+  'The image package must be linked to this repository.',
+);
+
 // A failed registry read is not proof that a fixed tag is free.
 if (version !== 'main') {
   const authorization = Buffer.from(
     `${process.env.GITHUB_ACTOR}:${process.env.GH_TOKEN}`,
   ).toString('base64');
   const reply = await fetch(
-    'https://ghcr.io/token?service=ghcr.io&scope=repository:tidynotebook/core:pull',
+    `https://ghcr.io/token?service=ghcr.io&scope=repository:${packagePath}:pull`,
     {
       headers: { authorization: `Basic ${authorization}` },
     },
@@ -36,7 +61,7 @@ if (version !== 'main') {
   const token = record(await reply.json()).token;
   assert.equal(typeof token, 'string');
   const manifest = await fetch(
-    `https://ghcr.io/v2/tidynotebook/core/manifests/${version}`,
+    `https://ghcr.io/v2/${packagePath}/manifests/${version}`,
     {
       headers: {
         authorization: `Bearer ${String(token)}`,

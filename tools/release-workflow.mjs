@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { record } from './workspace.mjs';
 
 export const repository = 'tidynotebook/tidynotebook';
-export const image = 'ghcr.io/tidynotebook/core';
+export const image = 'ghcr.io/tidynotebook/tidynotebook';
 
 /** @param {string} ref */
 export function versionFromRef(ref) {
