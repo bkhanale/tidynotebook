@@ -114,6 +114,22 @@ await test('version protection refuses every required-reviewer rule', () => {
   }
 });
 
+await test('version protection refuses wait-timer rules even with a zero delay', () => {
+  for (const waitTimer of [0, 43200]) {
+    assert.throws(
+      () =>
+        requireEnvironment({
+          ...environment,
+          protection_rules: [
+            { type: 'branch_policy' },
+            { type: 'wait_timer', wait_timer: waitTimer },
+          ],
+        }),
+      /Remove the wait timer/,
+    );
+  }
+});
+
 await test('version protection keeps the environment name, bypass and branch-policy guards', () => {
   for (const change of [
     { name: 'other' },
