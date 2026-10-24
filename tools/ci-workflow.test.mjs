@@ -270,7 +270,7 @@ await test('the comment workflow runs trusted code on new comments with narrow a
   assert.doesNotMatch(source, /secrets\.|comment\.body \}\}/);
 });
 
-await test('the image composite uses the job token and exports only on main', async () => {
+await test('the image composite supplies runtime auth and exports only on main', async () => {
   const source = await readFile(
     join(root, '.github/actions/image/action.yml'),
     'utf8',
@@ -282,8 +282,23 @@ await test('the image composite uses the job token and exports only on main', as
   const login = steps
     .map(record)
     .find((step) => String(step.uses).startsWith('docker/login-action@'));
-  assert.match(String(login?.if), /github.ref == 'refs\/heads\/main'/);
-  assert.equal(record(login?.with).password, '${{ github.token }}');
+  assert.equal(login, undefined);
+  const runtime = steps
+    .map(record)
+    .find((step) => step.uses === './.github/actions/cache-runtime');
+  assert.ok(runtime);
+  const prepare = steps
+    .map(record)
+    .find((step) => step.run === 'node tools/ci-image.mjs');
+  assert.equal(
+    record(prepare?.env).CACHE_WRITE,
+    "${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}",
+  );
+  const runtimeAction = await loadYaml(
+    '.github/actions/cache-runtime/action.yml',
+  );
+  assert.equal(record(runtimeAction.runs).using, 'node24');
+  assert.equal(record(runtimeAction.runs).main, 'index.mjs');
 });
 
 await test('checkResults rejects every failed, cancelled or skipped selected job', () => {

@@ -110,8 +110,8 @@ change.
 The local `cache-runtime` JavaScript action supplies `ACTIONS_RUNTIME_TOKEN`
 and `ACTIONS_RESULTS_URL` to shell steps. The token is masked and stays out
 of Compose files and command arguments. Missing runtime values select a build
-without remote cache. Imports and exports have a 60 second timeout. Export
-errors are ignored. A failed build with remote cache retries once with no
+without remote cache. Imports and exports use the bounded timeout in
+`tools/ci-cache.mjs`. Export errors are ignored. A failed build with remote cache retries once with no
 remote cache; the retry must pass. An absent or evicted cache is safe.
 
 [Docker's API v2 requirements](https://docs.docker.com/build/ci/github-actions/cache/)

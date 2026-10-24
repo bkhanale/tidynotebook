@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -103,6 +103,77 @@ test('Compose inputs keep runtime tokens out of files and provide a cold retry',
         cache_to: [],
       },
     );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test('the runtime action masks the token and exports only the cache runtime', () => {
+  const temporary = mkdtempSync(join(tmpdir(), 'cache-runtime-'));
+  try {
+    const environmentPath = join(temporary, 'env');
+    const result = spawnSync(
+      process.execPath,
+      ['.github/actions/cache-runtime/index.mjs'],
+      {
+        env: { ...runtime, GITHUB_ENV: environmentPath },
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      result.stdout,
+      `::add-mask::${runtime.ACTIONS_RUNTIME_TOKEN}\n`,
+    );
+    assert.equal(
+      readFileSync(environmentPath, 'utf8'),
+      `ACTIONS_RUNTIME_TOKEN=${runtime.ACTIONS_RUNTIME_TOKEN}\nACTIONS_RESULTS_URL=${runtime.ACTIONS_RESULTS_URL}\n`,
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test('the Compose command retries with only the cold override and keeps failure output', () => {
+  const temporary = mkdtempSync(join(tmpdir(), 'cache-compose-'));
+  try {
+    const calls = join(temporary, 'calls');
+    writeFileSync(
+      join(temporary, 'docker'),
+      `#!/bin/sh
+printf '%s\\n' "$*" >> "$CACHE_TEST_CALLS"
+case "$*" in
+  *ci-image-cold.yaml*) exit "$CACHE_TEST_COLD_STATUS" ;;
+  *) echo 'Original cache build failure' >&2; exit 1 ;;
+esac
+`,
+      { mode: 0o700 },
+    );
+    for (const status of ['0', '9']) {
+      writeFileSync(calls, '');
+      const result = spawnSync(
+        process.execPath,
+        ['tools/ci-cache.mjs', 'compose'],
+        {
+          env: {
+            ...process.env,
+            ...runtime,
+            PATH: temporary,
+            RUNNER_TEMP: temporary,
+            CACHE_TEST_CALLS: calls,
+            CACHE_TEST_COLD_STATUS: status,
+          },
+          encoding: 'utf8',
+        },
+      );
+      assert.equal(result.status, Number(status), result.stderr);
+      assert.match(result.stderr, /Original cache build failure/);
+      assert.match(result.stderr, /Retry without remote cache/);
+      assert.deepEqual(readFileSync(calls, 'utf8').trim().split('\n'), [
+        `compose -f docker-compose.yml -f ${temporary}/ci-image.yaml build`,
+        `compose -f docker-compose.yml -f ${temporary}/ci-image-cold.yaml build`,
+      ]);
+    }
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
