@@ -13,6 +13,7 @@ proof and leaves locks that need manual recovery.
 - Required hosted checks replace local proof. `.github/workflows/ci.yml`
   runs on each PR and merge group. A document-only change runs format, the
   document check and DCO. A tested path classifier selects this narrow path; unknown paths and executable inputs run full source checks.
+  The sign-off guidance is replaced by [record 0233](0233-contributions-do-not-require-sign-off.md).
 - Source checks run contract, generated output, types, lint, format, build,
   unit tests, integration tests and performance budgets in parallel jobs. Shard integration tests as needed. Each job owns its database and file store. A required final check refuses failed, cancelled or unexpectedly skipped work.
 - Image input changes also build and test the image in CI. Extend

@@ -19,6 +19,8 @@ readback and anonymous source access checks follow that switch.
 
 This supersedes only the opening-time rule in record 0188 and its reference
 in record 0220. AGPL-3.0-only, DCO, ownership and the core boundary stay.
+The sign-off guidance is replaced by [record 0233](0233-contributions-do-not-require-sign-off.md).
+
 Image publication and cloud launch do not block source opening. They remain
 separate work that needs its own authorization and proof.
 

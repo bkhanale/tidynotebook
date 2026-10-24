@@ -21,6 +21,8 @@ The verify, performance and image jobs stay in the same file. They run only
 when a person starts the workflow by hand. The DCO workflow does not change.
 Dependabot runs once a month and opens fewer pull requests.
 
+The sign-off guidance is replaced by [record 0233](0233-contributions-do-not-require-sign-off.md).
+
 The local `pnpm verify` stays the landing gate (record 0154). After record
 0223 opens the source, hosted runners have no minute limit.
 

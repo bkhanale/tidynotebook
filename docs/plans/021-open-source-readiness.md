@@ -48,7 +48,8 @@ policy needs a decision record before its implementation.
 
 - [x] The accepted decision selects AGPL-3.0-only and states existing ownership.
 - [x] The root license, manifests and contracts agree.
-- [x] The DCO check proves the outside contribution rule.
+- [x] Contributions require no DCO sign-off.
+      See [0233](../decisions/0233-contributions-do-not-require-sign-off.md).
 - [ ] Required copied and bundled notices reach each distributed artifact.
 - [ ] The shipped license graph has a recorded compatibility and source review.
 - [x] The owner accepts a separate core package for future compliant images.
@@ -80,7 +81,8 @@ policy needs a decision record before its implementation.
 ### GitHub and launch
 
 - [x] Workflow actions use full commit pins and default token access is read-only.
-- [x] The DCO target job uses only the base script.
+- [x] No DCO check or target job is required.
+      See [0233](../decisions/0233-contributions-do-not-require-sign-off.md).
 - [ ] Public branch controls fit the accepted landing path and refuse force pushes.
 - [ ] Dependency alerts, secret protection and private reporting are enabled and read back where available.
 - [x] The issue path and owner administrator access are checked without exposing cloud work.

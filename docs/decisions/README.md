@@ -258,6 +258,7 @@ the development process. Old process records remain as history.
 | [0230](0230-the-notebook-is-the-official-mark.md)                                     | The notebook is the official mark                                               |
 | [0231](0231-hosted-ci-checks-each-push.md)                                            | Hosted CI checks each push                                                      |
 | [0232](0232-every-core-email-has-html-and-plain-text.md)                              | Every core email has HTML and plain text                                        |
+| [0233](0233-contributions-do-not-require-sign-off.md)                                 | Contributions do not require sign-off                                           |
 | [0234](0234-public-issues-are-the-work-entry-point.md)                                | Public issues are the work entry point                                          |
 | [0235](0235-authors-may-request-approval-after-clean-reviews.md)                      | Authors may request approval after clean reviews                                |
 
