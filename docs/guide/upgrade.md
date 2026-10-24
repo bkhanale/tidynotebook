@@ -17,7 +17,21 @@ states. Keep the archive.
 Run these commands in the installation's clone folder. Replace `vX.Y.Z`
 with the new release tag. Keep the same tag for the checkout and image selection.
 Before you change the checkout, record the current release tag with the backup.
-You need that tag to rebuild a source image during rollback.
+For a source-built installation, preserve the current local image under that tag:
+
+```bash
+(
+  set -euo pipefail
+  tag="$(git describe --tags --exact-match)"
+  image="$(env -u NOTESAPP_IMAGE docker compose --env-file .env config --format json |
+    jq -er '.services.app.image | select(test("^[^[:space:]#]+$"))')"
+  docker image tag "$image" "notesapp-source:$tag"
+)
+```
+
+For example, this tags `notesapp:latest` as `notesapp-source:v0.18.1` when the
+current checkout is `v0.18.1`. Stop if this command fails. Keep the tagged image
+on the Docker host until the upgrade and backup checks are complete.
 
 1. Fetch the new tag and check it out:
 
@@ -32,8 +46,8 @@ You need that tag to rebuild a source image during rollback.
 2. Choose the path for the current installation:
 
    - **Built from source:** this includes installations on release 0.18.1 and
-     older. Skip the save command below. Rollback requires a build from the old
-     tag, as [Contributor source builds](#contributor-source-builds) shows.
+     older. Skip the save command below. Rollback uses the preserved local
+     image, as [Contributor source builds](#contributor-source-builds) shows.
    - **Published image:** save the current image setting with this command:
 
    ```bash
@@ -86,11 +100,18 @@ completes.
 
 There is no downward migration. To go back to the old release:
 
-1. Restore the verified backup from before the upgrade into an empty target.
-   See [Backup and restore](backup-and-restore.md#restore).
-2. Check out the old release tag. For a source-built installation, complete
-   [Contributor source builds](#contributor-source-builds) from that tag, then
-   continue with step 3. Releases up to 0.18.1 require this source-build path.
+Use a new, empty target. Do not reuse the upgraded database or start an old
+image against it. A restore does not remove every object that a newer release
+can add.
+
+1. In the clone for the empty target, check out the old release tag. Prepare
+   the target settings and empty data folders without starting the application.
+   Select or prepare its old image **before** restore. For a source-built
+   installation, run only the preparation block in
+   [Contributor source builds](#contributor-source-builds). It reuses the
+   preserved image when available and saves its per-tag name in `.env`.
+   Do not run that section's startup command yet. Releases up to 0.18.1
+   require this source-image path.
 
    For a published release, either [select its image again](published-images.md#select-the-stable-image),
    or restore the saved setting:
@@ -113,11 +134,26 @@ There is no downward migration. To go back to the old release:
    `.env`. If the saved image is empty, invalid, or the source-build fallback, it
    stops and keeps the current settings.
 
+2. Restore the verified backup from before the upgrade. In
+   [Backup and restore](backup-and-restore.md#restore), keep the old checkout
+   and selected image from rollback step 1. For the first startup in restore
+   step 1, use this command instead of a build or image-selection command:
+
+   ```bash
+   docker compose up -d --no-build --wait
+   ```
+
+   This initializes the empty database with the old schema. Complete restore
+   steps 2 through 6. Do not select the newer stable image or reuse its database.
+   Skip restore step 7: rollback step 3 below replaces it.
+
 3. Start the old release against the restored data:
 
    ```bash
    docker compose up -d --no-build --wait
    ```
+
+   Then complete the readiness and backup checks in restore step 8.
 
 Do not copy a database without its attachments. Do not copy attachments
 without the database from the same moment. The two parts are one backup.
@@ -125,15 +161,18 @@ without the database from the same moment. The two parts are one backup.
 ## Contributor source builds
 
 Use a tagged checkout. For rollback, check out the old release tag first.
-For example, `v0.18.1` produces `notesapp-source:v0.18.1`. Build the application,
-then save this per-tag image name in `.env` through a validated temporary file:
+For example, `v0.18.1` selects `notesapp-source:v0.18.1`. The preparation block
+reuses that local image if it exists. Otherwise, it builds the application.
+It then saves the per-tag name in `.env` through a validated temporary file:
 
 ```bash
 (
   set -euo pipefail
   tag="$(git describe --tags --exact-match)"
   image="notesapp-source:$tag"
-  NOTESAPP_IMAGE="$image" docker compose build app
+  if ! docker image inspect "$image" > /dev/null 2>&1; then
+    NOTESAPP_IMAGE="$image" docker compose build app
+  fi
   settings_file="$(mktemp .env.XXXXXX)"
   trap 'rm -f "$settings_file"' EXIT
   awk '!/^[[:space:]]*NOTESAPP_IMAGE[[:space:]]*=/' .env > "$settings_file"
@@ -146,7 +185,8 @@ then save this per-tag image name in `.env` through a validated temporary file:
 ```
 
 Stop if the build or settings check fails. The current settings stay in place.
-Then start the saved image:
+For rollback, return to [Going back](#going-back) and complete the restore
+before startup. For a new source installation, start the saved image:
 
 ```bash
 docker compose up -d --no-build --wait
