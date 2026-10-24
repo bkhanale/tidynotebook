@@ -131,8 +131,8 @@ of the open repository. It has two forms:
   private module to the core.
 
 The license decides between the two. The core opens under AGPL, and outside
-contributions come in under AGPL with a sign-off and no contributor license
-agreement. Private code that runs in the same process as that code must be
+contributions come in under AGPL with no contributor license agreement or
+required sign-off. Private code that runs in the same process as that code must be
 offered as source too, unless every contributor signs a CLA, which keeps many
 contributors away. A separate program that talks over HTTP is not a part of
 the core.
@@ -171,8 +171,8 @@ edition.
 
 Option B is the choice, as AGPL-3.0-only. The owner holds every copyright
 today, so the change needs no consent from anybody. Contributions come in under
-the same license with a Developer Certificate of Origin sign-off. The repository
-can open before image publication and cloud launch under
+the same license, with no required sign-off. The repository can open before
+image publication and cloud launch under
 [record 0223](../decisions/0223-core-source-opens-before-distribution.md).
 
 The current contribution terms require no sign-off. See
