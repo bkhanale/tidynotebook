@@ -142,10 +142,9 @@ migration steps in [Upgrade](upgrade.md).
 The selector accepts both official package names and keeps the address from
 the fixed release manifest. Releases through 0.18.1 use the formerly private
 `tidynotebook` package, which is now public. Release 0.19.0 uses `core`.
-The current release workflow creates no release manifest; keep the verified
-image index digest from its run summary with the matching source checkout.
-A future stable release must update the install guides with its exact tag and
-verified image digest before those guides select it.
+Without a release manifest, take the verified image index digest from the run
+summary of the matching release. Keep that digest with the matching source
+checkout.
 
 Historical `latest` aliases remain at their old images. They do not select a
 current stable release. New publication does not update or delete them.
