@@ -64,6 +64,8 @@ await test('only image infrastructure selects image smoke', () => {
     'tools/publish-core.mjs',
     'tools/download-core-artifacts.mjs',
     'tools/ci-image.mjs',
+    'tools/ci-cache.mjs',
+    '.github/actions/cache-runtime/index.mjs',
     'package.json',
     'pnpm-workspace.yaml',
     '.node-version',

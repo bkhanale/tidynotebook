@@ -78,8 +78,8 @@ await test('CI selects hosted checks and has one fail-closed aggregate', async (
     record(jobs.nightly).if,
     "${{ !cancelled() && needs.check.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}",
   );
-  assert.equal(record(record(jobs.image).permissions).packages, 'read');
-  assert.equal(record(record(jobs.image_main).permissions).packages, 'write');
+  assert.equal(record(record(jobs.image).permissions).packages, undefined);
+  assert.equal(record(record(jobs.image_main).permissions).packages, undefined);
   assert.equal(record(jobs.image_main).needs, 'scope');
   assert.equal(record(jobs.image).needs, 'scope');
   assert.match(
@@ -387,7 +387,7 @@ await test('release proves both native images before the only publication jobs',
   const commands = steps.map((step) => String(step.run)).join('\n');
   assert.match(
     commands,
-    /--cache-from "type=registry,ref=ghcr.io\/tidynotebook\/tidynotebook\/ci-cache:\$ARCH"/,
+    /node tools\/ci-cache.mjs native --load --provenance=false/,
   );
   assert.doesNotMatch(commands, /--push|--cache-to/);
   for (const [name, raw] of Object.entries(jobs)) {

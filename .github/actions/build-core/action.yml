@@ -25,6 +25,7 @@ runs:
         node-version-file: .node-version
         package-manager-cache: false
     - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+    - uses: ./.github/actions/cache-runtime # zizmor: ignore[self-repository]
     - name: Build the native image with the shared cache
       env:
         ARCH: ${{ inputs.arch }}
@@ -32,8 +33,7 @@ runs:
         VERSION: ${{ inputs.version }}
       shell: bash
       run: |
-        docker buildx build --load --provenance=false --platform "linux/$ARCH" \
-          --cache-from "type=registry,ref=ghcr.io/tidynotebook/tidynotebook/ci-cache:$ARCH" \
+        node tools/ci-cache.mjs native --load --provenance=false --platform "linux/$ARCH" \
           --label "org.opencontainers.image.source=https://github.com/tidynotebook/tidynotebook" \
           --label "org.opencontainers.image.revision=$SOURCE_SHA" \
           --label "org.opencontainers.image.version=$VERSION" --tag "notesapp:$ARCH" .

@@ -15,8 +15,9 @@ GitHub Actions app `15368`. A PR branch push supplies this proof after a fast
 forward merge. Fork runs and checks from other apps cannot supply it.
 
 Both native images pass the distribution source and notice proofs before
-publication. Builds read `ghcr.io/tidynotebook/tidynotebook/ci-cache:amd64` and
-`:arm64`; they do not write caches. Tested image archives expire after one day.
+publication. Builds restore the Actions API v2 caches `core-amd64` and
+`core-arm64`; release builds do not write caches. Tested image archives expire
+after one day.
 Publication checks each immutable artifact ID and the SHA-256 of its ZIP
 against the native build outputs before extraction. It uses Skopeo to copy the
 tested images by digest without a rebuild or public architecture tags. Conversion
@@ -95,3 +96,35 @@ their one-day expiry. A recovery that writes missing provenance needs a
 separate reviewed workflow for that exact published digest and its original
 tested artifacts. The normal publication path has no resume mode and refuses
 an existing fixed tag. This image-name change adds no recovery write path.
+
+## Build cache
+
+CI uses the GitHub Actions cache, with a separate scope for each architecture.
+Only canonical repository main push and manual main CI builds export caches.
+Branch and fork PR builds restore accessible default-branch caches or build
+without them. Stable tags and native release builds only restore caches.
+No build needs a GHCR cache package or registry login for cache access.
+Existing public image names, version pins, publication, and provenance do not
+change.
+
+The local `cache-runtime` JavaScript action supplies `ACTIONS_RUNTIME_TOKEN`
+and `ACTIONS_RESULTS_URL` to shell steps. The token is masked and stays out
+of Compose files and command arguments. Missing runtime values select a build
+without remote cache. Imports and exports have a 60 second timeout. Export
+errors are ignored. A failed build with remote cache retries once with no
+remote cache; the retry must pass. An absent or evicted cache is safe.
+
+[Docker's API v2 requirements](https://docs.docker.com/build/ci/github-actions/cache/)
+are Buildx 0.21.0, BuildKit 0.20.0, and Compose 2.33.1 or later. The pinned
+Buildx setup action installs the current Buildx and a container builder with
+current BuildKit. CI uses hosted runner Compose. Build logs show the installed
+versions. An incompatible cache backend can fall back to the full build.
+See [runtime authentication and cache scopes](https://docs.docker.com/build/cache/backends/gha/)
+and [Compose cache support](https://docs.docker.com/reference/compose-file/build/#cache_from).
+
+Before cache-package retirement, check main exports and later warm restores for
+both scopes in hosted logs. Check a fork PR restore or full build too. A branch
+PR cannot prove a main export. Local builds cannot prove the hosted runtime
+authentication or default-branch cache access. Do not create a release tag for
+cache validation. Keep the old public cache version until all consumers have
+migrated and older jobs have finished.

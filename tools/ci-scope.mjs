@@ -18,6 +18,7 @@ const imageFiles = new Set([
   'tsconfig.json',
   'tsconfig.base.json',
   'tools/ci-image.mjs',
+  'tools/ci-cache.mjs',
   '.github/workflows/release.yml',
   'tools/release-workflow.mjs',
   'tools/publish-core.mjs',
@@ -45,7 +46,7 @@ export function classifyImpact(paths) {
     image: paths.some(
       (path) =>
         imageFiles.has(path) ||
-        /^(?:docker\/|tests\/image\/|\.github\/actions\/(?:image|publish-core|build-core)\/|tools\/third-party\/|tools\/[^/]*sources[^/]*\.json$|patches\/|(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$|(?:apps|packages)\/[^/]+\/(?:package\.json|tsconfig(?:\.[^/]+)?\.json)$|tools\/sdk-codegen\/(?:package|tsconfig)\.json$)/.test(
+        /^(?:docker\/|tests\/image\/|\.github\/actions\/(?:image|publish-core|build-core|cache-runtime)\/|tools\/third-party\/|tools\/[^/]*sources[^/]*\.json$|patches\/|(?:docker-)?compose(?:[.-][^/]*)?\.ya?ml$|(?:apps|packages)\/[^/]+\/(?:package\.json|tsconfig(?:\.[^/]+)?\.json)$|tools\/sdk-codegen\/(?:package|tsconfig)\.json$)/.test(
           path,
         ),
     ),

@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { imageCache } from './ci-cache.mjs';
 
 const temporary = process.env.RUNNER_TEMP;
 const environmentPath = process.env.GITHUB_ENV;
@@ -17,23 +18,22 @@ for (const name of [
   'auth_secret',
 ])
   writeFileSync(join(secrets, name), 'ci-placeholder', { mode: 0o600 });
-const ref = `ghcr.io/${process.env.GITHUB_REPOSITORY?.toLowerCase()}/ci-cache:amd64`;
-writeFileSync(
-  join(temporary, 'ci-image.yaml'),
-  JSON.stringify({
-    services: {
-      app: {
-        build: {
-          platforms: ['linux/amd64'],
-          cache_from: [`type=registry,ref=${ref}`],
-          ...(process.env.CACHE_WRITE === 'true'
-            ? { cache_to: [`type=registry,ref=${ref},mode=max`] }
-            : {}),
+const cache = imageCache('amd64');
+for (const cold of [false, true])
+  writeFileSync(
+    join(temporary, cold ? 'ci-image-cold.yaml' : 'ci-image.yaml'),
+    JSON.stringify({
+      services: {
+        app: {
+          build: {
+            platforms: ['linux/amd64'],
+            cache_from: cold ? [] : cache.from,
+            cache_to: cold ? [] : cache.to,
+          },
         },
       },
-    },
-  }),
-);
+    }),
+  );
 appendFileSync(
   environmentPath,
   `NOTESAPP_SECRETS_DIR=${secrets}\nNOTESAPP_DATABASE_DIR=${temporary}/notesapp-postgres\nNOTESAPP_STORAGE_DIR=${temporary}/notesapp-storage\n`,

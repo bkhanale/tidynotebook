@@ -1,0 +1,5 @@
+name: Expose the Actions cache runtime
+description: Supply runtime authentication to shell and Compose builds.
+runs:
+  using: node24
+  main: index.mjs
