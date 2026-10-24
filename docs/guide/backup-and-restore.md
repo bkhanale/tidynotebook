@@ -33,8 +33,9 @@ the storage layout.
   AWS SDK.
 - `jq` to create the S3 settings file in the configuration step below.
 
-During a backup, the storage-root volume needs free space of roughly three
-times the combined database and attachment size.
+During a backup, allow free space of roughly three times the combined database
+and attachment size on the storage-root volume. The command holds the staged
+files, the plaintext tar, and the encrypted archive at the same time.
 
 If you made these files yourself, each one must have mode `0600`. The key file
 holds at least 32 bytes of strong random data. The ID file holds one UUID.
@@ -143,8 +144,8 @@ sudo install -m 600 /dev/null /etc/notesapp/backup-s3.json
 ```
 
 Use your bucket, region, endpoint, and the host paths of the credential files
-from [Object storage](operations.md#object-storage). For AWS, set `endpoint`
-to `null`. The backup command ignores endpoint overrides from AWS environment
+from [Object storage](operations.md#object-storage). The backup command ignores
+endpoint overrides from AWS environment
 variables and shared profiles. For R2 or MinIO, use an HTTPS endpoint that the backup host can
 reach. A container-only host name does not work from the host. HTTP is accepted only on a loopback address for a local store.
 
