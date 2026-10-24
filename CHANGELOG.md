@@ -7,11 +7,34 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## Unreleased
 
+## 0.20.0 - 2026-10-24
+
+### Added
+
+- MCP clients can append text to a note or section, or apply exact range edits with safe retries and receipts.
+- Every core email has HTML and plain text from one shared template. Email actions remain readable in dark mode and Proton Mail.
+- New accounts get a welcome note. A pending note can complete after account activation through browser session access.
+- Public pages share account layouts, the official notebook mark, and a footer. Application and documentation links have generic social previews.
+
 ### Changed
 
-- New main and version images publish only to the public `ghcr.io/tidynotebook/tidynotebook` package for linux/amd64 and linux/arm64. Existing `core` tags and digests remain available. Upgrade with the new release's complete image address and digest; do not change only the package name in an old pin. Historical `latest` aliases stay at their old images.
-
+- New main and version images publish only to the public `ghcr.io/tidynotebook/tidynotebook` package for `linux/amd64` and `linux/arm64`. Existing `core` tags and digests remain available. Upgrade with the new release's complete image address and digest; do not change only the package name in an old pin. Historical `latest` aliases stay at their old images.
+- Versioned image releases run without manual approval. The release environment keeps its version-tag policy and disabled administrator bypass. Both native images pass source and notice checks before publication, and the image index has GitHub OIDC provenance.
+- The primary install path selects a stable image by digest. Install and upgrade guidance covers platform selection, backups, migrations, and rollback for both published and source-built images.
 - Contributions no longer require a DCO sign-off. Contributions remain under AGPL-3.0-only, with no contributor license agreement.
+- CI selects checks for each change. The fast forward merge workflow keeps the exact reviewed head and dispatches main image publication after merge.
+
+### Fixed
+
+- S3 backups include attachments. Backup archives are verified before publication. Restore guidance covers storage targets and mail credential repair; tests verify target contents and refusal safety.
+- API-key and delegated reads do not create pending welcome notes, including when a browser cookie is present. Completed session reads preserve welcome timestamps. Expected refusals and unexpected failures have separate log events with fixed levels.
+- Checklist text and completed links use muted styles. List dragging keeps the viewport position, and Markdown parsing keeps bounded cached blocks.
+- Email and web autolinks use the correct destination. External protocol actions save drafts first and stop when the draft changes.
+- Public page scrolling, account error actions, guide contents scrolling, and installation footer links use the shared layouts correctly.
+
+### Security
+
+- Update Node to 26.12.1 and update dependencies and their distribution notices.
 
 ## 0.19.0 - 2026-10-15
 
